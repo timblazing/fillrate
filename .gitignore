@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+data/
+*.sqlite*
+.env
+.env.local
+.DS_Store
+*.tsbuildinfo
+.venv/
+__pycache__/
+.playwright-mcp/

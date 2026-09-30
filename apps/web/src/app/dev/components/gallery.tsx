@@ -1,0 +1,213 @@
+"use client"
+
+import dynamic from "next/dynamic"
+import { Fragment, useEffect, useRef, useState } from "react"
+import { FlaskConical, Hash, Search } from "lucide-react"
+
+import { ThemeToggle } from "@/components/theme/theme-toggle"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Command,
+  CommandCollection,
+  CommandDialog,
+  CommandDialogPopup,
+  CommandEmpty,
+  CommandGroup,
+  CommandGroupLabel,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandPanel,
+  CommandSeparator,
+} from "@/components/ui/command"
+import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
+
+import { Blocks } from "./sections/blocks"
+import { Charts } from "./sections/charts"
+import { Foundations } from "./sections/foundations"
+import { Lab } from "./sections/lab"
+import { Primitives } from "./sections/primitives"
+import { Group, Specimen, toc } from "./specimen"
+
+const MapDemo = dynamic(() => import("./map-demo"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[460px] w-full rounded-xl" />,
+})
+
+const allIds = toc.flatMap((g) => g.items.map(([id]) => id))
+
+type JumpItem = { value: string; label: string; id: string }
+const jumpGroups = toc.map((g) => ({
+  value: g.title,
+  items: g.items.map(([id, title]): JumpItem => ({ value: id, label: title, id })),
+}))
+
+// Highlights the specimen nearest the top of the viewport.
+function useActiveSection() {
+  const [active, setActive] = useState<string>(allIds[0])
+  useEffect(() => {
+    const visible = new Map<string, number>()
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) visible.set(e.target.id, e.boundingClientRect.top)
+          else visible.delete(e.target.id)
+        }
+        const first = allIds.find((id) => visible.has(id))
+        if (first) setActive(first)
+      },
+      { rootMargin: "-64px 0px -55% 0px" }
+    )
+    for (const id of allIds) {
+      const el = document.getElementById(id)
+      if (el) observer.observe(el)
+    }
+    return () => observer.disconnect()
+  }, [])
+  return active
+}
+
+function jump(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+  history.replaceState(null, "", `#${id}`)
+}
+
+export function Gallery() {
+  const active = useActiveSection()
+  const navRef = useRef<HTMLElement>(null)
+
+  // Keep the active nav item visible inside the scrollable sticky nav, without moving the page.
+  useEffect(() => {
+    const nav = navRef.current
+    const link = nav?.querySelector<HTMLElement>(`a[href="#${active}"]`)
+    if (!nav || !link) return
+    const top = link.offsetTop // the sticky nav is the offsetParent
+    if (top < nav.scrollTop + 40 || top > nav.scrollTop + nav.clientHeight - 80) {
+      nav.scrollTo({ top: top - nav.clientHeight / 3, behavior: "smooth" })
+    }
+  }, [active])
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setOpen((o) => !o)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
+  return (
+    <div className="min-h-svh">
+      <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur-md sm:px-6">
+        <div className="bg-foreground text-background flex size-7 items-center justify-center rounded-lg">
+          <FlaskConical className="size-4" />
+        </div>
+        <span className="font-semibold tracking-tight">PyVRP Lab</span>
+        <span className="text-muted-foreground hidden text-sm sm:inline">/ design system</span>
+        <Badge variant="outline" className="hidden sm:inline-flex">
+          dev only
+        </Badge>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" className="text-muted-foreground justify-start sm:w-44" onClick={() => setOpen(true)} aria-label="Jump to component">
+            <Search /> <span className="hidden sm:inline">Jump to…</span>
+            <KbdGroup className="ml-auto hidden sm:inline-flex">
+              <Kbd>⌘</Kbd>
+              <Kbd>K</Kbd>
+            </KbdGroup>
+          </Button>
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <CommandDialog open={open} onOpenChange={setOpen}>
+        <CommandDialogPopup>
+          <Command items={jumpGroups}>
+            <CommandInput placeholder="Search components…" />
+            <CommandPanel>
+              <CommandEmpty>No components found.</CommandEmpty>
+              <CommandList>
+                {(group: (typeof jumpGroups)[number]) => (
+                  <Fragment key={group.value}>
+                    <CommandGroup items={group.items}>
+                      <CommandGroupLabel>{group.value}</CommandGroupLabel>
+                      <CommandCollection>
+                        {(item: JumpItem) => (
+                          <CommandItem
+                            key={item.id}
+                            value={item}
+                            onClick={() => {
+                              setOpen(false)
+                              jump(item.id)
+                            }}
+                          >
+                            <Hash /> {item.label}
+                          </CommandItem>
+                        )}
+                      </CommandCollection>
+                    </CommandGroup>
+                    <CommandSeparator />
+                  </Fragment>
+                )}
+              </CommandList>
+            </CommandPanel>
+          </Command>
+        </CommandDialogPopup>
+      </CommandDialog>
+
+      <div className="mx-auto flex max-w-[88rem] gap-12 px-4 pt-14 pb-32 sm:px-6">
+        <nav ref={navRef} className="sticky top-20 hidden h-[calc(100svh-6rem)] w-48 shrink-0 overflow-y-auto pb-8 text-sm lg:block" aria-label="Gallery sections">
+          {toc.map((g, gi) => (
+            <div key={g.id} className="mb-5">
+              <a href={`#${g.id}`} className="text-foreground mb-1.5 flex items-center gap-2 px-2 text-xs font-semibold">
+                <span className="text-muted-foreground font-mono tabular-nums">{String(gi + 1).padStart(2, "0")}</span>
+                {g.title}
+              </a>
+              <ul className="border-border ml-3 space-y-px border-l">
+                {g.items.map(([id, title]) => (
+                  <li key={id}>
+                    <a
+                      href={`#${id}`}
+                      className={cn(
+                        "-ml-px block border-l py-1 pl-3 transition-colors duration-150",
+                        active === id
+                          ? "border-foreground text-foreground font-medium"
+                          : "text-muted-foreground hover:text-foreground border-transparent"
+                      )}
+                    >
+                      {title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        <main className="min-w-0 flex-1 space-y-24">
+          <Foundations />
+          <Primitives onOpenCommand={() => setOpen(true)} />
+          <Lab />
+          <Charts />
+          <Group id="maps" index={5} title="Map" description="mapcn on MapLibre. Canvas layers get colors from useCssColors, since MapLibre can't read CSS variables.">
+            <Specimen
+              id="map"
+              title="Routes map"
+              source="@mapcn/map · map-demo.tsx"
+              spec="§4"
+              description="Straight schematic connections, not road geometry. Toggle a route, click a stop for its popup."
+            >
+              <MapDemo />
+            </Specimen>
+          </Group>
+          <Blocks />
+        </main>
+      </div>
+    </div>
+  )
+}

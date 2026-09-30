@@ -1,0 +1,13 @@
+{
+  "name": "pyvrp-lab",
+  "private": true,
+  "packageManager": "bun@1.4.2",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "bun run --filter web dev",
+    "build": "bun run --filter web build",
+    "lint": "bun run --filter web lint",
+    "typecheck": "bun run --filter web typecheck"
+  },
+  "trustedDependencies": ["sharp", "unrs-resolver"]
+}
