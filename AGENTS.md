@@ -1,9 +1,9 @@
-# PyVRP Lab: agent instructions
+# Fillrate: agent instructions
 
 Canonical instructions for Codex and Claude Code (`CLAUDE.md` just imports this file).
 
 ## Start of every session
-1. Read this file, `docs/progress.md`, `docs/decisions.md`, and the relevant sections of `pyvrp-lab-technical-spec.md`.
+1. Read this file, `docs/progress.md`, `docs/decisions.md`, and the relevant sections of `fillrate-technical-spec.md`.
 2. Work on a short-lived branch; commit messages reference the milestone (e.g. `M1: …`).
 3. Before ending: update `docs/progress.md` and append to `docs/decisions.md`; leave lint/typecheck/build passing or record exactly what fails.
 
@@ -16,7 +16,7 @@ packages/contracts    Shared API contracts / generated types (not started)
 examples              Bundled lesson scenarios (not started)
 docs                  decisions.md, progress.md, and other docs
 deploy                Compose, OSRM prep (not started)
-pyvrp-lab.fig         OpenPencil design file: Foundations / Components / Blocks
+fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 ```
 
 ## Commands (run from the repo root; Bun is the package manager and script runner, Node 24 is the runtime)

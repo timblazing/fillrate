@@ -30,11 +30,11 @@ export function ConfigDiff({
           <div className="truncate px-3 py-1.5" title={r.field}>
             {r.field}
           </div>
-          <div className={cn("border-l px-3 py-1.5", !r.same && "bg-destructive/8 text-destructive")}>
+          <div className={cn("border-l px-3 py-1.5", !r.same && "bg-destructive/8 text-destructive-foreground")}>
             {!r.same && <span className="mr-1.5 select-none">−</span>}
             {r.a}
           </div>
-          <div className={cn("border-l px-3 py-1.5", !r.same && "bg-route-3/10 text-route-3")}>
+          <div className={cn("border-l px-3 py-1.5", !r.same && "bg-success/10 text-success-foreground")}>
             {!r.same && <span className="mr-1.5 select-none">+</span>}
             {r.b}
           </div>

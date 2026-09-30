@@ -6,18 +6,21 @@ import {
   columnFilteringFeature,
   createColumnHelper,
   createFilteredRowModel,
+  createPaginatedRowModel,
   createSortedRowModel,
   filterFn_includesString,
   globalFilteringFeature,
+  rowPaginationFeature,
   rowSelectionFeature,
   rowSortingFeature,
   sortFn_alphanumeric,
   tableFeatures,
   useTable,
 } from "@tanstack/react-table"
-import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { useState } from "react"
 
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -32,6 +35,8 @@ export const dataTableFeatures = tableFeatures({
   filteredRowModel: createFilteredRowModel(),
   filterFns: { includesString: filterFn_includesString },
   rowSelectionFeature,
+  rowPaginationFeature,
+  paginatedRowModel: createPaginatedRowModel(),
 })
 
 export type DataTableColumn<T extends RowData> = ColumnDef<typeof dataTableFeatures, T, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -40,7 +45,8 @@ export function dataTableColumns<T extends RowData>() {
   return createColumnHelper<typeof dataTableFeatures, T>()
 }
 
-// TanStack Table v9 + shadcn Table (spec §2). Rows are keyed by stable ID so selection syncs with map/timeline.
+// TanStack Table v9 + coss Table (spec §2). Rows are keyed by stable ID so selection syncs with map/timeline.
+// Paginated so a 2,000-order scenario stays responsive; the pager hides when everything fits on one page.
 export function DataTable<T extends { id: string }>({
   columns,
   data,
@@ -48,6 +54,7 @@ export function DataTable<T extends { id: string }>({
   onSelectedChange,
   toolbar,
   filterPlaceholder = "Filter…",
+  pageSize = 50,
   className,
 }: {
   columns: DataTableColumn<T>[]
@@ -56,6 +63,7 @@ export function DataTable<T extends { id: string }>({
   onSelectedChange?: (id: string | null) => void
   toolbar?: React.ReactNode
   filterPlaceholder?: string
+  pageSize?: number
   className?: string
 }) {
   const [filter, setFilter] = useState("")
@@ -88,11 +96,14 @@ export function DataTable<T extends { id: string }>({
     ],
     getRowId: (row) => row.id,
     globalFilterFn: "includesString",
+    initialState: { pagination: { pageIndex: 0, pageSize } },
     state: { globalFilter: filter },
     onGlobalFilterChange: (v) => setFilter(typeof v === "function" ? v(filter) : v),
   })
 
   const count = Object.keys(table.state.rowSelection).length
+  const filtered = table.getFilteredRowModel().rows.length
+  const { pageIndex } = table.state.pagination
 
   return (
     <div className={cn("overflow-hidden rounded-xl border", className)}>
@@ -106,7 +117,7 @@ export function DataTable<T extends { id: string }>({
         {toolbar}
         <span className="text-muted-foreground ml-auto pr-1 text-xs tabular-nums">
           {count > 0 ? `${count} selected · ` : ""}
-          {table.getRowModel().rows.length} of {data.length} rows
+          {filtered.toLocaleString("en-US")} of {data.length.toLocaleString("en-US")} rows
         </span>
       </div>
       <Table>
@@ -165,6 +176,22 @@ export function DataTable<T extends { id: string }>({
           )}
         </TableBody>
       </Table>
+      {table.getPageCount() > 1 && (
+        <div className="text-muted-foreground flex items-center gap-2 border-t px-2 py-1.5 text-xs tabular-nums">
+          <span className="pl-1">
+            {(pageIndex * pageSize + 1).toLocaleString("en-US")}–{Math.min(filtered, (pageIndex + 1) * pageSize).toLocaleString("en-US")}
+          </span>
+          <span className="ml-auto">
+            Page {pageIndex + 1} of {table.getPageCount()}
+          </span>
+          <Button size="icon-xs" variant="ghost" aria-label="Previous page" disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()}>
+            <ChevronLeft />
+          </Button>
+          <Button size="icon-xs" variant="ghost" aria-label="Next page" disabled={!table.getCanNextPage()} onClick={() => table.nextPage()}>
+            <ChevronRight />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

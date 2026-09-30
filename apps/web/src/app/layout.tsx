@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "PyVRP Lab",
+  title: "Fillrate",
   description: "Private workbench for learning, testing, and comparing open-source PyVRP.",
 }
 

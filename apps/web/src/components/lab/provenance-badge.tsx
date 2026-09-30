@@ -1,15 +1,15 @@
-import { Crosshair, FileInput, Hand, Landmark, MapPinned, Route, Ruler, TableProperties } from "lucide-react"
+import { CircleSlash, Crosshair, FileInput, Hand, Landmark, MapPinned, Route, Ruler, TableProperties } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
-// Coordinate provenance (spec §6). ZCTA is approximate and always visibly flagged.
-export type CoordinateSource = "imported" | "manual" | "census" | "zcta"
+// Coordinate provenance (spec §6). ZCTA is approximate and always visibly flagged; unresolved never becomes (0,0).
+export type CoordinateSource = "imported" | "manual" | "census" | "zcta" | "unresolved"
 
 const coordinateSources: Record<
   CoordinateSource,
-  { label: string; icon: typeof Crosshair; hint: string; approximate?: boolean }
+  { label: string; icon: typeof Crosshair; hint: string; tone?: "approximate" | "missing" }
 > = {
   imported: { label: "Imported", icon: FileInput, hint: "Coordinate supplied in the import file" },
   manual: { label: "Manual", icon: Hand, hint: "Placed or corrected on the map" },
@@ -17,18 +17,27 @@ const coordinateSources: Record<
   zcta: {
     label: "ZCTA approx.",
     icon: MapPinned,
-    hint: "ZIP/ZCTA internal point fallback. Review before solving.",
-    approximate: true,
+    hint: "ZIP/ZCTA internal point fallback. Review before running.",
+    tone: "approximate",
+  },
+  unresolved: {
+    label: "Unresolved",
+    icon: CircleSlash,
+    hint: "No coordinates. Excluded from allocation until placed on the map.",
+    tone: "missing",
   },
 }
 
 export function CoordinateSourceBadge({ source, className }: { source: CoordinateSource; className?: string }) {
-  const { label, icon: Icon, hint, approximate } = coordinateSources[source]
+  const { label, icon: Icon, hint, tone } = coordinateSources[source]
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <Badge variant="outline" className={cn(approximate && "border-route-4/50 bg-route-4/10 text-route-4 border-dashed", className)} />
+          <Badge
+            variant={tone === "approximate" ? "warning" : tone === "missing" ? "error" : "outline"}
+            className={cn(tone === "approximate" && "border-dashed", className)}
+          />
         }
       >
         <Icon />
@@ -43,7 +52,11 @@ export function CoordinateSourceBadge({ source, className }: { source: Coordinat
 export type TravelMode = "haversine" | "osrm" | "imported"
 
 const travelModes: Record<TravelMode, { label: string; icon: typeof Ruler; hint: string }> = {
-  haversine: { label: "Estimated · Haversine", icon: Ruler, hint: "Straight-line distance at a constant speed" },
+  haversine: {
+    label: "Estimated · haversine",
+    icon: Ruler,
+    hint: "Great-circle miles × the circuity factor. Limits (leg, cluster diameter) use these solver miles.",
+  },
   osrm: { label: "OSRM road network", icon: Route, hint: "Directed road distances and durations" },
   imported: { label: "Imported matrix", icon: TableProperties, hint: "User-supplied directed matrix" },
 }

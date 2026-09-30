@@ -139,21 +139,21 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
 
 import { Group, Row, Specimen } from "../specimen"
 
-const vehicleTypes = ["Box truck", "Cargo van", "Bike courier", "Refrigerated truck"]
+const vehicleTypes = ["53 ft dry van", "53 ft reefer", "48 ft flatbed", "26 ft box truck"]
 const travelModes = [
-  { value: "haversine", label: "Haversine (estimated)" },
+  { value: "haversine", label: "Haversine × circuity (estimated)" },
   { value: "osrm", label: "OSRM road network" },
   { value: "imported", label: "Imported matrix" },
 ]
 const objectives = [
-  ["distance", "Total distance"],
-  ["duration", "Total duration"],
-  ["vehicles", "Vehicles used"],
+  ["fill", "Truck fill"],
+  ["tightness", "Cluster tightness"],
+  ["revenue", "Revenue"],
 ] as const
 
 export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
   const [date, setDate] = useState<Date | undefined>(new Date(2026, 8, 29))
-  const [budget, setBudget] = useState(30)
+  const [budget, setBudget] = useState(10)
   const [solving, setSolving] = useState(false)
   const copyRef = useRef<HTMLButtonElement>(null)
 
@@ -192,15 +192,16 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               disabled={solving}
             >
               {solving ? <Spinner /> : <Play />}
-              {solving ? "Solving…" : "Solve"}
+              {solving ? "Running…" : "Run pipeline"}
             </Button>
             <Button variant="outline" disabled={!solving}>
               <Square /> Cancel
             </Button>
           </Row>
           <Row label="Groups & toggles">
-            <ToggleGroup defaultValue={["30"]} variant="outline">
+            <ToggleGroup defaultValue={["10"]} variant="outline">
               <ToggleGroupItem value="5">5 s</ToggleGroupItem>
+              <ToggleGroupItem value="10">10 s</ToggleGroupItem>
               <ToggleGroupItem value="30">30 s</ToggleGroupItem>
               <ToggleGroupItem value="120">120 s</ToggleGroupItem>
             </ToggleGroup>
@@ -212,12 +213,12 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                 <ChevronDown />
               </Button>
             </ButtonGroup>
-            <ButtonGroup aria-label="Solve">
+            <ButtonGroup aria-label="Run">
               <Button>
-                <Play /> Solve
+                <Play /> Run pipeline
               </Button>
               <GroupSeparator />
-              <Button size="icon" aria-label="Solve options">
+              <Button size="icon" aria-label="Run options">
                 <ChevronDown />
               </Button>
             </ButtonGroup>
@@ -245,9 +246,9 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
             <Badge variant="secondary">Secondary</Badge>
             <Badge variant="outline">Outline</Badge>
             <Badge variant="info">Queued</Badge>
-            <Badge variant="success">Feasible</Badge>
-            <Badge variant="warning">Approximate</Badge>
-            <Badge variant="error">Infeasible</Badge>
+            <Badge variant="success">Non-dominated</Badge>
+            <Badge variant="warning">Low fill</Badge>
+            <Badge variant="error">Beyond leg limit</Badge>
             <Badge variant="outline">Best found · not proven optimal</Badge>
           </Row>
           <Row label="Kbd & avatar">
@@ -259,7 +260,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               </KbdGroup>
             </span>
             <span className="flex items-center gap-2 text-sm">
-              Solve
+              Run pipeline
               <KbdGroup>
                 <Kbd>⌘</Kbd>
                 <Kbd>↵</Kbd>
@@ -281,21 +282,21 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
           <div className="flex flex-col gap-6">
             <Field>
               <FieldLabel>Scenario name</FieldLabel>
-              <Input placeholder="Downtown deliveries" />
+              <Input placeholder="Mid-South open orders" />
               <FieldDescription>Shown in the scenario list and exports.</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel>Estimated speed</FieldLabel>
+              <FieldLabel>Maximum leg</FieldLabel>
               <InputGroup>
-                <InputGroupInput type="number" defaultValue={25} />
+                <InputGroupInput type="number" defaultValue={500} />
                 <InputGroupAddon align="inline-end">
-                  <InputGroupText>mph</InputGroupText>
+                  <InputGroupText>solver mi</InputGroupText>
                 </InputGroupAddon>
               </InputGroup>
             </Field>
             <Field>
-              <FieldLabel>Vehicles</FieldLabel>
-              <NumberField defaultValue={3} min={1} max={50}>
+              <FieldLabel>Cluster count (k)</FieldLabel>
+              <NumberField defaultValue={7} min={1} max={30}>
                 <NumberFieldGroup>
                   <NumberFieldDecrement />
                   <NumberFieldInput />
@@ -304,22 +305,22 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               </NumberField>
             </Field>
             <Field>
-              <FieldLabel>Search stops</FieldLabel>
+              <FieldLabel>Search order lines</FieldLabel>
               <InputGroup>
                 <InputGroupAddon>
                   <Search />
                 </InputGroupAddon>
-                <InputGroupInput placeholder="Label, ID, or address" />
+                <InputGroupInput placeholder="SO-260412, account, or SKU" />
               </InputGroup>
             </Field>
             <Field>
               <FieldLabel>Notes</FieldLabel>
-              <Textarea placeholder="What is this experiment testing?" />
+              <Textarea placeholder="What is this sweep testing? e.g. does k = 8 raise minimum fill?" />
             </Field>
             <Field invalid>
-              <FieldLabel>Capacity</FieldLabel>
-              <Input aria-invalid defaultValue={-4} />
-              <FieldError match>Capacity must be ≥ 0.</FieldError>
+              <FieldLabel>Trailer length</FieldLabel>
+              <Input aria-invalid defaultValue={-53} />
+              <FieldError match>Trailer length must be greater than 0 ft.</FieldError>
             </Field>
           </div>
 
@@ -340,11 +341,11 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               </Select>
             </Field>
             <Field>
-              <FieldLabel>Vehicle type</FieldLabel>
+              <FieldLabel>Trailer type</FieldLabel>
               <Combobox items={vehicleTypes}>
-                <ComboboxInput placeholder="Choose a vehicle type" />
+                <ComboboxInput placeholder="Choose a trailer" />
                 <ComboboxPopup>
-                  <ComboboxEmpty>No vehicle types found.</ComboboxEmpty>
+                  <ComboboxEmpty>No trailers found.</ComboboxEmpty>
                   <ComboboxList>
                     {(item: string) => (
                       <ComboboxItem key={item} value={item}>
@@ -357,14 +358,15 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
             </Field>
             <Field>
               <FieldLabel className="w-full">
-                Search budget <span className="text-muted-foreground ml-auto font-mono tabular-nums">{budget} s</span>
+                Search time per cluster <span className="text-muted-foreground ml-auto font-mono tabular-nums">{budget} s</span>
               </FieldLabel>
-              <Slider className="w-full" value={budget} onValueChange={(v) => setBudget(v as number)} min={5} max={300} step={5} />
+              <Slider className="w-full" value={budget} onValueChange={(v) => setBudget(v as number)} min={5} max={120} step={5} />
             </Field>
             <Fieldset>
               <FieldsetLegend className="text-sm">Allocation strategy</FieldsetLegend>
-              <RadioGroup defaultValue="priority">
+              <RadioGroup defaultValue="date-value">
                 {[
+                  ["date-value", "Order date, then value"],
                   ["first-come", "First come"],
                   ["priority", "Priority"],
                   ["proportional", "Proportional"],
@@ -377,8 +379,8 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               </RadioGroup>
             </Fieldset>
             <Fieldset>
-              <FieldsetLegend className="text-sm">Report objectives</FieldsetLegend>
-              <CheckboxGroup defaultValue={["distance", "duration"]}>
+              <FieldsetLegend className="text-sm">Compare runs on</FieldsetLegend>
+              <CheckboxGroup defaultValue={["fill", "tightness", "revenue"]}>
                 {objectives.map(([value, label]) => (
                   <Label key={value}>
                     <Checkbox value={value} /> {label}
@@ -390,7 +392,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               <Checkbox defaultChecked /> Allow ZIP/ZCTA fallback with review warning
             </Label>
             <Label>
-              <Switch /> Show advanced solver parameters
+              <Switch /> Partial fills (piece-level allocation)
             </Label>
           </div>
         </div>
@@ -444,10 +446,10 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               <SheetTrigger render={<Button variant="outline" />}>Sheet</SheetTrigger>
               <SheetPopup>
                 <SheetHeader>
-                  <SheetTitle>Stop c-03</SheetTitle>
+                  <SheetTitle>Cluster 3 · Memphis, TN + 11 more</SheetTitle>
                   <SheetDescription>Inspector drawer used below tablet widths.</SheetDescription>
                 </SheetHeader>
-                <SheetPanel className="text-muted-foreground text-sm">Stop fields go here.</SheetPanel>
+                <SheetPanel className="text-muted-foreground text-sm">82 stops · 22 trucks · 80% average fill.</SheetPanel>
               </SheetPopup>
             </Sheet>
 
@@ -455,8 +457,8 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               <DrawerTrigger render={<Button variant="outline" />}>Drawer</DrawerTrigger>
               <DrawerPopup showBar>
                 <DrawerHeader>
-                  <DrawerTitle>Route 2</DrawerTitle>
-                  <DrawerDescription>Mobile results drawer.</DrawerDescription>
+                  <DrawerTitle>C3-T4 · 94% full</DrawerTitle>
+                  <DrawerDescription>Mobile results drawer: one truck&apos;s stops and lines.</DrawerDescription>
                 </DrawerHeader>
               </DrawerPopup>
             </Drawer>
@@ -464,23 +466,23 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
             <Popover>
               <PopoverTrigger render={<Button variant="outline" />}>Popover</PopoverTrigger>
               <PopoverPopup className="w-72">
-                <PopoverTitle className="text-sm">Service duration</PopoverTitle>
+                <PopoverTitle className="text-sm">Circuity factor</PopoverTitle>
                 <PopoverDescription className="mt-1">
-                  Time spent at the stop. Units: minutes. Model field: <code>service_duration</code>.
+                  Haversine miles × 1.2 approximate road miles. Units: multiplier. Setting: <code>travel.circuity_factor</code>.
                 </PopoverDescription>
               </PopoverPopup>
             </Popover>
 
             <Tooltip>
               <TooltipTrigger render={<Button variant="outline" />}>Tooltip</TooltipTrigger>
-              <TooltipPopup>Straight-line estimate, not road geometry</TooltipPopup>
+              <TooltipPopup>Straight-line schematic, not road geometry</TooltipPopup>
             </Tooltip>
 
             <PreviewCard>
-              <PreviewCardTrigger render={<Button variant="link" />}>run-0142</PreviewCardTrigger>
+              <PreviewCardTrigger render={<Button variant="link" />}>run-0214</PreviewCardTrigger>
               <PreviewCardPopup className="space-y-1 text-sm">
-                <div className="font-medium">Baseline · seed 0</div>
-                <div className="text-muted-foreground font-mono text-xs">PyVRP 0.14.0 · seed 0 · 30 s · haversine@25mph</div>
+                <div className="font-medium">k = 8 · 154 trucks · 83% avg fill</div>
+                <div className="text-muted-foreground font-mono text-xs">PyVRP 0.14.0 · seed 0 · 10 s/cluster · haversine × 1.2</div>
               </PreviewCardPopup>
             </PreviewCard>
 
@@ -494,7 +496,8 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                   <MenuItem>
                     Scenario JSON <MenuShortcut>⌘E</MenuShortcut>
                   </MenuItem>
-                  <MenuItem>CSV summaries</MenuItem>
+                  <MenuItem>Truck loads (CSV)</MenuItem>
+                  <MenuItem>Unshipped lines (CSV)</MenuItem>
                   <MenuItem>GeoJSON</MenuItem>
                   <MenuItem>Python bundle</MenuItem>
                 </MenuGroup>
@@ -520,14 +523,14 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
           <Row label="Toasts">
             <Button
               variant="outline"
-              onClick={() => toastManager.add({ type: "success", title: "Run queued", description: "Seed 0 · 30 s budget" })}
+              onClick={() => toastManager.add({ type: "success", title: "Pipeline run queued", description: "run-0221 · k auto · 10 s per cluster" })}
             >
               Success
             </Button>
             <Button
               variant="outline"
               onClick={() =>
-                toastManager.add({ type: "info", title: "Matrix cached", description: "Reusing the OSRM matrix from run-0141." })
+                toastManager.add({ type: "info", title: "Clusters reused", description: "Same stops and k as run-0214; skipping k-means." })
               }
             >
               Info
@@ -535,14 +538,14 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
             <Button
               variant="outline"
               onClick={() =>
-                toastManager.add({ type: "warning", title: "2 stops use approximate coordinates", description: "Review before solving." })
+                toastManager.add({ type: "warning", title: "29 stops beyond the 500 mi leg limit", description: "They will be allocated but not loaded." })
               }
             >
               Warning
             </Button>
             <Button
               variant="outline"
-              onClick={() => toastManager.add({ type: "error", title: "Solve failed", description: "Worker lease expired after 3 attempts." })}
+              onClick={() => toastManager.add({ type: "error", title: "Cluster 5 solve failed", description: "Exceeded the 300 s solve limit after 3 attempts." })}
             >
               Error
             </Button>
@@ -550,9 +553,9 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               variant="outline"
               onClick={() =>
                 toastManager.promise(new Promise((r) => setTimeout(r, 1800)), {
-                  loading: { title: "Building OSRM matrix…", description: "12 / 16 blocks" },
-                  success: { title: "Matrix ready", description: "81 nodes · 6,561 pairs" },
-                  error: { title: "Matrix failed" },
+                  loading: { title: "Geocoding 640 addresses…", description: "Census batch 1 of 1" },
+                  success: { title: "Addresses geocoded", description: "551 Census · 29 ZCTA · 6 unresolved" },
+                  error: { title: "Geocoding failed" },
                 })
               }
             >
@@ -563,13 +566,13 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               onClick={() => {
                 const id = toastManager.add({
                   type: "success",
-                  title: "Stop c-03 deleted",
+                  title: "Moved Acct 40451 on the map",
                   description: "Saved as an unsaved edit.",
                   actionProps: {
                     children: "Undo",
                     onClick: () => {
                       toastManager.close(id)
-                      toastManager.add({ type: "info", title: "Stop c-03 restored" })
+                      toastManager.add({ type: "info", title: "Coordinates restored" })
                     },
                   },
                 })
@@ -582,7 +585,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               variant="outline"
               onClick={() =>
                 anchoredToastManager.add({
-                  title: "Copied run-0142",
+                  title: "Copied run-0214",
                   data: { tooltipStyle: true },
                   positionerProps: { anchor: copyRef.current, side: "top" },
                   timeout: 1500,
@@ -597,13 +600,14 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
             <Row label="Context menu">
               <ContextMenu>
                 <ContextMenuTrigger className="text-muted-foreground bg-background flex h-40 w-full items-center justify-center rounded-xl border border-dashed text-sm">
-                  Right-click a stop
+                  Right-click a stop on the map
                 </ContextMenuTrigger>
                 <ContextMenuPopup>
-                  <ContextMenuItem>Move to route…</ContextMenuItem>
-                  <ContextMenuItem>Edit time window</ContextMenuItem>
+                  <ContextMenuItem>Show order lines</ContextMenuItem>
+                  <ContextMenuItem>Correct coordinates</ContextMenuItem>
+                  <ContextMenuItem>Open truck C3-T4</ContextMenuItem>
                   <ContextMenuSeparator />
-                  <ContextMenuItem variant="destructive">Delete stop</ContextMenuItem>
+                  <ContextMenuItem variant="destructive">Exclude from this run</ContextMenuItem>
                 </ContextMenuPopup>
               </ContextMenu>
             </Row>
@@ -629,7 +633,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
             <Sidebar collapsible="none" className="h-72 w-full rounded-xl border">
               <SidebarContent>
                 <SidebarGroup>
-                  <SidebarGroupLabel>PyVRP Lab</SidebarGroupLabel>
+                  <SidebarGroupLabel>Fillrate</SidebarGroupLabel>
                   <SidebarMenu>
                     {(
                       [
@@ -662,11 +666,11 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                   </BreadcrumbItem>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
-                    <BreadcrumbLink href="#">Downtown deliveries</BreadcrumbLink>
+                    <BreadcrumbLink href="#">Mid-South open orders</BreadcrumbLink>
                   </BreadcrumbItem>
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
-                    <BreadcrumbPage>v13</BreadcrumbPage>
+                    <BreadcrumbPage>run-0214</BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
@@ -704,31 +708,31 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                 <ToolbarSeparator />
                 <ToolbarGroup>
                   <ToolbarButton render={<Button size="sm" />}>
-                    <Play /> Solve
+                    <Play /> Run pipeline
                   </ToolbarButton>
                 </ToolbarGroup>
               </Toolbar>
             </Row>
             <Row label="Workbench sections">
-              <Tabs defaultValue="solve" className="w-full">
+              <Tabs defaultValue="cluster" className="w-full">
                 <TabsList>
-                  {["Data", "Inventory", "Fleet", "Constraints", "Travel", "Solve", "Results"].map((t) => (
+                  {["Data", "Inventory", "Fleet", "Constraints", "Travel", "Allocate", "Cluster", "Solve", "Results"].map((t) => (
                     <TabsTab key={t} value={t.toLowerCase()}>
                       {t}
                     </TabsTab>
                   ))}
                 </TabsList>
-                <TabsPanel value="solve" className="text-muted-foreground p-2 text-sm">
-                  Solve section content.
+                <TabsPanel value="cluster" className="text-muted-foreground p-2 text-sm">
+                  k explorer and clustering settings.
                 </TabsPanel>
               </Tabs>
             </Row>
             <Row label="Underline tabs">
               <Tabs defaultValue="map">
                 <TabsList variant="underline">
-                  <TabsTab value="map">Map</TabsTab>
-                  <TabsTab value="table">Table</TabsTab>
-                  <TabsTab value="timeline">Timeline</TabsTab>
+                  <TabsTab value="map">Clusters & trucks</TabsTab>
+                  <TabsTab value="table">Unshipped</TabsTab>
+                  <TabsTab value="timeline">Map</TabsTab>
                 </TabsList>
               </Tabs>
             </Row>
@@ -761,30 +765,30 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader>
-                <CardDescription>Total distance</CardDescription>
-                <CardTitle className="text-2xl tabular-nums">18.7 mi</CardTitle>
+                <CardDescription>Loaded miles</CardDescription>
+                <CardTitle className="text-2xl tabular-nums">55,945 mi</CardTitle>
                 <CardAction>
-                  <Badge variant="outline">Estimated</Badge>
+                  <Badge variant="outline">× 1.2 est.</Badge>
                 </CardAction>
               </CardHeader>
-              <CardFooter className="text-muted-foreground text-xs">3 routes · 8 of 9 stops</CardFooter>
+              <CardFooter className="text-muted-foreground text-xs">158 trucks · open routes</CardFooter>
             </Card>
             <Card>
               <CardHeader>
-                <CardDescription>Feasibility</CardDescription>
-                <CardTitle className="text-2xl">Feasible</CardTitle>
+                <CardDescription>Validation</CardDescription>
+                <CardTitle className="text-2xl">All trucks pass</CardTitle>
               </CardHeader>
-              <CardFooter className="text-muted-foreground text-xs">Best found, not proven optimal</CardFooter>
+              <CardFooter className="text-muted-foreground text-xs">Load, leg, and diameter checks · best found, not proven optimal</CardFooter>
             </Card>
             <Card>
               <CardHeader>
-                <CardDescription>Fulfillment</CardDescription>
-                <CardTitle className="text-2xl tabular-nums">87%</CardTitle>
+                <CardDescription>Allocated amount shipped</CardDescription>
+                <CardTitle className="text-2xl tabular-nums">93%</CardTitle>
               </CardHeader>
               <CardPanel>
-                <Meter value={87}>
+                <Meter value={93}>
                   <div className="flex items-center justify-between gap-2">
-                    <MeterLabel className="text-muted-foreground text-xs">Units delivered</MeterLabel>
+                    <MeterLabel className="text-muted-foreground text-xs">$4.21M of $4.51M</MeterLabel>
                     <MeterValue className="text-xs" />
                   </div>
                   <MeterTrack>
@@ -800,11 +804,11 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               <Frame>
                 <FrameHeader>
                   <FrameTitle>Fleet</FrameTitle>
-                  <FrameDescription>2 vehicle types · 5 vehicles</FrameDescription>
+                  <FrameDescription>1 trailer type · unlimited count</FrameDescription>
                 </FrameHeader>
                 {[
-                  ["Box truck", "× 3 · capacity [20, 12] · 08:00–17:00 · Main depot"],
-                  ["Cargo van", "× 2 · capacity [12, 8] · 09:00–15:00 · Main depot"],
+                  ["53 ft dry van", "53.0 linear ft · open route · $850 fixed per truck · Memphis DC"],
+                  ["Limits", "500 mi max leg · 500 mi max cluster diameter · solver miles"],
                 ].map(([title, description]) => (
                   <FramePanel key={title} className="flex items-center gap-3">
                     <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
@@ -822,7 +826,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
               </Frame>
               <Collapsible className="bg-card rounded-xl border p-2">
                 <CollapsibleTrigger render={<Button variant="ghost" size="sm" />} className="data-panel-open:[&_svg]:rotate-180">
-                  Advanced solver parameters
+                  Advanced PyVRP parameters
                   <ChevronDown className="transition-transform" />
                 </CollapsibleTrigger>
                 <CollapsiblePanel className="text-muted-foreground px-3 pt-2 pb-1 text-sm">
@@ -833,15 +837,15 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
             <div className="space-y-3">
               <Accordion className="bg-card rounded-xl border px-4">
                 <AccordionItem value="what">
-                  <AccordionTrigger>What is a time window?</AccordionTrigger>
+                  <AccordionTrigger>Why does a line say “no stock”?</AccordionTrigger>
                   <AccordionPanel className="text-muted-foreground">
-                    The earliest and latest times service may begin at a stop, in local clock time.
+                    Older orders, then higher value per piece, got the SKU first. The unshipped list names the lines that took it.
                   </AccordionPanel>
                 </AccordionItem>
                 <AccordionItem value="field">
-                  <AccordionTrigger>Model field</AccordionTrigger>
+                  <AccordionTrigger>How is the leg limit enforced?</AccordionTrigger>
                   <AccordionPanel className="text-muted-foreground">
-                    <code>tw_early</code> / <code>tw_late</code>, in seconds from local midnight.
+                    Preprocessing: legs over 500 solver miles are removed from the matrix PyVRP sees, and the validator re-checks every truck.
                   </AccordionPanel>
                 </AccordionItem>
               </Accordion>
@@ -849,7 +853,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                 <div className="p-3">
                   {Array.from({ length: 20 }, (_, i) => (
                     <div key={i} className="py-0.5 font-mono text-xs">
-                      job_event #{i + 1} · progress {i * 5}%
+                      job_event #{i + 1} · solve C{(i % 6) + 1} · {i * 5}%
                     </div>
                   ))}
                 </div>
@@ -865,34 +869,34 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
           <div className="grid gap-3 *:content-start md:grid-cols-2">
             <Alert className="md:col-span-2">
               <Info />
-              <AlertTitle>Estimated travel times</AlertTitle>
-              <AlertDescription>Haversine at 25 mph. Switch to OSRM for road-network times.</AlertDescription>
+              <AlertTitle>Estimated miles</AlertTitle>
+              <AlertDescription>Haversine × 1.2 circuity. Limits and loaded miles use these solver miles, not road distance.</AlertDescription>
               <AlertAction>
                 <Button size="xs" variant="ghost">
                   Dismiss
                 </Button>
-                <Button size="xs">Use OSRM</Button>
+                <Button size="xs">Travel settings</Button>
               </AlertAction>
             </Alert>
             <Alert variant="info">
               <Info />
-              <AlertTitle>Matrix cached</AlertTitle>
-              <AlertDescription>Reusing the OSRM matrix from run-0141. No stops changed.</AlertDescription>
+              <AlertTitle>Pipeline running</AlertTitle>
+              <AlertDescription>Solving cluster 4 of 6. You can close this tab; the run continues.</AlertDescription>
             </Alert>
             <Alert variant="success">
               <CircleCheck />
-              <AlertTitle>All stops geocoded</AlertTitle>
-              <AlertDescription>9 of 9 stops have rooftop coordinates.</AlertDescription>
+              <AlertTitle>Every truck passes validation</AlertTitle>
+              <AlertDescription>158 trucks within 53 ft, no leg over 500 mi, every cluster within 500 mi.</AlertDescription>
             </Alert>
             <Alert variant="warning">
               <AlertTriangle />
-              <AlertTitle>2 stops use approximate coordinates</AlertTitle>
-              <AlertDescription>ZIP/ZCTA fallback was used. Review before solving.</AlertDescription>
+              <AlertTitle>29 stops use approximate coordinates</AlertTitle>
+              <AlertDescription>ZIP/ZCTA fallback was used. Review before running.</AlertDescription>
             </Alert>
             <Alert variant="error">
               <CircleAlert />
-              <AlertTitle>Required stop is unreachable</AlertTitle>
-              <AlertDescription>c-09 has no road path from Main depot. Solving is blocked.</AlertDescription>
+              <AlertTitle>Cluster 5 solve failed</AlertTitle>
+              <AlertDescription>Exceeded the 300 s solve limit. Clusters 1–4 and 6 are kept; the run is marked failed.</AlertDescription>
               <AlertAction>
                 <Button size="xs" variant="outline">
                   Show on map
@@ -917,11 +921,11 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                 <FlaskConical />
               </EmptyMedia>
               <EmptyTitle>No runs yet</EmptyTitle>
-              <EmptyDescription>Solve this scenario to see routes, timeline, and metrics.</EmptyDescription>
+              <EmptyDescription>Run the pipeline to see clusters, truck loads, and why lines didn&apos;t ship.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button>
-                <Play /> Solve
+                <Play /> Run pipeline
               </Button>
             </EmptyContent>
           </Empty>
@@ -938,13 +942,13 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                 </ResizablePanel>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize="35%">
-                  <div className="text-muted-foreground flex h-full items-center justify-center text-sm">Table / results</div>
+                  <div className="text-muted-foreground flex h-full items-center justify-center text-sm">Order lines</div>
                 </ResizablePanel>
               </ResizablePanelGroup>
             </ResizablePanel>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize="30%">
-              <div className="text-muted-foreground flex h-full items-center justify-center text-sm">Inspector</div>
+              <div className="text-muted-foreground flex h-full items-center justify-center text-sm">Cluster · trucks</div>
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>

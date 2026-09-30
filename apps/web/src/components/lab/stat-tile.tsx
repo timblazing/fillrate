@@ -38,7 +38,7 @@ export function StatTile({
           <span
             className={cn(
               "ml-auto inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums",
-              good ? "text-route-3 bg-route-3/10" : "text-destructive bg-destructive/10"
+              good ? "text-success-foreground bg-success/10" : "text-destructive-foreground bg-destructive/10"
             )}
           >
             {delta < 0 ? <ArrowDownRight className="size-3" /> : <ArrowUpRight className="size-3" />}

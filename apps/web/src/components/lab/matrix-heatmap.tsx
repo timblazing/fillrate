@@ -91,7 +91,7 @@ export function MatrixHeatmap({
             </span>
             <span className="tabular-nums">{hovered == null ? "unreachable" : `${hovered} ${unit}`}</span>
             {hovered != null && reverse != null && hovered !== reverse && (
-              <span className="text-route-4 tabular-nums">
+              <span className="text-warning-foreground tabular-nums">
                 asymmetric: reverse is {reverse} {unit}
               </span>
             )}
