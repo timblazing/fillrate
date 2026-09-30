@@ -9,10 +9,11 @@
   - [x] Gallery rebuilt for spec v1.3 (2026-09-29): every specimen runs on one synthetic 2,000-order fixture pipeline
   - [x] Blocks open full screen at `/dev/blocks/<id>` for review screenshots
   - [x] `AGENTS.md`, `CLAUDE.md`, `docs/decisions.md`, `docs/progress.md`
-  - [ ] Pinned Python 3.13 / uv / PyVRP / OR-Tools / scikit-learn / FastAPI (`services/optimizer`)
+  - [x] Pinned Python 3.13 / uv / PyVRP / OR-Tools / scikit-learn / FastAPI (`services/optimizer`), `/health` + `/capabilities`
+  - [x] PyVRP capability fixtures: capacity, fixed truck cost, open routes (workaround), prohibited legs (preprocessing + validator)
   - [ ] Drizzle schema + migrations, SQLite pragmas, migrate-on-start (`packages/db`)
   - [ ] API contracts (`packages/contracts`), worker claim/lease flow
-  - [ ] Minimal real PyVRP solve, capability fixtures (incl. open routes and prohibited edges), first export
+  - [ ] Minimal real PyVRP solve as a durable job, first export (the solve itself exists: `fillrate_optimizer.loads.solve_loads`)
   - [ ] Dockerfile, `ci.yml`, `image.yml`
 - [ ] **M2 Design** (in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
 - [ ] M3 Core pipeline (import → allocate → cluster → per-cluster PyVRP → cluster cards and truck loads)
@@ -23,7 +24,9 @@
 - [ ] M8 Verification and handoff
 
 ## Current state
-Only the frontend foundation exists. `bun run lint`, `bun run typecheck`, and `bun run build` pass.
+Frontend foundation plus the optimizer skeleton. `bun run lint`, `bun run typecheck`, and `bun run build` pass.
+
+`services/optimizer`: uv project pinned to Python 3.13 and the versions in `docs/decisions.md`. `travel.py` builds haversine × circuity matrices in integer meters; `loads.py` builds and solves one cluster's truckloads with PyVRP (open-route workaround, prohibited legs omitted, fixed truck cost, unlimited trucks) and validates the result independently; `capabilities.py` serves the capabilities document. `uv run pytest` (20 passed), `ruff check`, and `ruff format --check` pass; `uv run fillrate-optimizer` serves `/health` and `/capabilities`.
 
 The gallery (`src/app/dev/components`) is rebuilt around the v1.3 fulfillment pipeline. Every specimen reads one deterministic synthetic scenario (`fixtures/`: Memphis DC, 2,000 orders / 2,829 lines, 640 accounts, six SKUs with scarce stock) run through a TypeScript stand-in of the pipeline: piece-level "order date, then value" allocation, stop aggregation and trailer splits, k-means on 3D unit vectors with auto-k and bisecting diameter repair, a sweep heuristic standing in for PyVRP truck loads, metrics, and unshipped reasons. A k-explorer fixture (k 3–12 × seeds 0–9, inertia, ARI stability, co-assignment confidence) and a nine-run sweep with non-dominated marking feed the comparison views. The fixture is gallery-only; the real pipeline is Python (M3).
 
@@ -39,6 +42,7 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 5. Record the accepted direction in `docs/decisions.md`. M2 then builds the Blocks as real React screens.
 
 ## Known gaps
+- If uv fails with "Bad CPU type" from a Python 2.7 framework install on PATH, set `UV_PYTHON=python3.13`.
 - Chart and route palettes are placeholders (neutral shadcn chart colors, provisional route colors). Gallery charts use `--route-*` for series until a real chart palette lands.
 - New tokens `--chart-background/-foreground/-foreground-muted/-label/-grid` (aliases for bklit) and the coss status tokens `--info/--success/--warning(-foreground)`, `--destructive-foreground` are not on the OpenPencil Foundations page yet.
 - bklit radar logs harmless motion "undefined is not animatable" warnings in dev (vendored code).
@@ -58,4 +62,4 @@ Sent 2026-09-30 as a Google Form (screenshots of the six Blocks, one page each).
 - Use his example rows (dummy values) to confirm the order and inventory CSV columns for M3 imports.
 
 ## Next step
-Continue M1 while the design review is pending: pin Python 3.13 / uv / PyVRP / OR-Tools / scikit-learn / FastAPI in `services/optimizer` and write the open-route and prohibited-edge capability fixtures. After the review comes back, mirror the accepted components/blocks on the OpenPencil Components and Blocks pages.
+Start PR 2: `packages/db` (Drizzle schema, pragmas, migrate-on-start, claim/lease with a real-file race test). After the review comes back, mirror the accepted components/blocks on the OpenPencil Components and Blocks pages.

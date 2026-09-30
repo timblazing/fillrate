@@ -10,3 +10,5 @@ data/
 .venv/
 __pycache__/
 .playwright-mcp/
+.pytest_cache/
+.ruff_cache/
