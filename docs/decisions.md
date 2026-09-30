@@ -163,3 +163,8 @@ Exact resolved versions are in `bun.lock`.
 - **Gallery:** `/dev/components` and `/dev/blocks/<id>` no longer 404 in production; the owner wants the component library publicly viewable.
 - **Deferred:** push/tag triggers, `ci.yml`, the optimizer image and multi-service compose.
 - better-sqlite3 13 ships prebuilt binaries for linux/darwin/win32 x64/arm64, so it was removed from `trustedDependencies`; its implicit node-gyp install script needed Python and failed in the image build.
+
+## 2026-09-30: Gallery chrome cleanup
+- **Decision:** the public gallery drops the "dev only" header badge, the per-specimen `spec §…` labels and source-file badges (`Specimen` no longer takes `source`/`spec`), and visible spec references in group descriptions. Group headers put the `01` index inline with the title at the same size instead of a taller side numeral.
+- **No single-edge accent bars.** Selection is shown with a full border in the item's color plus a light tint (cluster cards), or by dimming the unselected items (cluster legend), or a background highlight (selected table row), never a colored top or side stripe.
+- Iteration table has one header row; metric groups are shown by column dividers and header tooltips. Setting rows show "Reset" next to the source badge so controls stay flush right. The workbench block's panels are flush (no inner rounded cards) with visible resize grips; the block header dropped "Saved · author" and the travel-mode badge.

@@ -38,7 +38,7 @@ const cols: Col[] = [
   { key: "centroid", label: "To centroid", group: "tight", better: "down", value: (m) => m.meanToCentroid, render: (m) => `${m.meanToCentroid.toFixed(0)} mi` },
   { key: "widest", label: "Widest pair", group: "tight", better: "down", value: (m) => m.widestPair, render: (m) => formatMiles(m.widestPair) },
   { key: "stability", label: "Stability", group: "tight", better: "up", value: (m) => m.stability, render: (m) => (m.stability != null ? m.stability.toFixed(2) : "–") },
-  { key: "revenue", label: "Shipped", group: "rev", better: "up", value: (m) => m.revenueShipped, render: (m) => formatMoney(m.revenueShipped, { compact: true }) },
+  { key: "revenue", label: "Revenue", group: "rev", better: "up", value: (m) => m.revenueShipped, render: (m) => formatMoney(m.revenueShipped, { compact: true }) },
 ]
 
 const groupLabel = { fill: "Truck fill", tight: "Cluster tightness", rev: "Revenue" }
@@ -84,21 +84,12 @@ export function IterationTable({
     <div className={cn("bg-card overflow-x-auto rounded-xl border", className)}>
       <table className="w-full min-w-[56rem] text-sm">
         <thead>
-          <tr className="text-muted-foreground border-b text-[11px]">
-            <th colSpan={3} />
-            <th />
-            {(["fill", "tight", "rev"] as const).map((g) => (
-              <th key={g} colSpan={cols.filter((c) => c.group === g).length} className="border-l px-3 pt-2 text-left font-medium">
-                {groupLabel[g]}
-              </th>
-            ))}
-          </tr>
           <tr className="text-muted-foreground border-b text-xs">
             <th className="w-9 py-2 pl-3" />
             <th className="w-6" aria-label="Non-dominated" />
             <th className="px-2 py-2 text-left font-medium">Run</th>
             {cols.map((c, i) => (
-              <th key={c.key} className={cn("px-3 py-2 text-right font-medium whitespace-nowrap", i > 0 && cols[i - 1].group !== c.group && "border-l")}>
+              <th key={c.key} title={c.group ? groupLabel[c.group] : undefined} className={cn("px-3 py-2 text-right font-medium whitespace-nowrap", i > 0 && cols[i - 1].group !== c.group && "border-l")}>
                 <button
                   type="button"
                   className="hover:text-foreground inline-flex items-center gap-0.5"

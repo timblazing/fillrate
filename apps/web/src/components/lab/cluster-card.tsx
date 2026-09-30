@@ -116,13 +116,19 @@ export function ClusterCard({
         }
       }}
       className={cn(
-        "bg-card relative space-y-3 overflow-hidden rounded-xl border p-3.5 text-left transition-[box-shadow,border-color] duration-150",
+        "bg-card relative space-y-3 overflow-hidden rounded-xl border p-3.5 text-left transition-[background-color,border-color] duration-150",
         onSelect && "hover:border-foreground/20 focus-visible:ring-ring/50 cursor-pointer focus-visible:ring-2 focus-visible:outline-none",
-        selected && "border-foreground/30 shadow-md",
         className
       )}
+      style={
+        selected
+          ? {
+              borderColor: routeColor(cluster.id),
+              backgroundColor: `color-mix(in oklab, ${routeColor(cluster.id)} 8%, var(--card))`,
+            }
+          : undefined
+      }
     >
-      {selected && <span className="absolute inset-x-0 top-0 h-0.5" style={{ background: routeColor(cluster.id) }} />}
       <div className="flex items-start gap-2.5">
         <ClusterSwatch cluster={cluster.id} />
         <div className="min-w-0 flex-1">

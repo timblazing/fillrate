@@ -120,9 +120,8 @@ export function ClusterLegend({
           aria-label={`Cluster ${c}`}
           onClick={() => onToggle?.(c)}
           className={cn(
-            "rounded-md p-0.5 transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
-            active != null && active !== c && "opacity-35 hover:opacity-70",
-            active === c && "ring-foreground/30 ring-1"
+            "flex rounded-md transition-opacity duration-150 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+            active != null && active !== c && "opacity-35 hover:opacity-70"
           )}
         >
           <ClusterSwatch cluster={c} />

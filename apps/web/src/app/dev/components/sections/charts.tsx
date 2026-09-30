@@ -169,8 +169,6 @@ export function Charts() {
         <Specimen
           id="fill-distribution"
           title="Fill distribution"
-          source="recharts BarChart"
-          spec="§8a"
           description="Trucks per 10% fill bucket for two runs. The shaded area is the under-60% band the user wants to shrink."
         >
           <ChartCard>
@@ -195,8 +193,6 @@ export function Charts() {
         <Specimen
           id="k-elbow"
           title="k explorer: elbow & stability"
-          source="recharts ComposedChart"
-          spec="§8a"
           description="Within-cluster variance falls as k grows; stability is the mean adjusted Rand index over seeds 0–9. The row below counts clusters that need diameter repair."
         >
           <ChartCard>
@@ -207,8 +203,6 @@ export function Charts() {
         <Specimen
           id="tradeoff"
           title="Iteration trade-off"
-          source="recharts ScatterChart"
-          spec="§8a §10"
           description="Each run: average fill against shipped revenue; bubble size is mean distance to centroid (smaller is tighter). ★ runs are non-dominated, joined as the front."
         >
           <ChartCard>
@@ -219,8 +213,6 @@ export function Charts() {
         <Specimen
           id="cluster-scatter"
           title="Cluster tightness vs fill"
-          source="recharts ScatterChart"
-          spec="§10"
           description="One bubble per cluster: widest pair against average fill, sized by revenue. The dashed line is the 500 mi diameter limit."
         >
           <ChartCard>
@@ -254,7 +246,7 @@ export function Charts() {
           </ChartCard>
         </Specimen>
 
-        <Specimen id="revenue-funnel" title="Revenue funnel" source="@bklit/funnel-chart" spec="§8 §10" description="Ordered → eligible (has coordinates) → allocated → loaded on a truck, in dollars.">
+        <Specimen id="revenue-funnel" title="Revenue funnel" description="Ordered → eligible (has coordinates) → allocated → loaded on a truck, in dollars.">
           <ChartCard className="h-80">
             <FunnelChart
               data={funnel}
@@ -267,7 +259,7 @@ export function Charts() {
           </ChartCard>
         </Specimen>
 
-        <Specimen id="rings" title="Headline rings" source="@bklit/ring-chart" description="Run headline ratios. Hover a ring.">
+        <Specimen id="rings" title="Headline rings" description="Run headline ratios. Hover a ring.">
           <ChartCard className="flex h-80 items-center justify-center gap-8">
             <div className="relative">
               <RingChart
@@ -308,8 +300,6 @@ export function Charts() {
         <Specimen
           id="by-product"
           title="Allocation by product"
-          source="recharts BarChart"
-          spec="§8"
           description="Ordered, allocated, and loaded pieces per SKU, reported separately. Mattresses and patio sets are short on stock."
           className="xl:col-span-2"
         >
@@ -332,8 +322,6 @@ export function Charts() {
         <Specimen
           id="radar"
           title="Iteration radar"
-          source="@bklit/radar-chart"
-          spec="§10"
           description="Three runs scored relative to this sweep only (40 = worst run, 100 = best). Shape, not a score: the axes are never summed."
           className="xl:col-span-2"
         >
@@ -376,8 +364,6 @@ export function Charts() {
         <Specimen
           id="convergence"
           title="Per-cluster convergence"
-          source="recharts LineChart"
-          spec="§9 §10"
           description="Best cost by iteration for each cluster's PyVRP solve, read from final solver statistics after the run. Never live telemetry."
           className="xl:col-span-2"
         >

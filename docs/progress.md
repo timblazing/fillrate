@@ -4,7 +4,7 @@
 - [ ] **M1 Thin durable fulfillment slice**
   - [x] Monorepo skeleton, root Bun workspace, git
   - [x] `apps/web`: Next.js 16 + Tailwind 4 + coss ui (Base UI) + mapcn, light/dark/system theme (migrated from shadcn radix-nova on 2026-09-29)
-  - [x] Dev-only component gallery at `/dev/components`
+  - [x] Component gallery at `/dev/components`
   - [x] Gallery expanded into the design-system reference: Foundations, Primitives, Lab components (`src/components/lab`), Charts (Recharts + bklit), Map, Blocks
   - [x] Gallery rebuilt for spec v1.3 (2026-09-29): every specimen runs on one synthetic 2,000-order fixture pipeline
   - [x] Blocks open full screen at `/dev/blocks/<id>` for review screenshots

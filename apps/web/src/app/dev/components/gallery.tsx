@@ -5,7 +5,6 @@ import { Fragment, useEffect, useRef, useState } from "react"
 import { FlaskConical, Hash, Search } from "lucide-react"
 
 import { ThemeToggle } from "@/components/theme/theme-toggle"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -144,9 +143,6 @@ export function Gallery() {
         </div>
         <span className="font-semibold tracking-tight">Fillrate</span>
         <span className="text-muted-foreground hidden text-sm sm:inline">/ design system</span>
-        <Badge variant="outline" className="hidden sm:inline-flex">
-          dev only
-        </Badge>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" size="sm" className="text-muted-foreground justify-start sm:w-44" onClick={() => setOpen(true)} aria-label="Jump to component">
             <Search /> <span className="hidden sm:inline">Jump to…</span>
@@ -233,8 +229,6 @@ export function Gallery() {
             <Specimen
               id="map"
               title="Pipeline map"
-              source="@mapcn/map · lab/map-layers · pipeline-map.tsx"
-              spec="§4 §10"
               description="Stops by cluster, cluster hulls, and the selected cluster's truck paths (straight schematic lines, open routes). Hollow red stops are beyond the leg limit. Click a stop or a swatch."
             >
               <PipelineMap />
@@ -242,8 +236,6 @@ export function Gallery() {
             <Specimen
               id="map-confidence"
               title="Confidence map"
-              source="pipeline-map.tsx · confidence mode"
-              spec="§8a"
               description="The same stops colored by k-explorer assignment confidence at k = 7. Unstable border stops stand out in red."
             >
               <PipelineMap confidence={confidenceK7()} defaultMode="confidence" selectedCluster={null} />

@@ -25,7 +25,7 @@ export function Foundations() {
       title="Foundations"
       description="CSS variables in globals.css, mirrored by name on the OpenPencil Foundations page. Token changes flow .fig → globals.css."
     >
-      <Specimen id="color" title="Color" source="src/app/globals.css" description="Surface / content pairs as they are actually used together.">
+      <Specimen id="color" title="Color" description="Surface / content pairs as they are actually used together.">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {colorPairs.map(([bg, fg]) => (
             <div key={bg} className="overflow-hidden rounded-xl border">
@@ -52,7 +52,7 @@ export function Foundations() {
         </Row>
       </Specimen>
 
-      <Specimen id="status-color" title="Status & fill bands" source="--info · --success · --warning · --destructive (+ -foreground)" spec="§8a §9">
+      <Specimen id="status-color" title="Status & fill bands">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             ["info", "Running, claimed, excluded lines"],
@@ -92,8 +92,6 @@ export function Foundations() {
       <Specimen
         id="route-palette"
         title="Series palette"
-        source="--route-1 … --route-8"
-        spec="§4"
         description="Stable categorical colors for clusters (C1–C8) and compared runs, shared by map, cards, tables, and charts. Trucks take their cluster's color and are told apart by label (C3-T2). Always paired with a label. Placeholder values until the design pass; chart-1…5 are still neutral."
       >
         <div className="grid grid-cols-4 gap-3 lg:grid-cols-8">
@@ -124,7 +122,7 @@ export function Foundations() {
         </Row>
       </Specimen>
 
-      <Specimen id="type" title="Typography" source="Geist / Geist Mono">
+      <Specimen id="type" title="Typography">
         <div className="grid gap-8 lg:grid-cols-[1fr_16rem]">
           <div className="space-y-4">
             {[
@@ -155,7 +153,7 @@ export function Foundations() {
         </div>
       </Specimen>
 
-      <Specimen id="radius" title="Radius & elevation" source="--radius (0.625rem)">
+      <Specimen id="radius" title="Radius & elevation">
         <Row label="Radius">
           {["sm", "md", "lg", "xl", "2xl", "3xl"].map((r) => (
             <div key={r} className="flex flex-col items-center gap-1.5 text-xs">

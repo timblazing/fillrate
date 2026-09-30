@@ -13,7 +13,6 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCount, formatMiles, formatMoney } from "@/lib/units"
-import { cn } from "@/lib/utils"
 
 import { baseline, depot, lookups } from "../fixtures"
 import { orderRows } from "../fixtures/order-rows"
@@ -70,28 +69,28 @@ export function WorkbenchBlock() {
                 </div>
               </div>
             </ResizablePanel>
-            <ResizableHandle />
+            <ResizableHandle withHandle />
             <ResizablePanel defaultSize="40%">
-              <div className="h-full overflow-auto p-2">
+              <div className="h-full overflow-auto">
                 <DataTable
                   key={cluster ?? "all"}
                   columns={orderColumns}
                   data={rows}
                   pageSize={8}
                   filterPlaceholder={cluster != null ? `Lines in cluster ${cluster}…` : "Filter lines…"}
-                  className="bg-card"
+                  className="bg-card min-h-full rounded-none border-0"
                 />
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
-        <ResizableHandle />
+        <ResizableHandle withHandle />
         <ResizablePanel defaultSize="32%" minSize="24%">
           <ScrollArea className="h-full">
-            <aside className="space-y-3 p-3">
+            <aside>
               {openTruck ? (
                 <>
-                  <button type="button" className="text-muted-foreground hover:text-foreground text-xs" onClick={() => setTruck(null)}>
+                  <button type="button" className="text-muted-foreground hover:text-foreground block px-3 py-2 text-xs" onClick={() => setTruck(null)}>
                     ← Cluster {openTruck.cluster} trucks
                   </button>
                   <TruckLoad
@@ -104,6 +103,7 @@ export function WorkbenchBlock() {
                     selectedStop={stop}
                     onSelectStop={selectStop}
                     defaultExpanded={stop ?? undefined}
+                    className="rounded-none border-x-0 border-b-0"
                   />
                 </>
               ) : c ? (
@@ -113,15 +113,15 @@ export function WorkbenchBlock() {
                     trucks={trucks}
                     area={look.clusterArea(c.id)}
                     maxDiameter={run.settings.maxDiameterMiles}
-                    selected
+                    className="rounded-none border-0 p-3"
                   />
-                  <div className="text-muted-foreground flex items-center justify-between px-1 pt-1 text-xs">
+                  <div className="text-muted-foreground flex items-center justify-between border-t px-3 py-2 text-xs">
                     <span>{trucks.length} trucks, fullest first</span>
                     <button type="button" className="hover:text-foreground" onClick={() => setCluster(null)}>
                       All clusters
                     </button>
                   </div>
-                  <ul className="bg-card divide-y rounded-xl border">
+                  <ul className="divide-y border-t">
                     {trucks.map((t) => (
                       <li key={t.id}>
                         <button
@@ -141,7 +141,7 @@ export function WorkbenchBlock() {
                 </>
               ) : (
                 <>
-                  <div className="text-muted-foreground px-1 text-xs">
+                  <div className="text-muted-foreground border-b px-3 py-2 text-xs">
                     {run.clusters.length} clusters · {formatCount(run.metrics.trucks)} trucks · select one
                   </div>
                   {run.clusters.map((x) => (
@@ -149,7 +149,7 @@ export function WorkbenchBlock() {
                       key={x.id}
                       type="button"
                       onClick={() => setCluster(x.id)}
-                      className={cn("bg-card hover:bg-muted/40 flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm transition-colors")}
+                      className="hover:bg-muted/40 flex w-full items-center gap-3 border-b p-3 text-left text-sm transition-colors"
                     >
                       <ClusterSwatch cluster={x.id} />
                       <span className="min-w-0 flex-1">

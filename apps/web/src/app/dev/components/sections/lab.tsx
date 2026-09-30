@@ -68,9 +68,9 @@ export function Lab() {
       id="lab"
       index={3}
       title="Fulfillment components"
-      description="Product components in src/components/lab, shown with one synthetic 2,000-order run (Memphis DC, six SKUs, scarce stock) so every number agrees across specimens. The fixture follows spec §8/§8a; PyVRP is stood in for by a sweep heuristic until the optimizer exists."
+      description="Product components in src/components/lab, shown with one synthetic 2,000-order run (Memphis DC, six SKUs, scarce stock) so every number agrees across specimens. The fixture follows the spec; PyVRP is stood in for by a sweep heuristic until the optimizer exists."
     >
-      <Specimen id="status" title="Status & provenance" source="lab/job-status · lab/provenance-badge · lab/route-swatch · lab/explainer" spec="§4 §6 §7 §9 §11">
+      <Specimen id="status" title="Status & provenance">
         <div className="space-y-6">
           <Row label="Job states">
             {jobStates.map((s) => (
@@ -147,8 +147,6 @@ export function Lab() {
       <Specimen
         id="fill"
         title="Truck fill"
-        source="lab/trailer-fill"
-        spec="§1 §8a"
         description="A 53 ft trailer drawn to scale: one segment per stop in visit order, hatching is empty floor. Under 60% is flagged; 85% and up reads as full. These are the fullest, median, and emptiest trucks of the run."
       >
         <div className="grid gap-6 lg:grid-cols-[1fr_16rem]">
@@ -213,8 +211,6 @@ export function Lab() {
       <Specimen
         id="stages"
         title="Pipeline stages"
-        source="lab/pipeline-stages"
-        spec="§8a §9"
         description="One run, six stored stages. Solve fans out into one durable PyVRP job per cluster. Press Run to watch the live states; real runs poll persisted job state every ~2 s."
       >
         <div className="bg-background space-y-5 rounded-xl border p-4">
@@ -236,8 +232,6 @@ export function Lab() {
       <Specimen
         id="run-metrics"
         title="Run metrics"
-        source="lab/run-metrics"
-        spec="§8a §10"
         description="The three metric groups, side by side with no composite score. Here run-0214 (k = 8) against the baseline (auto k = 6)."
       >
         <RunMetricGroups metrics={k8.metrics} baseline={run.metrics} maxDiameter={run.settings.maxDiameterMiles} />
@@ -246,8 +240,6 @@ export function Lab() {
       <Specimen
         id="cluster-cards"
         title="Cluster cards"
-        source="lab/cluster-card"
-        spec="§10"
         description="Per cluster: stops, trucks, loaded feet, fill, revenue, one bar per truck (amber = under 60%), and widest pair against the 500 mi limit. Click to select."
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -268,8 +260,6 @@ export function Lab() {
       <Specimen
         id="truck-loads"
         title="Truck loads"
-        source="lab/truck-load"
-        spec="§10"
         description={`Stop sequence with leg miles and the order lines on board. Open route from ${depot.label}. Cluster ${cluster}'s fullest and emptiest trucks; select a cluster card above to switch.`}
       >
         <div className="grid gap-4 lg:grid-cols-2">
@@ -293,22 +283,18 @@ export function Lab() {
       <Specimen
         id="unshipped"
         title="Unshipped lines"
-        source="lab/unshipped-lines"
-        spec="§10"
         description="Every line that does not ship, with its reason: no stock (and who took it), beyond the leg limit, did not fit, or excluded for data quality. Click a reason to filter."
       >
         <UnshippedLines items={run.unshipped} products={look.products} locations={look.locations} />
       </Specimen>
 
-      <Specimen id="stock" title="Inventory coverage" source="lab/stock-table" spec="§8" description="Stock against open demand per SKU. The notch is 100% coverage.">
+      <Specimen id="stock" title="Inventory coverage" description="Stock against open demand per SKU. The notch is 100% coverage.">
         <StockTable rows={stockRows(run)} />
       </Specimen>
 
       <Specimen
         id="orders"
         title="Order lines table"
-        source="lab/data-table · lab/line-state"
-        spec="§4 §5"
         description={`All ${formatCount(rows.length)} lines of ${formatCount(2000)} orders, paginated. Pieces show allocated/ordered; the state says where each line ended up.`}
       >
         <DataTable
@@ -337,15 +323,13 @@ export function Lab() {
       <Specimen
         id="iterations"
         title="Iteration table"
-        source="lab/iteration-table"
-        spec="§8a §10"
         description="One row per run, grouped by the three metrics, with the varied settings as chips. ★ = non-dominated; underline = best in column. Tick two runs to compare."
       >
         <IterationTable rows={sweep} baselineId="run-0212" selected={compare} onSelectedChange={setCompare} />
       </Specimen>
 
       <div className="grid gap-10 xl:grid-cols-2 [&>*]:min-w-0">
-        <Specimen id="diagnostics" title="Preflight checks" source="lab/diagnostic-list" spec="§6 §8a §10" description="Computed from this scenario before a run. Only provable problems block.">
+        <Specimen id="diagnostics" title="Preflight checks" description="Computed from this scenario before a run. Only provable problems block.">
           <DiagnosticList
             items={[
               {
@@ -383,10 +367,10 @@ export function Lab() {
           />
         </Specimen>
 
-        <Specimen id="settings" title="Settings rows" source="lab/setting-source" spec="§11" description="Label, meaning, where the value comes from, and reset to inherited.">
+        <Specimen id="settings" title="Settings rows" description="Label, meaning, where the value comes from, and reset to inherited.">
           <div className="bg-card divide-y rounded-xl border px-4">
             <SettingRow label="Circuity factor" description="Haversine miles × this factor. The primary user's mileage cushion." source="workspace">
-              <NumberField defaultValue={1.2} step={0.05} min={1} max={2} className="w-28">
+              <NumberField defaultValue={1.2} step={0.05} min={1} max={2} className="w-32">
                 <NumberFieldGroup>
                   <NumberFieldDecrement />
                   <NumberFieldInput />
@@ -426,13 +410,13 @@ export function Lab() {
               <Switch defaultChecked />
             </SettingRow>
             <SettingRow label="Stops per cluster solve" description="MAX_STOPS. Bounds every cluster PyVRP solves." source="deployment">
-              <span className="text-muted-foreground w-28 font-mono text-sm">500</span>
+              <span className="text-muted-foreground font-mono text-sm">500</span>
             </SettingRow>
           </div>
         </Specimen>
       </div>
 
-      <Specimen id="imports" title="Imports" source="lab/import-dropzone" spec="§6" description="Order-lines CSV: drop, map columns to canonical fields, and fix row errors before anything is saved.">
+      <Specimen id="imports" title="Imports" description="Order-lines CSV: drop, map columns to canonical fields, and fix row errors before anything is saved.">
         <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
           <div className="space-y-3">
             <ImportDropzone className="bg-background" accept=".csv" />
@@ -494,7 +478,7 @@ export function Lab() {
         </div>
       </Specimen>
 
-      <Specimen id="runs" title="Runs & jobs" spec="§9" description="A sweep in progress and the job panel for one cluster solve. Progress events are coarse and persisted, never per-iteration.">
+      <Specimen id="runs" title="Runs & jobs" description="A sweep in progress and the job panel for one cluster solve. Progress events are coarse and persisted, never per-iteration.">
         <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
           <ul className="bg-card divide-y rounded-xl border">
             {[
@@ -549,7 +533,7 @@ export function Lab() {
         </div>
       </Specimen>
 
-      <Specimen id="compare" title="Run diff" source="lab/config-diff" spec="§10" description="What changed between the two ticked runs in the iteration table. Same scenario version and matrix, so metrics compare directly.">
+      <Specimen id="compare" title="Run diff" description="What changed between the two ticked runs in the iteration table. Same scenario version and matrix, so metrics compare directly.">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="bg-background rounded-lg border px-2.5 py-1 font-mono text-xs">run-0212 · baseline</span>
@@ -563,7 +547,7 @@ export function Lab() {
         </div>
       </Specimen>
 
-      <Specimen id="exports" title="Exports" source="lab/code-block" spec="§13" description="Python reproduction bundle preview: the whole pipeline, runnable without the web app.">
+      <Specimen id="exports" title="Exports" description="Python reproduction bundle preview: the whole pipeline, runnable without the web app.">
         <CodeBlock code={pythonExport} filename="run-0214/reproduce.py" className="bg-background" />
       </Specimen>
     </Group>

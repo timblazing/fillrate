@@ -3,7 +3,6 @@
 import { ChevronDown, FlaskConical, GraduationCap, LayoutGrid, Map as MapIcon, Play, Settings, Share } from "lucide-react"
 import { createContext, useContext } from "react"
 
-import { TravelModeBadge } from "@/components/lab/provenance-badge"
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
@@ -123,9 +122,7 @@ export function AppShell({
           <Badge variant="outline" className="font-mono">
             v{scenario.version}
           </Badge>
-          <span className="text-muted-foreground hidden text-xs xl:inline">Saved · {scenario.author}</span>
           <div className="ml-auto flex items-center gap-2">
-            <TravelModeBadge mode="haversine" detail="× 1.2" className="hidden lg:inline-flex" />
             {actions ?? (
               <>
                 <Button variant="ghost" size="sm">

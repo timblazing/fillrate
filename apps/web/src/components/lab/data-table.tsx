@@ -158,7 +158,7 @@ export function DataTable<T extends { id: string }>({
               key={row.id}
               data-state={row.id === selected || row.getIsSelected() ? "selected" : undefined}
               onClick={() => onSelectedChange?.(row.id === selected ? null : row.id)}
-              className={cn("cursor-pointer", row.id === selected && "shadow-[inset_2px_0_0_var(--foreground)]")}
+              className={cn("cursor-pointer", row.id === selected && "!bg-muted")}
             >
               {row.getAllCells().map((cell) => (
                 <TableCell key={cell.id}>

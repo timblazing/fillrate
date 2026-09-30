@@ -59,22 +59,15 @@ export function SettingRow({
         <div className="flex items-center gap-2 text-sm font-medium">
           {label}
           <SettingSourceBadge source={source} />
+          {overridden && (
+            <Button variant="ghost" size="xs" className="text-muted-foreground -my-1" aria-label={`Reset ${label}`} onClick={onReset}>
+              <RotateCcw /> Reset
+            </Button>
+          )}
         </div>
         {description && <p className="text-muted-foreground text-xs">{description}</p>}
       </div>
-      <div className="flex items-center gap-1.5">
-        {children}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Reset ${label}`}
-          disabled={!overridden}
-          onClick={onReset}
-          className={cn(!overridden && "invisible")}
-        >
-          <RotateCcw />
-        </Button>
-      </div>
+      <div className="flex items-center">{children}</div>
     </div>
   )
 }

@@ -54,14 +54,12 @@ export function Group({
   return (
     <GroupLoad value={load}>
       <section id={id} className="scroll-mt-20 space-y-8">
-        <header className="flex items-end gap-4 border-b pb-4">
-          <span className="text-muted-foreground/50 font-mono text-4xl leading-none font-semibold tabular-nums">
-            {String(index).padStart(2, "0")}
-          </span>
-          <div className="space-y-1">
-            <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-            <p className="text-muted-foreground max-w-2xl text-sm text-pretty">{description}</p>
-          </div>
+        <header className="space-y-2 border-b pb-4">
+          <h2 className="flex items-baseline gap-3 text-2xl font-semibold tracking-tight">
+            <span className="text-muted-foreground/50 font-mono tabular-nums">{String(index).padStart(2, "0")}</span>
+            {title}
+          </h2>
+          <p className="text-muted-foreground max-w-2xl text-sm text-pretty">{description}</p>
         </header>
         {children}
       </section>
@@ -74,8 +72,6 @@ export function Specimen({
   id,
   title,
   description,
-  source,
-  spec,
   actions,
   className,
   bodyClassName,
@@ -85,8 +81,6 @@ export function Specimen({
   id: string
   title: string
   description?: string
-  source?: string
-  spec?: string
   /** Controls at the end of the title row (e.g. open full screen). */
   actions?: React.ReactNode
   className?: string
@@ -121,13 +115,7 @@ export function Specimen({
             </span>
           </a>
         </h3>
-        {spec && <span className="text-muted-foreground text-xs">spec {spec}</span>}
-        {source && (
-          <code className="text-muted-foreground bg-muted ml-auto rounded-md px-1.5 py-0.5 font-mono text-[11px]">
-            {source}
-          </code>
-        )}
-        {actions && <div className={cn("flex items-center gap-2", !source && "ml-auto")}>{actions}</div>}
+        {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
       </div>
       {description && <p className="text-muted-foreground -mt-1 max-w-3xl text-sm text-pretty">{description}</p>}
       <div

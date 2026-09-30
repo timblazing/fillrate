@@ -164,7 +164,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
       title="Primitives"
       description="Vendored coss ui components (Base UI) in src/components/ui. Customize through tokens and composition, not by editing the files."
     >
-      <Specimen id="actions" title="Actions" source="button · group · toggle · toggle-group · badge · kbd · avatar">
+      <Specimen id="actions" title="Actions">
         <div className="space-y-6">
           <Row label="Variants">
             <Button>Default</Button>
@@ -276,7 +276,6 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
       <Specimen
         id="forms"
         title="Form controls"
-        source="field · fieldset · input · input-group · number-field · select · combobox · slider · radio-group · checkbox-group · switch · calendar"
       >
         <div className="grid gap-10 md:grid-cols-2">
           <div className="flex flex-col gap-6">
@@ -404,7 +403,6 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
       <Specimen
         id="overlays"
         title="Overlays & menus"
-        source="dialog · alert-dialog · sheet · drawer · popover · tooltip · preview-card · menu · context-menu · command · toast"
       >
         <div className="space-y-6">
           <Row label="Triggers">
@@ -627,7 +625,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
         </div>
       </Specimen>
 
-      <Specimen id="navigation" title="Navigation" source="sidebar · tabs · breadcrumb · toolbar · pagination">
+      <Specimen id="navigation" title="Navigation">
         <div className="grid gap-8 lg:grid-cols-[16rem_1fr]">
           <SidebarProvider className="min-h-0 w-auto">
             <Sidebar collapsible="none" className="h-72 w-full rounded-xl border">
@@ -760,7 +758,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
         </div>
       </Specimen>
 
-      <Specimen id="display" title="Data display" source="card · frame · meter · accordion · collapsible · scroll-area">
+      <Specimen id="display" title="Data display">
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
@@ -863,7 +861,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
         </div>
       </Specimen>
 
-      <Specimen id="feedback" title="Feedback" source="alert · progress · spinner · skeleton · empty">
+      <Specimen id="feedback" title="Feedback">
         <div className="space-y-6">
           {/* content-start keeps title/description tight when an alert stretches to its row's height */}
           <div className="grid gap-3 *:content-start md:grid-cols-2">
@@ -932,7 +930,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
         </div>
       </Specimen>
 
-      <Specimen id="layout" title="Layout" source="resizable · separator" spec="§4" description="Map + inspector + bottom table/results. Drag the handles.">
+      <Specimen id="layout" title="Layout" description="Map + inspector + bottom table/results. Drag the handles.">
         <div className="bg-background h-80 overflow-hidden rounded-xl border">
           <ResizablePanelGroup orientation="horizontal">
             <ResizablePanel defaultSize="70%">

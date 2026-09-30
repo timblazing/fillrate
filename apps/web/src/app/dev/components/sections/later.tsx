@@ -57,8 +57,6 @@ export function Later() {
       <Specimen
         id="timeline"
         title="Route timeline"
-        source="lab/route-timeline"
-        spec="§10 · M7"
         description="Drive, wait, and service per vehicle with time-window brackets, for time-window lessons. The playback cursor is a simulation, not live tracking."
       >
         <div className="mb-5 flex flex-wrap items-center gap-3">
@@ -83,8 +81,6 @@ export function Later() {
       <Specimen
         id="matrix"
         title="Matrix inspector"
-        source="lab/matrix-heatmap"
-        spec="§3 §7"
         description={`Solver miles (haversine × ${run.settings.circuity}) for ${truck.id}'s stops plus one far stop. Legs over ${run.settings.maxLegMiles} mi are prohibited before PyVRP sees the matrix (∞).`}
       >
         <MatrixHeatmap nodes={nodes.map((n) => n.id)} values={matrix} unit="mi" className="max-w-3xl" />
