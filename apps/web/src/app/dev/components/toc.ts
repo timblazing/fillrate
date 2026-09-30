@@ -30,6 +30,7 @@ export const toc = [
     items: [
       ["status", "Status & provenance"],
       ["fill", "Truck fill"],
+      ["plan-flow", "Plan flow"],
       ["stages", "Pipeline stages"],
       ["run-metrics", "Run metrics"],
       ["cluster-cards", "Cluster cards"],
@@ -42,7 +43,7 @@ export const toc = [
       ["settings", "Settings rows"],
       ["imports", "Imports"],
       ["runs", "Runs & jobs"],
-      ["compare", "Run diff"],
+      ["compare", "Run comparison"],
       ["exports", "Exports"],
     ],
   },
@@ -87,6 +88,7 @@ export const toc = [
     items: [
       ["timeline", "Route timeline"],
       ["matrix", "Matrix inspector"],
+      ["edit-session", "Edit working copy"],
     ],
   },
 ] as const

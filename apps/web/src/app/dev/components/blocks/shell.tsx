@@ -1,7 +1,7 @@
 "use client"
 
 import { ChevronDown, FlaskConical, GraduationCap, LayoutGrid, Map as MapIcon, Play, Settings, Share } from "lucide-react"
-import { createContext, useContext } from "react"
+import { Fragment, createContext, useContext } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
@@ -27,6 +27,14 @@ export type NavItem = (typeof nav)[number][1]
 // Workbench sections (spec §4). Allocate → Cluster → Solve run together from "Run pipeline" but stay inspectable.
 export const sections = ["Data", "Inventory", "Fleet", "Constraints", "Travel", "Allocate", "Cluster", "Solve", "Results"] as const
 export type Section = (typeof sections)[number]
+
+// The same nine sections, grouped by the business question they answer (inputs, rules, the plan, and its results).
+const sectionGroups: [string | null, Section[]][] = [
+  ["Inputs", ["Data", "Inventory", "Fleet"]],
+  ["Rules", ["Constraints", "Travel"]],
+  ["Plan", ["Allocate", "Cluster", "Solve"]],
+  [null, ["Results"]],
+]
 
 export function RunPipelineButton({ onRun, running }: { onRun?: () => void; running?: boolean }) {
   return (
@@ -137,10 +145,20 @@ export function AppShell({
           <div className="overflow-x-auto border-b px-3 py-1.5">
             <Tabs value={section} onValueChange={(v) => onSection?.(v as Section)}>
               <TabsList variant="underline">
-                {sections.map((t) => (
-                  <TabsTab key={t} value={t}>
-                    {t}
-                  </TabsTab>
+                {sectionGroups.map(([group, items], gi) => (
+                  <Fragment key={group ?? "results"}>
+                    {gi > 0 && <span aria-hidden className="bg-border mx-1.5 h-4 w-px self-center" />}
+                    {group && (
+                      <span aria-hidden className="text-muted-foreground/70 self-center px-1 text-[10px] font-medium tracking-wider uppercase">
+                        {group}
+                      </span>
+                    )}
+                    {items.map((t) => (
+                      <TabsTab key={t} value={t}>
+                        {t}
+                      </TabsTab>
+                    ))}
+                  </Fragment>
                 ))}
               </TabsList>
             </Tabs>

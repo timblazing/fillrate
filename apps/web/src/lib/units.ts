@@ -32,10 +32,19 @@ export function formatCount(n: number) {
 /** Fill bands used by every truck-fill visual, so "low" means the same thing everywhere. */
 export type FillBand = "low" | "fair" | "full"
 
+/** Band edges: under LOW is flagged, FULL and up reads as full. Legends read these so they never drift. */
+export const FILL_LOW = 0.6
+export const FILL_FULL = 0.85
+
 export function fillBand(fill: number): FillBand {
-  if (fill < 0.6) return "low"
-  if (fill < 0.85) return "fair"
+  if (fill < FILL_LOW) return "low"
+  if (fill < FILL_FULL) return "fair"
   return "full"
+}
+
+/** "1 stop", "4 stops". Pass `plural` for irregular nouns. */
+export function plural(n: number, noun: string, pluralNoun = `${noun}s`) {
+  return `${formatCount(n)} ${n === 1 ? noun : pluralNoun}`
 }
 
 /** CSS percentage with fixed precision, so server and client render identical style strings. */

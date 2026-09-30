@@ -3,15 +3,17 @@
 import { Pause, Play } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { EditSession, type EditEvaluation } from "@/components/lab/edit-session"
 import { MatrixHeatmap } from "@/components/lab/matrix-heatmap"
-import { RouteLegend } from "@/components/lab/route-swatch"
+import { RouteLegend, TruckTag } from "@/components/lab/route-swatch"
 import { RouteTimeline, formatClock } from "@/components/lab/route-timeline"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import { TRAILER_CAPACITY } from "@/lib/units"
 
 import { baseline, depot, lookups } from "../fixtures"
 import { haversineMiles } from "../fixtures/pipeline"
-import { timelineRoutes } from "../sample-data"
+import { timelineRoutes, timelineUnassigned } from "../sample-data"
 import { Group, Specimen } from "../specimen"
 
 // Components for the general PyVRP lessons (time windows, road matrices). Kept current, but secondary to the pipeline.
@@ -47,6 +49,51 @@ export function Later() {
     })
   )
 
+  // A manual edit on a working copy: move the emptiest truck's stops onto the cluster truck that ends up fullest
+  // without going over capacity, then drop the empty truck.
+  const cluster3 = run.trucks.filter((t) => t.cluster === 3)
+  const emptiest = [...cluster3].sort((a, b) => a.fill - b.fill)[0]
+  const target = cluster3
+    .filter((t) => t !== emptiest && t.load + emptiest.load <= TRAILER_CAPACITY)
+    .sort((a, b) => b.load - a.load)[0]
+  const moved = emptiest.stops.map((id) => look.stops.get(id)!)
+  const last = look.stops.get(target.stops[target.stops.length - 1])!
+  let extra = 0
+  let prev: [number, number] = [last.latitude, last.longitude]
+  for (const m of moved) {
+    extra += haversineMiles(prev, [m.latitude, m.longitude]) * run.settings.circuity
+    prev = [m.latitude, m.longitude]
+  }
+  const legOk = extra <= run.settings.maxLegMiles
+  const edit: EditEvaluation = {
+    violations: legOk ? [] : [`New leg into ${moved[0].id} is ${Math.round(extra)} mi, over the ${run.settings.maxLegMiles} mi limit`],
+    trucks: { before: run.metrics.trucks, after: run.metrics.trucks - 1 },
+    loadedMiles: { before: run.metrics.loadedMiles, after: run.metrics.loadedMiles - emptiest.loadedMiles + extra },
+    affected: [
+      { id: emptiest.id, cluster: 3, before: emptiest.fill, after: null },
+      { id: target.id, cluster: 3, before: target.fill, after: (target.load + emptiest.load) / TRAILER_CAPACITY },
+    ],
+  }
+  const editChanges = [
+    ...moved.map((m) => ({
+      id: m.id,
+      text: (
+        <span className="flex flex-wrap items-center gap-1.5">
+          Moved <span className="font-mono">{m.id}</span> <span className="text-muted-foreground">({m.label}, {m.city})</span> from
+          <TruckTag id={emptiest.id} cluster={3} /> to <TruckTag id={target.id} cluster={3} /> as its last visit
+        </span>
+      ),
+    })),
+    {
+      id: "drop",
+      text: (
+        <span className="flex flex-wrap items-center gap-1.5">
+          Removed <TruckTag id={emptiest.id} cluster={3} /> (now empty)
+        </span>
+      ),
+    },
+  ]
+
   return (
     <Group
       id="later"
@@ -57,7 +104,7 @@ export function Later() {
       <Specimen
         id="timeline"
         title="Route timeline"
-        description="Drive, wait, and service per vehicle with time-window brackets, for time-window lessons. The playback cursor is a simulation, not live tracking."
+        description="Drive, wait, and service per vehicle with time-window brackets, for time-window lessons. Service blocks carry their visit number, long waits are labeled, and visits no route could take sit in an Unassigned pool. The playback cursor is a simulation, not live tracking."
       >
         <div className="mb-5 flex flex-wrap items-center gap-3">
           <Button size="icon-sm" variant="outline" onClick={() => setPlaying(!playing)} aria-label={playing ? "Pause" : "Play"}>
@@ -75,6 +122,7 @@ export function Later() {
           onSelectStop={setSelectedStop}
           activeRoute={activeRoute}
           cursor={cursor}
+          unassigned={timelineUnassigned}
         />
       </Specimen>
 
@@ -83,7 +131,15 @@ export function Later() {
         title="Matrix inspector"
         description={`Solver miles (haversine × ${run.settings.circuity}) for ${truck.id}'s stops plus one far stop. Legs over ${run.settings.maxLegMiles} mi are prohibited before PyVRP sees the matrix (∞).`}
       >
-        <MatrixHeatmap nodes={nodes.map((n) => n.id)} values={matrix} unit="mi" className="max-w-3xl" />
+        <MatrixHeatmap nodes={nodes.map((n) => n.id)} values={matrix} unit="mi" unreachableLabel={`prohibited: over the ${run.settings.maxLegMiles} mi leg limit`} className="max-w-3xl" />
+      </Specimen>
+
+      <Specimen
+        id="edit-session"
+        title="Edit working copy"
+        description="Manual plan edits collect on a copy of the run. Evaluate re-validates the copy with the same matrix and limits and shows what changed; only then can it be saved as a manual baseline. Discard leaves the run untouched."
+      >
+        <EditSession runId="run-0212" changes={editChanges} evaluation={edit} className="max-w-3xl" />
       </Specimen>
     </Group>
   )

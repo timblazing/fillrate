@@ -10,11 +10,14 @@ export function MatrixHeatmap({
   nodes,
   values,
   unit,
+  unreachableLabel = "unreachable edge",
   className,
 }: {
   nodes: string[]
   values: (number | null)[][]
   unit: string
+  /** What ∞ means here, e.g. "prohibited: over the 500 mi leg limit". */
+  unreachableLabel?: string
   className?: string
 }) {
   const [hover, setHover] = useState<[number, number] | null>(null)
@@ -89,7 +92,7 @@ export function MatrixHeatmap({
             <span className="text-foreground font-mono">
               {nodes[hover[0]]} → {nodes[hover[1]]}
             </span>
-            <span className="tabular-nums">{hovered == null ? "unreachable" : `${hovered} ${unit}`}</span>
+            <span className="tabular-nums">{hovered == null ? unreachableLabel : `${hovered} ${unit}`}</span>
             {hovered != null && reverse != null && hovered !== reverse && (
               <span className="text-warning-foreground tabular-nums">
                 asymmetric: reverse is {reverse} {unit}
@@ -100,10 +103,11 @@ export function MatrixHeatmap({
           <>
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-16 rounded-full bg-[linear-gradient(90deg,color-mix(in_oklch,var(--route-1)_15%,var(--card)),var(--route-1))]" />
-              {min}–{max} {unit}
+              {min}–{max} {unit}, darker is farther
             </span>
+            <span>Hover a cell for both directions</span>
             <span className="flex items-center gap-1.5">
-              <span className="text-destructive font-mono">∞</span> unreachable edge
+              <span className="text-destructive font-mono">∞</span> {unreachableLabel}
             </span>
           </>
         )}

@@ -5,7 +5,7 @@ import { GitFork } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Cluster, Truck } from "@/lib/fulfillment"
-import { fillBand, formatCount, formatFeet, formatMiles, formatMoney, cssPercent } from "@/lib/units"
+import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, plural, cssPercent } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import { ClusterSwatch, routeColor } from "./route-swatch"
@@ -52,7 +52,12 @@ export function LimitBar({
 export function TruckFillStrip({ trucks, cluster, className }: { trucks: Truck[]; cluster: number; className?: string }) {
   const sorted = [...trucks].sort((a, b) => b.fill - a.fill)
   return (
-    <div className={cn("flex h-9 items-end gap-px", className)} role="img" aria-label={`Fill of ${trucks.length} trucks`}>
+    <div className={cn("relative flex h-9 items-end gap-px", className)} role="img" aria-label={`Fill of ${plural(trucks.length, "truck")}`}>
+      <span
+        aria-hidden
+        className="border-foreground/35 pointer-events-none absolute inset-x-0 z-10 border-t border-dashed"
+        style={{ bottom: cssPercent(FILL_LOW) }}
+      />
       {sorted.map((t) => (
         <Tooltip key={t.id}>
           <TooltipTrigger
@@ -68,7 +73,7 @@ export function TruckFillStrip({ trucks, cluster, className }: { trucks: Truck[]
             />
           </TooltipTrigger>
           <TooltipPopup>
-            <span className="font-mono">{t.id}</span> · {Math.round(t.fill * 100)}% · {t.stops.length} stops
+            <span className="font-mono">{t.id}</span> · {Math.round(t.fill * 100)}% · {plural(t.stops.length, "stop")}
           </TooltipPopup>
         </Tooltip>
       ))}
@@ -95,6 +100,7 @@ export function ClusterCard({
   onSelect?: () => void
   className?: string
 }) {
+  const low = trucks.filter((t) => fillBand(t.fill) === "low").length
   const stats: [string, React.ReactNode][] = [
     ["Stops", formatCount(cluster.stops.length)],
     ["Trucks", formatCount(cluster.trucks.length)],
@@ -152,7 +158,15 @@ export function ClusterCard({
           </div>
         ))}
       </dl>
-      <TruckFillStrip trucks={trucks} cluster={cluster.id} />
+      <div className="space-y-1">
+        <TruckFillStrip trucks={trucks} cluster={cluster.id} />
+        <div className="text-muted-foreground flex justify-between text-[11px] tabular-nums">
+          <span>{plural(trucks.length, "truck")}, fullest first</span>
+          <span className={cn(low > 0 && "text-warning-foreground")}>
+            {low > 0 ? `${low} under ${Math.round(FILL_LOW * 100)}%` : `none under ${Math.round(FILL_LOW * 100)}%`}
+          </span>
+        </div>
+      </div>
       <LimitBar label="Widest pair" value={cluster.widestPair} limit={maxDiameter} />
     </div>
   )

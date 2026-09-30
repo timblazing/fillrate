@@ -1,23 +1,42 @@
 "use client"
 
+import { Check, ChevronDown, LayoutPanelTop, Share } from "lucide-react"
 import dynamic from "next/dynamic"
 import { useState } from "react"
+import { useGroupRef } from "react-resizable-panels"
 
 import { ClusterCard } from "@/components/lab/cluster-card"
 import { DataTable } from "@/components/lab/data-table"
 import { JobStatusBadge } from "@/components/lab/job-status"
 import { ClusterSwatch, TruckTag } from "@/components/lab/route-swatch"
-import { FillMeter } from "@/components/lab/trailer-fill"
+import { FillBandLegend, FillMeter, FillPercent, TrailerFill } from "@/components/lab/trailer-fill"
 import { TruckLoad } from "@/components/lab/truck-load"
+import { UnshippedLines } from "@/components/lab/unshipped-lines"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Menu, MenuGroup, MenuGroupLabel, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu"
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatCount, formatMiles, formatMoney } from "@/lib/units"
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
+import { fillBand, formatCount, formatMiles, formatMoney, plural } from "@/lib/units"
 
 import { baseline, depot, lookups } from "../fixtures"
 import { orderRows } from "../fixtures/order-rows"
 import { orderColumns } from "../order-columns"
-import { AppShell, type Section } from "./shell"
+import { AppShell, RunPipelineButton, type Section } from "./shell"
+
+type BottomTab = "loads" | "orders" | "unshipped"
+
+// Named workspace presets: the same run and selection, with more room for the view the task needs.
+const presets = [
+  { id: "planning", label: "Planning", hint: "Map first, order lines below", map: 65, tab: "orders" },
+  { id: "loading", label: "Loading", hint: "Truck loads get the room", map: 40, tab: "loads" },
+  { id: "analysis", label: "Analysis", hint: "Tables first, map for context", map: 30, tab: "orders" },
+] as const satisfies readonly { id: string; label: string; hint: string; map: number; tab: BottomTab }[]
+
+type PresetId = (typeof presets)[number]["id"]
 
 const PipelineMap = dynamic(() => import("../pipeline-map"), { ssr: false, loading: () => <Skeleton className="h-full w-full rounded-none" /> })
 
@@ -30,11 +49,24 @@ export function WorkbenchBlock() {
   const [cluster, setCluster] = useState<number | null>(3)
   const [stop, setStop] = useState<string | null>(null)
   const [truck, setTruck] = useState<string | null>(null)
+  const [tab, setTab] = useState<BottomTab>("loads")
+  const [preset, setPreset] = useState<PresetId>("planning")
+  const vertical = useGroupRef()
+
+  const applyPreset = (id: PresetId) => {
+    const p = presets.find((x) => x.id === id)!
+    setPreset(id)
+    setTab(p.tab)
+    vertical.current?.setLayout({ map: p.map, bottom: 100 - p.map })
+  }
 
   const c = cluster != null ? run.clusters.find((x) => x.id === cluster) : undefined
   const trucks = c ? run.trucks.filter((t) => t.cluster === c.id).sort((a, b) => b.fill - a.fill) : []
   const openTruck = truck ? look.trucks.get(truck) : undefined
   const rows = orderRows(run).filter((r) => cluster == null || r.cluster === cluster)
+  const scopeTrucks = (c ? trucks : [...run.trucks].sort((a, b) => b.fill - a.fill))
+  const lowCount = scopeTrucks.filter((t) => fillBand(t.fill) === "low").length
+  const lowTrucks = trucks.filter((t) => fillBand(t.fill) === "low")
 
   const selectStop = (id: string | null) => {
     setStop(id)
@@ -43,11 +75,41 @@ export function WorkbenchBlock() {
   }
 
   return (
-    <AppShell section={section} onSection={setSection}>
+    <AppShell
+      section={section}
+      onSection={setSection}
+      actions={
+        <>
+          <Menu>
+            <MenuTrigger render={<Button variant="ghost" size="sm" />}>
+              <LayoutPanelTop /> View: {presets.find((p) => p.id === preset)!.label} <ChevronDown className="opacity-60" />
+            </MenuTrigger>
+            <MenuPopup align="end" className="w-60">
+              <MenuGroup>
+                <MenuGroupLabel>Workspace preset</MenuGroupLabel>
+                {presets.map((p) => (
+                  <MenuItem key={p.id} onClick={() => applyPreset(p.id)}>
+                    <span className="flex-1">
+                      <span className="block">{p.label}</span>
+                      <span className="text-muted-foreground block text-xs">{p.hint}</span>
+                    </span>
+                    {p.id === preset && <Check />}
+                  </MenuItem>
+                ))}
+              </MenuGroup>
+            </MenuPopup>
+          </Menu>
+          <Button variant="ghost" size="sm">
+            <Share /> Export
+          </Button>
+          <RunPipelineButton />
+        </>
+      }
+    >
       <ResizablePanelGroup orientation="horizontal" className="h-full">
         <ResizablePanel defaultSize="68%">
-          <ResizablePanelGroup orientation="vertical">
-            <ResizablePanel defaultSize="60%">
+          <ResizablePanelGroup orientation="vertical" groupRef={vertical}>
+            <ResizablePanel id="map" defaultSize="65%" minSize="20%">
               <div className="relative h-full">
                 <PipelineMap
                   embedded
@@ -62,6 +124,7 @@ export function WorkbenchBlock() {
                 />
                 <div className="bg-background/90 absolute top-2 left-2 flex items-center gap-2 rounded-lg border px-2 py-1 text-xs shadow-sm backdrop-blur-sm">
                   <JobStatusBadge state="succeeded" />
+                  <span className="font-medium">Baseline</span>
                   <span className="font-mono">run-0212</span>
                   <span className="text-muted-foreground">
                     k {run.metrics.k} · {run.metrics.trucks} trucks · {Math.round(run.metrics.avgFill * 100)}% avg fill
@@ -70,17 +133,85 @@ export function WorkbenchBlock() {
               </div>
             </ResizablePanel>
             <ResizableHandle withHandle />
-            <ResizablePanel defaultSize="40%">
-              <div className="h-full overflow-auto">
-                <DataTable
-                  key={cluster ?? "all"}
-                  columns={orderColumns}
-                  data={rows}
-                  pageSize={8}
-                  filterPlaceholder={cluster != null ? `Lines in cluster ${cluster}…` : "Filter lines…"}
-                  className="bg-card min-h-full rounded-none border-0"
-                />
-              </div>
+            <ResizablePanel id="bottom" defaultSize="35%" minSize="15%">
+              <Tabs value={tab} onValueChange={(v) => setTab(v as BottomTab)} className="flex h-full flex-col gap-0">
+                <div className="flex items-center gap-3 border-b px-3">
+                  <TabsList variant="underline">
+                    <TabsTab value="loads">
+                      Loads <Badge variant="secondary" size="sm">{scopeTrucks.length}</Badge>
+                    </TabsTab>
+                    <TabsTab value="orders">
+                      Order lines <Badge variant="secondary" size="sm">{formatCount(rows.length)}</Badge>
+                    </TabsTab>
+                    <TabsTab value="unshipped">
+                      Unshipped <Badge variant="warning" size="sm">{formatCount(run.unshipped.length)}</Badge>
+                    </TabsTab>
+                  </TabsList>
+                  <span className="text-muted-foreground ml-auto truncate text-xs">{c ? `Cluster ${c.id}` : "All clusters"}</span>
+                </div>
+                <TabsPanel value="loads" className="min-h-0 flex-1">
+                  <ScrollArea className="h-full">
+                    <div className="text-muted-foreground flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                      <span>
+                        {plural(scopeTrucks.length, "truck")}, fullest first ·{" "}
+                        <span className={cn(lowCount > 0 && "text-warning-foreground")}>{lowCount} under 60%</span>
+                      </span>
+                      <span>Segments are stops in visit order · hatched is empty floor</span>
+                    </div>
+                    <ul className="divide-y border-t">
+                      {scopeTrucks.map((t) => (
+                        <li key={t.id}>
+                          {/* A div, not a button: the trailer segments inside are buttons themselves. */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => {
+                              setCluster(t.cluster)
+                              setTruck(t.id)
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                setCluster(t.cluster)
+                                setTruck(t.id)
+                              }
+                            }}
+                            aria-pressed={truck === t.id}
+                            className={cn(
+                              "hover:bg-muted/50 focus-visible:ring-ring/50 grid w-full cursor-pointer grid-cols-[4.5rem_minmax(0,1fr)_3rem_9rem] items-center gap-3 px-3 py-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+                              truck === t.id && "bg-muted/70"
+                            )}
+                          >
+                            <TruckTag id={t.id} cluster={t.cluster} />
+                            <TrailerFill
+                              size="sm"
+                              cluster={t.cluster}
+                              segments={t.stops.map((id) => ({ id, load: look.stops.get(id)!.load, label: look.stops.get(id)!.label }))}
+                            />
+                            <FillPercent fill={t.fill} className="text-right" />
+                            <span className="text-muted-foreground truncate text-right tabular-nums">
+                              {plural(t.stops.length, "stop")} · {formatMiles(t.loadedMiles)}
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                </TabsPanel>
+                <TabsPanel value="orders" className="min-h-0 flex-1 overflow-auto">
+                  <DataTable
+                    key={cluster ?? "all"}
+                    columns={orderColumns}
+                    data={rows}
+                    pageSize={8}
+                    filterPlaceholder={cluster != null ? `Lines in cluster ${cluster}…` : "Filter lines…"}
+                    className="bg-card min-h-full rounded-none border-0"
+                  />
+                </TabsPanel>
+                <TabsPanel value="unshipped" className="min-h-0 flex-1 overflow-auto p-3">
+                  <UnshippedLines items={run.unshipped} products={look.products} locations={look.locations} pageSize={8} />
+                </TabsPanel>
+              </Tabs>
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
@@ -115,29 +246,39 @@ export function WorkbenchBlock() {
                     maxDiameter={run.settings.maxDiameterMiles}
                     className="rounded-none border-0 p-3"
                   />
-                  <div className="text-muted-foreground flex items-center justify-between border-t px-3 py-2 text-xs">
-                    <span>{trucks.length} trucks, fullest first</span>
+                  <div className="text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-2 text-xs">
+                    <span className={cn("font-medium", lowTrucks.length ? "text-warning-foreground" : "text-foreground")}>
+                      {lowTrucks.length ? `Needs attention · ${plural(lowTrucks.length, "truck")} under 60%` : "Every truck is 60% full or more"}
+                    </span>
                     <button type="button" className="hover:text-foreground" onClick={() => setCluster(null)}>
                       All clusters
                     </button>
                   </div>
-                  <ul className="divide-y border-t">
-                    {trucks.map((t) => (
-                      <li key={t.id}>
-                        <button
-                          type="button"
-                          onClick={() => setTruck(t.id)}
-                          className="hover:bg-muted/50 grid w-full grid-cols-[auto_minmax(0,1fr)_6.5rem] items-center gap-3 px-3 py-2 text-left text-xs transition-colors"
-                        >
-                          <TruckTag id={t.id} cluster={t.cluster} />
-                          <span className="text-muted-foreground truncate tabular-nums">
-                            {t.stops.length} stops · {formatMiles(t.loadedMiles)}
-                          </span>
-                          <FillMeter fill={t.fill} />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  {lowTrucks.length > 0 && (
+                    <ul className="divide-y border-t">
+                      {lowTrucks.map((t) => (
+                        <li key={t.id}>
+                          <button
+                            type="button"
+                            onClick={() => setTruck(t.id)}
+                            className="hover:bg-muted/50 grid w-full grid-cols-[auto_minmax(0,1fr)_6.5rem] items-center gap-3 px-3 py-2 text-left text-xs transition-colors"
+                          >
+                            <TruckTag id={t.id} cluster={t.cluster} />
+                            <span className="text-muted-foreground truncate tabular-nums">
+                              {plural(t.stops.length, "stop")} · {formatMiles(t.loadedMiles)}
+                            </span>
+                            <FillMeter fill={t.fill} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+                    <FillBandLegend className="text-[10px]" />
+                    <Button variant="ghost" size="xs" onClick={() => setTab("loads")}>
+                      All {trucks.length} loads ↓
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -155,7 +296,7 @@ export function WorkbenchBlock() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{look.clusterArea(x.id)}</span>
                         <span className="text-muted-foreground block text-xs tabular-nums">
-                          {x.stops.length} stops · {x.trucks.length} trucks · {formatMoney(x.value, { compact: true })}
+                          {plural(x.stops.length, "stop")} · {plural(x.trucks.length, "truck")} · {formatMoney(x.value, { compact: true })}
                         </span>
                       </span>
                       <FillMeter fill={x.avgFill} className="w-28" />

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react"
 
 import type { JobState } from "@/components/lab/job-status"
 import type { PipelineStage } from "@/components/lab/pipeline-stages"
+import type { PlanFlowStep } from "@/components/lab/plan-flow"
 import type { StageId } from "@/lib/fulfillment"
-import { formatCount, formatMoney } from "@/lib/units"
+import { formatCount, formatMoney, formatPercent, plural } from "@/lib/units"
 
 import type { PipelineResult } from "./pipeline"
 
@@ -27,17 +28,65 @@ export function stageSummaries(run: PipelineResult): Record<StageId, string> {
   const beyond = run.stops.filter((s) => s.depotMiles > run.settings.maxLegMiles).length
   return {
     allocate: `${formatCount(filled)} of ${formatCount(eligible.length)} lines filled, ${partial} partly · ${formatMoney(run.metrics.revenueAllocated, { compact: true })}`,
-    aggregate: `${formatCount(run.stops.length)} stops · ${run.splits.length} split over one trailer`,
+    aggregate: `${run.splits.length} split over one trailer`,
     cluster: `k = ${run.metrics.k}${run.settings.k === "auto" ? " (auto)" : ""} · ${run.repairs.length} repairs · ${beyond} beyond leg limit`,
-    solve: `${formatCount(run.metrics.trucks)} trucks · 10 s search per cluster`,
-    validate: `${formatCount(run.metrics.trucks)} trucks pass load, leg, and diameter checks`,
-    metrics: `${formatCount(run.unshipped.length)} unshipped lines, each with a reason`,
+    solve: "10 s search per cluster",
+    validate: `All ${formatCount(run.metrics.trucks)} trucks pass load, leg, and diameter checks`,
+    metrics: "Each unshipped line has a reason",
+  }
+}
+
+/** The run as business objects: what came in, what got stock, and what ended up on a truck. */
+export function planFlowSteps(run: PipelineResult): PlanFlowStep[] {
+  const orders = new Set(run.lines.map((l) => l.orderId)).size
+  const allocated = run.lines.filter((l) => l.allocated > 0).length
+  const count = (reason: string) => run.unshipped.filter((u) => u.reason === reason).length
+  const noStock = count("no-stock")
+  const excluded = count("data-quality")
+  const notLoaded = count("unreachable") + count("did-not-fit")
+  return [
+    { id: "orders", label: "Orders", value: formatCount(orders), detail: `${formatCount(run.lines.length)} lines · ${formatMoney(run.metrics.revenueOrdered, { compact: true })}` },
+    {
+      id: "allocated",
+      label: "Allocated",
+      value: formatCount(allocated),
+      detail: `of ${formatCount(run.lines.length)} lines got stock`,
+      drop: [noStock && `${formatCount(noStock)} no stock`, excluded && `${formatCount(excluded)} excluded`].filter(Boolean).join(" · ") || undefined,
+    },
+    { id: "stops", label: "Stops", value: formatCount(run.stops.length), detail: `${plural(run.splits.length, "split stop")} over one trailer` },
+    { id: "clusters", label: "Clusters", value: formatCount(run.clusters.length), detail: `${run.settings.k === "auto" ? "auto k" : `k = ${run.settings.k}`} · ${plural(run.repairs.length, "repair")}` },
+    {
+      id: "trucks",
+      label: "Trucks",
+      value: formatCount(run.metrics.trucks),
+      detail: `${formatPercent(run.metrics.avgFill)} avg fill`,
+      drop: notLoaded ? `${formatCount(notLoaded)} lines not loaded` : undefined,
+    },
+    {
+      id: "shipped",
+      label: "Shipped",
+      value: formatMoney(run.metrics.revenueShipped, { compact: true }),
+      detail: `${formatPercent(run.metrics.revenueShipped / run.metrics.revenueOrdered)} of ordered`,
+      drop: `${formatCount(run.unshipped.length)} lines unshipped`,
+    },
+  ]
+}
+
+function stageOutputs(run: PipelineResult): Record<StageId, PipelineStage["output"]> {
+  return {
+    allocate: { value: formatCount(run.lines.filter((l) => l.allocated > 0).length), label: "lines allocated" },
+    aggregate: { value: formatCount(run.stops.length), label: "stops" },
+    cluster: { value: formatCount(run.clusters.length), label: "clusters" },
+    solve: { value: formatCount(run.metrics.trucks), label: "trucks" },
+    validate: { value: "0", label: "violations" },
+    metrics: { value: formatCount(run.unshipped.length), label: "unshipped lines" },
   }
 }
 
 /** Stage list at `elapsed` ms into a simulated run; `"done"` returns the finished run. */
 export function stagesAt(run: PipelineResult, elapsed: number | "done"): PipelineStage[] {
   const summary = stageSummaries(run)
+  const outputs = stageOutputs(run)
   const order: StageId[] = ["allocate", "aggregate", "cluster", "solve", "validate", "metrics"]
   const labels: Record<StageId, string> = {
     allocate: "Allocate",
@@ -60,6 +109,7 @@ export function stagesAt(run: PipelineResult, elapsed: number | "done"): Pipelin
       state,
       seconds: run.timings[id],
       summary: state === "succeeded" ? summary[id] : undefined,
+      output: state === "succeeded" ? outputs[id] : undefined,
     }
     if (id === "solve") {
       stage.jobs = run.clusters.map((c, ci) => {
@@ -71,7 +121,7 @@ export function stagesAt(run: PipelineResult, elapsed: number | "done"): Pipelin
           id: `job-solve-c${c.id}`,
           cluster: c.id,
           state: jobState,
-          detail: `${c.stops.length} stops → ${c.trucks.length} trucks · PyVRP seed 0 · 10 s`,
+          detail: `${plural(c.stops.length, "stop")} → ${plural(c.trucks.length, "truck")} · PyVRP seed 0 · 10 s`,
         }
       })
       if (state === "running") {

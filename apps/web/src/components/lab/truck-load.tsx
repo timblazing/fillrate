@@ -5,7 +5,7 @@ import { useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import type { OrderLine, Product, Stop, Truck } from "@/lib/fulfillment"
-import { formatFeet, formatMiles, formatMoney } from "@/lib/units"
+import { formatFeet, formatMiles, formatMoney, plural } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import { TruckTag } from "./route-swatch"
@@ -45,7 +45,7 @@ export function TruckLoad({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3.5 py-2.5">
         <TruckTag id={truck.id} cluster={truck.cluster} className="text-sm" />
         <span className="text-muted-foreground text-xs tabular-nums">
-          {seq.length} stops · {formatMiles(truck.loadedMiles)} loaded · {formatMoney(truck.value)}
+          {plural(seq.length, "stop")} · {formatMiles(truck.loadedMiles)} loaded · {formatMoney(truck.value)}
         </span>
         <span className="ml-auto text-lg leading-none tracking-tight">
           <FillPercent fill={truck.fill} />

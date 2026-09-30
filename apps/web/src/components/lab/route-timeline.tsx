@@ -28,6 +28,15 @@ export function formatClock(minutes: number) {
 
 const kindLabel = { drive: "Drive", wait: "Wait", service: "Service" }
 
+function formatDuration(minutes: number) {
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`
+}
+
+/** Visits the solver left unassigned, shown as a pool row (OptimoRoute-style) so they are never invisible. */
+export type UnassignedVisit = { stopId: string; window?: [number, number]; reason?: string }
+
 // Gantt-style route timeline: drive, wait, and service per vehicle with time-window brackets.
 // Selecting a stop here should select the same stable ID on the map and table (spec §4).
 export function RouteTimeline({
@@ -38,9 +47,11 @@ export function RouteTimeline({
   onSelectStop,
   activeRoute,
   cursor,
+  unassigned,
   className,
 }: {
   routes: TimelineRoute[]
+  unassigned?: UnassignedVisit[]
   from: number
   to: number
   selectedStop?: string | null
@@ -74,11 +85,18 @@ export function RouteTimeline({
 
         {routes.map((r) => {
           const dimmed = activeRoute != null && activeRoute !== r.route
+          const services = r.segments.filter((s) => s.kind === "service")
+          const waited = r.segments.filter((s) => s.kind === "wait").reduce((sum, s) => sum + s.end - s.start, 0)
           return (
             <div key={r.route} className={cn("contents", dimmed && "[&>*]:opacity-40")}>
               <div className="flex items-center gap-2 py-2 transition-opacity">
                 <RouteSwatch route={r.route} />
-                <span className="truncate font-medium">{r.vehicle}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{r.vehicle}</span>
+                  <span className="text-muted-foreground block truncate text-[10px] tabular-nums">
+                    {services.length} {services.length === 1 ? "stop" : "stops"} · {formatDuration(waited)} waiting
+                  </span>
+                </span>
               </div>
               <div className="relative h-14 overflow-hidden transition-opacity">
                 {hours.map((t) => (
@@ -90,6 +108,7 @@ export function RouteTimeline({
                   const color = routeColor(r.route)
                   if (s.kind === "service" && s.stopId) {
                     const selected = selectedStop === s.stopId
+                    const seq = services.indexOf(s) + 1
                     return (
                       <div key={i}>
                         {s.window && (
@@ -121,9 +140,16 @@ export function RouteTimeline({
                             >
                               {s.stopId}
                             </span>
+                            {s.end - s.start >= 10 && (
+                              <span className="absolute inset-0 flex items-center justify-center font-mono text-[10px] font-semibold text-white tabular-nums">
+                                {seq}
+                              </span>
+                            )}
                           </TooltipTrigger>
                           <TooltipPopup>
-                            <div className="font-medium">{s.stopId}</div>
+                            <div className="font-medium">
+                              Stop {seq} · {s.stopId}
+                            </div>
                             <div className="tabular-nums">
                               Service {formatClock(s.start)}–{formatClock(s.end)}
                               {s.window && ` · window ${formatClock(s.window[0])}–${formatClock(s.window[1])}`}
@@ -133,9 +159,18 @@ export function RouteTimeline({
                       </div>
                     )
                   }
+                  const long = s.kind === "wait" && s.end - s.start >= 30
                   return (
+                    <span key={i} className="contents">
+                    {long && (
+                      <span
+                        className="text-muted-foreground absolute top-[36px] -translate-x-1/2 text-[10px] whitespace-nowrap tabular-nums"
+                        style={{ left: pct((s.start + s.end) / 2) }}
+                      >
+                        {formatDuration(s.end - s.start)} wait
+                      </span>
+                    )}
                     <span
-                      key={i}
                       title={`${kindLabel[s.kind]} ${formatClock(s.start)}–${formatClock(s.end)}`}
                       className="absolute top-[26px] h-2 rounded-[3px]"
                       style={{
@@ -148,6 +183,7 @@ export function RouteTimeline({
                         boxShadow: s.kind === "wait" ? `inset 0 0 0 1px color-mix(in oklch, ${color} 35%, transparent)` : undefined,
                       }}
                     />
+                    </span>
                   )
                 })}
               </div>
@@ -168,6 +204,40 @@ export function RouteTimeline({
             </div>
           )}
         </div>
+        {unassigned && unassigned.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 border-t border-dashed py-2">
+              <span className="border-muted-foreground/60 size-3 shrink-0 rounded-full border border-dashed" />
+              <span className="min-w-0">
+                <span className="text-warning-foreground block truncate font-medium">Unassigned ({unassigned.length})</span>
+                <span className="text-muted-foreground block truncate text-[10px]">not on any route</span>
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-dashed py-2">
+              {unassigned.map((u) => (
+                <Tooltip key={u.stopId}>
+                  <TooltipTrigger
+                    onClick={() => onSelectStop?.(u.stopId)}
+                    aria-pressed={selectedStop === u.stopId}
+                    className={cn(
+                      "bg-background hover:border-foreground/30 rounded-md border border-dashed px-1.5 py-0.5 font-mono text-[10px] transition-colors",
+                      selectedStop === u.stopId && "ring-foreground ring-2"
+                    )}
+                  >
+                    {u.stopId}
+                    {u.window && (
+                      <span className="text-muted-foreground ml-1 tabular-nums">
+                        {formatClock(u.window[0])}–{formatClock(u.window[1])}
+                      </span>
+                    )}
+                  </TooltipTrigger>
+                  <TooltipPopup>{u.reason ?? "Not assigned to a route"}</TooltipPopup>
+                </Tooltip>
+              ))}
+            </div>
+          </>
+        )}
+
       </div>
 
       <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-4 pl-[9.75rem]">

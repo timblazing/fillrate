@@ -9,7 +9,7 @@ import { depot, products, scenario, syntheticScenario } from "./synthetic"
 export { depot, products, scenario, syntheticScenario }
 export { baseline, runPipeline, defaultSettings, type PipelineResult } from "./pipeline"
 export { exploreK } from "./k-explorer"
-export { iterations, type Iteration } from "./iterations"
+export { iterations, settingsDiff, type Iteration } from "./iterations"
 
 export type Lookups = {
   stops: Map<string, Stop>

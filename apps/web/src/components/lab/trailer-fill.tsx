@@ -1,7 +1,7 @@
 "use client"
 
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
-import { TRAILER_CAPACITY, fillBand, formatFeet, formatPercent, cssPercent } from "@/lib/units"
+import { FILL_FULL, FILL_LOW, TRAILER_CAPACITY, fillBand, formatFeet, formatPercent, cssPercent } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import { routeColor } from "./route-swatch"
@@ -17,10 +17,31 @@ export function FillPercent({ fill, className }: { fill: number; className?: str
   return <span className={cn("font-medium tabular-nums", bandText[fillBand(fill)], className)}>{formatPercent(fill)}</span>
 }
 
+const bandColor = { low: "var(--warning)", fair: "var(--muted-foreground)", full: "var(--success)" }
+
+/** Key for the fill bands, shown next to any fill visual so the colors explain themselves. */
+export function FillBandLegend({ className }: { className?: string }) {
+  const items = [
+    ["low", `under ${formatPercent(FILL_LOW)}`],
+    ["fair", `${formatPercent(FILL_LOW)}–${formatPercent(FILL_FULL)}`],
+    ["full", `${formatPercent(FILL_FULL)}+ full`],
+  ] as const
+  return (
+    <span className={cn("text-muted-foreground inline-flex items-center gap-3 text-[11px]", className)}>
+      {items.map(([band, label]) => (
+        <span key={band} className="inline-flex items-center gap-1.5">
+          <span className="h-1.5 w-3 rounded-full" style={{ background: bandColor[band] }} aria-hidden />
+          {label}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 /** Compact fill bar for tables and cards. */
 export function FillMeter({ fill, cluster, className }: { fill: number; cluster?: number; className?: string }) {
   const band = fillBand(fill)
-  const color = cluster ? routeColor(cluster) : { low: "var(--warning)", fair: "var(--muted-foreground)", full: "var(--success)" }[band]
+  const color = cluster ? routeColor(cluster) : bandColor[band]
   return (
     <span className={cn("inline-flex min-w-24 items-center gap-2", className)}>
       <span
@@ -60,6 +81,7 @@ export function TrailerFill({
   className?: string
 }) {
   const used = segments.reduce((s, x) => s + x.load, 0)
+  const empty = Math.max(0, capacity - used)
   const ticks = Array.from({ length: Math.floor(capacity / 1000) }, (_, i) => (i + 1) * 1000)
   return (
     <div className={cn("space-y-1", className)}>
@@ -96,6 +118,14 @@ export function TrailerFill({
             </TooltipPopup>
           </Tooltip>
         ))}
+        {size === "md" && empty / capacity >= 0.15 && (
+          <span
+            className="text-muted-foreground pointer-events-none absolute inset-y-0 right-0 flex items-center justify-center font-mono text-[10px] tabular-nums"
+            style={{ width: cssPercent(empty / capacity) }}
+          >
+            <span className="bg-background/80 rounded px-1">{formatFeet(empty)} empty</span>
+          </span>
+        )}
         {size === "md" &&
           ticks.map((t) => (
             <span key={t} className="bg-foreground/15 pointer-events-none absolute inset-y-0 w-px" style={{ left: cssPercent(t / capacity) }} />

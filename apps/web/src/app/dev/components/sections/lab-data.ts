@@ -1,7 +1,5 @@
 // Static copy for the Fulfillment components section. Synthetic; never real customer data (spec §14).
 
-import type { DiffRow } from "@/components/lab/config-diff"
-
 export const lineFilterItems = [
   { value: "all", label: "All states" },
   { value: "loaded", label: "Loaded" },
@@ -43,16 +41,6 @@ export const runEvents = [
   { at: "14:02:12", text: "PyVRP 0.14.0 · seed 0 · MaxRuntime(10) · open routes" },
   { at: "14:02:15", text: "Heartbeat · 33%" },
   { at: "14:02:18", text: "Heartbeat · 62%" },
-]
-
-export const configDiffRows: DiffRow[] = [
-  { field: "cluster.k", a: "auto (→ 6)", b: "8" },
-  { field: "cluster.kmeans_seed", a: "0", b: "0", same: true },
-  { field: "cluster.max_diameter_mi", a: "500", b: "500", same: true },
-  { field: "travel.circuity_factor", a: "1.2", b: "1.2", same: true },
-  { field: "allocation.strategy", a: "order date, then value", b: "order date, then value", same: true },
-  { field: "fleet.trailer", a: "53 ft · open · unlimited", b: "53 ft · open · unlimited", same: true },
-  { field: "solve.max_runtime_per_cluster", a: "10 s", b: "10 s", same: true },
 ]
 
 export const pythonExport = `"""run-0214 · Mid-South open orders v14 · reproduces the pipeline offline."""

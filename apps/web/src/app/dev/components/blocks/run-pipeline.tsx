@@ -6,6 +6,7 @@ import { useState } from "react"
 import { DiagnosticList } from "@/components/lab/diagnostic-list"
 import { JobStatusBadge } from "@/components/lab/job-status"
 import { PipelineStages } from "@/components/lab/pipeline-stages"
+import { PlanFlow } from "@/components/lab/plan-flow"
 import { RunMetricGroups } from "@/components/lab/run-metrics"
 import { SettingSourceBadge, type SettingSource } from "@/components/lab/setting-source"
 import { Button } from "@/components/ui/button"
@@ -14,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { formatCount } from "@/lib/units"
 
 import { baseline, depot, lookups } from "../fixtures"
-import { useSimulatedRun } from "../fixtures/stages"
+import { planFlowSteps, useSimulatedRun } from "../fixtures/stages"
 import { AppShell, RunPipelineButton, type Section } from "./shell"
 
 const settings: [string, string, SettingSource][] = [
@@ -71,6 +72,13 @@ export function RunPipelineBlock() {
 
         <ScrollArea>
           <div className="space-y-4 p-4">
+            {done && (
+              <section className="space-y-2">
+                <h3 className="text-sm font-medium">Plan</h3>
+                <PlanFlow steps={planFlowSteps(run)} />
+              </section>
+            )}
+            <h3 className="text-muted-foreground px-1 text-xs font-medium">Pipeline detail</h3>
             <div className="bg-card space-y-5 rounded-xl border p-4">
               <div className="flex flex-wrap items-center gap-3">
                 <JobStatusBadge state={live.running ? "running" : done ? "succeeded" : "queued"} />

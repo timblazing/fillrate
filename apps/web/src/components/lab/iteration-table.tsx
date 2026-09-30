@@ -37,7 +37,15 @@ const cols: Col[] = [
   { key: "minFill", label: "Min fill", group: "fill", better: "up", value: (m) => m.minFill, render: (m) => <FillPercent fill={m.minFill} /> },
   { key: "centroid", label: "To centroid", group: "tight", better: "down", value: (m) => m.meanToCentroid, render: (m) => `${m.meanToCentroid.toFixed(0)} mi` },
   { key: "widest", label: "Widest pair", group: "tight", better: "down", value: (m) => m.widestPair, render: (m) => formatMiles(m.widestPair) },
-  { key: "stability", label: "Stability", group: "tight", better: "up", value: (m) => m.stability, render: (m) => (m.stability != null ? m.stability.toFixed(2) : "–") },
+  { key: "stability", label: "Stability", group: "tight", better: "up", value: (m) => m.stability, render: (m) =>
+      m.stability != null ? (
+        m.stability.toFixed(2)
+      ) : (
+        <span className="text-muted-foreground" title="Not measured: k came from auto, not the k explorer's seed sweep">
+          n/a
+        </span>
+      ),
+  },
   { key: "revenue", label: "Revenue", group: "rev", better: "up", value: (m) => m.revenueShipped, render: (m) => formatMoney(m.revenueShipped, { compact: true }) },
 ]
 

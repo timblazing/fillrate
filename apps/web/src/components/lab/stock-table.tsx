@@ -14,7 +14,7 @@ export type StockRow = {
 }
 
 // Inventory against open demand, by product (spec §8). Ordered, allocated, residual, and short are reported
-// separately. The bar shows stock as a share of demand; the notch marks 100%.
+// separately. The bar shows stock as a share of demand; the notch marks 100%. Two states only: covered or short.
 export function StockTable({ rows, className }: { rows: StockRow[]; className?: string }) {
   const maxRatio = Math.max(1.2, ...rows.map((r) => r.stock / r.ordered))
   return (
@@ -25,7 +25,9 @@ export function StockTable({ rows, className }: { rows: StockRow[]; className?: 
             <th className="px-3 py-2 text-left font-medium">Product</th>
             <th className="px-3 py-2 text-right font-medium">Ordered</th>
             <th className="px-3 py-2 text-right font-medium">Stock</th>
-            <th className="w-[28%] px-3 py-2 text-left font-medium">Coverage</th>
+            <th className="w-[28%] px-3 py-2 text-left font-medium">
+              Coverage <span className="font-normal">· stock ÷ ordered</span>
+            </th>
             <th className="px-3 py-2 text-right font-medium">Allocated</th>
             <th className="px-3 py-2 text-right font-medium">Residual</th>
             <th className="px-3 py-2 text-right font-medium">Short</th>
@@ -49,12 +51,12 @@ export function StockTable({ rows, className }: { rows: StockRow[]; className?: 
                   <div className="flex items-center gap-2">
                     <div className="bg-muted relative h-2 flex-1 rounded-full">
                       <div
-                        className={cn("h-full rounded-full", ratio < 0.8 ? "bg-warning" : ratio < 1 ? "bg-foreground/50" : "bg-success")}
+                        className={cn("h-full rounded-full", ratio < 1 ? "bg-warning" : "bg-success")}
                         style={{ width: cssPercent(Math.min(ratio, maxRatio) / maxRatio) }}
                       />
                       <span className="bg-foreground absolute -inset-y-1 w-px" style={{ left: cssPercent(1 / maxRatio) }} aria-hidden />
                     </div>
-                    <span className={cn("w-10 text-right font-mono text-xs tabular-nums", ratio < 0.8 && "text-warning-foreground font-medium")}>
+                    <span className={cn("w-10 text-right font-mono text-xs tabular-nums", ratio < 1 && "text-warning-foreground font-medium")}>
                       {formatPercent(ratio)}
                     </span>
                   </div>
@@ -62,10 +64,16 @@ export function StockTable({ rows, className }: { rows: StockRow[]; className?: 
                 <td className="px-3 py-2 text-right font-mono text-xs tabular-nums">{formatCount(r.allocated)}</td>
                 <td className="text-muted-foreground px-3 py-2 text-right font-mono text-xs tabular-nums">{formatCount(r.stock - r.allocated)}</td>
                 <td className="px-3 py-2 text-right font-mono text-xs tabular-nums">
-                  {short ? (
+                  {short && r.shortAmount > 0 ? (
                     <>
                       <div className="text-warning-foreground font-medium">{formatCount(short)} pcs</div>
                       <div className="text-muted-foreground">{formatMoney(r.shortAmount, { compact: true })}</div>
+                    </>
+                  ) : short ? (
+                    // Stock was there; these pieces were excluded before allocation (e.g. no coordinates).
+                    <>
+                      <div className="text-muted-foreground">{formatCount(short)} pcs</div>
+                      <div className="text-muted-foreground font-sans">excluded</div>
                     </>
                   ) : (
                     <span className="text-muted-foreground">–</span>

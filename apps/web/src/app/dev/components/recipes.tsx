@@ -120,14 +120,47 @@ export function TradeoffChart({ runs, highlight, className }: { runs: Iteration[
     revenue: +(r.metrics.revenueShipped / 100_000_000).toFixed(3),
     centroid: r.metrics.meanToCentroid,
     nd: r.nonDominated,
+    // Only non-dominated and highlighted runs are labeled; dominated runs name themselves in the tooltip.
+    tag: r.nonDominated || highlight?.includes(r.id) ? r.label : "",
   }))
+  // Runs at the same point share one label instead of printing over each other.
+  const seen = new Map<string, (typeof points)[number]>()
+  for (const p of points) {
+    if (!p.tag) continue
+    const key = `${p.fill}:${p.revenue}`
+    const first = seen.get(key)
+    if (first) {
+      first.tag = `${first.tag} · ${p.tag}`
+      p.tag = ""
+    } else seen.set(key, p)
+  }
   const front = points.filter((t) => t.nd).sort((a, b) => a.fill - b.fill)
   return (
-    <ChartContainer config={{ nd: { label: "Non-dominated", color: "var(--success)" } }} className={cn("h-72 w-full", className)}>
-      <ComposedChart margin={{ top: 16, right: 24, left: 4 }}>
+    <div className={cn("relative", className)}>
+    <span className="text-muted-foreground pointer-events-none absolute top-1 right-6 z-10 text-[10px]">better ↗</span>
+    <ChartContainer config={{ nd: { label: "Non-dominated", color: "var(--success)" } }} className="h-72 w-full">
+      <ComposedChart margin={{ top: 16, right: 24, left: 16, bottom: 12 }}>
         <CartesianGrid />
-        <XAxis type="number" dataKey="fill" domain={[78, 86]} tickLine={false} axisLine={false} unit="%" name="Avg fill" />
-        <YAxis type="number" dataKey="revenue" domain={[3.9, 4.7]} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `$${v.toFixed(1)}M`} />
+        <XAxis
+          type="number"
+          dataKey="fill"
+          domain={[78, 86]}
+          tickLine={false}
+          axisLine={false}
+          unit="%"
+          name="Avg fill"
+          label={{ value: "Average fill →", position: "insideBottom", offset: -8, fontSize: 10, fill: "var(--muted-foreground)" }}
+        />
+        <YAxis
+          type="number"
+          dataKey="revenue"
+          domain={[3.9, 4.7]}
+          tickLine={false}
+          axisLine={false}
+          width={44}
+          tickFormatter={(v: number) => `$${v.toFixed(1)}M`}
+          label={{ value: "Shipped revenue →", angle: -90, position: "insideLeft", offset: -10, fontSize: 10, fill: "var(--muted-foreground)", style: { textAnchor: "middle" } }}
+        />
         <ZAxis type="number" dataKey="centroid" range={[80, 420]} />
         <ChartTooltip
           cursor={{ strokeDasharray: "3 3" }}
@@ -152,9 +185,22 @@ export function TradeoffChart({ runs, highlight, className }: { runs: Iteration[
               strokeWidth={2}
             />
           ))}
-          <LabelList dataKey="label" position="right" fontSize={10} fill="var(--muted-foreground)" offset={10} />
+          <LabelList
+            dataKey="tag"
+            content={(p) => {
+              // Custom label: Recharts' default wraps scatter labels to the dot's width.
+              const { x, y, width, value } = p as { x?: number; y?: number; width?: number; value?: string }
+              if (!value || x == null || y == null) return null
+              return (
+                <text x={x + (width ?? 0) / 2} y={y - 6} textAnchor="middle" fontSize={10} fill="var(--foreground)">
+                  {value}
+                </text>
+              )
+            }}
+          />
         </Scatter>
       </ComposedChart>
     </ChartContainer>
+    </div>
   )
 }

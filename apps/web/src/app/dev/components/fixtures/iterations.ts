@@ -2,11 +2,12 @@
 // or two settings changed from the baseline. Non-dominated = no other run is at least as good on all three
 // metric groups and better on one.
 
+import type { DiffRow } from "@/components/lab/config-diff"
 import type { JobState } from "@/components/lab/job-status"
 import type { PipelineSettings, RunMetrics } from "@/lib/fulfillment"
 
 import { exploreK } from "./k-explorer"
-import { type PipelineResult, runPipeline } from "./pipeline"
+import { type PipelineResult, defaultSettings, runPipeline } from "./pipeline"
 
 export type Iteration = {
   id: string
@@ -54,4 +55,33 @@ export function iterations(): Iteration[] {
     nonDominated: !rows.some((o) => o !== r && dominates(o.metrics, r.metrics)),
   }))
   return cached
+}
+
+type SettingField = { key: keyof PipelineSettings; field: string; label: string; fmt: (v: PipelineSettings[keyof PipelineSettings]) => string; assumption?: boolean }
+
+// Inventory and allocation strategy change which demand gets stock; circuity changes how miles are measured.
+// Pairs differing in these are changed-assumption comparisons (spec §10 comparisonSignature).
+const settingFields: SettingField[] = [
+  { key: "k", field: "cluster.k", label: "Cluster count (k)", fmt: String },
+  { key: "kmeansSeed", field: "cluster.kmeans_seed", label: "k-means seed", fmt: String },
+  { key: "nInit", field: "cluster.n_init", label: "k-means restarts", fmt: String },
+  { key: "maxDiameterMiles", field: "cluster.max_diameter_mi", label: "Max cluster diameter", fmt: (v) => `${v} mi` },
+  { key: "maxLegMiles", field: "travel.max_leg_mi", label: "Max leg", fmt: (v) => `${v} mi` },
+  { key: "circuity", field: "travel.circuity_factor", label: "Circuity", fmt: (v) => `× ${v}`, assumption: true },
+  { key: "inventoryPct", field: "inventory.percent", label: "Inventory", fmt: (v) => `${v}%`, assumption: true },
+  { key: "strategy", field: "allocation.strategy", label: "Allocation strategy", fmt: (v) => (v === "date-value" ? "order date, then value" : "first come"), assumption: true },
+]
+
+/** Settings diff between two sweep runs, changed rows first. */
+export function settingsDiff(a: Iteration, b: Iteration): DiffRow[] {
+  const sa = { ...defaultSettings, ...a.settings }
+  const sb = { ...defaultSettings, ...b.settings }
+  return settingFields.map(({ key, field, label, fmt, assumption }) => ({
+    field,
+    label,
+    a: fmt(sa[key]),
+    b: fmt(sb[key]),
+    same: sa[key] === sb[key],
+    assumption,
+  }))
 }

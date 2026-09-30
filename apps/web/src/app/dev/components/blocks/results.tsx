@@ -6,6 +6,7 @@ import { useState } from "react"
 
 import { ClusterCard } from "@/components/lab/cluster-card"
 import { JobStatusBadge } from "@/components/lab/job-status"
+import { PlanFlow } from "@/components/lab/plan-flow"
 import { RunMetricGroups } from "@/components/lab/run-metrics"
 import { TruckLoad } from "@/components/lab/truck-load"
 import { UnshippedLines } from "@/components/lab/unshipped-lines"
@@ -14,9 +15,10 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
-import { formatCount, formatMoney } from "@/lib/units"
+import { formatCount, formatMoney, plural } from "@/lib/units"
 
 import { baseline, depot, lookups } from "../fixtures"
+import { planFlowSteps } from "../fixtures/stages"
 import { AppShell } from "./shell"
 
 const PipelineMap = dynamic(() => import("../pipeline-map"), { ssr: false, loading: () => <Skeleton className="h-full w-full" /> })
@@ -27,6 +29,9 @@ export function ResultsBlock() {
   const look = lookups(run)
   const [cluster, setCluster] = useState(3)
   const [stop, setStop] = useState<string | null>(null)
+  const [tab, setTab] = useState("clusters")
+  // Each business step opens the view that explains it.
+  const stepTab: Record<string, string> = { orders: "unshipped", allocated: "unshipped", stops: "map", clusters: "clusters", trucks: "clusters", shipped: "unshipped" }
   const trucks = run.trucks.filter((t) => t.cluster === cluster).sort((a, b) => b.fill - a.fill)
   const unshippedAmount = run.unshipped.reduce((s, u) => s + u.amount, 0)
 
@@ -67,9 +72,11 @@ export function ResultsBlock() {
             </div>
           </div>
 
+          <PlanFlow steps={planFlowSteps(run)} onSelect={(id) => setTab(stepTab[id] ?? "clusters")} />
+
           <RunMetricGroups metrics={run.metrics} maxDiameter={run.settings.maxDiameterMiles} />
 
-          <Tabs defaultValue="clusters">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
             <TabsList variant="underline">
               <TabsTab value="clusters">
                 Clusters & trucks <Badge variant="secondary" size="sm">{run.clusters.length}</Badge>
@@ -81,6 +88,10 @@ export function ResultsBlock() {
             </TabsList>
 
             <TabsPanel value="clusters" className="space-y-4 pt-4">
+              <p className="text-muted-foreground flex items-center gap-2 text-xs">
+                <span className="bg-warning h-2.5 w-1.5 rounded-[2px]" aria-hidden />
+                One bar per truck, fullest first. Amber bars are under 60% fill; the dashed line marks 60%.
+              </p>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {run.clusters.map((c) => (
                   <ClusterCard
@@ -96,7 +107,7 @@ export function ResultsBlock() {
               </div>
               <div className="flex items-baseline justify-between">
                 <h3 className="text-sm font-medium">
-                  Cluster {cluster} · {trucks.length} trucks
+                  Cluster {cluster} · {plural(trucks.length, "truck")}
                 </h3>
                 <span className="text-muted-foreground text-xs">fullest first · showing 4 of {formatCount(trucks.length)}</span>
               </div>

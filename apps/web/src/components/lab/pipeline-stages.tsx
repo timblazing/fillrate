@@ -18,6 +18,8 @@ export type PipelineStage = {
   seconds?: number
   /** One line describing the stored output, e.g. "1,915 of 2,829 lines filled". */
   summary?: string
+  /** The business result the stage produced, shown first, e.g. { value: "158", label: "trucks" }. */
+  output?: { value: string; label: string }
   /** Fan-out jobs, e.g. one PyVRP solve per cluster. */
   jobs?: { id: string; cluster: number; state: JobState; detail?: string }[]
 }
@@ -91,6 +93,12 @@ export function PipelineStages({
                   <span className="text-muted-foreground font-mono text-[11px] font-normal tabular-nums">{formatSeconds(stage.seconds)}</span>
                 )}
               </div>
+              {stage.output && (
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-lg font-medium tracking-tight tabular-nums">{stage.output.value}</span>
+                  <span className="text-muted-foreground text-xs">{stage.output.label}</span>
+                </div>
+              )}
               <div className="text-muted-foreground text-xs text-pretty">
                 {stage.summary ?? (stage.state === "queued" ? "Waiting" : stage.state === "running" ? "Running…" : "")}
               </div>

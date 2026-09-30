@@ -5,7 +5,6 @@ import { useMemo, useState } from "react"
 
 import { ClusterCard } from "@/components/lab/cluster-card"
 import { CodeBlock } from "@/components/lab/code-block"
-import { ConfigDiff } from "@/components/lab/config-diff"
 import { DataTable } from "@/components/lab/data-table"
 import { DiagnosticList } from "@/components/lab/diagnostic-list"
 import { Explainer } from "@/components/lab/explainer"
@@ -14,12 +13,14 @@ import { IterationTable } from "@/components/lab/iteration-table"
 import { JobStatusBadge, JobStatusDot, jobStates } from "@/components/lab/job-status"
 import { LineStateBadge, type LineState, lineStates } from "@/components/lab/line-state"
 import { PipelineStages } from "@/components/lab/pipeline-stages"
+import { PlanFlow } from "@/components/lab/plan-flow"
 import { CoordinateSourceBadge, TravelModeBadge } from "@/components/lab/provenance-badge"
 import { ClusterLegend, ClusterSwatch, TruckTag } from "@/components/lab/route-swatch"
+import { RunCompare } from "@/components/lab/run-compare"
 import { RunMetricGroups } from "@/components/lab/run-metrics"
 import { SettingRow, SettingSourceBadge } from "@/components/lab/setting-source"
 import { StockTable } from "@/components/lab/stock-table"
-import { FillMeter, FillPercent, TrailerFill } from "@/components/lab/trailer-fill"
+import { FillBandLegend, FillMeter, FillPercent, TrailerFill } from "@/components/lab/trailer-fill"
 import { TruckLoad } from "@/components/lab/truck-load"
 import { UnshippedLines } from "@/components/lab/unshipped-lines"
 import { Badge } from "@/components/ui/badge"
@@ -30,15 +31,15 @@ import { Progress } from "@/components/ui/progress"
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { formatCount, formatMiles } from "@/lib/units"
+import { formatCount, formatMiles, plural } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
-import { baseline, depot, iterations, lookups, stockRows } from "../fixtures"
+import { baseline, depot, iterations, lookups, settingsDiff, stockRows } from "../fixtures"
 import { orderRows } from "../fixtures/order-rows"
-import { useSimulatedRun } from "../fixtures/stages"
+import { planFlowSteps, useSimulatedRun } from "../fixtures/stages"
 import { orderColumns } from "../order-columns"
 import { Group, Row, Specimen } from "../specimen"
-import { configDiffRows, importPreview, lineFilterItems, pythonExport, runEvents, strategyItems } from "./lab-data"
+import { importPreview, lineFilterItems, pythonExport, runEvents, strategyItems } from "./lab-data"
 
 export function Lab() {
   const run = baseline()
@@ -48,6 +49,7 @@ export function Lab() {
   const [stop, setStop] = useState<string | null>(null)
   const [lineFilter, setLineFilter] = useState<LineState | "all">("all")
   const [compare, setCompare] = useState<string[]>(["run-0212", "run-0214"])
+  const [flowStep, setFlowStep] = useState<string | null>("trucks")
   const live = useSimulatedRun(run)
 
   const clusterTrucks = run.trucks.filter((t) => t.cluster === cluster)
@@ -62,6 +64,7 @@ export function Lab() {
   const zcta = run.stops.filter((s) => look.locations.get(s.locationId)?.source === "zcta")
   const unresolved = new Set(run.unshipped.filter((u) => u.reason === "data-quality").map((u) => u.locationId))
   const k8 = sweep.find((r) => r.id === "run-0214")!
+  const [cmpA, cmpB] = compare.length === 2 ? compare.map((id) => sweep.find((r) => r.id === id)!) : [sweep[0], k8]
 
   return (
     <Group
@@ -156,7 +159,7 @@ export function Lab() {
                 <div className="flex items-center gap-3 text-sm">
                   <TruckTag id={t.id} cluster={t.cluster} />
                   <span className="text-muted-foreground text-xs">
-                    {t.stops.length} stops · {formatMiles(t.loadedMiles)} loaded
+                    {plural(t.stops.length, "stop")} · {formatMiles(t.loadedMiles)} loaded
                   </span>
                 </div>
                 <TrailerFill
@@ -189,6 +192,7 @@ export function Lab() {
           </div>
           <div className="bg-background space-y-3 rounded-xl border p-4">
             <div className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">Inline</div>
+            <FillBandLegend className="flex-wrap gap-y-1" />
             {fillExamples.map((t) => (
               <div key={t.id} className="flex items-center gap-3 text-xs">
                 <span className="w-14 font-mono">{t.id}</span>
@@ -209,9 +213,17 @@ export function Lab() {
       </Specimen>
 
       <Specimen
+        id="plan-flow"
+        title="Plan flow"
+        description="The run as business objects, ahead of the algorithm: what came in, what got stock, where it went, and what shipped. Amber notes show what left the flow at each step. Click a step to open the view that explains it."
+      >
+        <PlanFlow steps={planFlowSteps(run)} selected={flowStep} onSelect={setFlowStep} />
+      </Specimen>
+
+      <Specimen
         id="stages"
         title="Pipeline stages"
-        description="One run, six stored stages. Solve fans out into one durable PyVRP job per cluster. Press Run to watch the live states; real runs poll persisted job state every ~2 s."
+        description="Pipeline detail under the plan flow: six stored stages, each leading with what it produced. Solve fans out into one durable PyVRP job per cluster. Press Run to watch the live states; real runs poll persisted job state every ~2 s."
       >
         <div className="bg-background space-y-5 rounded-xl border p-4">
           <div className="flex flex-wrap items-center gap-3">
@@ -240,7 +252,7 @@ export function Lab() {
       <Specimen
         id="cluster-cards"
         title="Cluster cards"
-        description="Per cluster: stops, trucks, loaded feet, fill, revenue, one bar per truck (amber = under 60%), and widest pair against the 500 mi limit. Click to select."
+        description="Per cluster: stops, trucks, loaded feet, fill, revenue, one bar per truck with the 60% line dashed (amber = under it), and widest pair against the 500 mi limit (amber past 90%). Click to select."
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {run.clusters.map((c) => (
@@ -533,18 +545,12 @@ export function Lab() {
         </div>
       </Specimen>
 
-      <Specimen id="compare" title="Run diff" description="What changed between the two ticked runs in the iteration table. Same scenario version and matrix, so metrics compare directly.">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="bg-background rounded-lg border px-2.5 py-1 font-mono text-xs">run-0212 · baseline</span>
-            <ArrowRight className="text-muted-foreground size-4" />
-            <span className="bg-background rounded-lg border px-2.5 py-1 font-mono text-xs">run-0214 · k = 8</span>
-            <Badge variant="success" className="ml-auto">
-              Same scenario v14 · same matrix
-            </Badge>
-          </div>
-          <ConfigDiff rows={configDiffRows} labels={["run-0212", "run-0214"]} className="bg-background" />
-        </div>
+      <Specimen
+        id="compare"
+        title="Run comparison"
+        description="The two runs ticked in the iteration table, A vs B: whether they are directly comparable, every metric with its change, and only the settings that differ. Tick Inventory 120% to see a changed-assumption warning."
+      >
+        <RunCompare a={cmpA} b={cmpB} settings={settingsDiff(cmpA, cmpB)} scenarioLabel="Same scenario v14 · same matrix" />
       </Specimen>
 
       <Specimen id="exports" title="Exports" description="Python reproduction bundle preview: the whole pipeline, runnable without the web app.">

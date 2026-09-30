@@ -1,6 +1,6 @@
 // Synthetic time-window data for the Later milestones timeline specimen only (spec §14: never real data).
 
-import type { TimelineRoute } from "@/components/lab/route-timeline"
+import type { TimelineRoute, UnassignedVisit } from "@/components/lab/route-timeline"
 
 // Minutes from local midnight.
 const h = (hh: number, mm = 0) => hh * 60 + mm
@@ -48,4 +48,9 @@ export const timelineRoutes: TimelineRoute[] = [
       { kind: "drive", start: h(13, 10), end: h(13, 34) },
     ],
   },
+]
+
+export const timelineUnassigned: UnassignedVisit[] = [
+  { stopId: "c-09", window: [h(7), h(7, 30)], reason: "Window closes before any vehicle can arrive" },
+  { stopId: "c-10", window: [h(15), h(16)], reason: "No vehicle has capacity left after 13:00" },
 ]

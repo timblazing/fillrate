@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils"
 
 import { FillPercent } from "./trailer-fill"
 
-function Delta({ value, base, goodWhen, format }: { value: number; base?: number; goodWhen: "up" | "down"; format: (d: number) => string }) {
+/** Change against a base value, colored by whether it moved in the good direction. */
+export function MetricDelta({ value, base, goodWhen, format }: { value: number; base?: number; goodWhen: "up" | "down"; format: (d: number) => string }) {
   if (base == null) return null
   const d = value - base
   if (Math.abs(d) < 1e-9) return <span className="text-muted-foreground text-[11px]">same</span>
@@ -78,14 +79,14 @@ export function RunMetricGroups({
           </span>
           <span className="text-muted-foreground text-xs">average fill</span>
           <span className="ml-auto">
-            <Delta value={m.avgFill} base={b?.avgFill} goodWhen="up" format={pts} />
+            <MetricDelta value={m.avgFill} base={b?.avgFill} goodWhen="up" format={pts} />
           </span>
         </div>
         <div className="space-y-1.5">
-          <Row label="Minimum fill" delta={<Delta value={m.minFill} base={b?.minFill} goodWhen="up" format={pts} />}>
+          <Row label="Minimum fill" delta={<MetricDelta value={m.minFill} base={b?.minFill} goodWhen="up" format={pts} />}>
             <FillPercent fill={m.minFill} />
           </Row>
-          <Row label="Trucks used" delta={<Delta value={m.trucks} base={b?.trucks} goodWhen="down" format={(d) => String(d)} />}>
+          <Row label="Trucks used" delta={<MetricDelta value={m.trucks} base={b?.trucks} goodWhen="down" format={(d) => String(d)} />}>
             {formatCount(m.trucks)}
           </Row>
         </div>
@@ -96,14 +97,14 @@ export function RunMetricGroups({
           <span className="text-3xl font-semibold tracking-tight tabular-nums">{Math.round(m.meanToCentroid)}</span>
           <span className="text-muted-foreground text-xs">mi mean to centroid</span>
           <span className="ml-auto">
-            <Delta value={m.meanToCentroid} base={b?.meanToCentroid} goodWhen="down" format={mi} />
+            <MetricDelta value={m.meanToCentroid} base={b?.meanToCentroid} goodWhen="down" format={mi} />
           </span>
         </div>
         <div className="space-y-1.5">
-          <Row label={`Widest pair (limit ${maxDiameter})`} delta={<Delta value={m.widestPair} base={b?.widestPair} goodWhen="down" format={mi} />}>
+          <Row label={`Widest pair (limit ${maxDiameter})`} delta={<MetricDelta value={m.widestPair} base={b?.widestPair} goodWhen="down" format={mi} />}>
             {formatMiles(m.widestPair)}
           </Row>
-          <Row label="Loaded miles" delta={<Delta value={m.loadedMiles} base={b?.loadedMiles} goodWhen="down" format={(d) => formatMiles(d)} />}>
+          <Row label="Loaded miles" delta={<MetricDelta value={m.loadedMiles} base={b?.loadedMiles} goodWhen="down" format={(d) => formatMiles(d)} />}>
             {formatMiles(m.loadedMiles)}
           </Row>
           <Row label={`Stability at k = ${m.k}`}>{m.stability != null ? m.stability.toFixed(2) : <span className="text-muted-foreground font-sans font-normal">auto k · not explored</span>}</Row>
@@ -115,7 +116,7 @@ export function RunMetricGroups({
           <span className="text-3xl font-semibold tracking-tight tabular-nums">{formatMoney(m.revenueShipped, { compact: true })}</span>
           <span className="text-muted-foreground text-xs">shipped</span>
           <span className="ml-auto">
-            <Delta value={m.revenueShipped} base={b?.revenueShipped} goodWhen="up" format={(d) => formatMoney(d, { compact: true })} />
+            <MetricDelta value={m.revenueShipped} base={b?.revenueShipped} goodWhen="up" format={(d) => formatMoney(d, { compact: true })} />
           </span>
         </div>
         <div className="bg-muted flex h-2 overflow-hidden rounded-full" role="img" aria-label="Shipped, allocated, and ordered amounts">
