@@ -56,6 +56,7 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 5. Record the accepted direction in `docs/decisions.md`. M2 then builds the Blocks as real React screens.
 
 ## Known gaps
+- The home page (`/`) is a minimal placeholder: a spinning cobe globe (`components/animated/globe-card.tsx`) linking to the GitHub repo. The component gallery is still at `/dev/components` but no longer linked from `/`.
 - Spec v1.6 is ahead of the current code: `loads.py` still defaults the truck penalty to zero and creates one matrix node per stop; the gallery still uses its v1.3 stand-in policies. Stage envelope contracts now exist; mathematical stage payloads, graph preflight, objective derivation, shared-location nodes, metric reconstruction and new acceptance fixtures remain to implement.
 - `/capabilities` now distinguishes implemented/planned behavior. Diameter enforcement remains explicitly planned until the pipeline and independent validator implement it.
 - The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.
