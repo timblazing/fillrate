@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
+import { DevHeader } from "@/components/brand/dev-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { initializeDatabase } from "@/lib/server/database"
 import { canUseReview } from "@/lib/server/review"
 
+import { DeleteResponse } from "./delete-response"
 import { OTHER, otherKey, reviewSections, type Answer, type Answers, type Question } from "../questions"
 
 export const metadata: Metadata = { title: "Review responses · Fillrate", robots: { index: false } }
@@ -27,6 +29,8 @@ export default async function ResponsesPage({ searchParams }: PageProps<"/dev/re
   const stamp = (ms: number) => new Date(ms).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" })
 
   return (
+    <>
+    <DevHeader />
     <main className="mx-auto max-w-4xl space-y-10 px-4 py-10 sm:px-6">
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Review responses</h1>
@@ -41,9 +45,10 @@ export default async function ResponsesPage({ searchParams }: PageProps<"/dev/re
         return (
           <article key={r.id} className="bg-card space-y-6 rounded-2xl border p-6">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-semibold">{r.reviewer || "Unnamed reviewer"}</h2>
+              <h2 className="text-lg font-semibold">{r.reviewer || `Response ${r.id.slice(0, 8)}`}</h2>
               {r.submittedAt ? <Badge variant="success">Submitted {stamp(r.submittedAt)}</Badge> : <Badge variant="warning">Draft</Badge>}
               <span className="text-muted-foreground ml-auto text-xs">Last saved {stamp(r.updatedAt)}</span>
+              <DeleteResponse id={r.id} reviewKey={reviewKey} />
             </div>
             {reviewSections.map((s) => (
               <section key={s.id} className="space-y-2">
@@ -65,5 +70,6 @@ export default async function ResponsesPage({ searchParams }: PageProps<"/dev/re
         )
       })}
     </main>
+    </>
   )
 }

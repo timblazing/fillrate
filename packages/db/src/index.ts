@@ -184,6 +184,10 @@ export class Store {
     }, { behavior: "immediate" });
   }
 
+  deleteReview(id: string) {
+    return this.db.delete(s.designReviews).where(eq(s.designReviews.id, id)).run().changes > 0;
+  }
+
   listReviews() {
     return this.db.select().from(s.designReviews).orderBy(sql`${s.designReviews.updatedAt} desc`).all()
       .map(r => ({ ...r, answers: JSON.parse(r.answers) as Record<string, unknown> }));
