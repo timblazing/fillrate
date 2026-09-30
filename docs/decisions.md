@@ -86,3 +86,10 @@ Exact resolved versions are in `bun.lock`.
 - **Reason:** the owner wants a standalone product name that uses PyVRP under the hood rather than being named after it. "Fill rate" covers both inventory fill rate and truck fill.
 - **Domain:** the reference deployment is served at `fillrate.blasingame.dev`, a subdomain of the owner's existing domain, through the Caddy VPS (spec §14).
 - Earlier entries in this log keep the old file names as written; they refer to the same files.
+
+## 2026-09-29: Full-screen block route; M1 deployment answers (Claude Code)
+- **Full-screen blocks:** each gallery block opens alone at `/dev/blocks/<id>` (dev-only, 404 in production), linked from an "Open full screen" button on its specimen. For review screenshots. `AppShell` now takes `height` in px; under `FullscreenContext` it grows to `max(100dvh, height)`. Block ids and titles live in the gallery toc (`specimen.tsx`).
+- **Image platforms:** keep `linux/amd64` and `linux/arm64` (spec §14). Deployment targets are an Ubuntu VPS and a Raspberry Pi, so arm64 is required, not optional: if pinned PyVRP/OR-Tools/scikit-learn lack arm64 wheels, record it and resolve it rather than dropping arm64. A Pi needs a 64-bit OS.
+- **Public GHCR image:** confirmed by the owner.
+- **Branch protection:** none for now; CI runs on PRs and `main` but does not gate merges.
+- **Other M1 choices** (optimizer layout, schema scope, contract generation) are delegated to the implementing agent and are recorded as they are made.

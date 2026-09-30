@@ -129,6 +129,7 @@ export function Specimen({
   description,
   source,
   spec,
+  actions,
   className,
   bodyClassName,
   children,
@@ -138,6 +139,8 @@ export function Specimen({
   description?: string
   source?: string
   spec?: string
+  /** Controls at the end of the title row (e.g. open full screen). */
+  actions?: React.ReactNode
   className?: string
   bodyClassName?: string
   children: React.ReactNode
@@ -159,6 +162,7 @@ export function Specimen({
             {source}
           </code>
         )}
+        {actions && <div className={cn("flex items-center gap-2", !source && "ml-auto")}>{actions}</div>}
       </div>
       {description && <p className="text-muted-foreground -mt-1 max-w-3xl text-sm text-pretty">{description}</p>}
       <div

@@ -46,7 +46,7 @@ export function ComparisonBlock() {
     <AppShell
       active="Experiments"
       crumb="Sweep · Sep 29"
-      height="h-[1080px]"
+      height={1080}
       actions={
         <Button size="sm">
           <Plus /> Add runs

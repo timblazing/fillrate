@@ -33,7 +33,7 @@ export function ResultsBlock() {
   return (
     <AppShell
       crumb="run-0212"
-      height="h-[900px]"
+      height={900}
       actions={
         <>
           <Button variant="ghost" size="sm">
