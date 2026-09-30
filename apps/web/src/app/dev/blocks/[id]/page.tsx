@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { FullscreenBlock, type BlockId } from "../../components/sections/blocks"
-import { toc } from "../../components/specimen"
+import { toc } from "../../components/toc"
 
 const blockItems = toc.find((g) => g.id === "blocks")!.items
 

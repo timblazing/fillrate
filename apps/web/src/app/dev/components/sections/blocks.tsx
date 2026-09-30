@@ -15,7 +15,7 @@ import { Group, Specimen } from "../specimen"
 
 const flush = "p-0 overflow-hidden"
 
-// Block ids match the gallery toc (`specimen.tsx`) and the full-screen route `/dev/blocks/[id]`.
+// Block ids match the gallery toc (`toc.ts`) and the full-screen route `/dev/blocks/[id]`.
 const blocks = {
   workbench: {
     Block: WorkbenchBlock,
@@ -61,6 +61,7 @@ export function Blocks() {
   return (
     <Group
       id="blocks"
+      load="windowed"
       index={6}
       title="Blocks"
       description="Full screens composed from the components above, on the same fixture run. These are the M2 design candidates for the pipeline (spec §15): the user reviews them before M3 builds them for real."

@@ -97,3 +97,9 @@ Exact resolved versions are in `bun.lock`.
 ## 2026-09-30: Design review sent; M1 continues in parallel (Claude Code)
 - **Status:** the six Blocks went to the primary user as a Google Form (a screenshot and questions per screen, plus the open v1.3 assumptions and a request for example order/inventory rows with dummy values). The form and its screenshots live outside the repo.
 - **Decision:** don't block on the answers. Continue the remaining M1 foundation work; record the accepted design direction here when the answers arrive (tracked under "Waiting on the primary user" in `docs/progress.md`).
+
+## 2026-09-30: Gallery specimens load on demand (Claude Code)
+- **Problem:** `/dev/components` mounted every specimen at once: 4+ MapLibre maps (one WebGL context each; browsers cap live contexts at about 16), 8+ Recharts charts, and ~33k DOM nodes. The page felt sluggish and used a lot of memory.
+- **Decision:** `Specimen` renders its header and anchor always and its body only when the specimen is within one viewport of the screen (IntersectionObserver). `lazy` (default) keeps it mounted after that; `windowed` (Charts, Map, Blocks groups, set on `Group`) unmounts it again when it's far away. Unmounted bodies keep their last measured height so the page doesn't shift. Nav links, ⌘K, and deep links go through `jump()`, which re-aims after `scrollend` because specimens change height as they mount.
+- **Rejected:** one route per group (loses the single scroll and cross-group search); `content-visibility: auto` alone (skips paint only; React still renders everything and every map still creates its WebGL context).
+- **Trade-off:** windowed specimens lose local state (selected cluster, toggles) when scrolled far away.
