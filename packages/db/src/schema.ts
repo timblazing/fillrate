@@ -38,3 +38,8 @@ export const runArtifacts = sqliteTable("run_artifacts", {
   id: text().primaryKey(), runId: text().notNull().references(() => runs.id),
   artifactHash: text().notNull().references(() => artifacts.hash), manifest: text().notNull(),
 }, t => [index("artifacts_by_run").on(t.runId)]);
+// M2 design review answers from /dev/review, one row per reviewer browser. Not part of the product model.
+export const designReviews = sqliteTable("design_reviews", {
+  id: text().primaryKey(), reviewer: text().notNull(), answers: text().notNull(),
+  submittedAt: integer(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
+}, t => [index("reviews_by_update").on(t.updatedAt)]);

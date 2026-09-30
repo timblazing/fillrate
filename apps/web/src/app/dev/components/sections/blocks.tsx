@@ -16,7 +16,7 @@ import { Group, Specimen } from "../specimen"
 const flush = "p-0 overflow-hidden"
 
 // Block ids match the gallery toc (`toc.ts`) and the full-screen route `/dev/blocks/[id]`.
-const blocks = {
+export const blocks = {
   workbench: {
     Block: WorkbenchBlock,
     title: "Workbench",

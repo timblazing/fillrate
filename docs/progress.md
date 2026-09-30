@@ -80,7 +80,7 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
 ## Waiting on the primary user (come back to this)
-Sent 2026-09-30 as a Google Form (screenshots of the six Blocks, one page each). Answers may take a while; M1 work continues meanwhile. When they arrive:
+The Google Form is superseded by the in-app review at `/dev/review?key=<REVIEW_KEY>` (25 questions over the revised Blocks). Responses: `/dev/review/responses?key=…` (JSON at `/dev/review/responses/json?key=…`). Deploying it needs a `/app/data` volume and `REVIEW_KEY` in compose. When answers arrive:
 - Record the accepted design direction and any requested changes in `docs/decisions.md`, then tick M2's review step.
 - Close the open v1.3 assumptions it also asks about: value tiebreak per piece vs. order total, and whether orders at one address combine into one stop.
 - Use his example rows (dummy values) to confirm the order and inventory CSV columns for M3 imports.
