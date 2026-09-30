@@ -4,7 +4,7 @@ Canonical instructions for Codex and Claude Code (`CLAUDE.md` just imports this 
 
 ## Start of every session
 1. Read this file, `docs/progress.md`, `docs/decisions.md`, and the relevant sections of `fillrate-technical-spec.md`.
-2. Work on a short-lived branch; commit messages reference the milestone (e.g. `M1: …`).
+2. The owner currently wants one branch (`main`) and no pull requests. Work directly on `main` when practical; if isolation needs a temporary branch, fast-forward it into `main` and remove it after verification. Commit messages reference the milestone (e.g. `M1: …`).
 3. Before ending: update `docs/progress.md` and append to `docs/decisions.md`; leave lint/typecheck/build passing or record exactly what fails.
 
 ## Repository layout (spec §2)

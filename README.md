@@ -1,10 +1,7 @@
 # Fillrate
 
-Private web workbench for planning order-fulfillment truckloads. Fillrate allocates scarce inventory to open orders piece by piece, groups the stops with k-means, builds 53 ft truckloads per cluster with [PyVRP](https://github.com/PyVRP/PyVRP), and compares iterations on truck fill, cluster tightness, and revenue. Every result explains itself: cluster cards, truck loads, and a reason for each line that didn't ship.
+Fillrate is a public GitHub project for exploring order fulfillment and truckload planning. The goal is to allocate limited inventory to open orders, group delivery stops, build 53-foot trailer loads, and compare plans by truck fill, geographic tightness, and planned revenue.
 
-Served privately at `fillrate.blasingame.dev`. See `fillrate-technical-spec.md` for the full specification and `docs/progress.md` for current status.
+The project is under active development. Today the repository contains a design-system gallery, a tested PyVRP load solver, and the database and job foundations. The complete fulfillment workflow and public app are still being built.
 
-```sh
-bun install
-bun run dev    # http://localhost:3000, component gallery at /dev/components
-```
+See the [technical specification](fillrate-technical-spec.md) for the product plan and [progress notes](docs/progress.md) for what is implemented.
