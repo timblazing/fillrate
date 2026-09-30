@@ -1,0 +1,61 @@
+{
+  "updated": "2026-09-30",
+  "focus": "M2",
+  "productBehavior": 12,
+  "milestones": {
+    "M1": {
+      "weight": 20,
+      "done": 100,
+      "state": "done",
+      "notes": "Done: worker transport and supervisor, the staged pipeline on real PyVRP, v1.6 objective and reachability, independent validation, persisted `/runs` screens, JSON/CSV export, combined image, `ci.yml` and a two-architecture `image.yml`. Both image architectures passed the smoke run in GitHub Actions."
+    },
+    "M2": {
+      "weight": 10,
+      "done": 45,
+      "state": "active",
+      "notes": "Round-one review answered and written into spec v1.8 (§15 \"M2 scope\"). Next: apply it to the Blocks and `/runs/<id>`, align `fillrate.fig` with coss, then round two."
+    },
+    "M3": {
+      "weight": 20,
+      "done": 5,
+      "state": "planned",
+      "notes": "Gallery components can be reused. No CSV import, scenario versioning, settings, or real screens."
+    },
+    "M4": {
+      "weight": 15,
+      "done": 3,
+      "state": "planned",
+      "notes": "The k explorer and comparison UI exist only as fixtures. No sweeps, H3, or lesson."
+    },
+    "M5": {
+      "weight": 10,
+      "done": 0,
+      "state": "planned",
+      "notes": "Nothing yet beyond the \"order date, then value\" rule in the gallery fixture."
+    },
+    "M6": {
+      "weight": 12,
+      "done": 2,
+      "state": "planned",
+      "notes": "PyVRP capability fixtures only (capacity, fixed cost, open routes, prohibited legs). No Valhalla."
+    },
+    "M7": {
+      "weight": 6,
+      "done": 0,
+      "state": "planned",
+      "notes": "No lessons or Python export yet."
+    },
+    "M8": {
+      "weight": 7,
+      "done": 8,
+      "state": "planned",
+      "notes": "Vitest persistence races, worker cancel/crash-recovery e2e, optimizer pytest and a container smoke script exist; no browser suite or measured hardware yet."
+    }
+  },
+  "nextUp": [
+    "M2: apply the review answers (wording, 80% low fill, revenue-first results, stock/coordinate display, steps visible) to the Blocks, lab components and /runs/<id>.",
+    "M2: cluster-diameter policy off by default; printable shipment sheet on /runs/<id>; preflight blocking checks in the contract and Block.",
+    "M2: coss Components page in fillrate.fig, then review round two (cost rates, flow strip, ★ label, sample rows).",
+    "M3: CSV import, scenario versioning, cost objective, preflight enforcement, stage reuse, 2,000-order benchmark."
+  ]
+}

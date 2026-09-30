@@ -8,7 +8,7 @@
   - [x] Gallery expanded into the design-system reference: Foundations, Primitives, Lab components (`src/components/lab`), Charts (Recharts + bklit), Map, Blocks
   - [x] Gallery rebuilt for spec v1.3 (2026-09-29): every specimen runs on one synthetic 2,000-order fixture pipeline
   - [x] Blocks open full screen at `/dev/blocks/<id>` for review screenshots
-  - [x] Build-progress dashboard at `/dev` (static; parses the spec and docs, estimates in `apps/web/src/app/dev/status.ts`), shared `/dev` header with the app icon
+  - [x] Build-progress dashboard at `/dev` (static snapshot that refreshes in the browser from GitHub `main`; parses the spec and docs, estimates in `docs/status.json`), shared `/dev` header with the app icon
   - [x] `AGENTS.md`, `CLAUDE.md`, `docs/decisions.md`, `docs/progress.md`
   - [x] Pinned Python 3.13 / uv / PyVRP / OR-Tools / scikit-learn / FastAPI (`services/optimizer`), `/health` + `/capabilities`
   - [x] PyVRP capability fixtures: capacity, fixed truck cost, open routes (workaround), prohibited legs (preprocessing + validator)
@@ -69,13 +69,13 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 - Run settings exposed publicly are only k, k-means seed and solver seed; everything else comes from the bundled example.
 - The legacy `solve_loads` spike in `loads.py` keeps its zero default truck penalty for its capability fixtures; the pipeline uses `solve_partition` with the derived penalty and shared location nodes. The gallery still uses its v1.3 TypeScript stand-in.
 - The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.
-- Truck-count-first priority and no separate depot radius are provisional v1.6 defaults; the owner's two clarifying questions were still unanswered when the draft was written. Existing friend questionnaire items remain pending below.
+- The pipeline still enforces the cluster-diameter limit by default; spec v1.8 makes it optional and off (M2 item 15). Trucks-then-miles stays the fallback objective until cost rates arrive.
 - If uv fails with "Bad CPU type" from a Python 2.7 framework install on PATH, set `UV_PYTHON=python3.13`.
 - Chart and route palettes are placeholders (neutral shadcn chart colors, provisional route colors). Gallery charts use `--route-*` for series until a real chart palette lands.
 - New tokens `--chart-background/-foreground/-foreground-muted/-label/-grid` (aliases for bklit) and the coss status tokens `--info/--success/--warning(-foreground)`, `--destructive-foreground` are not on the OpenPencil Foundations page yet.
 - bklit radar logs harmless motion "undefined is not animatable" warnings in dev (vendored code).
 - `MatrixHeatmap` renders every cell; 500-stop matrices will need virtualization.
-- Spec v1.3: the per-piece value tiebreak and combining orders at one address are still assumptions, and there is no sample data from the primary user yet (see the `docs/decisions.md` follow-up entry).
+- No sample order/inventory rows from the primary user yet (round two asks again).
 - Chart recipes shared by charts and blocks live in `src/app/dev/components/recipes.tsx` until contracts exist.
 - The gallery fixture's truck loads come from a sweep heuristic, not PyVRP; numbers are illustrative of shape, not solver quality.
 - The Blocks are M2 design candidates and still need the user's review and acceptance (spec §15).
@@ -85,10 +85,12 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
 ## Waiting on the primary user (come back to this)
-The Google Form is superseded by the in-app review at `/dev/review?key=<REVIEW_KEY>` (25 questions over the revised Blocks). Responses: `/dev/review/responses?key=…` (JSON at `/dev/review/responses/json?key=…`). Deploying it needs a `/app/data` volume and `REVIEW_KEY` in compose. When answers arrive:
-- Record the accepted design direction and any requested changes in `docs/decisions.md`, then tick M2's review step.
-- Close the open v1.3 assumptions it also asks about: value tiebreak per piece vs. order total, and whether orders at one address combine into one stop.
-- Use his example rows (dummy values) to confirm the order and inventory CSV columns for M3 imports.
+Round one of the in-app review is answered (`docs/reviews/fillrate-design-review-2026-09-30.json`) and applied in spec v1.8 §15 "M2 scope". Still open, for round two:
+- Cost per truck and cost per mile (the objective he chose is lowest cost).
+- What to change in the Results flow strip ("mostly, with changes").
+- The ★ label on non-dominated runs.
+- Whether stops >500 mi from the depot but reachable via another stop, and stops larger than one trailer, should really block a run.
+- Example order and inventory rows for M3 imports, and "what should we fix first".
 
 ## Next step
-M3: CSV import, scenario editing/versioning, real pipeline screens replacing the gallery stand-ins, stage reuse, and the 2,000-order benchmark. Design-review answers still gate M2 acceptance.
+M2 per spec v1.8 §15 "M2 scope": apply the round-one answers to the Blocks, lab components and `/runs/<id>`, make the cluster-diameter policy off by default, add the shipment sheet, align `fillrate.fig`, then run review round two. M3 (imports, versioning, cost objective, blocking preflight enforcement) follows.

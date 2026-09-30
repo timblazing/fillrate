@@ -6,12 +6,12 @@ Canonical instructions for Codex and Claude Code (`CLAUDE.md` just imports this 
 1. Read this file, `docs/progress.md`, `docs/decisions.md`, and the relevant sections of `fillrate-technical-spec.md`.
 2. The owner currently wants one branch (`main`) and no pull requests. Work directly on `main` when practical; if isolation needs a temporary branch, fast-forward it into `main` and remove it after verification. Commit messages reference the milestone (e.g. `M1: …`).
 3. Before ending: update `docs/progress.md` and append to `docs/decisions.md`; leave lint/typecheck/build passing or record exactly what fails.
-4. If milestone progress moved, update `apps/web/src/app/dev/status.ts` too (see "Progress page" below).
+4. If milestone progress moved, update `docs/status.json` too (see "Progress page" below).
 
 ## Progress page (`/dev`)
-`/dev` is the owner's build-progress dashboard. It is static and built from the repo at build time:
-- **Parsed automatically:** milestone names, deliverables and exit evidence from spec §15's table; milestone checklists, "Waiting on the primary user", "Next step" and "Known gaps" from `docs/progress.md`; every `## YYYY-MM-DD: Title (Author)` entry in `docs/decisions.md`. Keep those headings and formats, or update the parser in `apps/web/src/lib/server/project-docs.ts`.
-- **Hand-kept in `apps/web/src/app/dev/status.ts`:** each milestone's weight (share of the spec; weights sum to 100), done %, state (`done | active | waiting | planned`) and one-line notes; the focus milestone; `productBehavior` (% of the spec that is working product behavior); the ordered `nextUp` list; and the `updated` date. Update these at the end of any session that moves a milestone. Fixtures and gallery mocks don't count as done (spec §15).
+`/dev` is the owner's build-progress dashboard. It is prerendered from the repo at build time, then refreshed in the browser from `raw.githubusercontent.com/timblazing/fillrate/main/` (about 5 minutes after a push, GitHub's CDN cache). Doc and estimate changes need no image rebuild. Parser or layout changes still do, and if any fetched file fails to load or parse, the page keeps the build snapshot:
+- **Parsed automatically:** milestone names, deliverables and exit evidence from spec §15's table; milestone checklists, "Waiting on the primary user", "Next step" and "Known gaps" from `docs/progress.md`; every `## YYYY-MM-DD: Title (Author)` entry in `docs/decisions.md`. Keep those headings and formats, or update the parser in `apps/web/src/lib/project-docs.ts` (shared by the server and the browser).
+- **Hand-kept in `docs/status.json`** (types in `apps/web/src/app/dev/status.ts`): each milestone's weight (share of the spec; weights sum to 100), done %, state (`done | active | waiting | planned`) and one-line notes; the focus milestone; `productBehavior` (% of the spec that is working product behavior); the ordered `nextUp` list; and the `updated` date. Update these at the end of any session that moves a milestone. A milestone without an entry is hidden. Fixtures and gallery mocks don't count as done (spec §15).
 - The Docker build needs `docs/` in its context (it is no longer in `.dockerignore`).
 
 ## Repository layout (spec §2)
