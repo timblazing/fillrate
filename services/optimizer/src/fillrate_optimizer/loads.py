@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pyvrp
+from pyvrp.constants import MAX_VALUE
 from pyvrp.stop import MaxIterations, MaxRuntime, MultipleCriteria
 
 from .travel import DEFAULT_CIRCUITY, DEFAULT_MAX_LEG_M, distance_matrix_m, prohibited_legs
@@ -206,4 +207,108 @@ def solve_loads(problem: LoadProblem) -> LoadResult:
         cost=int(result.cost()) if result.is_feasible() else None,
         iterations=result.num_iterations,
         runtime_s=result.runtime,
+    )
+
+
+# ---- Pipeline partitions (spec §8a step 5–6, §8b) ---------------------------------------------
+#
+# A partition has one depot node plus one node per distinct location; several
+# visits (split bundles) can share a location node. Only allowed physical legs
+# become model edges; every return to the depot is free (open routes).
+
+
+@dataclass(frozen=True)
+class PartitionVisit:
+    id: str
+    node: int  # index into the partition's distance matrix; 0 is the depot
+    load: int
+
+
+@dataclass(frozen=True)
+class PartitionProblem:
+    distance: np.ndarray  # raw directed meters, (m + 1) × (m + 1)
+    visits: list[PartitionVisit]
+    capacity: int
+    max_leg_m: int
+    truck_penalty: int
+    seed: int = 0
+    max_iterations: int | None = None
+    max_runtime_s: float = 10.0
+
+
+@dataclass
+class PartitionResult:
+    routes: list[list[int]]  # visit indices, in service order
+    solver_feasible: bool
+    iterations: int
+    runtime_s: float
+    cost: int | None
+
+
+def truck_count_first_penalty(num_visits: int, max_leg_m: int) -> tuple[int, int]:
+    """Derived dominance penalty F = n·L + 1 (spec §8b).
+
+    An open route over n mandatory visits has exactly n physical legs, each at
+    most L, so any feasible plan's distance is at most B = n·L. With a fixed
+    truck cost F > B, a feasible plan with fewer trucks always has a lower
+    objective than one with more. Returns (F, B).
+    """
+    bound = num_visits * max_leg_m
+    return bound + 1, bound
+
+
+def check_objective_range(num_visits: int, truck_penalty: int, max_leg_m: int) -> None:
+    """Every truck used plus every allowed leg must stay well below PyVRP's MAX_VALUE."""
+    worst = num_visits * truck_penalty + num_visits * max_leg_m
+    if worst >= MAX_VALUE // 4:
+        raise ValueError(
+            f"objective range {worst} exceeds the safe bound for pinned PyVRP ({MAX_VALUE // 4});"
+            " reduce the cluster size or leg limit"
+        )
+
+
+def solve_partition(problem: PartitionProblem) -> PartitionResult:
+    if not problem.visits:
+        return PartitionResult([], True, 0, 0.0, 0)
+    for visit in problem.visits:
+        if not 0 < visit.load <= problem.capacity:
+            raise ValueError(f"visit {visit.id} load {visit.load} is outside (0, capacity]")
+    check_objective_range(len(problem.visits), problem.truck_penalty, problem.max_leg_m)
+
+    distance = problem.distance
+    nodes = distance.shape[0]
+    model = pyvrp.Model()
+    locations = [model.add_location(0, i, name=f"node-{i}") for i in range(nodes)]
+    depot = model.add_depot(locations[0], name="depot")
+    for visit in problem.visits:
+        model.add_client(locations[visit.node], delivery=[visit.load], name=visit.id)
+    model.add_vehicle_type(
+        num_available=len(problem.visits),
+        capacity=[problem.capacity],
+        start_depot=depot,
+        end_depot=depot,
+        fixed_cost=problem.truck_penalty,
+        name="53ft",
+    )
+    for i in range(nodes):
+        for j in range(nodes):
+            if i == j:
+                continue
+            if j == 0:
+                model.add_edge(locations[i], locations[0], 0)  # open-route workaround
+            elif distance[i, j] <= problem.max_leg_m:
+                model.add_edge(locations[i], locations[j], int(distance[i, j]))
+            # Longer legs are omitted: PyVRP prices them at MAX_VALUE; validation rejects them.
+
+    stop = MaxRuntime(problem.max_runtime_s)
+    if problem.max_iterations is not None:
+        stop = MultipleCriteria([MaxIterations(problem.max_iterations), stop])
+    result = model.solve(stop, seed=problem.seed, display=False)
+    routes = [[a.idx for a in route if a.is_client()] for route in result.best.routes()]
+    return PartitionResult(
+        routes=routes,
+        solver_feasible=result.is_feasible(),
+        iterations=result.num_iterations,
+        runtime_s=result.runtime,
+        cost=int(result.cost()) if result.is_feasible() else None,
     )

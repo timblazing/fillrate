@@ -14,11 +14,13 @@
   - [x] PyVRP capability fixtures: capacity, fixed truck cost, open routes (workaround), prohibited legs (preprocessing + validator)
   - [x] Drizzle schema + migrations, SQLite pragmas, migrate-on-start (`packages/db`)
   - [x] Generated persistence/stage envelope contracts (`packages/contracts`), database claim/lease fencing
-  - [ ] Authenticated loopback worker transport and Python supervisor integration
-  - [ ] Durable synthetic fulfillment slice: preflight → allocate → aggregate → cluster/repair → real PyVRP → validate → persisted map/table, JSON/CSV export (the per-cluster solve itself exists)
-  - [ ] Spec v1.6 integration: truck-count-first objective with derived bound, graph reachability instead of depot-radius filtering, versioned stage manifests and independent metric reconstruction
+  - [x] Authenticated loopback worker transport (`packages/db/src/transport.ts`, 127.0.0.1:3100, bearer token) and Python supervisor (`fillrate-worker`; child process per run, killed on cancel)
+  - [x] Durable synthetic fulfillment slice: preflight → allocate → aggregate → cluster/repair → travel/reachability → real PyVRP → independent validation → summary, persisted as nine content-addressed stage artifacts; `/runs` map/table screens; JSON and CSV export
+  - [x] Spec v1.6 integration: truck-count-first objective with derived bound F = n·L + 1, graph reachability instead of depot-radius filtering (`unreachable` vs `unreachable_in_partition`), versioned stage manifests, independent metric reconstruction and per-product reconciliation
   - [x] Web `Dockerfile` (Next.js standalone, port 3000) and manual `image.yml` → `ghcr.io/timblazing/fillrate:latest`
-  - [ ] `ci.yml`, automatic image builds, optimizer image
+  - [x] Single image with web + optimizer + worker (tini, `deploy/entrypoint.sh`), `HEALTHCHECK`, `deploy/smoke.sh`; arm64 image built and smoke-tested locally once (2026-09-30)
+  - [x] `ci.yml` (lint, typecheck, Vitest incl. Python worker e2e, pytest, Ruff, contract drift, build) and `image.yml` (after CI on `main`, tags, manual; native amd64 + arm64 runners, smoke before push, multi-arch manifest from tested digests)
+  - [ ] First green `ci.yml` and `image.yml` runs on GitHub (both architectures pass the smoke run) — the last M1 exit evidence
 - [ ] **M2 Design** (in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
 - [ ] M3 Operational core (CSV/versioned scenarios → real pipeline screens, per-cluster jobs, stage reuse, 2,000-order benchmark)
 - [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, partition bounds, H3 layer/baseline, lesson and small Python replay export)
@@ -29,18 +31,13 @@
 
 ## Current state
 
-Spec **v1.7** is the implementation target. The owner clarified that Fillrate is a public GitHub project and the web tool is intended to be publicly accessible. The README now reflects current development status; public writes and real-data use require access, isolation, and abuse controls before launch. The previous private-ingress model is superseded. The reference hostname returned HTTP 502 during this documentation update; no deployment change was attempted.
+Spec **v1.7** is the implementation target. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
 
-The M1 foundation status below remains current. The planned **PR 1 optimizer foundation** was already merged as GitHub PR #5; its capability document now explicitly labels diameter enforcement as planned, with no placeholder fixture. Existing PyVRP pins and capability proofs are preserved. The planned **PR 2 persistence/contracts foundation** has been implemented: Drizzle migrations, immutable snapshots, idempotent enqueue, real-file leases/fencing/retry/cancellation, transactional compressed artifacts, Pydantic-generated TypeScript/JSON Schema and Next.js startup migration. See `docs/durable-foundation.md` for scope and commands. These planned steps are not GitHub PR numbers #1/#2, which were gallery PRs and are already merged.
+**M1 is complete in code, pending its first GitHub Actions runs.** A real synthetic run now goes end to end: `POST /api/v1/runs` (idempotency key; production requires `RUN_KEY`) → SQLite job → the Python supervisor claims it over the loopback transport → a child process runs the pipeline (`services/optimizer/src/fillrate_optimizer/pipeline.py`) → nine stage artifacts and the run summary commit atomically → `/runs/<id>` shows the map, clusters, truck loads, unplanned lines with evidence, per-product reconciliation and provenance, with JSON/CSV export. The bundled scenario is `examples/m1-synthetic.json` (Memphis DC, 69 orders; regenerate with `uv run python -m fillrate_optimizer.synthetic`). It exercises stock shortage, a split oversize stop, a 396 + 198 mi chain to a stop 594 mi from the depot (planned), an isolated unreachable stop, an unresolved coordinate and an oversize piece.
 
-Verification: `bun run lint`, `bun run typecheck`, `bun run build`, `bun run test` (14 passed), optimizer pytest (23 passed), Ruff check/format and contract regeneration pass. Production `next start` was exercised against a fresh temporary data directory: HTTP 200, all eight application tables present, WAL active. Tests race independent Node processes for claims and heartbeat/completion, reject stale attempts, verify rollback and restart persistence, and round-trip shared contracts in Python/TypeScript. That foundation verification did not include container images or deployment. No deployment change was made during the README/Git sync.
+Verification (2026-09-30): optimizer pytest 49 passed; Vitest 22 passed, including transport auth/fencing tests and three end-to-end tests with the real Python worker (success + reconciliation; cancel kills the solver and frees the worker; SIGKILLed worker → lease expiry → attempt 2 on a new worker); Ruff, lint, typecheck, build and contract regeneration pass. A production `next start` + worker run solved, validated and exported in about 2 s; production without `RUN_KEY` refuses submissions. The arm64 image built and passed `deploy/smoke.sh` locally; amd64 and the workflows themselves have not run yet.
 
-**M1 is not complete.** This step provides database operations and envelope contracts, not internal HTTP endpoints, a Python worker, mathematical stage implementations, a product run screen, or end-to-end fulfillment. The existing gallery remains illustrative.
-Project agent guidance is now tracked only at the repository root. The redundant `apps/web` agent files were removed; `apps/web/.gitignore` ignores local copies Next.js may regenerate during `next dev`.
-
-Frontend foundation plus the optimizer skeleton. `bun run lint`, `bun run typecheck`, and `bun run build` pass.
-
-`services/optimizer`: uv project pinned to Python 3.13 and the versions in `docs/decisions.md`. `travel.py` builds haversine × circuity matrices in integer meters; `loads.py` builds and solves one cluster's truckloads with PyVRP (open-route workaround, prohibited legs omitted, fixed truck cost, unlimited trucks) and validates the result independently; `capabilities.py` serves the capabilities document. `uv run pytest` (23 passed), `ruff check`, and `ruff format --check` pass; `uv run fillrate-optimizer` serves `/health` and `/capabilities`.
+Run locally: `bun run dev` in one terminal and `bun run worker` in another, then open `/runs`. The web process writes `data/worker.token` for the native worker.
 
 The gallery (`src/app/dev/components`) is rebuilt around the v1.3 fulfillment pipeline. Every specimen reads one deterministic synthetic scenario (`fixtures/`: Memphis DC, 2,000 orders / 2,829 lines, 640 accounts, six SKUs with scarce stock) run through a TypeScript stand-in of the pipeline: piece-level "order date, then value" allocation, stop aggregation and trailer splits, k-means on 3D unit vectors with auto-k and bisecting diameter repair, a sweep heuristic standing in for PyVRP truck loads, metrics, and unshipped reasons. A k-explorer fixture (k 3–12 × seeds 0–9, inertia, ARI stability, co-assignment confidence) and a nine-run sweep with non-dominated marking feed the comparison views. The fixture is gallery-only; the real pipeline is Python (small synthetic slice in M1, operational expansion in M3).
 
@@ -61,9 +58,14 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 
 ## Known gaps
 - The home page (`/`) is a minimal placeholder: a spinning cobe globe (`components/animated/globe-card.tsx`) linking to the GitHub repo. The component gallery (`/dev/components`, `/dev/blocks/<id>`) is now served in production too, but is not linked from `/`.
-- The web image contains only the frontend (no optimizer). SQLite lives in `/app/data` and is ephemeral unless a volume is mounted there.
-- Spec v1.6 is ahead of the current code: `loads.py` still defaults the truck penalty to zero and creates one matrix node per stop; the gallery still uses its v1.3 stand-in policies. Stage envelope contracts now exist; mathematical stage payloads, graph preflight, objective derivation, shared-location nodes, metric reconstruction and new acceptance fixtures remain to implement.
-- `/capabilities` now distinguishes implemented/planned behavior. Diameter enforcement remains explicitly planned until the pipeline and independent validator implement it.
+- SQLite lives in `/app/data` (not the spec's `/data`, kept for the existing review deployment) and is ephemeral unless a volume is mounted there.
+- The travel artifact stores each cluster's full matrix as JSON; fine for M1, but a 500-stop cluster approaches the 8 MiB artifact cap. Chunked/binary matrix artifacts are M3 work.
+- Stage reuse/caching is not implemented: every run recomputes all stages (manifests record input hashes for M3 reuse).
+- The pipeline stores integer-meter matrices from haversine × circuity only; no service-radius policy (disabled by default per spec) and no Valhalla.
+- A capacity-forced prohibited leg (B reachable only via A, but A + B exceed a trailer) ends as "no valid candidate": PyVRP prefers an overloaded infeasible route over a MAX_VALUE edge. Correctly reported, never counted as planned.
+- No Playwright browser smoke yet (spec §14 CI item); the image smoke covers the public API only.
+- Run settings exposed publicly are only k, k-means seed and solver seed; everything else comes from the bundled example.
+- The legacy `solve_loads` spike in `loads.py` keeps its zero default truck penalty for its capability fixtures; the pipeline uses `solve_partition` with the derived penalty and shared location nodes. The gallery still uses its v1.3 TypeScript stand-in.
 - The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.
 - Truck-count-first priority and no separate depot radius are provisional v1.6 defaults; the owner's two clarifying questions were still unanswered when the draft was written. Existing friend questionnaire items remain pending below.
 - If uv fails with "Bad CPU type" from a Python 2.7 framework install on PATH, set `UV_PYTHON=python3.13`.
@@ -87,4 +89,4 @@ The Google Form is superseded by the in-app review at `/dev/review?key=<REVIEW_K
 - Use his example rows (dummy values) to confirm the order and inventory CSV columns for M3 imports.
 
 ## Next step
-Build the remaining M1 synthetic fulfillment slice on the completed persistence foundation: authenticated loopback transport + one Python worker, real staged pipeline with v1.6 graph/objective/validation semantics, persisted results and basic exports. Keep the single sequential job; expand orchestration in M3. Then add CI/container delivery and verify amd64/arm64. Design-review answers still gate M2 acceptance, not this correctness work.
+Push to `main` and get `ci.yml` and `image.yml` green on both architectures; fix whatever the first runs expose, then tick M1. After that, M3: CSV import, scenario editing/versioning, real pipeline screens replacing the gallery stand-ins, stage reuse, and the 2,000-order benchmark. Design-review answers still gate M2 acceptance.

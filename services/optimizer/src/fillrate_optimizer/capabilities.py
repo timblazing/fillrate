@@ -19,7 +19,7 @@ from .loads import TRAILER_53FT
 from .travel import DEFAULT_CIRCUITY, DEFAULT_MAX_LEG_M
 
 SCHEMA_VERSION = 1
-ADAPTER_VERSION = "pyvrp-loads/1"
+ADAPTER_VERSION = "pyvrp-partition/1"
 
 PINNED = ("pyvrp", "ortools", "scikit-learn", "numpy", "h3", "fastapi", "pydantic")
 
@@ -100,11 +100,42 @@ BEHAVIORS = [
     ),
     Behavior(
         id="max_cluster_diameter",
-        availability="planned",
         provided_by="preprocessing",
-        description="Planned clustering-stage enforcement and independent diameter validation.",
-        fixture=None,
-        restrictions=["Not enforced by the current per-cluster load adapter."],
+        description=(
+            "k-means on 3D unit vectors, then deterministic 2-means bisection of any cluster "
+            "whose widest pair (haversine × cluster circuity) exceeds the limit. "
+            "The validator re-checks it."
+        ),
+        fixture="tests/test_pipeline.py::test_diameter_repair_splits_wide_cluster",
+    ),
+    Behavior(
+        id="graph_reachability",
+        provided_by="preprocessing",
+        description=(
+            "Before solving, each cluster's allowed-leg graph is searched from the depot. "
+            "Visits with no path are reported unreachable (or unreachable in their partition), "
+            "not solved."
+        ),
+        fixture="tests/test_pipeline.py::test_partition_that_removes_the_bridge_is_diagnosed",
+    ),
+    Behavior(
+        id="truck_count_first_objective",
+        provided_by="preprocessing",
+        description=(
+            "Fixed truck cost F = n·L + 1 per cluster (n visits, L leg limit) so any feasible plan "
+            "with fewer trucks outranks one with more; then distance."
+        ),
+        restrictions=["One depot, one vehicle type, open routes, distance-only costs."],
+        fixture="tests/test_pipeline.py::test_trucks_first_vs_weighted_zero_counterexample",
+    ),
+    Behavior(
+        id="independent_validation",
+        provided_by="validation",
+        description=(
+            "Coverage, piece lineage, capacity, physical legs, cluster membership and diameter are "
+            "rechecked from the raw travel artifact; solver feasibility is never trusted alone."
+        ),
+        fixture="tests/test_pipeline.py::test_validator_rejects_solver_feasible_missing_edge_candidate",
     ),
 ]
 

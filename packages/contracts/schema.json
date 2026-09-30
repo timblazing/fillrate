@@ -1,5 +1,333 @@
 {
   "$defs": {
+    "ClusterSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "avg_fill": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Fill"
+        },
+        "capacity_lower_bound": {
+          "title": "Capacity Lower Bound",
+          "type": "integer"
+        },
+        "diameter_m": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Diameter M",
+          "type": "integer"
+        },
+        "distance_bound_m": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Distance Bound M"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "iterations": {
+          "title": "Iterations",
+          "type": "integer"
+        },
+        "load": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Load",
+          "type": "integer"
+        },
+        "loaded_distance_m": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Loaded Distance M",
+          "type": "integer"
+        },
+        "location_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Location Ids",
+          "type": "array"
+        },
+        "mean_centroid_distance_m": {
+          "title": "Mean Centroid Distance M",
+          "type": "number"
+        },
+        "min_fill": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Min Fill"
+        },
+        "objective_mode": {
+          "title": "Objective Mode",
+          "type": "string"
+        },
+        "planned_amount_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Planned Amount Cents",
+          "type": "integer"
+        },
+        "planned_visit_count": {
+          "title": "Planned Visit Count",
+          "type": "integer"
+        },
+        "runtime_s": {
+          "title": "Runtime S",
+          "type": "number"
+        },
+        "solver_feasible": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Solver Feasible"
+        },
+        "status": {
+          "enum": [
+            "validated",
+            "invalid_candidate",
+            "no_candidate",
+            "nothing_to_solve"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "truck_penalty": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Truck Penalty",
+          "type": "integer"
+        },
+        "trucks": {
+          "title": "Trucks",
+          "type": "integer"
+        },
+        "violations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Violations",
+          "type": "array"
+        },
+        "visit_count": {
+          "title": "Visit Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "index",
+        "location_ids",
+        "visit_count",
+        "planned_visit_count",
+        "status",
+        "trucks",
+        "load",
+        "capacity_lower_bound",
+        "avg_fill",
+        "min_fill",
+        "diameter_m",
+        "mean_centroid_distance_m",
+        "loaded_distance_m",
+        "planned_amount_cents",
+        "objective_mode",
+        "truck_penalty",
+        "distance_bound_m",
+        "solver_feasible",
+        "iterations",
+        "runtime_s",
+        "violations"
+      ],
+      "title": "ClusterSummary",
+      "type": "object"
+    },
+    "ClusteringSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "auto_limit_reached": {
+          "title": "Auto Limit Reached",
+          "type": "boolean"
+        },
+        "effective_cluster_count": {
+          "title": "Effective Cluster Count",
+          "type": "integer"
+        },
+        "fits": {
+          "title": "Fits",
+          "type": "integer"
+        },
+        "raw_cluster_count": {
+          "title": "Raw Cluster Count",
+          "type": "integer"
+        },
+        "repairs": {
+          "items": {
+            "$ref": "#/$defs/Repair"
+          },
+          "title": "Repairs",
+          "type": "array"
+        },
+        "requested_k": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Requested K"
+        },
+        "selected_k": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Selected K"
+        },
+        "strategy": {
+          "enum": [
+            "kmeans",
+            "none"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategy",
+        "requested_k",
+        "selected_k",
+        "raw_cluster_count",
+        "effective_cluster_count",
+        "fits",
+        "auto_limit_reached",
+        "repairs"
+      ],
+      "title": "ClusteringSummary",
+      "type": "object"
+    },
+    "Depot": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lat": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Lat",
+          "type": "number"
+        },
+        "lon": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Lon",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "lat",
+        "lon"
+      ],
+      "title": "Depot",
+      "type": "object"
+    },
+    "Diagnostic": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "severity",
+        "message"
+      ],
+      "title": "Diagnostic",
+      "type": "object"
+    },
+    "InventoryItem": {
+      "additionalProperties": false,
+      "properties": {
+        "available_pieces": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Available Pieces",
+          "type": "integer"
+        },
+        "product_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Product Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "product_id",
+        "available_pieces"
+      ],
+      "title": "InventoryItem",
+      "type": "object"
+    },
     "JsonValue": {},
     "Lease": {
       "additionalProperties": false,
@@ -34,6 +362,756 @@
         "attempt"
       ],
       "title": "Lease",
+      "type": "object"
+    },
+    "LineOnBoard": {
+      "additionalProperties": false,
+      "properties": {
+        "amount_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Amount Cents",
+          "type": "integer"
+        },
+        "line_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Line Id",
+          "type": "string"
+        },
+        "linear_feet": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Linear Feet",
+          "type": "integer"
+        },
+        "order_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Order Id",
+          "type": "string"
+        },
+        "pieces": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Pieces",
+          "type": "integer"
+        },
+        "product_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Product Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "line_id",
+        "order_id",
+        "product_id",
+        "pieces",
+        "linear_feet",
+        "amount_cents"
+      ],
+      "title": "LineOnBoard",
+      "type": "object"
+    },
+    "Location": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinate_source": {
+          "enum": [
+            "imported",
+            "manual",
+            "census",
+            "zcta",
+            "unresolved"
+          ],
+          "title": "Coordinate Source",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lat": {
+          "anyOf": [
+            {
+              "maximum": 90,
+              "minimum": -90,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lat"
+        },
+        "lon": {
+          "anyOf": [
+            {
+              "maximum": 180,
+              "minimum": -180,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lon"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "lat",
+        "lon",
+        "coordinate_source"
+      ],
+      "title": "Location",
+      "type": "object"
+    },
+    "MapLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "cluster_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cluster Id"
+        },
+        "coordinate_source": {
+          "enum": [
+            "imported",
+            "manual",
+            "census",
+            "zcta",
+            "unresolved"
+          ],
+          "title": "Coordinate Source",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "lat": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lat"
+        },
+        "lon": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lon"
+        },
+        "state": {
+          "enum": [
+            "planned",
+            "partial",
+            "unplanned",
+            "excluded",
+            "no_demand"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "lat",
+        "lon",
+        "coordinate_source",
+        "cluster_id",
+        "state"
+      ],
+      "title": "MapLocation",
+      "type": "object"
+    },
+    "Order": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/OrderLine"
+          },
+          "minItems": 1,
+          "title": "Lines",
+          "type": "array"
+        },
+        "location_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Location Id",
+          "type": "string"
+        },
+        "order_date": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "title": "Order Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "location_id",
+        "order_date",
+        "lines"
+      ],
+      "title": "Order",
+      "type": "object"
+    },
+    "OrderLine": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "linear_feet_per_piece": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Linear Feet Per Piece"
+        },
+        "net_value_per_piece_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Net Value Per Piece Cents",
+          "type": "integer"
+        },
+        "ordered_pieces": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Ordered Pieces",
+          "type": "integer"
+        },
+        "product_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Product Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "product_id",
+        "ordered_pieces",
+        "net_value_per_piece_cents"
+      ],
+      "title": "OrderLine",
+      "type": "object"
+    },
+    "Product": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "linear_feet_per_piece": {
+          "minimum": 1,
+          "title": "Linear Feet Per Piece",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "linear_feet_per_piece"
+      ],
+      "title": "Product",
+      "type": "object"
+    },
+    "ProductReconciliation": {
+      "additionalProperties": false,
+      "properties": {
+        "allocated": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Allocated",
+          "type": "integer"
+        },
+        "allocated_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Allocated Cents",
+          "type": "integer"
+        },
+        "allocated_unplanned": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Allocated Unplanned",
+          "type": "integer"
+        },
+        "eligible": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Eligible",
+          "type": "integer"
+        },
+        "excluded": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Excluded",
+          "type": "integer"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "ordered": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Ordered",
+          "type": "integer"
+        },
+        "ordered_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Ordered Cents",
+          "type": "integer"
+        },
+        "planned": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Planned",
+          "type": "integer"
+        },
+        "planned_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Planned Cents",
+          "type": "integer"
+        },
+        "product_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Product Id",
+          "type": "string"
+        },
+        "residual": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Residual",
+          "type": "integer"
+        },
+        "starting_inventory": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Starting Inventory",
+          "type": "integer"
+        },
+        "unselected": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Unselected",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "product_id",
+        "label",
+        "starting_inventory",
+        "residual",
+        "ordered",
+        "excluded",
+        "eligible",
+        "allocated",
+        "unselected",
+        "planned",
+        "allocated_unplanned",
+        "ordered_cents",
+        "allocated_cents",
+        "planned_cents"
+      ],
+      "title": "ProductReconciliation",
+      "type": "object"
+    },
+    "Repair": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "diameter",
+            "solve_size",
+            "degenerate_size"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "detail"
+      ],
+      "title": "Repair",
+      "type": "object"
+    },
+    "RunSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "auto_k_cap": {
+          "default": 25,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Auto K Cap",
+          "type": "integer"
+        },
+        "cluster_circuity": {
+          "default": 1.2,
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Cluster Circuity",
+          "type": "number"
+        },
+        "k": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K"
+        },
+        "kmeans_n_init": {
+          "default": 10,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Kmeans N Init",
+          "type": "integer"
+        },
+        "kmeans_seed": {
+          "default": 0,
+          "maximum": 2147483647,
+          "minimum": 0,
+          "title": "Kmeans Seed",
+          "type": "integer"
+        },
+        "max_cluster_diameter_m": {
+          "default": 804672,
+          "maximum": 20000000,
+          "minimum": 1,
+          "title": "Max Cluster Diameter M",
+          "type": "integer"
+        },
+        "max_leg_m": {
+          "default": 804672,
+          "maximum": 20000000,
+          "minimum": 1,
+          "title": "Max Leg M",
+          "type": "integer"
+        },
+        "max_stops": {
+          "default": 500,
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Max Stops",
+          "type": "integer"
+        },
+        "objective": {
+          "default": "trucks_then_distance",
+          "enum": [
+            "trucks_then_distance",
+            "weighted_distance"
+          ],
+          "title": "Objective",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "solver_max_iterations": {
+          "anyOf": [
+            {
+              "maximum": 10000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solver Max Iterations"
+        },
+        "solver_seed": {
+          "default": 0,
+          "maximum": 2147483647,
+          "minimum": 0,
+          "title": "Solver Seed",
+          "type": "integer"
+        },
+        "solver_time_limit_s": {
+          "default": 10,
+          "exclusiveMinimum": 0,
+          "maximum": 300,
+          "title": "Solver Time Limit S",
+          "type": "number"
+        },
+        "trailer_capacity": {
+          "default": 5300,
+          "maximum": 1000000,
+          "minimum": 1,
+          "title": "Trailer Capacity",
+          "type": "integer"
+        },
+        "travel_circuity": {
+          "default": 1.2,
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Travel Circuity",
+          "type": "number"
+        },
+        "weighted_truck_penalty_m": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weighted Truck Penalty M"
+        }
+      },
+      "title": "RunSettings",
+      "type": "object"
+    },
+    "RunSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "clustering": {
+          "$ref": "#/$defs/ClusteringSummary"
+        },
+        "clusters": {
+          "items": {
+            "$ref": "#/$defs/ClusterSummary"
+          },
+          "title": "Clusters",
+          "type": "array"
+        },
+        "coverage": {
+          "enum": [
+            "complete",
+            "partial",
+            "empty"
+          ],
+          "title": "Coverage",
+          "type": "string"
+        },
+        "depot": {
+          "$ref": "#/$defs/Depot"
+        },
+        "diagnostics": {
+          "items": {
+            "$ref": "#/$defs/Diagnostic"
+          },
+          "title": "Diagnostics",
+          "type": "array"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/MapLocation"
+          },
+          "title": "Locations",
+          "type": "array"
+        },
+        "products": {
+          "items": {
+            "$ref": "#/$defs/ProductReconciliation"
+          },
+          "title": "Products",
+          "type": "array"
+        },
+        "proof": {
+          "const": "heuristic",
+          "default": "heuristic",
+          "title": "Proof",
+          "type": "string"
+        },
+        "scenario_name": {
+          "title": "Scenario Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "settings": {
+          "$ref": "#/$defs/RunSettings"
+        },
+        "totals": {
+          "$ref": "#/$defs/Totals"
+        },
+        "trucks": {
+          "items": {
+            "$ref": "#/$defs/TruckSummary"
+          },
+          "title": "Trucks",
+          "type": "array"
+        },
+        "unplanned": {
+          "items": {
+            "$ref": "#/$defs/UnplannedLine"
+          },
+          "title": "Unplanned",
+          "type": "array"
+        },
+        "validity": {
+          "enum": [
+            "valid",
+            "invalid"
+          ],
+          "title": "Validity",
+          "type": "string"
+        },
+        "versions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Versions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "scenario_name",
+        "validity",
+        "coverage",
+        "settings",
+        "depot",
+        "totals",
+        "clustering",
+        "clusters",
+        "trucks",
+        "locations",
+        "products",
+        "unplanned",
+        "diagnostics",
+        "versions"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    },
+    "ScenarioDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "depot": {
+          "$ref": "#/$defs/Depot"
+        },
+        "inventory": {
+          "items": {
+            "$ref": "#/$defs/InventoryItem"
+          },
+          "title": "Inventory",
+          "type": "array"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/Location"
+          },
+          "title": "Locations",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "orders": {
+          "items": {
+            "$ref": "#/$defs/Order"
+          },
+          "title": "Orders",
+          "type": "array"
+        },
+        "products": {
+          "items": {
+            "$ref": "#/$defs/Product"
+          },
+          "title": "Products",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "depot",
+        "products",
+        "locations",
+        "orders",
+        "inventory"
+      ],
+      "title": "ScenarioDocument",
       "type": "object"
     },
     "Snapshot": {
@@ -158,6 +1236,299 @@
         "execution_id"
       ],
       "title": "StageManifest",
+      "type": "object"
+    },
+    "Totals": {
+      "additionalProperties": false,
+      "properties": {
+        "allocated_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Allocated Cents",
+          "type": "integer"
+        },
+        "avg_fill": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Fill"
+        },
+        "capacity_lower_bound": {
+          "title": "Capacity Lower Bound",
+          "type": "integer"
+        },
+        "load": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Load",
+          "type": "integer"
+        },
+        "loaded_distance_m": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Loaded Distance M",
+          "type": "integer"
+        },
+        "locations": {
+          "title": "Locations",
+          "type": "integer"
+        },
+        "min_fill": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Min Fill"
+        },
+        "ordered_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Ordered Cents",
+          "type": "integer"
+        },
+        "planned_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Planned Cents",
+          "type": "integer"
+        },
+        "planned_visits": {
+          "title": "Planned Visits",
+          "type": "integer"
+        },
+        "sum_cluster_lower_bounds": {
+          "title": "Sum Cluster Lower Bounds",
+          "type": "integer"
+        },
+        "trucks": {
+          "title": "Trucks",
+          "type": "integer"
+        },
+        "utilization": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Utilization"
+        },
+        "visits": {
+          "title": "Visits",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ordered_cents",
+        "allocated_cents",
+        "planned_cents",
+        "trucks",
+        "locations",
+        "visits",
+        "planned_visits",
+        "load",
+        "avg_fill",
+        "min_fill",
+        "utilization",
+        "loaded_distance_m",
+        "capacity_lower_bound",
+        "sum_cluster_lower_bounds"
+      ],
+      "title": "Totals",
+      "type": "object"
+    },
+    "TruckSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "amount_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Amount Cents",
+          "type": "integer"
+        },
+        "cluster_id": {
+          "title": "Cluster Id",
+          "type": "string"
+        },
+        "distance_m": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Distance M",
+          "type": "integer"
+        },
+        "fill": {
+          "title": "Fill",
+          "type": "number"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "load": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Load",
+          "type": "integer"
+        },
+        "visits": {
+          "items": {
+            "$ref": "#/$defs/TruckVisit"
+          },
+          "title": "Visits",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "cluster_id",
+        "load",
+        "fill",
+        "distance_m",
+        "amount_cents",
+        "visits"
+      ],
+      "title": "TruckSummary",
+      "type": "object"
+    },
+    "TruckVisit": {
+      "additionalProperties": false,
+      "properties": {
+        "leg_m": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Leg M",
+          "type": "integer"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/LineOnBoard"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "load": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Load",
+          "type": "integer"
+        },
+        "location_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Location Id",
+          "type": "string"
+        },
+        "sequence": {
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "visit_id": {
+          "title": "Visit Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "visit_id",
+        "location_id",
+        "sequence",
+        "leg_m",
+        "load",
+        "lines"
+      ],
+      "title": "TruckVisit",
+      "type": "object"
+    },
+    "UnplannedLine": {
+      "additionalProperties": false,
+      "properties": {
+        "amount_cents": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Amount Cents",
+          "type": "integer"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "line_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Line Id",
+          "type": "string"
+        },
+        "location_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Location Id",
+          "type": "string"
+        },
+        "order_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Order Id",
+          "type": "string"
+        },
+        "pieces": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Pieces",
+          "type": "integer"
+        },
+        "product_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Product Id",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "excluded_unresolved_coordinates",
+            "oversize_piece",
+            "stock_shortage",
+            "unreachable",
+            "unreachable_in_partition",
+            "candidate_invalid",
+            "no_valid_candidate"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "preflight",
+            "allocation",
+            "problem",
+            "solve",
+            "validation"
+          ],
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "line_id",
+        "order_id",
+        "product_id",
+        "location_id",
+        "pieces",
+        "amount_cents",
+        "reason",
+        "stage",
+        "evidence"
+      ],
+      "title": "UnplannedLine",
       "type": "object"
     },
     "WorkerEvent": {

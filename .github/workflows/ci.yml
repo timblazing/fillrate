@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    env:
+      UV_PYTHON: "3.13"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.8.2
+          enable-cache: true
+          cache-dependency-glob: services/optimizer/uv.lock
+      - name: Install
+        run: |
+          bun install --frozen-lockfile
+          cd services/optimizer && uv sync --locked
+      - name: Optimizer lint and tests
+        working-directory: services/optimizer
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run pytest
+      - name: Contracts are current
+        run: |
+          bun run contracts:generate
+          git diff --exit-code packages/contracts
+      - name: Lint and typecheck
+        run: |
+          bun run lint
+          bun run typecheck
+      # Includes the real-file SQLite claim races and the end-to-end Python worker tests.
+      - name: Vitest
+        run: bun run test
+      - name: Build
+        run: bun run build

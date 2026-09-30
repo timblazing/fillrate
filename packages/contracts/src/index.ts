@@ -7,11 +7,15 @@ export type StageManifest = components["schemas"]["StageManifest"];
 export type Lease = components["schemas"]["Lease"];
 export type WorkerEvent = components["schemas"]["WorkerEvent"];
 export type Snapshot = components["schemas"]["Snapshot"];
+export type ScenarioDocument = components["schemas"]["ScenarioDocument"];
+export type RunSettings = components["schemas"]["RunSettings"];
+export type RunSummary = components["schemas"]["RunSummary"];
+export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary";
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
 ajv.addSchema(schema, "contracts");
-export function parseContract<T extends "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease">(
+export function parseContract<T extends ContractName>(
   name: T, value: unknown,
 ): components["schemas"][T] {
   const validate = ajv.getSchema(`contracts#/$defs/${name}`)!;

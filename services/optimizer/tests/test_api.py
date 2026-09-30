@@ -32,4 +32,4 @@ def test_only_implemented_capabilities_have_executable_fixtures():
         else:
             assert behavior["fixture"] is None
     diameter = next(b for b in body["behaviors"] if b["id"] == "max_cluster_diameter")
-    assert diameter["availability"] == "planned"
+    assert diameter["availability"] == "implemented"

@@ -71,7 +71,7 @@ export interface components {
         Capabilities: {
             /**
              * Adapter Version
-             * @default pyvrp-loads/1
+             * @default pyvrp-partition/1
              */
             adapter_version: string;
             /** Behaviors */
@@ -94,6 +94,78 @@ export interface components {
             versions: {
                 [key: string]: string;
             };
+        };
+        /** ClusterSummary */
+        ClusterSummary: {
+            /** Avg Fill */
+            avg_fill: number | null;
+            /** Capacity Lower Bound */
+            capacity_lower_bound: number;
+            /** Diameter M */
+            diameter_m: number;
+            /** Distance Bound M */
+            distance_bound_m: number | null;
+            /** Id */
+            id: string;
+            /** Index */
+            index: number;
+            /** Iterations */
+            iterations: number;
+            /** Load */
+            load: number;
+            /** Loaded Distance M */
+            loaded_distance_m: number;
+            /** Location Ids */
+            location_ids: string[];
+            /** Mean Centroid Distance M */
+            mean_centroid_distance_m: number;
+            /** Min Fill */
+            min_fill: number | null;
+            /** Objective Mode */
+            objective_mode: string;
+            /** Planned Amount Cents */
+            planned_amount_cents: number;
+            /** Planned Visit Count */
+            planned_visit_count: number;
+            /** Runtime S */
+            runtime_s: number;
+            /** Solver Feasible */
+            solver_feasible: boolean | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "validated" | "invalid_candidate" | "no_candidate" | "nothing_to_solve";
+            /** Truck Penalty */
+            truck_penalty: number;
+            /** Trucks */
+            trucks: number;
+            /** Violations */
+            violations: string[];
+            /** Visit Count */
+            visit_count: number;
+        };
+        /** ClusteringSummary */
+        ClusteringSummary: {
+            /** Auto Limit Reached */
+            auto_limit_reached: boolean;
+            /** Effective Cluster Count */
+            effective_cluster_count: number;
+            /** Fits */
+            fits: number;
+            /** Raw Cluster Count */
+            raw_cluster_count: number;
+            /** Repairs */
+            repairs: components["schemas"]["Repair"][];
+            /** Requested K */
+            requested_k: number | null;
+            /** Selected K */
+            selected_k: number | null;
+            /**
+             * Strategy
+             * @enum {string}
+             */
+            strategy: "kmeans" | "none";
         };
         /** ContractBundle */
         ContractBundle: {
@@ -123,6 +195,36 @@ export interface components {
              * @default 5300
              */
             trailer_capacity: number;
+        };
+        /** Depot */
+        Depot: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+        };
+        /** Diagnostic */
+        Diagnostic: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "error";
+        };
+        /** InventoryItem */
+        InventoryItem: {
+            /** Available Pieces */
+            available_pieces: number;
+            /** Product Id */
+            product_id: string;
         };
         JsonValue: unknown;
         /** Lease */
@@ -164,6 +266,289 @@ export interface components {
              * @default 300
              */
             solve_attempt_limit_seconds: number;
+        };
+        /** LineOnBoard */
+        LineOnBoard: {
+            /** Amount Cents */
+            amount_cents: number;
+            /** Line Id */
+            line_id: string;
+            /** Linear Feet */
+            linear_feet: number;
+            /** Order Id */
+            order_id: string;
+            /** Pieces */
+            pieces: number;
+            /** Product Id */
+            product_id: string;
+        };
+        /** Location */
+        Location: {
+            /**
+             * Coordinate Source
+             * @enum {string}
+             */
+            coordinate_source: "imported" | "manual" | "census" | "zcta" | "unresolved";
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Lat */
+            lat: number | null;
+            /** Lon */
+            lon: number | null;
+        };
+        /** MapLocation */
+        MapLocation: {
+            /** Cluster Id */
+            cluster_id: string | null;
+            /**
+             * Coordinate Source
+             * @enum {string}
+             */
+            coordinate_source: "imported" | "manual" | "census" | "zcta" | "unresolved";
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Lat */
+            lat: number | null;
+            /** Lon */
+            lon: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "planned" | "partial" | "unplanned" | "excluded" | "no_demand";
+        };
+        /** Order */
+        Order: {
+            /** Id */
+            id: string;
+            /** Lines */
+            lines: components["schemas"]["OrderLine"][];
+            /** Location Id */
+            location_id: string;
+            /** Order Date */
+            order_date: string;
+        };
+        /** OrderLine */
+        OrderLine: {
+            /** Id */
+            id: string;
+            /**
+             * Linear Feet Per Piece
+             * @default null
+             */
+            linear_feet_per_piece: number | null;
+            /** Net Value Per Piece Cents */
+            net_value_per_piece_cents: number;
+            /** Ordered Pieces */
+            ordered_pieces: number;
+            /** Product Id */
+            product_id: string;
+        };
+        /** Product */
+        Product: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Linear Feet Per Piece */
+            linear_feet_per_piece: number;
+        };
+        /** ProductReconciliation */
+        ProductReconciliation: {
+            /** Allocated */
+            allocated: number;
+            /** Allocated Cents */
+            allocated_cents: number;
+            /** Allocated Unplanned */
+            allocated_unplanned: number;
+            /** Eligible */
+            eligible: number;
+            /** Excluded */
+            excluded: number;
+            /** Label */
+            label: string;
+            /** Ordered */
+            ordered: number;
+            /** Ordered Cents */
+            ordered_cents: number;
+            /** Planned */
+            planned: number;
+            /** Planned Cents */
+            planned_cents: number;
+            /** Product Id */
+            product_id: string;
+            /** Residual */
+            residual: number;
+            /** Starting Inventory */
+            starting_inventory: number;
+            /** Unselected */
+            unselected: number;
+        };
+        /** Repair */
+        Repair: {
+            /** Detail */
+            detail: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "diameter" | "solve_size" | "degenerate_size";
+        };
+        /** RunSettings */
+        RunSettings: {
+            /**
+             * Auto K Cap
+             * @default 25
+             */
+            auto_k_cap: number;
+            /**
+             * Cluster Circuity
+             * @default 1.2
+             */
+            cluster_circuity: number;
+            /**
+             * K
+             * @default null
+             */
+            k: number | null;
+            /**
+             * Kmeans N Init
+             * @default 10
+             */
+            kmeans_n_init: number;
+            /**
+             * Kmeans Seed
+             * @default 0
+             */
+            kmeans_seed: number;
+            /**
+             * Max Cluster Diameter M
+             * @default 804672
+             */
+            max_cluster_diameter_m: number;
+            /**
+             * Max Leg M
+             * @default 804672
+             */
+            max_leg_m: number;
+            /**
+             * Max Stops
+             * @default 500
+             */
+            max_stops: number;
+            /**
+             * Objective
+             * @default trucks_then_distance
+             * @enum {string}
+             */
+            objective: "trucks_then_distance" | "weighted_distance";
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /**
+             * Solver Max Iterations
+             * @default null
+             */
+            solver_max_iterations: number | null;
+            /**
+             * Solver Seed
+             * @default 0
+             */
+            solver_seed: number;
+            /**
+             * Solver Time Limit S
+             * @default 10
+             */
+            solver_time_limit_s: number;
+            /**
+             * Trailer Capacity
+             * @default 5300
+             */
+            trailer_capacity: number;
+            /**
+             * Travel Circuity
+             * @default 1.2
+             */
+            travel_circuity: number;
+            /**
+             * Weighted Truck Penalty M
+             * @default null
+             */
+            weighted_truck_penalty_m: number | null;
+        };
+        /** RunSummary */
+        RunSummary: {
+            clustering: components["schemas"]["ClusteringSummary"];
+            /** Clusters */
+            clusters: components["schemas"]["ClusterSummary"][];
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "complete" | "partial" | "empty";
+            depot: components["schemas"]["Depot"];
+            /** Diagnostics */
+            diagnostics: components["schemas"]["Diagnostic"][];
+            /** Locations */
+            locations: components["schemas"]["MapLocation"][];
+            /** Products */
+            products: components["schemas"]["ProductReconciliation"][];
+            /**
+             * Proof
+             * @default heuristic
+             * @constant
+             */
+            proof: "heuristic";
+            /** Scenario Name */
+            scenario_name: string;
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            settings: components["schemas"]["RunSettings"];
+            totals: components["schemas"]["Totals"];
+            /** Trucks */
+            trucks: components["schemas"]["TruckSummary"][];
+            /** Unplanned */
+            unplanned: components["schemas"]["UnplannedLine"][];
+            /**
+             * Validity
+             * @enum {string}
+             */
+            validity: "valid" | "invalid";
+            /** Versions */
+            versions: {
+                [key: string]: string;
+            };
+        };
+        /** ScenarioDocument */
+        ScenarioDocument: {
+            depot: components["schemas"]["Depot"];
+            /** Inventory */
+            inventory: components["schemas"]["InventoryItem"][];
+            /** Locations */
+            locations: components["schemas"]["Location"][];
+            /** Name */
+            name: string;
+            /** Orders */
+            orders: components["schemas"]["Order"][];
+            /** Products */
+            products: components["schemas"]["Product"][];
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
         };
         /** Snapshot */
         Snapshot: {
@@ -218,6 +603,69 @@ export interface components {
              */
             stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "solve" | "validation" | "summary";
         };
+        /** Totals */
+        Totals: {
+            /** Allocated Cents */
+            allocated_cents: number;
+            /** Avg Fill */
+            avg_fill: number | null;
+            /** Capacity Lower Bound */
+            capacity_lower_bound: number;
+            /** Load */
+            load: number;
+            /** Loaded Distance M */
+            loaded_distance_m: number;
+            /** Locations */
+            locations: number;
+            /** Min Fill */
+            min_fill: number | null;
+            /** Ordered Cents */
+            ordered_cents: number;
+            /** Planned Cents */
+            planned_cents: number;
+            /** Planned Visits */
+            planned_visits: number;
+            /** Sum Cluster Lower Bounds */
+            sum_cluster_lower_bounds: number;
+            /** Trucks */
+            trucks: number;
+            /** Utilization */
+            utilization: number | null;
+            /** Visits */
+            visits: number;
+        };
+        /** TruckSummary */
+        TruckSummary: {
+            /** Amount Cents */
+            amount_cents: number;
+            /** Cluster Id */
+            cluster_id: string;
+            /** Distance M */
+            distance_m: number;
+            /** Fill */
+            fill: number;
+            /** Id */
+            id: string;
+            /** Load */
+            load: number;
+            /** Visits */
+            visits: components["schemas"]["TruckVisit"][];
+        };
+        /** TruckVisit */
+        TruckVisit: {
+            /** Leg M */
+            leg_m: number;
+            /** Lines */
+            lines: components["schemas"]["LineOnBoard"][];
+            /** Load */
+            load: number;
+            /** Location Id */
+            location_id: string;
+            /** Sequence */
+            sequence: number;
+            /** Visit Id */
+            visit_id: string;
+        };
         /** Units */
         Units: {
             /**
@@ -235,6 +683,33 @@ export interface components {
              * @default cents (integer)
              */
             money: string;
+        };
+        /** UnplannedLine */
+        UnplannedLine: {
+            /** Amount Cents */
+            amount_cents: number;
+            /** Evidence */
+            evidence: string;
+            /** Line Id */
+            line_id: string;
+            /** Location Id */
+            location_id: string;
+            /** Order Id */
+            order_id: string;
+            /** Pieces */
+            pieces: number;
+            /** Product Id */
+            product_id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "excluded_unresolved_coordinates" | "oversize_piece" | "stock_shortage" | "unreachable" | "unreachable_in_partition" | "candidate_invalid" | "no_valid_candidate";
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "preflight" | "allocation" | "problem" | "solve" | "validation";
         };
         /** WorkerEvent */
         WorkerEvent: {

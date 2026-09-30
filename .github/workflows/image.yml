@@ -1,37 +1,100 @@
 name: image
 
-# Manual for now: Actions → image → Run workflow. Pushes ghcr.io/<owner>/fillrate:latest and :sha-<commit>.
+# Builds one image per architecture on native runners, smoke-tests each candidate (health,
+# a real synthetic pipeline run, export), pushes the tested image by digest, then publishes a
+# multi-arch manifest from exactly those digests (spec §14).
 on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: image-${{ github.event.workflow_run.head_sha || github.sha }}
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/fillrate
+  REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
+
 jobs:
-  web:
-    runs-on: ubuntu-latest
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.REVISION }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Build candidate
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: fillrate:candidate
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.REVISION }}
+            org.opencontainers.image.version=${{ github.ref_type == 'tag' && github.ref_name || env.REVISION }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+      - name: Smoke test
+        run: deploy/smoke.sh fillrate:candidate
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push tested image by digest
+        run: |
+          tag="$IMAGE:candidate-${REVISION::7}-${{ matrix.arch }}"
+          docker tag fillrate:candidate "$tag"
+          docker push "$tag"
+          mkdir -p digests
+          docker inspect --format '{{index .RepoDigests 0}}' "$tag" > "digests/${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digests/${{ matrix.arch }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/fillrate
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Publish multi-arch manifest
+        run: |
+          tags=(-t "$IMAGE:sha-${REVISION::7}")
+          if [ "${{ github.ref_type }}" = tag ]; then
+            v="${{ github.ref_name }}"; v="${v#v}"
+            tags+=(-t "$IMAGE:$v" -t "$IMAGE:${v%.*}")
+          else
+            tags+=(-t "$IMAGE:latest")
+          fi
+          docker buildx imagetools create "${tags[@]}" "$(cat digests/amd64)" "$(cat digests/arm64)"
+          docker buildx imagetools inspect "$IMAGE:sha-${REVISION::7}"

@@ -5,7 +5,6 @@
 data
 *.sqlite*
 .env*
-services
 fillrate.fig
 **/.venv
 **/__pycache__

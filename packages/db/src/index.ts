@@ -193,6 +193,45 @@ export class Store {
       .map(r => ({ ...r, answers: JSON.parse(r.answers) as Record<string, unknown> }));
   }
 
+  findVersion(snapshot: Snapshot) {
+    return this.db.select().from(s.versions).where(eq(s.versions.document, canonical(snapshot))).orderBy(asc(s.versions.createdAt)).get() ?? null;
+  }
+
+  versionDocument(versionId: string): Snapshot {
+    const version = this.db.select().from(s.versions).where(eq(s.versions.id, versionId)).get();
+    if (!version) throw new Error("version_not_found");
+    return JSON.parse(version.document) as Snapshot;
+  }
+
+  listRuns(limit = 50) {
+    return this.db.select({ id: s.runs.id, status: s.runs.status, createdAt: s.runs.createdAt, versionId: s.runs.versionId })
+      .from(s.runs).orderBy(sql`${s.runs.createdAt} desc`, sql`${s.runs.id} desc`).limit(limit).all();
+  }
+
+  // Status, current attempt, latest-attempt events and artifact manifests for one run.
+  runView(runId: string) {
+    const run = this.db.select().from(s.runs).where(eq(s.runs.id, runId)).get();
+    if (!run) return null;
+    const job = this.db.select().from(s.jobs).where(eq(s.jobs.runId, runId)).get()!;
+    const events = this.db.select().from(s.events).where(and(eq(s.events.jobId, job.id), eq(s.events.attempt, job.attempt))).orderBy(asc(s.events.sequence)).all()
+      .map(e => ({ sequence: e.sequence, kind: e.kind, payload: JSON.parse(e.payload) as Record<string, unknown>, createdAt: e.createdAt }));
+    const attempts = this.db.select().from(s.attempts).where(eq(s.attempts.jobId, job.id)).orderBy(asc(s.attempts.attempt)).all()
+      .map(a => ({ attempt: a.attempt, workerId: a.workerId, startedAt: a.startedAt, endedAt: a.endedAt, reason: a.reason }));
+    const artifacts = this.db.select().from(s.runArtifacts).where(eq(s.runArtifacts.runId, runId)).all()
+      .map(a => JSON.parse(a.manifest) as StageManifest);
+    return {
+      id: run.id, versionId: run.versionId, status: run.status, createdAt: run.createdAt,
+      settings: JSON.parse(run.settings) as Snapshot,
+      attempt: job.attempt, maxAttempts: job.maxAttempts, cancelRequested: job.cancelRequested,
+      events, attempts, artifacts,
+    };
+  }
+
+  queueStats() {
+    const rows = this.sqlite.prepare("SELECT status, count(*) AS n FROM jobs GROUP BY status").all() as { status: string; n: number }[];
+    return Object.fromEntries(rows.map(r => [r.status, r.n])) as Record<string, number>;
+  }
+
   readArtifact(hash: string): unknown {
     const artifact = this.db.select().from(s.artifacts).where(eq(s.artifacts.hash, hash)).get();
     if (!artifact) throw new Error("artifact_not_found");

@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "bun run --filter web dev",
+    "worker": "cd services/optimizer && UV_PYTHON=python3.13 uv run fillrate-worker",
     "build": "bun run --filter web build",
     "lint": "bun run --filter web lint && bun run lint:packages",
     "typecheck": "bun run typecheck:packages && bun run --filter web typecheck",

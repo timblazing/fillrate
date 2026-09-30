@@ -1,0 +1,1250 @@
+{
+ "scenario": {
+  "schema_version": 1,
+  "name": "M1 synthetic: Memphis DC",
+  "depot": {
+   "id": "DEPOT",
+   "label": "Memphis DC",
+   "lat": 35.1495,
+   "lon": -90.049
+  },
+  "products": [
+   {
+    "id": "P-PALLET",
+    "label": "Full pallet",
+    "linear_feet_per_piece": 400
+   },
+   {
+    "id": "P-HALF",
+    "label": "Half pallet",
+    "linear_feet_per_piece": 200
+   },
+   {
+    "id": "P-ROLL",
+    "label": "Carpet roll",
+    "linear_feet_per_piece": 150
+   },
+   {
+    "id": "P-CRATE",
+    "label": "Machine crate",
+    "linear_feet_per_piece": 5400
+   }
+  ],
+  "locations": [
+   {
+    "id": "L01",
+    "label": "Customer 01",
+    "lat": 36.10565,
+    "lon": -92.09521,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L02",
+    "label": "Customer 02",
+    "lat": 36.82158,
+    "lon": -90.75645,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L03",
+    "label": "Customer 03",
+    "lat": 36.83288,
+    "lon": -88.69217,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L04",
+    "label": "Customer 04",
+    "lat": 31.829,
+    "lon": -91.59673,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L05",
+    "label": "Customer 05",
+    "lat": 32.48025,
+    "lon": -88.68313,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L06",
+    "label": "Customer 06",
+    "lat": 39.61431,
+    "lon": -90.08885,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L07",
+    "label": "Customer 07",
+    "lat": 34.43069,
+    "lon": -88.84497,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L08",
+    "label": "Customer 08",
+    "lat": 34.21086,
+    "lon": -90.40883,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L09",
+    "label": "Customer 09",
+    "lat": 37.4264,
+    "lon": -89.03878,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L10",
+    "label": "Customer 10",
+    "lat": 35.19272,
+    "lon": -88.69368,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L11",
+    "label": "Customer 11",
+    "lat": 33.01218,
+    "lon": -89.61312,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L12",
+    "label": "Customer 12",
+    "lat": 34.55522,
+    "lon": -92.91013,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L13",
+    "label": "Customer 13",
+    "lat": 34.11588,
+    "lon": -89.27,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L14",
+    "label": "Customer 14",
+    "lat": 36.34694,
+    "lon": -94.89898,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L15",
+    "label": "Customer 15",
+    "lat": 32.80543,
+    "lon": -89.31592,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L16",
+    "label": "Customer 16",
+    "lat": 33.71273,
+    "lon": -88.50107,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L17",
+    "label": "Customer 17",
+    "lat": 38.31727,
+    "lon": -91.31664,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L18",
+    "label": "Customer 18",
+    "lat": 33.59503,
+    "lon": -89.39535,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L19",
+    "label": "Customer 19",
+    "lat": 34.47196,
+    "lon": -87.66627,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L20",
+    "label": "Customer 20",
+    "lat": 32.41626,
+    "lon": -89.80708,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L21",
+    "label": "Customer 21",
+    "lat": 37.40316,
+    "lon": -88.96924,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L22",
+    "label": "Customer 22",
+    "lat": 39.34659,
+    "lon": -89.66225,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L23",
+    "label": "Customer 23",
+    "lat": 32.18729,
+    "lon": -90.11591,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L24",
+    "label": "Customer 24",
+    "lat": 37.13982,
+    "lon": -88.95114,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L25",
+    "label": "Customer 25",
+    "lat": 35.81651,
+    "lon": -90.61244,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L26",
+    "label": "Customer 26",
+    "lat": 34.5007,
+    "lon": -89.40009,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L27",
+    "label": "Customer 27",
+    "lat": 32.3948,
+    "lon": -94.33904,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L28",
+    "label": "Customer 28",
+    "lat": 32.50693,
+    "lon": -88.85337,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L-CHAIN-A",
+    "label": "Chain A (\u2248396 mi)",
+    "lat": 35.1495,
+    "lon": -84.20771,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L-CHAIN-B",
+    "label": "Chain B (\u2248594 mi, via A)",
+    "lat": 35.1495,
+    "lon": -81.28707,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L-FAR",
+    "label": "Isolated (Denver)",
+    "lat": 39.7392,
+    "lon": -104.9903,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L-BIG",
+    "label": "Big box store",
+    "lat": 36.01789,
+    "lon": -90.75703,
+    "coordinate_source": "imported"
+   },
+   {
+    "id": "L-NOCOORD",
+    "label": "Unresolved address",
+    "lat": null,
+    "lon": null,
+    "coordinate_source": "unresolved"
+   }
+  ],
+  "orders": [
+   {
+    "id": "O001",
+    "location_id": "L01",
+    "order_date": "2026-09-05",
+    "lines": [
+     {
+      "id": "O001-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O001-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O002",
+    "location_id": "L01",
+    "order_date": "2026-09-16",
+    "lines": [
+     {
+      "id": "O002-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O002-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O003",
+    "location_id": "L02",
+    "order_date": "2026-09-07",
+    "lines": [
+     {
+      "id": "O003-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O004",
+    "location_id": "L02",
+    "order_date": "2026-09-11",
+    "lines": [
+     {
+      "id": "O004-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O004-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O005",
+    "location_id": "L03",
+    "order_date": "2026-09-15",
+    "lines": [
+     {
+      "id": "O005-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O006",
+    "location_id": "L03",
+    "order_date": "2026-09-22",
+    "lines": [
+     {
+      "id": "O006-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O007",
+    "location_id": "L04",
+    "order_date": "2026-09-26",
+    "lines": [
+     {
+      "id": "O007-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 7,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O007-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 7,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O008",
+    "location_id": "L04",
+    "order_date": "2026-09-24",
+    "lines": [
+     {
+      "id": "O008-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O008-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O009",
+    "location_id": "L05",
+    "order_date": "2026-09-14",
+    "lines": [
+     {
+      "id": "O009-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O010",
+    "location_id": "L06",
+    "order_date": "2026-09-14",
+    "lines": [
+     {
+      "id": "O010-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O010-2",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O011",
+    "location_id": "L06",
+    "order_date": "2026-09-23",
+    "lines": [
+     {
+      "id": "O011-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 7,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O011-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O012",
+    "location_id": "L07",
+    "order_date": "2026-09-04",
+    "lines": [
+     {
+      "id": "O012-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 7,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O013",
+    "location_id": "L07",
+    "order_date": "2026-09-08",
+    "lines": [
+     {
+      "id": "O013-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O014",
+    "location_id": "L08",
+    "order_date": "2026-09-10",
+    "lines": [
+     {
+      "id": "O014-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O014-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 7,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O015",
+    "location_id": "L09",
+    "order_date": "2026-09-17",
+    "lines": [
+     {
+      "id": "O015-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O015-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O016",
+    "location_id": "L09",
+    "order_date": "2026-09-26",
+    "lines": [
+     {
+      "id": "O016-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O017",
+    "location_id": "L10",
+    "order_date": "2026-09-25",
+    "lines": [
+     {
+      "id": "O017-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O018",
+    "location_id": "L11",
+    "order_date": "2026-09-19",
+    "lines": [
+     {
+      "id": "O018-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O018-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O019",
+    "location_id": "L11",
+    "order_date": "2026-09-06",
+    "lines": [
+     {
+      "id": "O019-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 7,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O019-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O020",
+    "location_id": "L12",
+    "order_date": "2026-09-22",
+    "lines": [
+     {
+      "id": "O020-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O020-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O021",
+    "location_id": "L12",
+    "order_date": "2026-09-01",
+    "lines": [
+     {
+      "id": "O021-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O022",
+    "location_id": "L13",
+    "order_date": "2026-09-11",
+    "lines": [
+     {
+      "id": "O022-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O022-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O023",
+    "location_id": "L13",
+    "order_date": "2026-09-20",
+    "lines": [
+     {
+      "id": "O023-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O024",
+    "location_id": "L14",
+    "order_date": "2026-09-04",
+    "lines": [
+     {
+      "id": "O024-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O024-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O025",
+    "location_id": "L15",
+    "order_date": "2026-09-11",
+    "lines": [
+     {
+      "id": "O025-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O025-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O026",
+    "location_id": "L16",
+    "order_date": "2026-09-09",
+    "lines": [
+     {
+      "id": "O026-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O027",
+    "location_id": "L16",
+    "order_date": "2026-09-27",
+    "lines": [
+     {
+      "id": "O027-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O027-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 7,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O028",
+    "location_id": "L17",
+    "order_date": "2026-09-28",
+    "lines": [
+     {
+      "id": "O028-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O029",
+    "location_id": "L17",
+    "order_date": "2026-09-24",
+    "lines": [
+     {
+      "id": "O029-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O029-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O030",
+    "location_id": "L18",
+    "order_date": "2026-09-05",
+    "lines": [
+     {
+      "id": "O030-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O031",
+    "location_id": "L18",
+    "order_date": "2026-09-26",
+    "lines": [
+     {
+      "id": "O031-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O032",
+    "location_id": "L19",
+    "order_date": "2026-09-10",
+    "lines": [
+     {
+      "id": "O032-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O033",
+    "location_id": "L19",
+    "order_date": "2026-09-27",
+    "lines": [
+     {
+      "id": "O033-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O033-2",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O034",
+    "location_id": "L20",
+    "order_date": "2026-09-10",
+    "lines": [
+     {
+      "id": "O034-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O034-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O035",
+    "location_id": "L21",
+    "order_date": "2026-09-26",
+    "lines": [
+     {
+      "id": "O035-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O036",
+    "location_id": "L21",
+    "order_date": "2026-09-23",
+    "lines": [
+     {
+      "id": "O036-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O037",
+    "location_id": "L22",
+    "order_date": "2026-09-12",
+    "lines": [
+     {
+      "id": "O037-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O037-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O038",
+    "location_id": "L23",
+    "order_date": "2026-09-16",
+    "lines": [
+     {
+      "id": "O038-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O038-2",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O039",
+    "location_id": "L24",
+    "order_date": "2026-09-03",
+    "lines": [
+     {
+      "id": "O039-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O040",
+    "location_id": "L24",
+    "order_date": "2026-09-26",
+    "lines": [
+     {
+      "id": "O040-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O041",
+    "location_id": "L25",
+    "order_date": "2026-09-03",
+    "lines": [
+     {
+      "id": "O041-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O041-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O042",
+    "location_id": "L25",
+    "order_date": "2026-09-15",
+    "lines": [
+     {
+      "id": "O042-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O043",
+    "location_id": "L26",
+    "order_date": "2026-09-10",
+    "lines": [
+     {
+      "id": "O043-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O043-2",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O044",
+    "location_id": "L26",
+    "order_date": "2026-09-10",
+    "lines": [
+     {
+      "id": "O044-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O044-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O045",
+    "location_id": "L27",
+    "order_date": "2026-09-20",
+    "lines": [
+     {
+      "id": "O045-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O046",
+    "location_id": "L28",
+    "order_date": "2026-09-07",
+    "lines": [
+     {
+      "id": "O046-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O047",
+    "location_id": "L28",
+    "order_date": "2026-09-13",
+    "lines": [
+     {
+      "id": "O047-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O047-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 8,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O048",
+    "location_id": "L-CHAIN-A",
+    "order_date": "2026-09-03",
+    "lines": [
+     {
+      "id": "O048-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O049",
+    "location_id": "L-CHAIN-B",
+    "order_date": "2026-09-04",
+    "lines": [
+     {
+      "id": "O049-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 5,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O049-2",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O050",
+    "location_id": "L-FAR",
+    "order_date": "2026-09-02",
+    "lines": [
+     {
+      "id": "O050-1",
+      "product_id": "P-HALF",
+      "ordered_pieces": 6,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O051",
+    "location_id": "L-BIG",
+    "order_date": "2026-09-01",
+    "lines": [
+     {
+      "id": "O051-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 14,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     },
+     {
+      "id": "O051-2",
+      "product_id": "P-HALF",
+      "ordered_pieces": 10,
+      "net_value_per_piece_cents": 23500,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O052",
+    "location_id": "L-BIG",
+    "order_date": "2026-09-05",
+    "lines": [
+     {
+      "id": "O052-1",
+      "product_id": "P-ROLL",
+      "ordered_pieces": 12,
+      "net_value_per_piece_cents": 12800,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O053",
+    "location_id": "L-NOCOORD",
+    "order_date": "2026-09-02",
+    "lines": [
+     {
+      "id": "O053-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "O054",
+    "location_id": "L05",
+    "order_date": "2026-09-06",
+    "lines": [
+     {
+      "id": "O054-1",
+      "product_id": "P-CRATE",
+      "ordered_pieces": 1,
+      "net_value_per_piece_cents": 980000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   }
+  ],
+  "inventory": [
+   {
+    "product_id": "P-PALLET",
+    "available_pieces": 123
+   },
+   {
+    "product_id": "P-HALF",
+    "available_pieces": 98
+   },
+   {
+    "product_id": "P-ROLL",
+    "available_pieces": 161
+   },
+   {
+    "product_id": "P-CRATE",
+    "available_pieces": 2
+   }
+  ]
+ },
+ "settings": {
+  "schema_version": 1,
+  "trailer_capacity": 5300,
+  "travel_circuity": 1.2,
+  "cluster_circuity": 1.2,
+  "max_leg_m": 804672,
+  "max_cluster_diameter_m": 804672,
+  "k": null,
+  "auto_k_cap": 25,
+  "kmeans_seed": 0,
+  "kmeans_n_init": 10,
+  "max_stops": 500,
+  "solver_seed": 0,
+  "solver_max_iterations": 1500,
+  "solver_time_limit_s": 10.0,
+  "objective": "trucks_then_distance",
+  "weighted_truck_penalty_m": null
+ }
+}

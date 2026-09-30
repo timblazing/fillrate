@@ -48,6 +48,6 @@ Tests exclusively use disposable real SQLite files. They cover independent-proce
 
 Use SQLite's backup API, the CLI `.backup` command, or `VACUUM INTO` to create a new timestamped backup. Do not copy an active database file while WAL is in use. Stop the application before restore, restore the backup into a **fresh data directory**, set `DATA_DIR` to it, and restart so migrations run before traffic. Retain the prior directory for rollback; never mix an old WAL/SHM file with a restored database.
 
-## Next slice
+## Next slice (done 2026-09-30)
 
-Implement the small synthetic pipeline and worker transport: preflight allowed-edge graph, deterministic allocation/aggregation, k-means and repair, shared-location matrices, derived truck-count-first objective, real PyVRP, independent validation/accounting, persisted map/table and JSON/CSV export. Process cancellation, restart recovery and browser refresh must be verified through that end-to-end path. CI, both container architectures and accepted M2 design remain separate gates.
+The worker transport, supervisor, synthetic pipeline, `/runs` screens, export, combined image and CI are implemented; see the M1 entry in `docs/decisions.md` and `docs/progress.md`. The "No internal HTTP worker routes" paragraph above describes the state before that slice.

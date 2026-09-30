@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 fillrate-optimizer = "fillrate_optimizer.app:main"
+fillrate-worker = "fillrate_optimizer.worker:main"
 
 [dependency-groups]
 dev = [

@@ -22,6 +22,7 @@
       "dependencies": {
         "@base-ui/react": "^1.8.0",
         "@daypicker/react": "^10.0.1",
+        "@fillrate/contracts": "workspace:*",
         "@fillrate/db": "workspace:*",
         "@number-flow/react": "^0.6.2",
         "@tanstack/react-table": "^9.2.4",
@@ -81,7 +82,6 @@
     },
   },
   "trustedDependencies": [
-    "better-sqlite3",
     "sharp",
     "unrs-resolver",
   ],

@@ -17,14 +17,14 @@ export const status = {
   updated: "2026-09-30",
   focus: "M1",
   /** Percent of the spec that is working product behavior, counting only real runs (no foundation, no fixtures). */
-  productBehavior: 5,
+  productBehavior: 12,
   milestones: {
     M1: {
       weight: 20,
-      done: 50,
+      done: 95,
       state: "active",
       notes:
-        "Done: monorepo, SQLite/Drizzle, leases, contracts, PyVRP capability fixtures, per-cluster solve, web image. Missing: worker transport and supervisor, the staged pipeline, the v1.6 objective and graph preflight, validator, persisted results, export, `ci.yml`, multi-arch smoke test.",
+        "Done: worker transport and supervisor, the staged pipeline on real PyVRP, v1.6 objective and reachability, independent validation, persisted `/runs` screens, JSON/CSV export, combined image, `ci.yml` and a two-architecture `image.yml`. Missing: first green GitHub Actions runs on amd64 and arm64.",
     },
     M2: {
       weight: 10,
@@ -48,15 +48,14 @@ export const status = {
     M5: { weight: 10, done: 0, state: "planned", notes: "Nothing yet beyond the \"order date, then value\" rule in the gallery fixture." },
     M6: { weight: 12, done: 2, state: "planned", notes: "PyVRP capability fixtures only (capacity, fixed cost, open routes, prohibited legs). No Valhalla." },
     M7: { weight: 6, done: 0, state: "planned", notes: "No lessons or Python export yet." },
-    M8: { weight: 7, done: 2, state: "planned", notes: "Vitest persistence races and optimizer pytest exist; no browser, container or recovery suite." },
+    M8: { weight: 7, done: 8, state: "planned", notes: "Vitest persistence races, worker cancel/crash-recovery e2e, optimizer pytest and a container smoke script exist; no browser suite or measured hardware yet." },
   } satisfies Record<string, MilestoneStatus>,
   /** Ordered next steps; the first one is what an agent should pick up. */
   nextUp: [
-    "Authenticated loopback worker routes (`/internal/claim`, heartbeat, complete) and a Python supervisor with a single leased job.",
-    "The real staged pipeline on a bundled synthetic scenario: preflight → allocate → aggregate → cluster/repair → PyVRP → validate.",
-    "Spec v1.6 semantics: truck-count-first objective with derived bound, graph reachability preflight, independent metric reconstruction.",
-    "Persisted map/table summary of a run, plus JSON/CSV export.",
-    "`ci.yml`, automatic image builds, and an amd64/arm64 smoke run.",
+    "Get the first `ci.yml` and `image.yml` runs green on amd64 and arm64; fix what they expose, then tick M1.",
+    "M3: CSV import with preview, scenario editing and versioning.",
+    "M3: real pipeline screens replacing the gallery stand-ins, with settings and lineage.",
+    "M3: deterministic stage reuse and the 2,000-order benchmark with measured timings.",
   ],
 }
 
