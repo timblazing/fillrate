@@ -8,6 +8,7 @@
   - [x] Gallery expanded into the design-system reference: Foundations, Primitives, Lab components (`src/components/lab`), Charts (Recharts + bklit), Map, Blocks
   - [x] Gallery rebuilt for spec v1.3 (2026-09-29): every specimen runs on one synthetic 2,000-order fixture pipeline
   - [x] Blocks open full screen at `/dev/blocks/<id>` for review screenshots
+  - [x] Build-progress dashboard at `/dev` (static; parses the spec and docs, estimates in `apps/web/src/app/dev/status.ts`), shared `/dev` header with the app icon
   - [x] `AGENTS.md`, `CLAUDE.md`, `docs/decisions.md`, `docs/progress.md`
   - [x] Pinned Python 3.13 / uv / PyVRP / OR-Tools / scikit-learn / FastAPI (`services/optimizer`), `/health` + `/capabilities`
   - [x] PyVRP capability fixtures: capacity, fixed truck cost, open routes (workaround), prohibited legs (preprocessing + validator)

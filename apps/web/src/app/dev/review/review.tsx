@@ -1,9 +1,9 @@
 "use client"
 
-import { Check, CircleAlert, FlaskConical, Maximize2, Send } from "lucide-react"
+import { Check, CircleAlert, Maximize2, Send } from "lucide-react"
 import { useCallback, useRef, useState } from "react"
 
-import { ThemeToggle } from "@/components/theme/theme-toggle"
+import { DevHeader } from "@/components/brand/dev-header"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -101,20 +101,12 @@ export function Review({ reviewKey, canSave }: { reviewKey: string | null; canSa
 
   return (
     <div className="min-h-svh">
-      <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur-md sm:px-6">
-        <div className="bg-foreground text-background flex size-7 items-center justify-center rounded-lg">
-          <FlaskConical className="size-4" />
-        </div>
-        <span className="font-semibold tracking-tight">Fillrate</span>
-        <span className="text-muted-foreground hidden text-sm sm:inline">/ design review</span>
-        <div className="ml-auto flex items-center gap-3">
-          <SaveStatus status={status} canSave={canSave} />
-          <span className="text-muted-foreground hidden font-mono text-xs tabular-nums sm:inline">
-            {answered}/{total}
-          </span>
-          <ThemeToggle />
-        </div>
-      </header>
+      <DevHeader>
+        <SaveStatus status={status} canSave={canSave} />
+        <span className="text-muted-foreground hidden font-mono text-xs tabular-nums sm:inline">
+          {answered}/{total}
+        </span>
+      </DevHeader>
 
       <div className="mx-auto flex max-w-[88rem] gap-12 px-4 pt-10 pb-32 sm:px-6">
         <nav className="sticky top-20 hidden h-[calc(100svh-6rem)] w-48 shrink-0 overflow-y-auto text-sm lg:block" aria-label="Review sections">

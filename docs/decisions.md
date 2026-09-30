@@ -185,3 +185,11 @@ Exact resolved versions are in `bun.lock`.
 - **Access (spec §14 public writes):** in production, saving and reading require `REVIEW_KEY` (passed as `?key=` in the review link; constant-time compare). Without the env var the form renders but cannot save. Answers are validated against known question ids and option values, and each response is capped at 64 KB. This is a narrow, single-purpose write, not general public persistence.
 - **Deployment:** the container must mount a volume at `/app/data` so answers survive image updates, and set `REVIEW_KEY`.
 
+
+## 2026-09-30: App icon in /dev headers (Claude Code)
+- **Decision:** the `/dev/components` and `/dev/review` headers use the Fillrate app icon instead of the placeholder FlaskConical tile. `AppIcon` (`apps/web/src/components/brand/app-icon.tsx`) inlines `app/icon.svg` with the outline on `currentColor`, so it follows the next-themes class; the favicon file keeps its `prefers-color-scheme` rule. Update both when the icon changes.
+
+## 2026-09-30: /dev build-progress dashboard (Claude Code)
+- **Decision:** `/dev` (previously 404) is a static progress page for the owner: the overall spec share implemented (weighted by milestone), the product-behavior-only share, a whole-spec bar, the milestone accordion with spec deliverables/exit evidence and progress checklists, next up, waiting on the primary user, surfaces, known gaps and the decision log. Structure is parsed from the spec and docs at build time (`src/lib/server/project-docs.ts`); estimates that need judgment live in `src/app/dev/status.ts`. AGENTS.md tells agents to keep both current.
+- **Build:** `docs/` was removed from `.dockerignore` so the image build can read it. The page is `force-static`, so the runtime image still doesn't contain the docs.
+- **Header:** `/dev`, `/dev/components` and `/dev/review` share `DevHeader` with Progress / Design system / Review nav. The current page's item is not a link, so the review link's `?key=` survives.

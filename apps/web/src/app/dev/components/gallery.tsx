@@ -2,9 +2,9 @@
 
 import dynamic from "next/dynamic"
 import { Fragment, useEffect, useRef, useState } from "react"
-import { FlaskConical, Hash, Search } from "lucide-react"
+import { Hash, Search } from "lucide-react"
 
-import { ThemeToggle } from "@/components/theme/theme-toggle"
+import { DevHeader } from "@/components/brand/dev-header"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -137,23 +137,15 @@ export function Gallery() {
 
   return (
     <div className="min-h-svh">
-      <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur-md sm:px-6">
-        <div className="bg-foreground text-background flex size-7 items-center justify-center rounded-lg">
-          <FlaskConical className="size-4" />
-        </div>
-        <span className="font-semibold tracking-tight">Fillrate</span>
-        <span className="text-muted-foreground hidden text-sm sm:inline">/ design system</span>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-muted-foreground justify-start sm:w-44" onClick={() => setOpen(true)} aria-label="Jump to component">
-            <Search /> <span className="hidden sm:inline">Jump to…</span>
-            <KbdGroup className="ml-auto hidden sm:inline-flex">
-              <Kbd>⌘</Kbd>
-              <Kbd>K</Kbd>
-            </KbdGroup>
-          </Button>
-          <ThemeToggle />
-        </div>
-      </header>
+      <DevHeader>
+        <Button variant="outline" size="sm" className="text-muted-foreground justify-start sm:w-44" onClick={() => setOpen(true)} aria-label="Jump to component">
+          <Search /> <span className="hidden sm:inline">Jump to…</span>
+          <KbdGroup className="ml-auto hidden sm:inline-flex">
+            <Kbd>⌘</Kbd>
+            <Kbd>K</Kbd>
+          </KbdGroup>
+        </Button>
+      </DevHeader>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandDialogPopup>
