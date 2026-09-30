@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowUpRight, Check, Circle, ClipboardCheck, FileText, GitBranch, Maximize2, Shapes } from "lucide-react"
+import { ArrowUpRight, Check, Circle, FileText, GitBranch, Maximize2, Shapes } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState, type ReactNode } from "react"
 
@@ -210,7 +210,7 @@ export function ProgressView({ initial, blocks }: { initial: ProjectDocs; blocks
             ))}
           </ol>
         </Section>
-        <Section id="waiting" title="Waiting on the primary user" description="From docs/progress.md. The review answers gate M2 acceptance.">
+        <Section id="waiting" title="Waiting on the primary user" description="From docs/progress.md. Open questions for the next review round.">
           <div className="bg-warning/4 dark:bg-warning/8 border-warning/24 space-y-3 rounded-xl border p-5 text-sm">
             <Blocks blocks={docs.waiting} />
           </div>
@@ -219,9 +219,8 @@ export function ProgressView({ initial, blocks }: { initial: ProjectDocs; blocks
 
       {/* Surfaces */}
       <Section id="surfaces" title="Surfaces" description="What you can open today. Everything here is development-only and runs on fixtures.">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <SurfaceCard href="/dev/components" icon={Shapes} title="Design system" body="Foundations, primitives, fulfillment components, charts, map, and Blocks." />
-          <SurfaceCard href="/dev/review" icon={ClipboardCheck} title="Design review" body="The M2 questionnaire beside each Block. Saving needs the review link's key." />
           <SurfaceCard href={REPO_URL} icon={GitBranch} title="Repository" body="Source, commits, and the web image workflow." external />
           <SurfaceCard href={`${REPO_URL}/blob/main/fillrate-technical-spec.md`} icon={FileText} title="Technical spec" body={`v${docs.spec.version}, the target this page measures against.`} external />
         </div>

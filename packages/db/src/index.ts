@@ -11,7 +11,6 @@ import * as s from "./schema";
 
 export const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export const MAX_COMPLETION_BYTES = 16 * 1024 * 1024;
-export const MAX_REVIEW_BYTES = 64 * 1024;
 const active = new Set(["claimed", "running"]);
 const terminal = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
 
@@ -168,29 +167,6 @@ export class Store {
       if (terminal.has(status)) tx.update(s.attempts).set({ endedAt: now, reason: status }).where(and(eq(s.attempts.jobId, job.id), eq(s.attempts.attempt, job.attempt))).run();
       return { duplicate: false };
     }, { behavior: "immediate" });
-  }
-
-  // Upsert by the reviewer's browser id. Answers are a small JSON object of question id → answer.
-  saveReview(id: string, reviewer: string, answers: Record<string, unknown>, submit: boolean, now = Date.now()) {
-    if (!/^[0-9a-f-]{36}$/.test(id) || reviewer.length > 200) throw new Error("invalid_review");
-    const document = canonical(answers);
-    if (Buffer.byteLength(document) > MAX_REVIEW_BYTES) throw new Error("review_too_large");
-    return this.db.transaction(tx => {
-      const existing = tx.select().from(s.designReviews).where(eq(s.designReviews.id, id)).get();
-      const submittedAt = submit ? now : existing?.submittedAt ?? null;
-      if (existing) tx.update(s.designReviews).set({ reviewer, answers: document, submittedAt, updatedAt: now }).where(eq(s.designReviews.id, id)).run();
-      else tx.insert(s.designReviews).values({ id, reviewer, answers: document, submittedAt, createdAt: now, updatedAt: now }).run();
-      return { savedAt: now, submittedAt };
-    }, { behavior: "immediate" });
-  }
-
-  deleteReview(id: string) {
-    return this.db.delete(s.designReviews).where(eq(s.designReviews.id, id)).run().changes > 0;
-  }
-
-  listReviews() {
-    return this.db.select().from(s.designReviews).orderBy(sql`${s.designReviews.updatedAt} desc`).all()
-      .map(r => ({ ...r, answers: JSON.parse(r.answers) as Record<string, unknown> }));
   }
 
   findVersion(snapshot: Snapshot) {

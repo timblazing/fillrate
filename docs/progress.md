@@ -21,7 +21,7 @@
   - [x] Single image with web + optimizer + worker (tini, `deploy/entrypoint.sh`), `HEALTHCHECK`, `deploy/smoke.sh`; arm64 image built and smoke-tested locally once (2026-09-30)
   - [x] `ci.yml` (lint, typecheck, Vitest incl. Python worker e2e, pytest, Ruff, contract drift, build) and `image.yml` (after CI on `main`, tags, manual; native amd64 + arm64 runners, smoke before push, multi-arch manifest from tested digests)
   - [x] First green `ci.yml` (run 36776415077) and `image.yml` (run 36776618684): amd64 and arm64 each built natively and passed the smoke run; `latest` and `sha-953cb1c` published as a multi-arch manifest
-- [ ] **M2 Design** (in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
+- [ ] **M2 Design** (round-one review answered; the `/dev/review` pages were removed on 2026-09-30, in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
 - [ ] M3 Operational core (CSV/versioned scenarios → real pipeline screens, per-cluster jobs, stage reuse, 2,000-order benchmark)
 - [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, partition bounds, H3 layer/baseline, lesson and small Python replay export)
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)

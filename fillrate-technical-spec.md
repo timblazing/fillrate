@@ -576,7 +576,7 @@ Every milestone must execute real behavior. A gallery may use labeled fixtures; 
 
 ### M2 scope: design-review outcomes
 
-Source: the primary user's answers in the in-app review (`/dev/review`, submitted September 30, 2026; export `fillrate-design-review-2026-09-30.json`, question ids in `apps/web/src/app/dev/review/questions.ts`). Unanswered: `compare.star`, `data.orders`, `data.inventory`, `overall.fix`. `results.flow` was "mostly, with changes" but no changes were given. Nothing below is inferred for those; they go to round two.
+Source: the primary user's answers in the in-app review (`/dev/review`, submitted September 30, 2026; export `fillrate-design-review-2026-09-30.json`, question ids in `apps/web/src/app/dev/review/questions.ts` as of commit `593f177`; the review pages were removed after round one). Unanswered: `compare.star`, `data.orders`, `data.inventory`, `overall.fix`. `results.flow` was "mostly, with changes" but no changes were given. Nothing below is inferred for those; they go to round two.
 
 **What M2 builds.** M2 changes presentation and records policy; it adds no new pipeline stage. Apply every item below to (a) the gallery Blocks and `src/components/lab` components, and (b) the real `/runs/<id>` page, which already shows M1 pipeline output. Workbench editing, imports and sweeps remain M3/M4 screens; M2 only fixes how they look in the Blocks. Keep every gallery fixture labeled development-only.
 
@@ -621,7 +621,7 @@ Source: the primary user's answers in the in-app review (`/dev/review`, submitte
 
 16. **Tokens and `fillrate.fig`.** Rebuild the OpenPencil Components page on coss ui parts (it still mirrors shadcn). Add the missing tokens to Foundations (`--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`) and the new fill bands. Token changes still flow .fig → `globals.css`.
 
-17. **Round two review.** Extend `/dev/review` with a short second round. Use new question ids; never reuse round-one ids. Show the revised Blocks and ask:
+17. **Round two review.** Run a short second round (restore `/dev/review` from commit `593f177`, or use another channel). Use new question ids; never reuse round-one ids. Show the revised Blocks and ask:
     - accept / change each revised Block;
     - what to change in the flow strip;
     - the ★ label (non-dominated / best trade-off / contender / none);

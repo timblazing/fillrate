@@ -1,6 +1,6 @@
 "use client"
 
-import { Activity, ClipboardCheck, Play, Shapes } from "lucide-react"
+import { Activity, Play, Shapes } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
@@ -10,10 +10,9 @@ import { ThemeToggle } from "@/components/theme/theme-toggle"
 import { cn } from "@/lib/utils"
 
 const links = [
-  { href: "/runs", label: "Runs", icon: Play },
   { href: "/dev", label: "Progress", icon: Activity },
+  { href: "/runs", label: "Runs", icon: Play },
   { href: "/dev/components", label: "Design system", icon: Shapes },
-  { href: "/dev/review", label: "Review", icon: ClipboardCheck },
 ] as const
 
 // Shared sticky header for the /dev and /runs pages. `children` go on the right, before the theme toggle.
@@ -39,7 +38,6 @@ export function DevHeader({ children }: { children?: ReactNode }) {
               <span className="sr-only md:not-sr-only">{label}</span>
             </>
           )
-          // The current page is not a link, so its query string (the review link's ?key=) survives.
           return active ? (
             <span key={href} aria-current="page" className={className}>
               {content}
