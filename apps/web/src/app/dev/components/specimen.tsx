@@ -1,124 +1,71 @@
+"use client"
+
+import { createContext, useContext, useEffect, useRef, useState } from "react"
+
 import { cn } from "@/lib/utils"
 
-// Gallery table of contents: groups (h2) and their specimens (anchors). Drives the nav, scroll-spy, and ⌘K.
-export const toc = [
-  {
-    id: "foundations",
-    title: "Foundations",
-    items: [
-      ["color", "Color"],
-      ["status-color", "Status & fill bands"],
-      ["route-palette", "Series palette"],
-      ["type", "Typography"],
-      ["radius", "Radius & elevation"],
-    ],
-  },
-  {
-    id: "primitives",
-    title: "Primitives",
-    items: [
-      ["actions", "Actions"],
-      ["forms", "Form controls"],
-      ["overlays", "Overlays & menus"],
-      ["navigation", "Navigation"],
-      ["display", "Data display"],
-      ["feedback", "Feedback"],
-      ["layout", "Layout"],
-    ],
-  },
-  {
-    id: "lab",
-    title: "Fulfillment components",
-    items: [
-      ["status", "Status & provenance"],
-      ["fill", "Truck fill"],
-      ["stages", "Pipeline stages"],
-      ["run-metrics", "Run metrics"],
-      ["cluster-cards", "Cluster cards"],
-      ["truck-loads", "Truck loads"],
-      ["unshipped", "Unshipped lines"],
-      ["stock", "Inventory coverage"],
-      ["orders", "Order lines table"],
-      ["iterations", "Iteration table"],
-      ["diagnostics", "Preflight checks"],
-      ["settings", "Settings rows"],
-      ["imports", "Imports"],
-      ["runs", "Runs & jobs"],
-      ["compare", "Run diff"],
-      ["exports", "Exports"],
-    ],
-  },
-  {
-    id: "charts",
-    title: "Charts",
-    items: [
-      ["fill-distribution", "Fill distribution"],
-      ["k-elbow", "k explorer: elbow & stability"],
-      ["tradeoff", "Iteration trade-off"],
-      ["cluster-scatter", "Cluster tightness vs fill"],
-      ["revenue-funnel", "Revenue funnel"],
-      ["by-product", "Allocation by product"],
-      ["radar", "Iteration radar"],
-      ["rings", "Headline rings"],
-      ["convergence", "Per-cluster convergence"],
-    ],
-  },
-  {
-    id: "maps",
-    title: "Map",
-    items: [
-      ["map", "Pipeline map"],
-      ["map-confidence", "Confidence map"],
-    ],
-  },
-  {
-    id: "blocks",
-    title: "Blocks",
-    items: [
-      ["workbench", "Workbench"],
-      ["orders-inventory", "Orders & inventory"],
-      ["run-pipeline", "Run pipeline"],
-      ["results", "Results"],
-      ["k-explorer", "k explorer"],
-      ["comparison", "Iteration comparison"],
-    ],
-  },
-  {
-    id: "later",
-    title: "Later milestones",
-    items: [
-      ["timeline", "Route timeline"],
-      ["matrix", "Matrix inspector"],
-    ],
-  },
-] as const
+/**
+ * When a specimen's body renders. The header and anchor always render, so the nav, scroll-spy, and ⌘K keep working.
+ * - `lazy`: mount once it comes within a viewport of the screen, then keep it.
+ * - `windowed`: mount only while within a viewport of the screen. For maps (one WebGL context each), charts, and blocks.
+ */
+export type SpecimenLoad = "lazy" | "windowed"
+
+const GroupLoad = createContext<SpecimenLoad>("lazy")
+
+function useNearViewport(ref: React.RefObject<HTMLElement | null>, load: SpecimenLoad) {
+  const [near, setNear] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setNear(true)
+          if (load === "lazy") observer.disconnect()
+        } else if (load === "windowed") {
+          setNear(false)
+        }
+      },
+      { rootMargin: "100% 0px" }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [ref, load])
+  return near
+}
 
 export function Group({
   id,
   index,
   title,
   description,
+  load = "lazy",
   children,
 }: {
   id: string
   index: number
   title: string
   description: string
+  /** Default `load` for this group's specimens. */
+  load?: SpecimenLoad
   children: React.ReactNode
 }) {
   return (
-    <section id={id} className="scroll-mt-20 space-y-8">
-      <header className="flex items-end gap-4 border-b pb-4">
-        <span className="text-muted-foreground/50 font-mono text-4xl leading-none font-semibold tabular-nums">
-          {String(index).padStart(2, "0")}
-        </span>
-        <div className="space-y-1">
-          <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-          <p className="text-muted-foreground max-w-2xl text-sm text-pretty">{description}</p>
-        </div>
-      </header>
-      {children}
-    </section>
+    <GroupLoad value={load}>
+      <section id={id} className="scroll-mt-20 space-y-8">
+        <header className="flex items-end gap-4 border-b pb-4">
+          <span className="text-muted-foreground/50 font-mono text-4xl leading-none font-semibold tabular-nums">
+            {String(index).padStart(2, "0")}
+          </span>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
+            <p className="text-muted-foreground max-w-2xl text-sm text-pretty">{description}</p>
+          </div>
+        </header>
+        {children}
+      </section>
+    </GroupLoad>
   )
 }
 
@@ -132,6 +79,7 @@ export function Specimen({
   actions,
   className,
   bodyClassName,
+  load,
   children,
 }: {
   id: string
@@ -143,10 +91,27 @@ export function Specimen({
   actions?: React.ReactNode
   className?: string
   bodyClassName?: string
+  /** Overrides the group's `load`. */
+  load?: SpecimenLoad
   children: React.ReactNode
 }) {
+  const groupLoad = useContext(GroupLoad)
+  const articleRef = useRef<HTMLElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const near = useNearViewport(articleRef, load ?? groupLoad)
+
+  // Keep the last rendered height while unmounted so the page doesn't shift under the reader.
+  const [placeholderHeight, setPlaceholderHeight] = useState<number>()
+  useEffect(() => {
+    const body = bodyRef.current
+    if (!near || !body) return
+    const observer = new ResizeObserver(() => setPlaceholderHeight(body.offsetHeight))
+    observer.observe(body)
+    return () => observer.disconnect()
+  }, [near])
+
   return (
-    <article id={id} className={cn("scroll-mt-20 space-y-3", className)}>
+    <article ref={articleRef} id={id} className={cn("scroll-mt-20 space-y-3", className)}>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h3 className="font-medium">
           <a href={`#${id}`} className="group/anchor hover:underline hover:underline-offset-4">
@@ -166,12 +131,14 @@ export function Specimen({
       </div>
       {description && <p className="text-muted-foreground -mt-1 max-w-3xl text-sm text-pretty">{description}</p>}
       <div
+        ref={bodyRef}
         className={cn(
           "bg-card relative overflow-x-auto rounded-2xl border p-4 sm:p-6 [background-image:radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]",
           bodyClassName
         )}
+        style={near ? undefined : { height: placeholderHeight ?? 320 }}
       >
-        {children}
+        {near && children}
       </div>
     </article>
   )

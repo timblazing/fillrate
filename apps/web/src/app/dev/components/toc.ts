@@ -1,0 +1,92 @@
+// Gallery table of contents: groups (h2) and their specimens (anchors). Drives the nav, scroll-spy, and ⌘K.
+export const toc = [
+  {
+    id: "foundations",
+    title: "Foundations",
+    items: [
+      ["color", "Color"],
+      ["status-color", "Status & fill bands"],
+      ["route-palette", "Series palette"],
+      ["type", "Typography"],
+      ["radius", "Radius & elevation"],
+    ],
+  },
+  {
+    id: "primitives",
+    title: "Primitives",
+    items: [
+      ["actions", "Actions"],
+      ["forms", "Form controls"],
+      ["overlays", "Overlays & menus"],
+      ["navigation", "Navigation"],
+      ["display", "Data display"],
+      ["feedback", "Feedback"],
+      ["layout", "Layout"],
+    ],
+  },
+  {
+    id: "lab",
+    title: "Fulfillment components",
+    items: [
+      ["status", "Status & provenance"],
+      ["fill", "Truck fill"],
+      ["stages", "Pipeline stages"],
+      ["run-metrics", "Run metrics"],
+      ["cluster-cards", "Cluster cards"],
+      ["truck-loads", "Truck loads"],
+      ["unshipped", "Unshipped lines"],
+      ["stock", "Inventory coverage"],
+      ["orders", "Order lines table"],
+      ["iterations", "Iteration table"],
+      ["diagnostics", "Preflight checks"],
+      ["settings", "Settings rows"],
+      ["imports", "Imports"],
+      ["runs", "Runs & jobs"],
+      ["compare", "Run diff"],
+      ["exports", "Exports"],
+    ],
+  },
+  {
+    id: "charts",
+    title: "Charts",
+    items: [
+      ["fill-distribution", "Fill distribution"],
+      ["k-elbow", "k explorer: elbow & stability"],
+      ["tradeoff", "Iteration trade-off"],
+      ["cluster-scatter", "Cluster tightness vs fill"],
+      ["revenue-funnel", "Revenue funnel"],
+      ["by-product", "Allocation by product"],
+      ["radar", "Iteration radar"],
+      ["rings", "Headline rings"],
+      ["convergence", "Per-cluster convergence"],
+    ],
+  },
+  {
+    id: "maps",
+    title: "Map",
+    items: [
+      ["map", "Pipeline map"],
+      ["map-confidence", "Confidence map"],
+    ],
+  },
+  {
+    id: "blocks",
+    title: "Blocks",
+    items: [
+      ["workbench", "Workbench"],
+      ["orders-inventory", "Orders & inventory"],
+      ["run-pipeline", "Run pipeline"],
+      ["results", "Results"],
+      ["k-explorer", "k explorer"],
+      ["comparison", "Iteration comparison"],
+    ],
+  },
+  {
+    id: "later",
+    title: "Later milestones",
+    items: [
+      ["timeline", "Route timeline"],
+      ["matrix", "Matrix inspector"],
+    ],
+  },
+] as const

@@ -160,6 +160,7 @@ export function Charts() {
   return (
     <Group
       id="charts"
+      load="windowed"
       index={4}
       title="Charts"
       description="shadcn Chart (Recharts) for axis charts; bklit for radar, funnel, and rings. Every chart reads the same fixture run. Clusters keep their series color in every view."

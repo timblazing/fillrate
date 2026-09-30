@@ -116,3 +116,9 @@ Exact resolved versions are in `bun.lock`.
 - **Unlimited trucks** are modeled as one available vehicle per stop.
 - **API:** 0.14 separates locations from clients/depots (`add_location`, then `add_client(location, …)`); routes iterate `ScheduledActivity` objects; client activity `idx` is the 0-based client index.
 - **Layout:** `services/optimizer/src/fillrate_optimizer/` (`travel`, `loads`, `capabilities`, `app`), tests in `services/optimizer/tests/`. FastAPI binds to 127.0.0.1 (`OPTIMIZER_PORT`, default 8000).
+
+## 2026-09-30: Gallery specimens load on demand (Claude Code)
+- **Problem:** `/dev/components` mounted every specimen at once: 4+ MapLibre maps (one WebGL context each; browsers cap live contexts at about 16), 8+ Recharts charts, and ~33k DOM nodes. The page felt sluggish and used a lot of memory.
+- **Decision:** `Specimen` renders its header and anchor always and its body only when the specimen is within one viewport of the screen (IntersectionObserver). `lazy` (default) keeps it mounted after that; `windowed` (Charts, Map, Blocks groups, set on `Group`) unmounts it again when it's far away. Unmounted bodies keep their last measured height so the page doesn't shift. Nav links, ⌘K, and deep links go through `jump()`, which re-aims after `scrollend` because specimens change height as they mount.
+- **Rejected:** one route per group (loses the single scroll and cross-group search); `content-visibility: auto` alone (skips paint only; React still renders everything and every map still creates its WebGL context).
+- **Trade-off:** windowed specimens lose local state (selected cluster, toggles) when scrolled far away.

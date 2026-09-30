@@ -32,7 +32,8 @@ import { exploreK } from "./fixtures"
 import { Lab } from "./sections/lab"
 import { Later } from "./sections/later"
 import { Primitives } from "./sections/primitives"
-import { Group, Specimen, toc } from "./specimen"
+import { Group, Specimen } from "./specimen"
+import { toc } from "./toc"
 
 const PipelineMap = dynamic(() => import("./pipeline-map"), {
   ssr: false,
@@ -78,13 +79,38 @@ function confidenceK7() {
   return new Map(e.stopIds.map((id, i) => [id, d.confidence[i]]))
 }
 
-function jump(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
+// Specimens mount as they near the viewport and change height, so re-aim once the scroll settles.
+function jump(id: string, behavior: ScrollBehavior = "smooth") {
+  const el = document.getElementById(id)
+  if (!el) return
   history.replaceState(null, "", `#${id}`)
+  const offset = parseFloat(getComputedStyle(el).scrollMarginTop) || 0
+  const aligned = () => Math.abs(el.getBoundingClientRect().top - offset) < 2
+  let tries = 3
+  const settle = () => {
+    if (aligned() || tries-- === 0) return
+    window.addEventListener("scrollend", () => requestAnimationFrame(settle), { once: true })
+    el.scrollIntoView({ behavior: "instant", block: "start" })
+  }
+  if (aligned()) return
+  window.addEventListener("scrollend", () => requestAnimationFrame(settle), { once: true })
+  el.scrollIntoView({ behavior, block: "start" })
+}
+
+// Plain-click nav links go through jump() so they land on their target.
+function onNavClick(e: React.MouseEvent<HTMLAnchorElement>, id: string) {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+  e.preventDefault()
+  jump(id)
 }
 
 export function Gallery() {
   const active = useActiveSection()
+
+  useEffect(() => {
+    const id = decodeURIComponent(location.hash.slice(1))
+    if (id) jump(id, "instant")
+  }, [])
   const navRef = useRef<HTMLElement>(null)
 
   // Keep the active nav item visible inside the scrollable sticky nav, without moving the page.
@@ -172,7 +198,7 @@ export function Gallery() {
         <nav ref={navRef} className="sticky top-20 hidden h-[calc(100svh-6rem)] w-48 shrink-0 overflow-y-auto pb-8 text-sm lg:block" aria-label="Gallery sections">
           {toc.map((g, gi) => (
             <div key={g.id} className="mb-5">
-              <a href={`#${g.id}`} className="text-foreground mb-1.5 flex items-center gap-2 px-2 text-xs font-semibold">
+              <a href={`#${g.id}`} onClick={(e) => onNavClick(e, g.id)} className="text-foreground mb-1.5 flex items-center gap-2 px-2 text-xs font-semibold">
                 <span className="text-muted-foreground font-mono tabular-nums">{String(gi + 1).padStart(2, "0")}</span>
                 {g.title}
               </a>
@@ -181,6 +207,7 @@ export function Gallery() {
                   <li key={id}>
                     <a
                       href={`#${id}`}
+                      onClick={(e) => onNavClick(e, id)}
                       className={cn(
                         "-ml-px block border-l py-1 pl-3 transition-colors duration-150",
                         active === id
@@ -202,7 +229,7 @@ export function Gallery() {
           <Primitives onOpenCommand={() => setOpen(true)} />
           <Lab />
           <Charts />
-          <Group id="maps" index={5} title="Map" description="mapcn on MapLibre. Stops are one GeoJSON circle layer; hulls and the leg-limit ring use Turf. Colors come from useCssColors, since MapLibre can't read CSS variables.">
+          <Group id="maps" index={5} load="windowed" title="Map" description="mapcn on MapLibre. Stops are one GeoJSON circle layer; hulls and the leg-limit ring use Turf. Colors come from useCssColors, since MapLibre can't read CSS variables.">
             <Specimen
               id="map"
               title="Pipeline map"
