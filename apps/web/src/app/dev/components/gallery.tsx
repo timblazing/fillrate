@@ -2,10 +2,9 @@
 
 import dynamic from "next/dynamic"
 import { Fragment, useEffect, useRef, useState } from "react"
-import { Hash, Search } from "lucide-react"
+import { Hash } from "lucide-react"
 
 import { DevHeader } from "@/components/brand/dev-header"
-import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandCollection,
@@ -20,7 +19,6 @@ import {
   CommandPanel,
   CommandSeparator,
 } from "@/components/ui/command"
-import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
@@ -137,15 +135,7 @@ export function Gallery() {
 
   return (
     <div className="min-h-svh">
-      <DevHeader>
-        <Button variant="outline" size="sm" className="text-muted-foreground justify-start sm:w-44" onClick={() => setOpen(true)} aria-label="Jump to component">
-          <Search /> <span className="hidden sm:inline">Jump to…</span>
-          <KbdGroup className="ml-auto hidden sm:inline-flex">
-            <Kbd>⌘</Kbd>
-            <Kbd>K</Kbd>
-          </KbdGroup>
-        </Button>
-      </DevHeader>
+      <DevHeader />
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandDialogPopup>

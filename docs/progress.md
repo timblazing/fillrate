@@ -57,7 +57,7 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 5. Record the accepted direction in `docs/decisions.md`. M2 then builds the Blocks as real React screens.
 
 ## Known gaps
-- The home page (`/`) is a minimal placeholder: a spinning cobe globe (`components/animated/globe-card.tsx`) linking to the GitHub repo. The component gallery (`/dev/components`, `/dev/blocks/<id>`) is now served in production too, but is not linked from `/`.
+- The home page (`/`) is a minimal hero: title, one-line description, GitHub and "See my progress" (`/dev`) buttons beside the cobe globe (`components/animated/hero-globe.tsx`). It has no header and does not link the component gallery; the `/dev` header logo links back to `/`.
 - SQLite lives in `/app/data` (not the spec's `/data`, kept for the existing review deployment) and is ephemeral unless a volume is mounted there.
 - The travel artifact stores each cluster's full matrix as JSON; fine for M1, but a 500-stop cluster approaches the 8 MiB artifact cap. Chunked/binary matrix artifacts are M3 work.
 - Stage reuse/caching is not implemented: every run recomputes all stages (manifests record input hashes for M3 reuse).

@@ -21,7 +21,7 @@ export function DevHeader({ children }: { children?: ReactNode }) {
 
   return (
     <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur-md sm:px-6">
-      <Link href="/dev" className="flex items-center gap-2.5 rounded-md">
+      <Link href="/" aria-label="Fillrate home" className="flex items-center gap-2.5 rounded-md">
         <AppIcon />
         <span className="sr-only font-semibold tracking-tight sm:not-sr-only">Fillrate</span>
       </Link>

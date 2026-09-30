@@ -220,3 +220,7 @@ Exact resolved versions are in `bun.lock`.
 ## 2026-09-30: Remove the in-app design review pages (Claude Code)
 **Decision:** Round one is answered and exported (`docs/reviews/fillrate-design-review-2026-09-30.json`), so `/dev/review`, `/dev/review/responses` (and its JSON/delete/save routes), `src/lib/server/review.ts`, the `Db` review methods, `REVIEW_KEY` and the "Review" header link are removed. The `design_reviews` table and its migration stay, so a deployed database keeps its rows and no destructive migration runs. The `/dev` header now reads Progress, Runs, Design system.
 **Reason:** The owner asked to remove the review once the primary user finished it. Round two (spec §15 M2 item 17) can restore the pages from commit `593f177` or use another channel.
+
+## 2026-09-30: Landing hero; gallery header search removed (Claude Code)
+**Decision:** `/` is a two-column hero (stacked on narrow screens): "Fillrate", a short description, a GitHub button (inline GitHub mark, since lucide-react has no brand icons) and a "See my progress" button to `/dev`, next to the globe. The globe is now decorative (`hero-globe.tsx`), not a repo link. The landing page has no `DevHeader`; the header's logo now links to `/` instead of `/dev`. The "Jump to…" search button is gone from the `/dev/components` header; ⌘K still opens the jump dialog.
+**Reason:** Owner request.
