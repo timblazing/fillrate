@@ -16,7 +16,8 @@
   - [ ] Authenticated loopback worker transport and Python supervisor integration
   - [ ] Durable synthetic fulfillment slice: preflight → allocate → aggregate → cluster/repair → real PyVRP → validate → persisted map/table, JSON/CSV export (the per-cluster solve itself exists)
   - [ ] Spec v1.6 integration: truck-count-first objective with derived bound, graph reachability instead of depot-radius filtering, versioned stage manifests and independent metric reconstruction
-  - [ ] Dockerfile, `ci.yml`, `image.yml`
+  - [x] Web `Dockerfile` (Next.js standalone, port 3000) and manual `image.yml` → `ghcr.io/timblazing/fillrate:latest`
+  - [ ] `ci.yml`, automatic image builds, optimizer image
 - [ ] **M2 Design** (in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
 - [ ] M3 Operational core (CSV/versioned scenarios → real pipeline screens, per-cluster jobs, stage reuse, 2,000-order benchmark)
 - [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, partition bounds, H3 layer/baseline, lesson and small Python replay export)
@@ -56,7 +57,8 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 5. Record the accepted direction in `docs/decisions.md`. M2 then builds the Blocks as real React screens.
 
 ## Known gaps
-- The home page (`/`) is a minimal placeholder: a spinning cobe globe (`components/animated/globe-card.tsx`) linking to the GitHub repo. The component gallery is still at `/dev/components` but no longer linked from `/`.
+- The home page (`/`) is a minimal placeholder: a spinning cobe globe (`components/animated/globe-card.tsx`) linking to the GitHub repo. The component gallery (`/dev/components`, `/dev/blocks/<id>`) is now served in production too, but is not linked from `/`.
+- The web image contains only the frontend (no optimizer). SQLite lives in `/app/data` and is ephemeral unless a volume is mounted there.
 - Spec v1.6 is ahead of the current code: `loads.py` still defaults the truck penalty to zero and creates one matrix node per stop; the gallery still uses its v1.3 stand-in policies. Stage envelope contracts now exist; mathematical stage payloads, graph preflight, objective derivation, shared-location nodes, metric reconstruction and new acceptance fixtures remain to implement.
 - `/capabilities` now distinguishes implemented/planned behavior. Diameter enforcement remains explicitly planned until the pipeline and independent validator implement it.
 - The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.

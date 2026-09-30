@@ -15,9 +15,8 @@ export async function generateMetadata({ params }: PageProps<"/dev/blocks/[id]">
   return { title: item ? `${item[1]} · Fillrate` : "Fillrate" }
 }
 
-// Dev-only: one gallery block filling the viewport, for design review and screenshots.
+// One gallery block filling the viewport, for design review and screenshots.
 export default async function FullscreenBlockPage({ params }: PageProps<"/dev/blocks/[id]">) {
-  if (process.env.NODE_ENV === "production") notFound()
   const item = block((await params).id)
   if (!item) notFound()
   return <FullscreenBlock id={item[0] as BlockId} />

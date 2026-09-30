@@ -15,7 +15,7 @@ packages/db           Drizzle schema/migrations, SQLite durable jobs/artifacts
 packages/contracts    Pydantic-generated envelopes, JSON Schema and TypeScript types
 examples              Bundled lesson scenarios (not started)
 docs                  decisions.md, progress.md, and other docs
-deploy                Compose, Valhalla prep (not started)
+deploy                Compose, Valhalla prep (not started); root `Dockerfile` builds the web image
 fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 ```
 
@@ -36,6 +36,6 @@ fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 - Design tokens live as CSS variables in `apps/web/src/app/globals.css` (`:root` + `.dark`), with shadcn/coss names (coss adds `--info/--success/--warning` and `--destructive-foreground`) plus `--route-1..8`. The OpenPencil Foundations page mirrors these names exactly; token changes flow .fig → globals.css.
 - MapLibre paints on a canvas and cannot read `var()`/oklch. Resolve tokens with `useCssColors` from `src/lib/css-color.ts` before passing colors to map layers.
 - Theme: `next-themes` (`class` attribute, light/dark/system). Use `ThemeToggle` from `src/components/theme`.
-- `/dev/components` is the dev-only component gallery (404 in production). Keep it current when adding components; it is the reference for the design system.
+- `/dev/components` is the component gallery (public in production since the first image deploy). Keep it current when adding components; it is the reference for the design system.
 - Do not use Bun-only APIs (`bun:sqlite`, `Bun.*`) in application code (spec §2).
 - Before using Next.js APIs, read the relevant bundled guide in `apps/web/node_modules/next/dist/docs/`. Next.js may generate local agent files in `apps/web` during `next dev`; the root `AGENTS.md` and `CLAUDE.md` remain canonical.

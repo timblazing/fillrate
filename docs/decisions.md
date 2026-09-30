@@ -157,3 +157,8 @@ Exact resolved versions are in `bun.lock`.
 - **Home page:** `/` is only a centered, theme-aware globe (mvpblocks "globe" block, vendored as `components/ui/globe.tsx`) that opens https://github.com/timblazing/fillrate in a new tab. The milestone text and gallery link were removed from `/`.
 - **cobe 2.x:** the upstream block relies on `onRender`, which cobe 2.0 removed; the globe drew once before its map texture loaded. `globe.tsx` now drives rendering with `requestAnimationFrame` + `globe.update({ phi })`. cobe reads options at creation, so the wrapper remounts it (via `key`) on theme change; this is why the effect intentionally has an empty dependency list (one lint warning).
 - **Colors:** globe accent comes from `--route-1` and dark-mode base from `--muted-foreground`, resolved with `useCssColors` and converted to cobe's 0..1 RGB.
+
+## 2026-09-30: First web image deploy
+- **Decision:** ship the frontend as one Docker image: root `Dockerfile` (Bun install/build on `node:24-bookworm-slim`, Next.js `output: "standalone"` traced from the repo root, runs `node apps/web/server.js` as `node` on port 3000, `DATA_DIR=/app/data`). `.github/workflows/image.yml` is `workflow_dispatch`-only and pushes `ghcr.io/timblazing/fillrate:latest` and `:sha-<short>` for `linux/amd64`. The GHCR package starts private.
+- **Gallery:** `/dev/components` and `/dev/blocks/<id>` no longer 404 in production; the owner wants the component library publicly viewable.
+- **Deferred:** push/tag triggers, `ci.yml`, the optimizer image and multi-service compose.
