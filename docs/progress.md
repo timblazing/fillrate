@@ -13,7 +13,7 @@
   - [ ] API contracts (`packages/contracts`), worker claim/lease flow
   - [ ] Minimal real PyVRP solve, capability fixtures (incl. open routes and prohibited edges), first export
   - [ ] Dockerfile, `ci.yml`, `image.yml`
-- [ ] **M2 Design** (in progress in `pyvrp-lab.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
+- [ ] **M2 Design** (in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
 - [ ] M3 Core pipeline (import → allocate → cluster → per-cluster PyVRP → cluster cards and truck loads)
 - [ ] M4 Iterations (k explorer, sweeps, comparison, unshipped reasons, Fulfillment pipeline lesson)
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
@@ -31,7 +31,7 @@ Sections: Foundations (adds status colors and fill bands), Primitives (pipeline 
 Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillStrip`, `TrailerFill`/`FillMeter`/`FillPercent`, `TruckLoad`, `UnshippedLines`, `PipelineStages`, `RunMetricGroups`, `IterationTable`, `StockTable`, `LineStateBadge`, `StopPointsLayer`/`FitBounds` (map), `ClusterSwatch`/`ClusterLegend`/`TruckTag`; `DataTable` gained pagination; `CoordinateSourceBadge` gained `unresolved`; status colors moved to the coss `--info/--success/--warning/--destructive-foreground` tokens. Shared units/formatting in `src/lib/units.ts`, provisional pipeline types in `src/lib/fulfillment.ts` (to be replaced by generated contracts).
 
 ## Design workflow (M2 prep)
-1. **Foundations** page in `pyvrp-lab.fig`: variables named exactly like the CSS tokens in `apps/web/src/app/globals.css` (light + dark modes), plus type scale, radius, spacing, and `route-1..8`.
+1. **Foundations** page in `fillrate.fig`: variables named exactly like the CSS tokens in `apps/web/src/app/globals.css` (light + dark modes), plus type scale, radius, spacing, and `route-1..8`.
 2. Export tokens → `globals.css`; check them in `/dev/components`.
 3. **Components**: coss ui/mapcn components bound to those variables, compared against the gallery.
 4. **Blocks**: app shell, orders and inventory, run pipeline, k explorer, cluster cards, truck loads, unshipped reasons, iteration comparison, and map (spec v1.3 §8a, §10). Route timeline is secondary.

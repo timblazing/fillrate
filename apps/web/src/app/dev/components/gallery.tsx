@@ -116,7 +116,7 @@ export function Gallery() {
         <div className="bg-foreground text-background flex size-7 items-center justify-center rounded-lg">
           <FlaskConical className="size-4" />
         </div>
-        <span className="font-semibold tracking-tight">PyVRP Lab</span>
+        <span className="font-semibold tracking-tight">Fillrate</span>
         <span className="text-muted-foreground hidden text-sm sm:inline">/ design system</span>
         <Badge variant="outline" className="hidden sm:inline-flex">
           dev only

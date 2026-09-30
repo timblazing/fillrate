@@ -1,18 +1,19 @@
-# PyVRP Lab — Technical Specification
+# Fillrate — Technical Specification
 
-Version: 1.3 · Prepared September 29, 2026
+Version: 1.4 · Prepared September 29, 2026
 
 Revision notes:
 
 - 1.1 replaces Neon PostgreSQL with a local SQLite file, packages the app as a single GHCR container image, and adds a GitHub Actions build workflow. The application requires no third-party credentials.
 - 1.2 closes the remaining open decisions: Node LTS server runtime with `better-sqlite3`, network-level access control with no in-app auth, optional self-hosted single-state OSRM, public repository and image, Census ZCTA Gazetteer fallback, single-day time model, mapcn default basemap, concrete allocation heuristics, cost units, CI, and cross-session handoff documents.
 - 1.3 re-centers the product on the primary user's fulfillment workflow: piece-level inventory allocation (order date, then value), k-means clustering of allocated stops, then PyVRP truckloads per cluster (53 ft trailers, linear feet only, open routes, a 500-mile limit), iterated and compared on truck fill, cluster tightness, and revenue, with a k explorer for picking a stable cluster count. Piece-level (partial) allocation moves into v1. Haversine × circuity factor becomes the main travel mode. Limits are scaled for about 2,000 open orders. Milestones are reordered so the pipeline comes first; the generic PyVRP feature tour moves to later milestones and lessons. This note also records the earlier switch from shadcn/ui to coss ui (Base UI) in §2, §15, §18, and §19.
+- 1.4 renames the project from PyVRP Lab to **Fillrate** (repository `timblazing/fillrate`, image `ghcr.io/timblazing/fillrate`, database file `fillrate.sqlite`). The name covers both halves of the product: inventory fill rate (how much ordered demand stock can cover) and truck fill. PyVRP stays the routing solver under the hood, alongside OR-Tools and scikit-learn. The reference deployment is served at `fillrate.blasingame.dev` (§14). No behavior changes.
 
 Status: implementation specification for alternating Codex and Claude Code sessions. There are no open product or stack decisions. Choices made during implementation (exact version pins, the OSRM state, and similar) are recorded in `docs/decisions.md` (see §18). The spec changes only through a new revision note.
 
 ## 1. Product definition
 
-Build an in-depth private web playground for planning and comparing order-fulfillment shipments with open-source PyVRP, using real optimization runs. The initial users are Clay and a friend who already uses PyVRP and Census address geocoding with ZIP fallback. Support synthetic examples and real order data. Inventory scarcity is a first-class experiment area.
+Fillrate is an in-depth private web workbench for planning and comparing order-fulfillment shipments: allocate scarce inventory to open orders, group the stops, and build full truckloads, using real optimization runs. Open-source PyVRP builds the loads; OR-Tools and scikit-learn handle allocation and clustering. The initial users are Clay and a friend who already uses PyVRP and Census address geocoding with ZIP fallback. Support synthetic examples and real order data. Inventory scarcity is a first-class experiment area.
 
 ### Primary workflow (the friend's use case)
 
@@ -151,7 +152,7 @@ Use UUID primary keys (stored as text), foreign keys, timestamps, schema version
 
 Why not browser-only storage: scenarios and experiments are shared between users, the durable job queue must be claimable by the server-side worker and survive closed tabs, and the geocode and matrix caches are shared server state. Browser storage holds only presentation preferences.
 
-The database is a single SQLite file under `DATA_DIR` (default `/data/pyvrp-lab.sqlite` in the container, `./data/dev.sqlite` in native development). Tests use temporary database files and never point at a deployment volume. Back up with `sqlite3 .backup` or `VACUUM INTO` to a timestamped file (never by copying the live file while WAL is active), and document the restore procedure. No hosted database, provisioning, or database credential is required.
+The database is a single SQLite file under `DATA_DIR` (default `/data/fillrate.sqlite` in the container, `./data/dev.sqlite` in native development). Tests use temporary database files and never point at a deployment volume. Back up with `sqlite3 .backup` or `VACUUM INTO` to a timestamped file (never by copying the live file while WAL is active), and document the restore procedure. No hosted database, provisioning, or database credential is required.
 
 ## 6. Imports and geocoding
 
@@ -363,7 +364,7 @@ Python exports run without web application credentials and reproduce the experim
 
 ## 14. Deployment, access, and operations
 
-Default deployment is private Docker Compose running the single `ghcr.io/timblazing/pyvrp-lab` image with a mounted data volume, plus an optional OSRM service. No public signup or accounts workflow. Initial native development uses Bun for web and uv for Python dependency environments. Provide .env.example; every variable is optional.
+Default deployment is private Docker Compose running the single `ghcr.io/timblazing/fillrate` image with a mounted data volume, plus an optional OSRM service. No public signup or accounts workflow. Initial native development uses Bun for web and uv for Python dependency environments. Provide .env.example; every variable is optional.
 
 Environment variables, all optional:
 
@@ -378,7 +379,7 @@ The application needs no third-party secrets; the Census geocoder requires no ke
 
 ### Container image and CI
 
-Publish one image, `ghcr.io/timblazing/pyvrp-lab`, containing both the web app and the optimizer:
+Publish one image, `ghcr.io/timblazing/fillrate`, containing both the web app and the optimizer:
 
 - Multi-stage Dockerfile at the repository root. One stage installs dependencies with Bun and builds the Next.js standalone output (`output: "standalone"`), compiling `better-sqlite3` for the target platform. Another creates a Python 3.13 virtual environment with uv from the locked, pinned PyVRP, OR-Tools, scikit-learn, and FastAPI dependencies. A third fetches the pinned ZCTA Gazetteer lookup. The runtime stage is based on `node:24-slim` plus a matching Python 3.13 runtime and copies all three. Bun is not needed at runtime.
 - The runtime starts the Next.js server and the FastAPI service/worker supervisor under a small init such as `tini` with a supervisor script. Run migrations before either server accepts work. If either process exits unexpectedly, the container exits so the restart policy recovers it.
@@ -403,8 +404,8 @@ Reference `deploy/compose.yaml`:
 
 ```yaml
 services:
-  pyvrp-lab:
-    image: ghcr.io/timblazing/pyvrp-lab:latest
+  fillrate:
+    image: ghcr.io/timblazing/fillrate:latest
     restart: unless-stopped
     ports: ["${BIND_ADDR:-127.0.0.1}:3000:3000"]   # set BIND_ADDR to the host's Tailscale IP
     volumes: ["./data:/data"]
@@ -421,7 +422,7 @@ When the `osrm` profile is used, set `OSRM_URL=http://osrm:5000` in `.env`. The 
 
 The repository and GHCR image are public, so servers pull without a registry login. Real delivery data, customer addresses, and derived matrices never go into the repository, test fixtures, lesson data, or the image. Lessons use synthetic or public data. Real data exists only in the deployment's `/data` volume and in user-initiated exports.
 
-Access control belongs to the deployment; the app has no authentication. The reference deployment is a locked-down host reachable only over Tailscale. A separate Caddy VPS terminates HTTPS and reverse-proxies to the host's Tailscale IP and port, and the host firewall allows nothing else. Everyone who can reach the app is trusted. Native development binds to localhost. Next.js must honor `X-Forwarded-*` headers from the proxy only for URL generation; access decisions never depend on them.
+Access control belongs to the deployment; the app has no authentication. The reference deployment is a locked-down host reachable only over Tailscale. A separate Caddy VPS terminates HTTPS for `fillrate.blasingame.dev` (a subdomain of the owner's existing domain; no new domain is purchased) and reverse-proxies to the host's Tailscale IP and port, and the host firewall allows nothing else. Everyone who can reach the app is trusted. Native development binds to localhost. Next.js must honor `X-Forwarded-*` headers from the proxy only for URL generation; access decisions never depend on them.
 
 Log job/run IDs, attempts, durations, and error codes. Redact tokens and avoid logging full customer addresses. Health/status views report queue length, worker connection, solver versions, database availability, and road provider configuration. Explicit cleanup can remove old artifacts while preserving referenced saved runs. Migration procedure, backups, and restart recovery are documented.
 

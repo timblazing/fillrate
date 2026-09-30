@@ -633,7 +633,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
             <Sidebar collapsible="none" className="h-72 w-full rounded-xl border">
               <SidebarContent>
                 <SidebarGroup>
-                  <SidebarGroupLabel>PyVRP Lab</SidebarGroupLabel>
+                  <SidebarGroupLabel>Fillrate</SidebarGroupLabel>
                   <SidebarMenu>
                     {(
                       [
