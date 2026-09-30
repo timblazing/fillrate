@@ -1,6 +1,7 @@
 "use client"
 
 import { ChevronDown, FlaskConical, GraduationCap, LayoutGrid, Map as MapIcon, Play, Settings, Share } from "lucide-react"
+import { createContext, useContext } from "react"
 
 import { TravelModeBadge } from "@/components/lab/provenance-badge"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +52,9 @@ export function RunPipelineButton({ onRun, running }: { onRun?: () => void; runn
   )
 }
 
+/** Set by the full-screen block route (`/dev/blocks/[id]`) so the shell fills the viewport. */
+export const FullscreenContext = createContext(false)
+
 /** Application frame for the blocks: icon rail, scenario header, and optional section tabs. */
 export function AppShell({
   active = "Workbench",
@@ -58,7 +62,7 @@ export function AppShell({
   section,
   onSection,
   actions,
-  height = "h-[760px]",
+  height = 760,
   children,
 }: {
   active?: NavItem
@@ -67,11 +71,13 @@ export function AppShell({
   section?: Section
   onSection?: (s: Section) => void
   actions?: React.ReactNode
-  height?: string
+  /** Design height in px. Full-screen views grow it to at least the viewport. */
+  height?: number
   children: React.ReactNode
 }) {
+  const fullscreen = useContext(FullscreenContext)
   return (
-    <div className={cn("bg-background flex", height)}>
+    <div className="bg-background flex" style={{ height: fullscreen ? `max(100dvh, ${height}px)` : height }}>
       <nav className="bg-sidebar flex w-12 shrink-0 flex-col items-center gap-1 border-r py-3" aria-label="App">
         <div className="bg-foreground text-background mb-3 flex size-7 items-center justify-center rounded-lg">
           <FlaskConical className="size-4" />

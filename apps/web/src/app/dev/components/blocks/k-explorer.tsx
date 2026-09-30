@@ -37,7 +37,7 @@ export function KExplorerBlock() {
   const bestStable = [...explorer.rows].filter((r) => r.repairs === 0).sort((a, b) => b.stability - a.stability)[0]
 
   return (
-    <AppShell section={section} onSection={setSection} height="h-[820px]">
+    <AppShell section={section} onSection={setSection} height={820}>
       <div className="grid h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <ScrollArea className="border-r">
           <div className="space-y-4 p-4">

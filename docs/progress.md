@@ -7,6 +7,7 @@
   - [x] Dev-only component gallery at `/dev/components`
   - [x] Gallery expanded into the design-system reference: Foundations, Primitives, Lab components (`src/components/lab`), Charts (Recharts + bklit), Map, Blocks
   - [x] Gallery rebuilt for spec v1.3 (2026-09-29): every specimen runs on one synthetic 2,000-order fixture pipeline
+  - [x] Blocks open full screen at `/dev/blocks/<id>` for review screenshots
   - [x] `AGENTS.md`, `CLAUDE.md`, `docs/decisions.md`, `docs/progress.md`
   - [ ] Pinned Python 3.13 / uv / PyVRP / OR-Tools / scikit-learn / FastAPI (`services/optimizer`)
   - [ ] Drizzle schema + migrations, SQLite pragmas, migrate-on-start (`packages/db`)
@@ -51,4 +52,4 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
 ## Next step
-Review the v1.3 Blocks in `/dev/components` with the primary user, record the accepted direction in `docs/decisions.md`, and mirror the new components/blocks on the OpenPencil Components and Blocks pages.
+Review the v1.3 Blocks with the primary user (screenshots from `/dev/blocks/<id>`), record the accepted direction in `docs/decisions.md`, and mirror the new components/blocks on the OpenPencil Components and Blocks pages.
