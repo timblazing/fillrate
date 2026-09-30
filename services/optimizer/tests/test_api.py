@@ -19,3 +19,17 @@ def test_capabilities_document():
     assert behaviors["max_leg_distance"] == "preprocessing"
     assert body["defaults"]["trailer_capacity"] == 5_300
     assert body["defaults"]["max_leg_m"] == 804_672
+
+
+def test_only_implemented_capabilities_have_executable_fixtures():
+    from pathlib import Path
+
+    body = client.get("/capabilities").json()
+    for behavior in body["behaviors"]:
+        if behavior["availability"] == "implemented":
+            file, name = behavior["fixture"].split("::")
+            assert f"def {name}(" in Path(file).read_text()
+        else:
+            assert behavior["fixture"] is None
+    diameter = next(b for b in body["behaviors"] if b["id"] == "max_cluster_diameter")
+    assert diameter["availability"] == "planned"

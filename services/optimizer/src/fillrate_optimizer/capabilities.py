@@ -26,9 +26,11 @@ PINNED = ("pyvrp", "ortools", "scikit-learn", "numpy", "h3", "fastapi", "pydanti
 
 class Behavior(BaseModel):
     id: str
-    provided_by: Literal["native", "preprocessing", "workaround"]
+    availability: Literal["implemented", "planned", "unsupported"] = "implemented"
+    provided_by: Literal["native", "preprocessing", "workaround", "validation"]
+    restrictions: list[str] = []
     description: str
-    fixture: str
+    fixture: str | None
 
 
 class Limits(BaseModel):
@@ -98,9 +100,11 @@ BEHAVIORS = [
     ),
     Behavior(
         id="max_cluster_diameter",
+        availability="planned",
         provided_by="preprocessing",
-        description="Enforced by the clustering stage, not by PyVRP; re-checked by the validator.",
-        fixture="(M3)",
+        description="Planned clustering-stage enforcement and independent diameter validation.",
+        fixture=None,
+        restrictions=["Not enforced by the current per-cluster load adapter."],
     ),
 ]
 
