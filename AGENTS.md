@@ -15,7 +15,7 @@ packages/db           Drizzle schema/migrations, SQLite (not started)
 packages/contracts    Shared API contracts / generated types (not started)
 examples              Bundled lesson scenarios (not started)
 docs                  decisions.md, progress.md, and other docs
-deploy                Compose, OSRM prep (not started)
+deploy                Compose, Valhalla prep (not started)
 fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 ```
 

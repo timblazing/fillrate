@@ -1,6 +1,6 @@
 # Fillrate — Technical Specification
 
-Version: 1.4 · Prepared September 29, 2026
+Version: 1.5 · Prepared September 30, 2026
 
 Revision notes:
 
@@ -8,8 +8,9 @@ Revision notes:
 - 1.2 closes the remaining open decisions: Node LTS server runtime with `better-sqlite3`, network-level access control with no in-app auth, optional self-hosted single-state OSRM, public repository and image, Census ZCTA Gazetteer fallback, single-day time model, mapcn default basemap, concrete allocation heuristics, cost units, CI, and cross-session handoff documents.
 - 1.3 re-centers the product on the primary user's fulfillment workflow: piece-level inventory allocation (order date, then value), k-means clustering of allocated stops, then PyVRP truckloads per cluster (53 ft trailers, linear feet only, open routes, a 500-mile limit), iterated and compared on truck fill, cluster tightness, and revenue, with a k explorer for picking a stable cluster count. Piece-level (partial) allocation moves into v1. Haversine × circuity factor becomes the main travel mode. Limits are scaled for about 2,000 open orders. Milestones are reordered so the pipeline comes first; the generic PyVRP feature tour moves to later milestones and lessons. This note also records the earlier switch from shadcn/ui to coss ui (Base UI) in §2, §15, §18, and §19.
 - 1.4 renames the project from PyVRP Lab to **Fillrate** (repository `timblazing/fillrate`, image `ghcr.io/timblazing/fillrate`, database file `fillrate.sqlite`). The name covers both halves of the product: inventory fill rate (how much ordered demand stock can cover) and truck fill. PyVRP stays the routing solver under the hood, alongside OR-Tools and scikit-learn. The reference deployment is served at `fillrate.blasingame.dev` (§14). No behavior changes.
+- 1.5 follows suggestions from the primary user. **Valhalla replaces OSRM** as the single optional self-hosted road provider (§2, §7, §14): its `truck` costing models the tractor-trailer, and its tiled graph makes multi-state coverage practical for 500-mile loads. **H3** hexagonal cells add a map aggregation layer (§4) and an optional H3 clustering baseline next to k-means in the k explorer and sweeps (§8a), both in M4; H3 leaves the deferred list (§17). OR-Tools CP-SAT already powers optimized allocation (§8); only references change.
 
-Status: implementation specification for alternating Codex and Claude Code sessions. There are no open product or stack decisions. Choices made during implementation (exact version pins, the OSRM state, and similar) are recorded in `docs/decisions.md` (see §18). The spec changes only through a new revision note.
+Status: implementation specification for alternating Codex and Claude Code sessions. There are no open product or stack decisions. Choices made during implementation (exact version pins, the Valhalla coverage, and similar) are recorded in `docs/decisions.md` (see §18). The spec changes only through a new revision note.
 
 ## 1. Product definition
 
@@ -44,11 +45,12 @@ The product is a research workbench, not a dispatching, live tracking, navigatio
 | UI | coss ui (Base UI primitives, installed through the shadcn CLI `@coss` registry), Tailwind CSS, light/dark/system theme |
 | Mapping | mapcn and its MapLibre GL integration |
 | Geographic calculations | Turf.js, imported by module where practical |
-| Road routing | OSRM Table and Route APIs through a server-side adapter |
+| Road routing | Valhalla Matrix (`sources_to_targets`) and Route APIs through a server-side adapter |
 | Optimization service | Python, FastAPI, Pydantic |
 | Routing solver | Open-source PyVRP, pinned and capability-tested |
 | Inventory optimizer | Open-source OR-Tools CP-SAT |
-| Clustering | scikit-learn k-means with numpy, in the Python optimizer |
+| Clustering | scikit-learn k-means with numpy, in the Python optimizer; `h3` (h3-py) for the H3 baseline |
+| Hexagonal indexing | H3: `h3-js` in the web app for the map layer, `h3` (h3-py) in the optimizer |
 | Persistence | SQLite (WAL mode) file on a mounted data volume |
 | Database definitions/access | Drizzle ORM and Drizzle Kit in TypeScript, SQLite dialect, `better-sqlite3` driver |
 | Job execution | Python worker supervisor with isolated child processes |
@@ -66,7 +68,7 @@ Python workers claim durable tasks from authenticated Next.js internal endpoints
 
 Bun installs dependencies and runs scripts (`bun install`, `bun run …`). The Next.js server runs on Node.js 24 LTS: `next dev` in development, and the standalone `server.js` in the container. That makes `better-sqlite3` through `drizzle-orm/better-sqlite3` the database driver. Do not use Bun-only APIs such as `bun:sqlite` or `Bun.*` in application code. On every connection, set `journal_mode=WAL`, `foreign_keys=ON`, `synchronous=NORMAL`, and a `busy_timeout` of a few seconds. Job claims run in a `BEGIN IMMEDIATE` transaction (`db.transaction(fn, { behavior: "immediate" })`) that selects the oldest claimable job and updates it with `UPDATE … RETURNING`. SQLite serializes writers, so this provides the exclusivity that `FOR UPDATE SKIP LOCKED` would provide in Postgres. Keep write transactions short, and never hold one across solver or network work. Apply Drizzle migrations at container start, before the server accepts traffic. Do not copy preview/RC installation commands blindly: prefer compatible stable releases.
 
-MapLibre and editor/chart code are client components and dynamically loaded where useful. Secrets, Drizzle, geocoding calls, and OSRM requests remain server-side. Generate a TypeScript API client/types from FastAPI OpenAPI; validate public inputs in TypeScript and independently in Python at the solver boundary.
+MapLibre and editor/chart code are client components and dynamically loaded where useful. Secrets, Drizzle, geocoding calls, and Valhalla requests remain server-side. Generate a TypeScript API client/types from FastAPI OpenAPI; validate public inputs in TypeScript and independently in Python at the solver boundary.
 
 ## 3. Feature boundaries and capability discovery
 
@@ -84,7 +86,7 @@ Research baseline: stable PyVRP documentation identified version 0.14.0. In mile
 | Reloads/multiple trips | Explicit reload depots, trip load resets, and trip visualization |
 | Optional clients | Visit rewards, skipped clients, and transparent objective breakdown |
 | Client groups | Supported group restrictions and alternative service options |
-| Routing profiles | Profile-specific directed distance/duration matrices |
+| Routing profiles | Costing-specific directed distance/duration matrices (Valhalla `truck` by default) |
 | Solver configuration | Seed, stopping criteria, statistics, and verified advanced parameters |
 
 The primary workflow (§1) also needs these behaviors. Each is labeled native or preprocessing in the UI, the capabilities document, and the Python export:
@@ -118,7 +120,9 @@ Use mapcn alone for map setup and components. Do not integrate maps.black, its w
 
 Add/edit/drag stops and depots, inspect popups, toggle route layers, fit to results, and select stops in a region. Use Turf for point-in-polygon selection and geographic calculations. Region selection is an editor action, not a road closure or solver constraint. GeoJSON layers should render bulk points/lines; reserve rich DOM markers for selected locations when needed.
 
-Route layers clearly distinguish straight-line schematic connections from OSRM road geometry. Geometry comes from the same recorded provider/profile/data context where possible. An imported matrix can have no road geometry. Never suggest that a pretty road route proves the solver used those roads or current traffic.
+An optional **H3 hex layer** aggregates stops into H3 cells at a chosen resolution (default 5, about 250 km² per cell) and shades each cell by stop count, linear feet, or allocated revenue. Cells are computed in the browser with `h3-js` and rendered as a MapLibre GeoJSON fill layer from the cell boundaries, with colors resolved through `useCssColors`. The layer is a display aggregation, not a solver input, and it keeps working for ZIP-approximate coordinates, which it labels.
+
+Route layers clearly distinguish straight-line schematic connections from Valhalla road geometry. Geometry comes from the same recorded provider/profile/data context where possible. An imported matrix can have no road geometry. Never suggest that a pretty road route proves the solver used those roads or current traffic.
 
 ## 5. Scenario model and persistence
 
@@ -164,27 +168,27 @@ Coordinate sources: imported coordinate, manually placed, Census match, ZIP/ZCTA
 
 Default: allow fallback with a visible review warning. Settings can disable it or exclude approximate stops. Missing coordinates remain unresolved; never silently use (0,0). Show fallback counts before solve. Allow map corrections with undo. Keep original and corrected coordinate provenance.
 
-## 7. Travel matrices and OSRM
+## 7. Travel matrices and Valhalla
 
 Supported modes:
 
 1. Haversine distance multiplied by a circuity factor (default 1.2, the primary user's current "mileage cushion"), with an explicitly configured constant-speed duration estimate; the label always says estimated/schematic and shows the factor.
-2. OSRM directed road-network distance and duration matrices.
+2. Valhalla directed road-network distance and duration matrices (`truck` costing by default).
 3. Imported directed matrices with node order, units, profile, and metadata.
 
-Default global mode is Haversine × circuity factor, which matches how the primary user measures miles today and needs no road server. The maximum leg distance and maximum cluster diameter (default 500 mi each) are measured in the same miles the solver uses, so with the default mode they apply to haversine × 1.2, as the primary user confirmed. Which miles the limits use is still a setting. OSRM remains optional and moves to a later milestone (§15); the single-state dataset cannot cover 500-mile loads in general. Require a configured endpoint before selecting it. Curated road lessons may ship recorded matrices and corresponding metadata. Public OSRM demo servers are not the batch infrastructure for 500-stop experiments.
+Default global mode is Haversine × circuity factor, which matches how the primary user measures miles today and needs no road server. The maximum leg distance and maximum cluster diameter (default 500 mi each) are measured in the same miles the solver uses, so with the default mode they apply to haversine × 1.2, as the primary user confirmed. Which miles the limits use is still a setting. Valhalla remains optional and arrives in a later milestone (§15); its coverage is whatever region the deployment built, so stops outside it are unreachable, not approximated. Require a configured endpoint before selecting it. Curated road lessons may ship recorded matrices and corresponding metadata. Public Valhalla demo servers are not the batch infrastructure for 500-stop experiments.
 
 Default internal units: meters, seconds, integer quantities, and integer cents for money. UI defaults: miles and minutes; support kilometers and alternative display units. Costs and rewards use this integer scaling policy. Fixed vehicle costs and visit rewards are cents. Distance cost is entered per mile or kilometer, and duration cost per hour. Both convert to cents per meter and cents per second at the solver boundary, as integers where the pinned PyVRP release requires integers, with a recorded scale factor where needed to avoid rounding cost rates to zero. Round/scale once at the solver boundary, preserving raw provider matrices and effective solver matrices. Validate safe ranges against the pinned solver constants.
 
-OSRM Table requests may require both block partitioning and coordinate/request-size limits. Reassemble by stable source/destination IDs; preserve asymmetry and zeros on the diagonal. Choose a configurable default block size of 50 sources and 50 destinations, then adapt to endpoint capability and coordinate limits. Limit concurrency, support cancellation and retry transient failures, and report progress based on completed blocks.
+Valhalla Matrix requests are bounded by the server's `service_limits` (`max_matrix_location_pairs`, default 2,500, and `max_matrix_distance`) and need block partitioning. Reassemble by stable source/destination IDs; preserve asymmetry and zeros on the diagonal. Choose a configurable default block size of 50 sources and 50 destinations, then adapt to endpoint capability and coordinate limits. Limit concurrency, support cancellation and retry transient failures, and report progress based on completed blocks.
 
-OSRM profiles are determined by the prepared routing dataset. Changing a URL string from driving to cycling does not prepare a new dataset. Profile settings map to actual configured endpoints/datasets. Regional routing deployments use a pinned image, recorded OSM extract date, and documented coverage.
+Valhalla chooses the vehicle model per request (the `costing` and its `costing_options`), so changing the vehicle does not require re-preparing data. The default costing is `truck`. Its `length` is the whole combination (Valhalla's default of 21.64 m is about a tractor with a 53 ft trailer); height, width, weight, and hazmat use Valhalla defaults unless the scenario sets them. The costing and its options are part of the matrix identity. Road deployments use a pinned image, recorded OSM extract dates, and documented coverage.
 
-The v1 road provider is an optional self-hosted OSRM service in the same Compose project (profile `osrm`). It uses a pinned `osrm/osrm-backend` image, the car profile, and the MLD pipeline, and covers one US state chosen at deploy time and recorded in `docs/decisions.md`. `deploy/osrm/prepare.sh <geofabrik-region-path>` downloads the Geofabrik extract, runs `osrm-extract`, `osrm-partition`, and `osrm-customize`, and writes `extract-meta.json` with the source URL, extract date, and image tag. The app reads `OSRM_URL` (for example `http://osrm:5000`) and an optional `OSRM_PROFILE_LABEL`; the health view shows the dataset metadata. Stops outside the covered region surface as unreachable edges, never as silent fallbacks.
+The v1 road provider is an optional self-hosted Valhalla service in the same Compose project (profile `valhalla`). It uses a pinned `ghcr.io/valhalla/valhalla-scripted` image, which builds routing tiles from the OSM extracts in its mounted volume on first start and rebuilds them when the extracts change. Coverage (one or more Geofabrik regions, up to the whole US) is chosen at deploy time and recorded in `docs/decisions.md` with the measured build time, disk, and memory; it should span at least the maximum leg distance around the depot. `deploy/valhalla/prepare.sh <geofabrik-region-path>...` downloads the extracts, writes `extract-meta.json` with the source URLs, extract dates, and image tag, and sets the service limits. Valhalla's default `max_matrix_distance` (400 km for `truck` and `auto`) is shorter than the default 500-mile leg limit, so the deployment raises it for the costings in use (1,000 km covers a 500-mile limit with margin) and keeps `max_matrix_location_pairs` consistent with the adapter's block size. The app reads `VALHALLA_URL` (for example `http://valhalla:8002`) and an optional `VALHALLA_COSTING_LABEL`; the health view shows the dataset metadata. Stops outside the covered region surface as unreachable edges, never as silent fallbacks.
 
 Unreachable edges remain unreachable. Default behavior blocks a solve when a required visit is unreachable; optional visits get a documented exclusion or supported graph representation. Any Haversine fallback is an explicit experiment setting and records affected edges. Do not silently combine road and straight-line costs.
 
-Cache immutable matrix artifacts by ordered coordinates, provider/profile identity, dataset revision (from `extract-meta.json` for self-hosted OSRM), options, and conversion policy. Coordinate edits invalidate the relevant cache. Route geometry is cached separately and fetched only for inspected solutions. Matrix inspector displays a virtualized table/heatmap, unreachable edges, symmetry differences, and units.
+Cache immutable matrix artifacts by ordered coordinates, provider/profile identity, dataset revision (from `extract-meta.json` for self-hosted Valhalla), options, and conversion policy. Coordinate edits invalidate the relevant cache. Route geometry is cached separately and fetched only for inspected solutions. Matrix inspector displays a virtualized table/heatmap, unreachable edges, symmetry differences, and units.
 
 ## 8. Inventory allocation experiments
 
@@ -196,7 +200,7 @@ Allocation strategies (each works in piece-level mode; whole-order mode applies 
 - First-come: order date, then stable ID (no value tiebreak).
 - Priority: descending priority, then order date, then stable ID.
 - Proportional (fair-share greedy): for each depot and product, compute the fill ratio `r[d,p] = min(1, stock[d,p] / demand[d,p])` and give each customer a target of `r` times their demanded pieces. In piece-level mode, allocate floor(target) per line and distribute the remaining pieces one at a time to the customer with the lowest fulfilled-to-target fraction, breaking ties by order date, then value, then stable ID. In whole-order mode, repeatedly accept, among orders that still fit, the order whose customer is furthest below target, with the same tiebreaks. Label it a heuristic.
-- Optimized: OR-Tools CP-SAT chooses integer allocated pieces per line (or whole orders) under per-product/per-depot stock constraints.
+- Optimized: OR-Tools CP-SAT chooses integer allocated pieces per line (or whole orders) under per-product/per-depot stock constraints. Implementers should follow the CP-SAT Primer (§19) for modeling, hints, and solver parameters.
 
 Default optimized objective: maximize total allocated amount (revenue, in cents). An optional "respect order date" constraint forbids shorting an older line of a product while a newer line of the same product receives pieces. A lexicographic priority objective (maximize weighted priority, then allocated amount) remains available: priority is a positive integer from 1 to 100 (default 1). Each stage has its own time limit (default 10 seconds) and reports its own CP-SAT status. If an earlier stage is not proven optimal, the next stage constrains its value to at least the best found and says so. Do not mix dollars, miles, and quantities without explicit normalization. Provide tradeoff summaries rather than a misleading single universal score.
 
@@ -229,9 +233,11 @@ A pipeline run executes these stages against immutable snapshots, and each stage
 - **Per k:** within-cluster variance (k-means inertia) as an elbow chart, the number of clusters that need diameter repair, and **stability**: the mean adjusted Rand index between every pair of seeds' assignments. Higher means the grouping doesn't depend on the seed.
 - **Per stop, at the selected k:** **assignment confidence**. Build the co-assignment matrix (for each pair of stops, the share of seeds that put them in the same cluster). A stop's confidence is its mean co-assignment with the other stops in its cluster in the reference assignment (the chosen seed, default 0). Co-assignment ignores cluster labels, so label order across seeds doesn't matter. The map colors stops by confidence, so unstable border stops stand out.
 
+**H3 baseline.** As an alternative to k-means, the cluster stage can group stops by their H3 cell at a chosen resolution (`method: h3`, default resolution 2, cells of about 87,000 km²; k-means stays the default). Cells are fixed hexagons, so the grouping has no seed and no run-to-run variance; it serves as a stable baseline to compare k-means against. Each non-empty cell becomes a cluster, and the same diameter repair (step 4) applies. The k explorer shows H3 resolutions 1–3 beside the k range with the same inertia and diameter-repair counts (stability is trivially 1 and labeled as such), and sweeps may vary the method and resolution. The method, resolution, and `h3` library version are recorded like k and the seed.
+
 The user picks k (and optionally a seed) from the explorer, and that choice feeds pipeline runs and sweeps. Inertia, stability, and confidence are descriptive statistics, labeled as such; they are not solver objectives. The explorer's clustering-only runs are durable jobs like any other and count toward `MAX_SWEEP_RUNS`.
 
-**Iterations are experiments.** A sweep varies any of: k (a range), k-means seed, PyVRP seed, inventory percentage, allocation strategy, fulfillment policy, circuity factor, and the distance limits. The default maximum sweep is 25 runs (`MAX_SWEEP_RUNS`).
+**Iterations are experiments.** A sweep varies any of: clustering method (k-means or H3), k (a range), H3 resolution, k-means seed, PyVRP seed, inventory percentage, allocation strategy, fulfillment policy, circuity factor, and the distance limits. The default maximum sweep is 25 runs (`MAX_SWEEP_RUNS`).
 
 **Metrics** are shown side by side; there is no hidden composite score:
 
@@ -297,7 +303,9 @@ Resolution order: built-in default → workspace setting → scenario override �
 | Maximum cluster diameter | 500 mi (solver miles) | Workspace/scenario/run |
 | Trailer | 53 ft, linear feet only, open route, unlimited count | Workspace/scenario/run |
 | Estimated speed | 25 mph, clearly labeled | Workspace/scenario/run |
-| OSRM endpoint/profile | From `OSRM_URL`; unconfigured if unset | Deployment (env) |
+| Clustering method | k-means (H3 baseline optional, resolution 2) | Workspace/scenario/run |
+| Valhalla endpoint/costing | From `VALHALLA_URL`; `truck` costing; unconfigured if unset | Deployment (env) |
+| H3 map layer | Off; resolution 5; shaded by stop count | Browser preference |
 | Basemap | mapcn default | Workspace |
 | Custom MapLibre style URL | Optional, empty; must match `MAP_STYLE_ALLOWLIST` | Workspace |
 | Geocoder | Census for US addresses | Workspace/scenario |
@@ -320,7 +328,7 @@ Resolution order: built-in default → workspace setting → scenario override �
 | Wall-clock hard limits | 300 seconds per solve attempt; 600 seconds per pipeline run | Deployment |
 | Artifact retention | Keep saved runs; explicit cleanup | Workspace (Administration) |
 
-There are no roles: everyone who can reach the app is trusted (see §14), and the Administration section is simply where rarely-changed workspace settings and cleanup actions live. Deployment hard limits and provider endpoints come only from environment variables and are shown read-only in Administration. Keep any configuration value out of settings JSON and out of browser forms that echo it. The server never fetches a URL a user typed unless it matches the env-configured `OSRM_URL` or `MAP_STYLE_ALLOWLIST`, so the app cannot become an open URL fetcher. Do not expose worker concurrency and lease internals in ordinary lesson controls.
+There are no roles: everyone who can reach the app is trusted (see §14), and the Administration section is simply where rarely-changed workspace settings and cleanup actions live. Deployment hard limits and provider endpoints come only from environment variables and are shown read-only in Administration. Keep any configuration value out of settings JSON and out of browser forms that echo it. The server never fetches a URL a user typed unless it matches the env-configured `VALHALLA_URL` or `MAP_STYLE_ALLOWLIST`, so the app cannot become an open URL fetcher. Do not expose worker concurrency and lease internals in ordinary lesson controls.
 
 ## 12. Public and internal API contract
 
@@ -364,13 +372,13 @@ Python exports run without web application credentials and reproduce the experim
 
 ## 14. Deployment, access, and operations
 
-Default deployment is private Docker Compose running the single `ghcr.io/timblazing/fillrate` image with a mounted data volume, plus an optional OSRM service. No public signup or accounts workflow. Initial native development uses Bun for web and uv for Python dependency environments. Provide .env.example; every variable is optional.
+Default deployment is private Docker Compose running the single `ghcr.io/timblazing/fillrate` image with a mounted data volume, plus an optional Valhalla service. No public signup or accounts workflow. Initial native development uses Bun for web and uv for Python dependency environments. Provide .env.example; every variable is optional.
 
 Environment variables, all optional:
 
 - `DATA_DIR` (default `/data`).
 - `WORKER_TOKEN`, generated randomly at startup when unset, since both processes share the container.
-- `OSRM_URL` and `OSRM_PROFILE_LABEL`.
+- `VALHALLA_URL` and `VALHALLA_COSTING_LABEL`.
 - `MAP_STYLE_ALLOWLIST`.
 - Hard limits: `MAX_ORDERS`, `MAX_STOPS` (per cluster solve), `MAX_SWEEP_RUNS`, `SOLVE_WALL_LIMIT_SECONDS`, `RUN_WALL_LIMIT_SECONDS`, `SOLVE_CONCURRENCY`.
 - `PORT` (default 3000).
@@ -410,15 +418,14 @@ services:
     ports: ["${BIND_ADDR:-127.0.0.1}:3000:3000"]   # set BIND_ADDR to the host's Tailscale IP
     volumes: ["./data:/data"]
     env_file: [{ path: .env, required: false }]
-  osrm:                                  # enabled with `docker compose --profile osrm up -d`
-    image: osrm/osrm-backend:<pinned tag>
-    profiles: ["osrm"]
+  valhalla:                              # enabled with `docker compose --profile valhalla up -d`
+    image: ghcr.io/valhalla/valhalla-scripted:<pinned tag>
+    profiles: ["valhalla"]
     restart: unless-stopped
-    command: osrm-routed --algorithm mld --max-table-size 10000 /data/region.osrm
-    volumes: ["./osrm:/data"]            # produced by deploy/osrm/prepare.sh
+    volumes: ["./valhalla:/custom_files"] # extracts and config from deploy/valhalla/prepare.sh; tiles built on first start
 ```
 
-When the `osrm` profile is used, set `OSRM_URL=http://osrm:5000` in `.env`. The OSRM service publishes no host port.
+When the `valhalla` profile is used, set `VALHALLA_URL=http://valhalla:8002` in `.env`. The Valhalla service publishes no host port. Verify the pinned tag has an arm64 variant (the Raspberry Pi target) and record the result.
 
 The repository and GHCR image are public, so servers pull without a registry login. Real delivery data, customer addresses, and derived matrices never go into the repository, test fixtures, lesson data, or the image. Lessons use synthetic or public data. Real data exists only in the deployment's `/data` volume and in user-initiated exports.
 
@@ -431,9 +438,9 @@ Log job/run IDs, attempts, durations, and error codes. Redact tokens and avoid l
 1. Foundation and capability proof: monorepo, pinned dependencies, Drizzle schema/migrations, SQLite setup (WAL, pragmas, migrate-on-start), API contracts, worker claim/lease flow, minimal real PyVRP solve, capability fixtures (including open routes and prohibited edges, §3), first export, `AGENTS.md`/`CLAUDE.md`/`docs/decisions.md`/`docs/progress.md`, and the Dockerfile plus CI and GHCR workflows so every later milestone is tested and deployable.
 2. Design: create complete workbench and results concepts centered on the pipeline screens (orders and inventory, run pipeline, cluster cards, truck loads, unshipped reasons, iteration comparison), rendered as real HTML/React screens with coss ui and mapcn rather than generated images. The user reviews and accepts them before detailed styling, and the accepted direction is recorded in `docs/decisions.md`. Establish tokens and coss ui/mapcn composition. Never replace exact charts/maps with generated imagery.
 3. Core pipeline: CSV import of order lines and inventory with coordinates, editable scenarios, Haversine × circuity matrices, piece-level "order date, then value" allocation, stop aggregation and splitting, k-means with diameter repair, per-cluster PyVRP solves as durable jobs, validation, cluster cards, truck loads, map, settings and snapshot semantics.
-4. Iterations: the k explorer (inertia, seed stability, per-stop assignment confidence), bounded sweeps over the §8a parameters, the iteration comparison table and non-dominated highlighting, unshipped-line reasons, and the Fulfillment pipeline lesson on synthetic data.
+4. Iterations: the k explorer (inertia, seed stability, per-stop assignment confidence), bounded sweeps over the §8a parameters, the iteration comparison table and non-dominated highlighting, unshipped-line reasons, the H3 hex map layer and H3 clustering baseline (§4, §8a), and the Fulfillment pipeline lesson on synthetic data.
 5. Allocation depth and imports: the other allocation strategies, CP-SAT with its objectives, whole-order mode, residual stock reporting, Census + ZIP geocoding, JSON/GeoJSON imports, and data review.
-6. Remaining supported PyVRP features and roads: time windows, heterogeneous fleets, multiple depots, groups, shipments, reloads, profiles, native advanced options, OSRM block matrices/cache/geometry, imported matrices, manual evaluator, and supported warm starts.
+6. Remaining supported PyVRP features and roads: time windows, heterogeneous fleets, multiple depots, groups, shipments, reloads, profiles, native advanced options, Valhalla block matrices/cache/geometry with `truck` costing, imported matrices, manual evaluator, and supported warm starts.
 7. Learning and exports: the remaining lessons, route timeline and playback, diagnostics, and the complete Python bundle export.
 8. Verification and handoff: browser visual/interaction review, meaningful solver/inventory/clustering/contracts tests, 2,000-order target checks, recovery/cancellation tests, GHCR image and Compose deployment, backup/restore procedure, and native instructions.
 
@@ -478,25 +485,25 @@ Each milestone must be executable and persist real data. Do not deliver a polish
 - Mapcn style/theme changes preserve scenario and route layers.
 - Imports have previews and actionable row errors; invalid manual routes show violations.
 - At the 2,000-order target, table/map interactions remain usable, matrix data is not repeatedly downloaded, and one solver does not stall application endpoints. A pipeline run at that size completes within the run wall-clock limit on the deployment machine. Record hardware and measured timings per stage.
-- Learning mode works with bundled data without Census/OSRM connectivity. A writable data volume is required for persisted app state.
+- Learning mode works with bundled data without Census/Valhalla connectivity. A writable data volume is required for persisted app state.
 - Browser tests cover real scenario creation, save, solve, cancellation, branch, comparison, and export. Visual QA checks desktop and narrow layouts against the accepted design.
 - Server-only modules (database, provider adapters, env config) are never bundled for the client. Internal worker endpoints reject non-loopback requests and requests without a valid worker token and lease.
 - Time windows round-trip correctly across the scenario timezone, including a daylight-saving transition date and a shift that ends after midnight.
 
 ## 17. Deferred extensions
 
-Minimum shipment quantities and per-product utility for partial fulfillment; route-aware allocation repair (returning stock from unloadable lines to other lines); joint allocation-and-routing optimization; optional OR-Tools routing comparisons; H3 clustering experiments; deck.gl visual layers; MapLibre-Geoman Free drawing tools; validated VRPLIB rich-variant import; public access/accounts; live traffic; real dispatch integration.
+Minimum shipment quantities and per-product utility for partial fulfillment; route-aware allocation repair (returning stock from unloadable lines to other lines); joint allocation-and-routing optimization; optional OR-Tools routing comparisons; deck.gl visual layers; MapLibre-Geoman Free drawing tools; validated VRPLIB rich-variant import; public access/accounts; live traffic; real dispatch integration.
 
 These are extension points, not required dependencies or nonfunctional UI promises. The first release should deliver a correct, explainable fulfillment pipeline (piece-level allocation, clustering, per-cluster loads, iteration comparison) and then deeply cover the pinned open-source PyVRP capabilities.
 
 ## 18. Implementation brief (Codex and Claude Code)
 
-Implement this specification as a real full-stack application. Preserve Next.js + Bun tooling + Node runtime + coss ui (Base UI) + Tailwind + mapcn, OSRM + Turf, SQLite + Drizzle, and Python FastAPI + PyVRP + OR-Tools + scikit-learn. Do not add maps.black or paid enterprise features. Use whatever frontend, coss ui/Base UI, and React/Next.js guidance the current agent has available for UI concepting, component composition, and server/client boundaries.
+Implement this specification as a real full-stack application. Preserve Next.js + Bun tooling + Node runtime + coss ui (Base UI) + Tailwind + mapcn, Valhalla + Turf + H3, SQLite + Drizzle, and Python FastAPI + PyVRP + OR-Tools + scikit-learn. Do not add maps.black or paid enterprise features. Use whatever frontend, coss ui/Base UI, and React/Next.js guidance the current agent has available for UI concepting, component composition, and server/client boundaries.
 
 The build alternates between Codex and Claude Code sessions. To keep context across sessions:
 
 - `AGENTS.md` at the repository root is the canonical agent instruction file. It holds the repository layout, commands, conventions, and a pointer to this spec. `CLAUDE.md` contains only `@AGENTS.md`, so both tools read the same instructions.
-- `docs/decisions.md` is an append-only decision log. Each entry records the date, the decision, the reason, and the session tool. It covers exact version pins, the OSRM state, the accepted design direction, and every deviation from or interpretation of this spec.
+- `docs/decisions.md` is an append-only decision log. Each entry records the date, the decision, the reason, and the session tool. It covers exact version pins, the Valhalla coverage, the accepted design direction, and every deviation from or interpretation of this spec.
 - `docs/progress.md` holds the milestone checklist from §15, the current state, known gaps or failing tests, and the single next step.
 - Every session starts by reading `AGENTS.md`, `docs/progress.md`, `docs/decisions.md`, and the relevant spec sections. Before ending, it updates `docs/progress.md` and `docs/decisions.md` and leaves the tree in a state that passes CI, or records exactly what fails.
 - Work happens on short-lived branches with pull requests into `main`. Commit messages reference the milestone.
@@ -510,15 +517,17 @@ Begin with dependency/version checks, executable capability fixtures, and the mi
 - [PyVRP v0.14.0 modeling code](https://github.com/PyVRP/PyVRP/blob/v0.14.0/pyvrp/Model.py): modeling adapter baseline.
 - [coss ui docs](https://coss.com/ui/docs) and [llms.txt](https://coss.com/ui/llms.txt): UI primitives (Base UI) and their composition patterns.
 - [mapcn repository](https://github.com/AnmolSaini16/mapcn) and [basic map docs](https://www.mapcn.dev/docs/basic-map): component setup, theme, routes, and separate basemap terms.
-- [OSRM repository](https://github.com/Project-OSRM/osrm-backend) and [API documentation](https://project-osrm.org/docs/v5.24.0/api/): Table/Route requests, statically prepared profiles, limits, and data provenance. Match documentation to the pinned server version.
+- [Valhalla repository](https://github.com/valhalla/valhalla), [API documentation](https://valhalla.github.io/valhalla/), and [Docker images](https://github.com/valhalla/valhalla/blob/master/docker/README.md): Matrix/Route requests, `truck` costing options, `service_limits`, and tile builds. Match documentation to the pinned image. (The older `nilsnolde/docker-valhalla` image is archived and moved upstream.)
+- [routingpy](https://github.com/routingpy/routingpy): Python client for Valhalla matrices, useful in the Python reproduction export.
+- [H3](https://h3geo.org/), [h3-js](https://github.com/uber/h3-js), and [h3-py](https://github.com/uber/h3-py): hexagonal cells for the map layer and the H3 clustering baseline.
 - [Turf.js](https://github.com/Turfjs/turf): browser geographic operations.
-- [OR-Tools](https://github.com/google/or-tools): allocation/constraint programming and optional future routing models.
+- [OR-Tools](https://github.com/google/or-tools), the [CP-SAT solver guide](https://developers.google.com/optimization/cp/cp_solver), and the [CP-SAT Primer](https://github.com/d-krupke/cpsat-primer): allocation/constraint programming and optional future routing models.
 - [scikit-learn KMeans](https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html): clustering stage; record the pinned version with each run.
 - [Bun Next.js guide](https://bun.sh/guides/ecosystem/nextjs): Bun as package manager/script runner for Next.js (the server itself runs on Node).
 - [Next.js standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output): container build.
 - [Drizzle SQLite guide](https://orm.drizzle.team/docs/get-started-sqlite) and [better-sqlite3](https://github.com/WiseLibs/better-sqlite3): database driver.
 - [Census Geocoder API](https://geocoding.geo.census.gov/geocoder/Geocoding_Services_API.html) and [Census Gazetteer files](https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html): address geocoding and ZCTA fallback.
-- [Geofabrik downloads](https://download.geofabrik.de/north-america/us.html): state OSM extracts for OSRM. [SQLite WAL documentation](https://www.sqlite.org/wal.html): concurrency, checkpointing, and backup behavior.
+- [Geofabrik downloads](https://download.geofabrik.de/north-america/us.html): regional OSM extracts for Valhalla. [SQLite WAL documentation](https://www.sqlite.org/wal.html): concurrency, checkpointing, and backup behavior.
 - [Docker build-push-action](https://github.com/docker/build-push-action) and [GitHub Container Registry docs](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry): image publishing workflow.
 
 Defaults, architecture, limits, settings, and implementation stages in this document are project design decisions, not claims that PyVRP or its companion libraries provide all these workflows out of the box.

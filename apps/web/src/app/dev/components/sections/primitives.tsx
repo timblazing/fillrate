@@ -142,7 +142,7 @@ import { Group, Row, Specimen } from "../specimen"
 const vehicleTypes = ["53 ft dry van", "53 ft reefer", "48 ft flatbed", "26 ft box truck"]
 const travelModes = [
   { value: "haversine", label: "Haversine × circuity (estimated)" },
-  { value: "osrm", label: "OSRM road network" },
+  { value: "valhalla", label: "Valhalla road network (truck)" },
   { value: "imported", label: "Imported matrix" },
 ]
 const objectives = [
