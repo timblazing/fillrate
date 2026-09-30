@@ -97,3 +97,12 @@ Exact resolved versions are in `bun.lock`.
 ## 2026-09-30: Design review sent; M1 continues in parallel (Claude Code)
 - **Status:** the six Blocks went to the primary user as a Google Form (a screenshot and questions per screen, plus the open v1.3 assumptions and a request for example order/inventory rows with dummy values). The form and its screenshots live outside the repo.
 - **Decision:** don't block on the answers. Continue the remaining M1 foundation work; record the accepted design direction here when the answers arrive (tracked under "Waiting on the primary user" in `docs/progress.md`).
+
+## 2026-09-30: Spec v1.5: Valhalla replaces OSRM; H3 layer and clustering baseline (Claude Code)
+- **Source:** the primary user suggested Valhalla, H3, CP-SAT, and OR-Tools.
+- **Decision:** Valhalla replaces OSRM as the single optional self-hosted road provider (spec §2, §7, §14, M6). Compose profile `valhalla`, pinned `ghcr.io/valhalla/valhalla-scripted`, env `VALHALLA_URL` / `VALHALLA_COSTING_LABEL`, default `truck` costing.
+- **Reason:** `truck` costing models the tractor-trailer (length, height, weight) without re-preparing data, and tiled graphs make multi-state coverage practical, which a single-state OSRM dataset could not give 500-mile loads. The "no second routing engine" rule stands.
+- **Gotchas for M6:** Valhalla's default `max_matrix_distance` is 400 km for `truck`/`auto`, shorter than the 500-mile leg limit; the deployment raises it (1,000 km). `max_matrix_location_pairs` defaults to 2,500, which matches the 50 × 50 block size. Verify the pinned image has arm64 for the Raspberry Pi, and record coverage with measured build time, disk, and memory.
+- **Decision:** H3 moves out of deferred extensions into M4: a hex aggregation map layer (h3-js, MapLibre fill layer, default resolution 5) and an optional H3 clustering baseline (`method: h3`, default resolution 2, explorer resolutions 1–3) with the same diameter repair. k-means stays the default.
+- **CP-SAT / OR-Tools:** already the optimized allocation strategy (§8, M5); no behavior change, references added (CP-SAT guide, CP-SAT Primer).
+- **Gallery:** the `osrm` travel mode is renamed `valhalla` in `TravelModeBadge` and the travel-mode select specimen.

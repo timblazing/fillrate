@@ -16,9 +16,9 @@
   - [ ] Dockerfile, `ci.yml`, `image.yml`
 - [ ] **M2 Design** (in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
 - [ ] M3 Core pipeline (import → allocate → cluster → per-cluster PyVRP → cluster cards and truck loads)
-- [ ] M4 Iterations (k explorer, sweeps, comparison, unshipped reasons, Fulfillment pipeline lesson)
+- [ ] M4 Iterations (k explorer, sweeps, comparison, unshipped reasons, H3 hex layer and clustering baseline, Fulfillment pipeline lesson)
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
-- [ ] M6 Remaining PyVRP features and roads (OSRM)
+- [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
 - [ ] M7 Learning and exports
 - [ ] M8 Verification and handoff
 
