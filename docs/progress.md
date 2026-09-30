@@ -51,5 +51,11 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 - The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (see the gallery).
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
+## Waiting on the primary user (come back to this)
+Sent 2026-09-30 as a Google Form (screenshots of the six Blocks, one page each). Answers may take a while; M1 work continues meanwhile. When they arrive:
+- Record the accepted design direction and any requested changes in `docs/decisions.md`, then tick M2's review step.
+- Close the open v1.3 assumptions it also asks about: value tiebreak per piece vs. order total, and whether orders at one address combine into one stop.
+- Use his example rows (dummy values) to confirm the order and inventory CSV columns for M3 imports.
+
 ## Next step
-Review the v1.3 Blocks with the primary user (screenshots from `/dev/blocks/<id>`), record the accepted direction in `docs/decisions.md`, and mirror the new components/blocks on the OpenPencil Components and Blocks pages.
+Continue M1 while the design review is pending: pin Python 3.13 / uv / PyVRP / OR-Tools / scikit-learn / FastAPI in `services/optimizer` and write the open-route and prohibited-edge capability fixtures. After the review comes back, mirror the accepted components/blocks on the OpenPencil Components and Blocks pages.
