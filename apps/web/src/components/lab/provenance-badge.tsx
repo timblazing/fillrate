@@ -49,7 +49,7 @@ export function CoordinateSourceBadge({ source, className }: { source: Coordinat
 }
 
 // Travel matrix provenance (spec §7). Haversine is always labeled as an estimate.
-export type TravelMode = "haversine" | "osrm" | "imported"
+export type TravelMode = "haversine" | "valhalla" | "imported"
 
 const travelModes: Record<TravelMode, { label: string; icon: typeof Ruler; hint: string }> = {
   haversine: {
@@ -57,7 +57,7 @@ const travelModes: Record<TravelMode, { label: string; icon: typeof Ruler; hint:
     icon: Ruler,
     hint: "Great-circle miles × the circuity factor. Limits (leg, cluster diameter) use these solver miles.",
   },
-  osrm: { label: "OSRM road network", icon: Route, hint: "Directed road distances and durations" },
+  valhalla: { label: "Valhalla road network", icon: Route, hint: "Directed road distances and durations (truck costing)" },
   imported: { label: "Imported matrix", icon: TableProperties, hint: "User-supplied directed matrix" },
 }
 

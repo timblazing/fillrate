@@ -89,7 +89,7 @@ export function Lab() {
           </Row>
           <Row label="Travel mode">
             <TravelModeBadge mode="haversine" detail="× 1.2 circuity" />
-            <TravelModeBadge mode="osrm" detail="car · TN 2026-09-01" />
+            <TravelModeBadge mode="valhalla" detail="truck · US South 2026-09-01" />
             <TravelModeBadge mode="imported" />
           </Row>
           <Row label="Setting source">

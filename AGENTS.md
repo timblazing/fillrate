@@ -10,12 +10,12 @@ Canonical instructions for Codex and Claude Code (`CLAUDE.md` just imports this 
 ## Repository layout (spec §2)
 ```
 apps/web              Next.js App Router + coss ui (Base UI) + mapcn (the only populated package so far)
-services/optimizer    Python FastAPI + PyVRP + OR-Tools (not started)
+services/optimizer    Python FastAPI + PyVRP + OR-Tools + scikit-learn (uv, Python 3.13)
 packages/db           Drizzle schema/migrations, SQLite (not started)
 packages/contracts    Shared API contracts / generated types (not started)
 examples              Bundled lesson scenarios (not started)
 docs                  decisions.md, progress.md, and other docs
-deploy                Compose, OSRM prep (not started)
+deploy                Compose, Valhalla prep (not started)
 fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 ```
 
@@ -23,6 +23,7 @@ fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 - `bun install`: install workspace deps (commit `bun.lock`)
 - `bun run dev`: Next.js dev server (http://localhost:3000)
 - `bun run lint` / `bun run typecheck` / `bun run build`
+- Optimizer (from `services/optimizer`): `uv sync`, `uv run pytest`, `uv run ruff check .`, `uv run fillrate-optimizer` (FastAPI on 127.0.0.1:8000). If uv trips over a stray Python 2.7 on PATH, set `UV_PYTHON=python3.13`.
 
 ## Frontend conventions
 - `apps/web/src/components/ui/*` is vendored registry code: [coss ui](https://coss.com/ui/docs) primitives built on Base UI, plus mapcn `map.tsx` and the two shadcn leftovers coss has no equivalent for (`chart.tsx` for Recharts, `resizable.tsx`). Add or update it with the shadcn CLI from `apps/web`:
