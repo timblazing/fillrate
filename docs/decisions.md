@@ -162,3 +162,4 @@ Exact resolved versions are in `bun.lock`.
 - **Decision:** ship the frontend as one Docker image: root `Dockerfile` (Bun install/build on `node:24-bookworm-slim`, Next.js `output: "standalone"` traced from the repo root, runs `node apps/web/server.js` as `node` on port 3000, `DATA_DIR=/app/data`). `.github/workflows/image.yml` is `workflow_dispatch`-only and pushes `ghcr.io/timblazing/fillrate:latest` and `:sha-<short>` for `linux/amd64`. The GHCR package starts private.
 - **Gallery:** `/dev/components` and `/dev/blocks/<id>` no longer 404 in production; the owner wants the component library publicly viewable.
 - **Deferred:** push/tag triggers, `ci.yml`, the optimizer image and multi-service compose.
+- better-sqlite3 13 ships prebuilt binaries for linux/darwin/win32 x64/arm64, so it was removed from `trustedDependencies`; its implicit node-gyp install script needed Python and failed in the image build.

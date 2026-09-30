@@ -19,8 +19,7 @@
   },
   "trustedDependencies": [
     "sharp",
-    "unrs-resolver",
-    "better-sqlite3"
+    "unrs-resolver"
   ],
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
