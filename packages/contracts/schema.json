@@ -1,0 +1,222 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "Lease": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_token": {
+          "format": "uuid",
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "worker_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Worker Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "job_id",
+        "worker_id",
+        "lease_token",
+        "attempt"
+      ],
+      "title": "Lease",
+      "type": "object"
+    },
+    "Snapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Document",
+          "type": "object"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "document"
+      ],
+      "title": "Snapshot",
+      "type": "object"
+    },
+    "StageManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_version": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Adapter Version",
+          "type": "string"
+        },
+        "created_at_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Created At Ms",
+          "type": "integer"
+        },
+        "effective_settings": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Effective Settings",
+          "type": "object"
+        },
+        "execution_id": {
+          "format": "uuid",
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "input_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Input Hash",
+          "type": "string"
+        },
+        "output_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Output Hash",
+          "type": "string"
+        },
+        "parent_hashes": {
+          "items": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "title": "Parent Hashes",
+          "type": "array"
+        },
+        "producer_version": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Producer Version",
+          "type": "string"
+        },
+        "reused_from": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reused From"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "stage_type": {
+          "enum": [
+            "preflight",
+            "allocation",
+            "aggregation",
+            "clustering",
+            "travel",
+            "problem",
+            "solve",
+            "validation",
+            "summary"
+          ],
+          "title": "Stage Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage_type",
+        "input_hash",
+        "output_hash",
+        "producer_version",
+        "adapter_version",
+        "parent_hashes",
+        "effective_settings",
+        "created_at_ms",
+        "execution_id"
+      ],
+      "title": "StageManifest",
+      "type": "object"
+    },
+    "WorkerEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "progress",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lease": {
+          "$ref": "#/$defs/Lease"
+        },
+        "payload": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Payload",
+          "type": "object"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "lease",
+        "sequence",
+        "kind",
+        "payload"
+      ],
+      "title": "WorkerEvent",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "event": {
+      "$ref": "#/$defs/WorkerEvent"
+    },
+    "manifest": {
+      "$ref": "#/$defs/StageManifest"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/Snapshot"
+    }
+  },
+  "required": [
+    "manifest",
+    "event",
+    "snapshot"
+  ],
+  "title": "ContractBundle",
+  "type": "object"
+}

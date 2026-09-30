@@ -1,0 +1,22 @@
+{
+  "manifest": {
+    "schema_version": 1,
+    "stage_type": "allocation",
+    "input_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "output_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "producer_version": "allocation/1",
+    "adapter_version": "none/1",
+    "parent_hashes": [],
+    "effective_settings": {"policy": "order_date_then_value", "seed": 0},
+    "created_at_ms": 1790784000000,
+    "execution_id": "10000000-0000-4000-8000-000000000001",
+    "reused_from": null
+  },
+  "event": {
+    "lease": {"job_id": "10000000-0000-4000-8000-000000000002", "worker_id": "fixture", "lease_token": "10000000-0000-4000-8000-000000000003", "attempt": 1},
+    "sequence": 1,
+    "kind": "progress",
+    "payload": {"stage": "allocation", "pieces": 42}
+  },
+  "snapshot": {"schema_version": 1, "document": {"synthetic": true}}
+}

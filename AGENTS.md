@@ -9,10 +9,10 @@ Canonical instructions for Codex and Claude Code (`CLAUDE.md` just imports this 
 
 ## Repository layout (spec §2)
 ```
-apps/web              Next.js App Router + coss ui (Base UI) + mapcn (the only populated package so far)
+apps/web              Next.js App Router + coss ui (Base UI) + mapcn
 services/optimizer    Python FastAPI + PyVRP + OR-Tools + scikit-learn (uv, Python 3.13)
-packages/db           Drizzle schema/migrations, SQLite (not started)
-packages/contracts    Shared API contracts / generated types (not started)
+packages/db           Drizzle schema/migrations, SQLite durable jobs/artifacts
+packages/contracts    Pydantic-generated envelopes, JSON Schema and TypeScript types
 examples              Bundled lesson scenarios (not started)
 docs                  decisions.md, progress.md, and other docs
 deploy                Compose, Valhalla prep (not started)
@@ -23,6 +23,8 @@ fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 - `bun install`: install workspace deps (commit `bun.lock`)
 - `bun run dev`: Next.js dev server (http://localhost:3000)
 - `bun run lint` / `bun run typecheck` / `bun run build`
+- `bun run test`: Node Vitest persistence/contract tests; `bun run contracts:generate`: regenerate shared contracts from Python
+- `bun run db:generate`: generate migrations after schema changes; migrations apply automatically at web startup
 - Optimizer (from `services/optimizer`): `uv sync`, `uv run pytest`, `uv run ruff check .`, `uv run fillrate-optimizer` (FastAPI on 127.0.0.1:8000). If uv trips over a stray Python 2.7 on PATH, set `UV_PYTHON=python3.13`.
 
 ## Frontend conventions
