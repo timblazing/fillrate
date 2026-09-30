@@ -15,16 +15,16 @@ export type MilestoneStatus = {
 
 export const status = {
   updated: "2026-09-30",
-  focus: "M1",
+  focus: "M3",
   /** Percent of the spec that is working product behavior, counting only real runs (no foundation, no fixtures). */
   productBehavior: 12,
   milestones: {
     M1: {
       weight: 20,
-      done: 95,
-      state: "active",
+      done: 100,
+      state: "done",
       notes:
-        "Done: worker transport and supervisor, the staged pipeline on real PyVRP, v1.6 objective and reachability, independent validation, persisted `/runs` screens, JSON/CSV export, combined image, `ci.yml` and a two-architecture `image.yml`. Missing: first green GitHub Actions runs on amd64 and arm64.",
+        "Done: worker transport and supervisor, the staged pipeline on real PyVRP, v1.6 objective and reachability, independent validation, persisted `/runs` screens, JSON/CSV export, combined image, `ci.yml` and a two-architecture `image.yml`. Both image architectures passed the smoke run in GitHub Actions.",
     },
     M2: {
       weight: 10,
@@ -52,7 +52,6 @@ export const status = {
   } satisfies Record<string, MilestoneStatus>,
   /** Ordered next steps; the first one is what an agent should pick up. */
   nextUp: [
-    "Get the first `ci.yml` and `image.yml` runs green on amd64 and arm64; fix what they expose, then tick M1.",
     "M3: CSV import with preview, scenario editing and versioning.",
     "M3: real pipeline screens replacing the gallery stand-ins, with settings and lineage.",
     "M3: deterministic stage reuse and the 2,000-order benchmark with measured timings.",
