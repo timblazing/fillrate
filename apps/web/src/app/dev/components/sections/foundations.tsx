@@ -10,7 +10,7 @@ const colorPairs = [
   ["secondary", "secondary-foreground"],
   ["muted", "muted-foreground"],
   ["accent", "accent-foreground"],
-  ["destructive", "background"],
+  ["destructive", "white"],
   ["sidebar", "sidebar-foreground"],
   ["sidebar-primary", "sidebar-primary-foreground"],
 ] as const
@@ -52,12 +52,49 @@ export function Foundations() {
         </Row>
       </Specimen>
 
+      <Specimen id="status-color" title="Status & fill bands" source="--info · --success · --warning · --destructive (+ -foreground)" spec="§8a §9">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["info", "Running, claimed, excluded lines"],
+            ["success", "Succeeded, full trucks (≥ 85%), non-dominated runs"],
+            ["warning", "Low fill (< 60%), no stock, approximate coordinates"],
+            ["destructive", "Failed, beyond leg limit, over a hard limit"],
+          ].map(([t, use]) => (
+            <div key={t} className="bg-card overflow-hidden rounded-xl border">
+              <div className="flex h-14 items-end justify-between p-3" style={{ background: `color-mix(in oklch, var(--${t}) 12%, var(--card))` }}>
+                <span className="size-5 rounded-full" style={{ background: `var(--${t})` }} />
+                <span className="text-sm font-medium" style={{ color: `var(--${t === "destructive" ? "destructive-foreground" : `${t}-foreground`})` }}>
+                  Aa
+                </span>
+              </div>
+              <div className="space-y-0.5 border-t px-3 py-2">
+                <div className="font-mono text-[11px] font-medium">--{t}</div>
+                <div className="text-muted-foreground text-[11px]">{use}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <Row label="Truck fill bands (lib/units fillBand)" className="mt-6">
+          <div className="flex h-8 w-full max-w-xl overflow-hidden rounded-lg border text-[11px] font-medium">
+            <span className="bg-warning/15 text-warning-foreground flex items-center px-2" style={{ width: "60%" }}>
+              low · under 60%
+            </span>
+            <span className="bg-muted text-muted-foreground flex items-center px-2" style={{ width: "25%" }}>
+              fair
+            </span>
+            <span className="bg-success/15 text-success-foreground flex items-center px-2" style={{ width: "15%" }}>
+              full
+            </span>
+          </div>
+        </Row>
+      </Specimen>
+
       <Specimen
         id="route-palette"
-        title="Route palette"
+        title="Series palette"
         source="--route-1 … --route-8"
         spec="§4"
-        description="Stable per-route colors shared by map, timeline, tables, and categorical charts. Always paired with a number or label. Placeholder values until the design pass; chart-1…5 are still neutral."
+        description="Stable categorical colors for clusters (C1–C8) and compared runs, shared by map, cards, tables, and charts. Trucks take their cluster's color and are told apart by label (C3-T2). Always paired with a label. Placeholder values until the design pass; chart-1…5 are still neutral."
       >
         <div className="grid grid-cols-4 gap-3 lg:grid-cols-8">
           {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
@@ -91,12 +128,12 @@ export function Foundations() {
         <div className="grid gap-8 lg:grid-cols-[1fr_16rem]">
           <div className="space-y-4">
             {[
-              ["text-4xl font-semibold tracking-tight", "4xl / semibold", "Route the city."],
-              ["text-2xl font-semibold tracking-tight", "2xl / semibold", "Downtown deliveries · v13"],
-              ["text-lg font-medium", "lg / medium", "Solve settings"],
+              ["text-4xl font-semibold tracking-tight", "4xl / semibold", "Fuller trucks."],
+              ["text-2xl font-semibold tracking-tight", "2xl / semibold", "Mid-South open orders · v14"],
+              ["text-lg font-medium", "lg / medium", "Cluster 3 · 22 trucks"],
               ["text-sm", "sm / regular", "Body text. The default workbench size for tables, inspectors, and forms."],
               ["text-muted-foreground text-xs", "xs / muted", "Captions, units, and secondary metadata."],
-              ["font-mono text-xs tabular-nums", "mono xs / tabular", "12.4 mi · 00:47:12 · c-0042 · $318.20"],
+              ["font-mono text-xs tabular-nums", "mono xs / tabular", "C3-T14 · 45.3 ft · 87% · 412 mi · $26,410"],
             ].map(([className, label, sample]) => (
               <div key={label} className="grid grid-cols-[8rem_1fr] items-baseline gap-4">
                 <span className="text-muted-foreground font-mono text-[11px]">{label}</span>

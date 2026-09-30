@@ -11,9 +11,9 @@ export type Diagnostic = {
 }
 
 const tone = {
-  blocking: { icon: OctagonX, className: "text-destructive" },
-  warning: { icon: CircleAlert, className: "text-route-4" },
-  info: { icon: Info, className: "text-muted-foreground" },
+  blocking: { icon: OctagonX, className: "text-destructive-foreground" },
+  warning: { icon: CircleAlert, className: "text-warning-foreground" },
+  info: { icon: Info, className: "text-info-foreground" },
 }
 
 export function DiagnosticList({

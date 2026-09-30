@@ -41,14 +41,14 @@ export function ImportDropzone({
       }}
       className={cn(
         "group hover:border-foreground/30 hover:bg-muted/40 focus-visible:ring-ring/50 flex w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-8 text-center transition-colors focus-visible:ring-3 focus-visible:outline-none",
-        dragging && "border-route-1 bg-route-1/5",
+        dragging && "border-info bg-info/5",
         className
       )}
     >
       <span
         className={cn(
           "bg-muted flex size-11 items-center justify-center rounded-xl border transition-transform duration-200 group-hover:-translate-y-0.5",
-          dragging && "bg-route-1/10 text-route-1 -translate-y-0.5"
+          dragging && "bg-info/10 text-info-foreground -translate-y-0.5"
         )}
       >
         <FileUp className="size-5" />

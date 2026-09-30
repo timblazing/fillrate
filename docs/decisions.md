@@ -71,3 +71,12 @@ Exact resolved versions are in `bun.lock`.
 - **Decision:** add a **k explorer** to spec §8a (built in M4): clustering-only runs over a k range × seeds (default 0–9) that show inertia per k (elbow), seed stability (mean pairwise adjusted Rand index), and per-stop assignment confidence (mean co-assignment with the stop's reference-cluster mates). The chosen k feeds pipeline runs and sweeps. Auto-k stays the default when no k has been chosen.
 - **Reason:** it turns his manual trial-and-error loop into one view. Label-invariant co-assignment avoids the cluster-label-matching problem across seeds.
 - **Still open:** the value tiebreak is per piece (assumed), orders at one address combine into one stop (assumed), and sample data. He has none right now and may send some later; keep it out of the repo.
+
+## 2026-09-29: Gallery rebuilt for spec v1.3 on a synthetic fixture pipeline (Claude Code)
+- **Decision:** the `/dev/components` gallery now shows production-shaped examples of the fulfillment pipeline. Every specimen and block reads one deterministic synthetic scenario and a TypeScript stand-in pipeline under `src/app/dev/components/fixtures/` (allocation, aggregation and splits, k-means with auto-k and diameter repair, k explorer, sweep), so numbers agree across views.
+- **Reason:** the owner asked for examples of how components will look live; the previous gallery was built around the generic PyVRP tour (time windows, routes, objective breakdowns).
+- **Interpretations:** truck loads in the fixture use a sweep + nearest-neighbour heuristic labeled as a PyVRP stand-in; the real solver arrives in M3. Stops beyond the 500 mi depot leg are reported as "allocated, not loaded". Fill bands: under 60% low, 85%+ full (`lib/units.fillBand`). Tightness for non-dominated ranking uses mean distance to centroid. The `--route-N` tokens are now described as the series palette (clusters and runs); names are unchanged to keep the .fig mapping.
+- **Dependencies:** added `@turf/convex`, `@turf/circle`, `@turf/helpers` (spec §2 Turf) for cluster hulls and the depot leg-limit ring.
+- **Map:** bulk stops render as one GeoJSON circle layer (`lab/map-layers.tsx`), not DOM markers (spec §4).
+- **Hydration:** compact money and CSS percentages are formatted by hand (`formatMoney`, `cssPercent`) because Intl compact output differs between Node and browsers.
+- Route timeline and matrix inspector moved to a "Later milestones" section (M6–M7).

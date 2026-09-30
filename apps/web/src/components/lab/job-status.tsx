@@ -14,12 +14,12 @@ export type JobState =
 
 const states: Record<JobState, { label: string; icon: typeof Check; className: string }> = {
   queued: { label: "Queued", icon: CircleDashed, className: "text-muted-foreground bg-muted" },
-  claimed: { label: "Claimed", icon: CirclePause, className: "text-route-6 bg-route-6/10" },
-  running: { label: "Running", icon: Loader, className: "text-route-1 bg-route-1/10" },
-  succeeded: { label: "Succeeded", icon: Check, className: "text-route-3 bg-route-3/10" },
-  failed: { label: "Failed", icon: TriangleAlert, className: "text-destructive bg-destructive/10" },
+  claimed: { label: "Claimed", icon: CirclePause, className: "text-info-foreground bg-info/8" },
+  running: { label: "Running", icon: Loader, className: "text-info-foreground bg-info/12" },
+  succeeded: { label: "Succeeded", icon: Check, className: "text-success-foreground bg-success/10" },
+  failed: { label: "Failed", icon: TriangleAlert, className: "text-destructive-foreground bg-destructive/10" },
   cancelled: { label: "Cancelled", icon: Ban, className: "text-muted-foreground bg-muted" },
-  interrupted: { label: "Interrupted", icon: Unplug, className: "text-route-4 bg-route-4/10" },
+  interrupted: { label: "Interrupted", icon: Unplug, className: "text-warning-foreground bg-warning/10" },
 }
 
 export const jobStates = Object.keys(states) as JobState[]
@@ -47,19 +47,19 @@ export function JobStatusDot({ state }: { state: JobState }) {
   return (
     <span className="relative inline-flex size-2.5" aria-label={states[state].label} role="img">
       {live && (
-        <span className="bg-route-1 absolute inset-0 animate-ping rounded-full opacity-60 motion-reduce:hidden" />
+        <span className="bg-info absolute inset-0 animate-ping rounded-full opacity-60 motion-reduce:hidden" />
       )}
       <span
         className={cn(
           "relative size-2.5 rounded-full",
           {
             queued: "border-muted-foreground border-2 border-dashed",
-            claimed: "bg-route-6",
-            running: "bg-route-1",
-            succeeded: "bg-route-3",
+            claimed: "bg-info/60",
+            running: "bg-info",
+            succeeded: "bg-success",
             failed: "bg-destructive",
             cancelled: "bg-muted-foreground/50",
-            interrupted: "bg-route-4",
+            interrupted: "bg-warning",
           }[state]
         )}
       />

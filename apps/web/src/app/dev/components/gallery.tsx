@@ -28,13 +28,15 @@ import { cn } from "@/lib/utils"
 import { Blocks } from "./sections/blocks"
 import { Charts } from "./sections/charts"
 import { Foundations } from "./sections/foundations"
+import { exploreK } from "./fixtures"
 import { Lab } from "./sections/lab"
+import { Later } from "./sections/later"
 import { Primitives } from "./sections/primitives"
 import { Group, Specimen, toc } from "./specimen"
 
-const MapDemo = dynamic(() => import("./map-demo"), {
+const PipelineMap = dynamic(() => import("./pipeline-map"), {
   ssr: false,
-  loading: () => <Skeleton className="h-[460px] w-full rounded-xl" />,
+  loading: () => <Skeleton className="h-[520px] w-full rounded-xl" />,
 })
 
 const allIds = toc.flatMap((g) => g.items.map(([id]) => id))
@@ -68,6 +70,12 @@ function useActiveSection() {
     return () => observer.disconnect()
   }, [])
   return active
+}
+
+function confidenceK7() {
+  const e = exploreK()
+  const d = e.detail(7)
+  return new Map(e.stopIds.map((id, i) => [id, d.confidence[i]]))
 }
 
 function jump(id: string) {
@@ -194,18 +202,28 @@ export function Gallery() {
           <Primitives onOpenCommand={() => setOpen(true)} />
           <Lab />
           <Charts />
-          <Group id="maps" index={5} title="Map" description="mapcn on MapLibre. Canvas layers get colors from useCssColors, since MapLibre can't read CSS variables.">
+          <Group id="maps" index={5} title="Map" description="mapcn on MapLibre. Stops are one GeoJSON circle layer; hulls and the leg-limit ring use Turf. Colors come from useCssColors, since MapLibre can't read CSS variables.">
             <Specimen
               id="map"
-              title="Routes map"
-              source="@mapcn/map · map-demo.tsx"
-              spec="§4"
-              description="Straight schematic connections, not road geometry. Toggle a route, click a stop for its popup."
+              title="Pipeline map"
+              source="@mapcn/map · lab/map-layers · pipeline-map.tsx"
+              spec="§4 §10"
+              description="Stops by cluster, cluster hulls, and the selected cluster's truck paths (straight schematic lines, open routes). Hollow red stops are beyond the leg limit. Click a stop or a swatch."
             >
-              <MapDemo />
+              <PipelineMap />
+            </Specimen>
+            <Specimen
+              id="map-confidence"
+              title="Confidence map"
+              source="pipeline-map.tsx · confidence mode"
+              spec="§8a"
+              description="The same stops colored by k-explorer assignment confidence at k = 7. Unstable border stops stand out in red."
+            >
+              <PipelineMap confidence={confidenceK7()} defaultMode="confidence" selectedCluster={null} />
             </Specimen>
           </Group>
           <Blocks />
+          <Later />
         </main>
       </div>
     </div>
