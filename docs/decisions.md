@@ -93,3 +93,7 @@ Exact resolved versions are in `bun.lock`.
 - **Public GHCR image:** confirmed by the owner.
 - **Branch protection:** none for now; CI runs on PRs and `main` but does not gate merges.
 - **Other M1 choices** (optimizer layout, schema scope, contract generation) are delegated to the implementing agent and are recorded as they are made.
+
+## 2026-09-30: Design review sent; M1 continues in parallel (Claude Code)
+- **Status:** the six Blocks went to the primary user as a Google Form (a screenshot and questions per screen, plus the open v1.3 assumptions and a request for example order/inventory rows with dummy values). The form and its screenshots live outside the repo.
+- **Decision:** don't block on the answers. Continue the remaining M1 foundation work; record the accepted design direction here when the answers arrive (tracked under "Waiting on the primary user" in `docs/progress.md`).
