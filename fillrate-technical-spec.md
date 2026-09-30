@@ -1,6 +1,6 @@
 # Fillrate — Technical Specification
 
-Version: 1.7 · Revised September 30, 2026
+Version: 1.8 · Revised September 30, 2026
 
 Revision notes:
 
@@ -11,6 +11,7 @@ Revision notes:
 - 1.5 follows suggestions from the primary user. **Valhalla replaces OSRM** as the single optional self-hosted road provider (§2, §7, §14): its `truck` costing models the tractor-trailer, and its tiled graph makes multi-state coverage practical for 500-mile loads. **H3** hexagonal cells add a map aggregation layer (§4) and an optional H3 clustering baseline next to k-means in the k explorer and sweeps (§8a), both in M4; H3 leaves the deferred list (§17). OR-Tools CP-SAT already powers optimized allocation (§8); only references change.
 - 1.6 reconciles the recommendations with the implemented PyVRP 0.14.0 spike. Separates business, spatial, routing, and adapter models; specifies stage reuse, objective semantics, validation, clustering diagnostics, and comparison compatibility; preserves Valhalla and H3; makes M1 a thin durable fulfillment slice. Corrects the assumption that a prohibited depot-to-stop edge always makes a stop unreachable. Preserves required arm64 support and clarifies the then-private access model through the reverse proxy. No application implementation is implied by this revision.
 - 1.7 records the owner's correction: Fillrate is a public GitHub project and its web tool is intended for public access. The previous private, tailnet-only deployment model is superseded. Public access to synthetic examples may precede user accounts; accepting real customer data or exposing shared persistent writes requires an implemented and tested identity, data-isolation, and resource-abuse policy. This is a product/deployment target, not a claim that the site or full workflow is live. Direct `main` commits are the owner's current Git workflow; no PR is required for this phase.
+- 1.8 applies the primary user's design-review answers (in-app review, submitted September 30, 2026). Confirms the per-piece value tiebreak and same-customer stop combining. **The 500-mile rule is per leg only**: the cluster-diameter limit becomes an optional policy, off by default. **Cost decides between plans**: a monetary objective (cost per truck + cost per mile) moves from M6 to M3, with rates still to be supplied. Rewrites M2 (§15, "M2 scope") around the answers: wording (Cluster / Shipment / Unshipped), an 80% low-fill flag, revenue-first results, blocking preflight checks, a printable shipment sheet, and a second, short review round.
 
 Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. The current implementation has a frontend gallery, a small Python load solver, and database/job foundations, not the complete pipeline. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
 
@@ -64,11 +65,13 @@ Road routing engines compute paths between points. The VRP solver assigns and se
 
 ### Confirmed rules and provisional defaults
 
-Confirmed by the primary user: one depot, piece-level allocation, 53 ft trailers, linear feet as the load dimension, unlimited truck availability, open routes, haversine × 1.2 miles, 500-mile leg and cluster limits, and a need to explore k across seeds.
+Confirmed by the primary user: one depot, piece-level allocation, 53 ft trailers, linear feet as the load dimension, unlimited truck availability, open routes, haversine × 1.2 miles, a 500-mile **per-leg** limit (depot → first stop and each stop → next stop), and a need to explore k across seeds. He picks k by trial and error today and agrees that seed stability is what he checks.
 
-Pending the existing user questionnaire: value ties use **net value per piece**, and compatible orders at the same delivery location combine into a stop. Preserve these as versioned policies. Matching coordinates alone never establishes a shared customer/delivery location. Real sample rows and acceptance of the six design Blocks are still pending; synthetic fixtures remain development aids.
+Confirmed in the design review (September 30, 2026): value ties use **net value per piece**, and orders at the same delivery location combine into one stop **only for the same customer**. Preserve these as versioned policies. Matching coordinates alone never establishes a shared customer/delivery location. Real sample rows are still pending; synthetic fixtures remain development aids.
 
-Default objective in this revision is **truck count first, then route miles** (§8b), a provisional product choice rather than a claim of user confirmation. The 500-mile rule is per leg and cluster diameter; a separate depot service radius is disabled unless explicitly selected (§7). Both defaults are visible and overridable. No answer to a questionnaire is inferred from silence.
+The 500-mile rule does **not** cover cluster diameter, depot radius, or total route miles. The cluster-diameter limit (§7, §8a) is therefore an optional policy, **off by default**; everything in §7/§8a/§16 about diameter repair, validation and auto-k applies only when it is enabled. A depot service radius stays disabled unless explicitly selected (§7).
+
+The primary user chose **whichever plan costs less** over trucks-first or miles-first. The cost objective (cost per truck + cost per mile, §8b) needs his two rates, which are still pending. Until they are entered, the default objective remains **truck count first, then route miles**, labeled as the fallback. Both are visible and overridable. No answer to a questionnaire is inferred from silence.
 
 Design for about 2,000 open orders per scenario. Clustering splits routing into per-cluster PyVRP solves; each solve is bounded by `MAX_STOPS` (default 500 stops per cluster solve) and each scenario by `MAX_ORDERS` (default 5,000 orders). Bound order lines and expanded visits separately (initial `MAX_ORDER_LINES=25,000`, `MAX_VISITS=10,000`), and reject expansion beyond these limits before allocating large matrices. These are target workloads, not promised latencies. Measure allocation, clustering, and solver performance on the deployment machine; documented tests must distinguish orders, order lines, locations, stops (visits), clusters, and matrix nodes.
 
@@ -342,7 +345,7 @@ For the initial one-depot, homogeneous, open, distance-only model, implement thi
 
 That scalarization orders **feasible** solutions only. Missing-edge penalties and solver infeasibility penalties must never override independent validation. The current spike defaults its fixed penalty to zero; integrating this objective is M1 follow-up, not already implemented. When trips, optional visits, monetary rates, or heterogeneous fleets change the assumptions, disable this adapter mode until a new bound or staged strategy is proven.
 
-An advanced `weighted_distance` mode uses an explicit fixed penalty measured in equivalent miles/meters per truck, plus route distance. Require a user-supplied nonnegative penalty (zero is valid and means distance only); explain that an extra truck can win if it saves enough miles. Do not call the penalty a dollar cost. Monetary fleet cost is a separate M6 objective.
+An advanced `weighted_distance` mode uses an explicit fixed penalty measured in equivalent miles/meters per truck, plus route distance. Require a user-supplied nonnegative penalty (zero is valid and means distance only); explain that an extra truck can win if it saves enough miles. Do not call the penalty a dollar cost. A monetary `cost` objective (integer cents per truck plus cents per mile) is the primary user's stated preference and lands in M3. For the current one-depot, homogeneous, open, distance-only model it is `weighted_distance` with penalty = truck cost ÷ mile cost, so it reuses that adapter; the UI shows dollars and records both rates and the conversion scale. Duration rates and heterogeneous fleet costs stay in M6.
 
 Report `bestFoundTruckCount`, the capacity lower bound, validated distance, objective mode, and search budget. Equality with a valid lower bound certifies truck count only, not optimal route miles; otherwise label it “best found.” Always expose the heuristic status. Truck fill and allocation revenue are outcomes; they are not secretly extra PyVRP objectives.
 
@@ -559,8 +562,8 @@ Milestone numbers remain stable. M1 and the already-started M2 design review can
 | Milestone | Deliverable | Exit evidence |
 | --- | --- | --- |
 | **M1 — Thin durable fulfillment slice** | Preserve the completed foundation/spike. Add minimal Drizzle schema/contracts and a single leased worker task. Run a small bundled scenario through allocation, aggregation, k-means/repair, real PyVRP, validation, and a persisted map/table summary. Integrate §8b and graph preflight. Basic JSON/CSV export, CI and container delivery. | A real synthetic run survives refresh, cancels/restarts safely, reconciles quantities, and exports a validated result. Race/stale-completion tests use a real SQLite file. Both image architectures pass a smoke run. |
-| **M2 — Accepted design** | Review the six existing React/coss/mapcn Blocks; record feedback, align tokens and `fillrate.fig`, then implement accepted composition. | Recorded user acceptance; map/table/keyboard/narrow-layout review. Existing mocks remain visibly development-only. |
-| **M3 — Operational core** | CSV preview/commit, scenario editing/versioning, full pipeline screens, settings, lineage and unplanned reasons. Per-cluster scheduling and deterministic stage reuse. | Imported coordinates → saved run → validated truck/cluster results → branch/export, using real Python outputs. 2,000-order benchmark with measured stage timings. |
+| **M2 — Accepted design** | Apply the recorded review answers (see "M2 scope" below): wording, fill thresholds, revenue-first results, stock and coordinate display, blocking preflight, shipment sheet, sweep emphasis. Update Blocks, lab components and the real `/runs/<id>` page; align tokens and `fillrate.fig` with coss; run a short second review round. | Round-one answers recorded; round-two acceptance recorded; `/runs/<id>` uses the accepted composition with real M1 data; map/table/keyboard/narrow-layout review. Existing mocks remain visibly development-only. |
+| **M3 — Operational core** | CSV preview/commit, scenario editing/versioning, full pipeline screens, settings, lineage and unplanned reasons. Per-cluster scheduling and deterministic stage reuse. Cost objective (§8b) and blocking preflight checks (M2 scope). | Imported coordinates → saved run → validated truck/cluster results → branch/export, using real Python outputs. 2,000-order benchmark with measured stage timings. |
 | **M4 — Trustworthy experiments / first release** | k explorer, bounded sweeps, comparison signatures/Pareto, partition lower bounds, eligible no-clustering baseline, H3 map/baseline, flagship lesson. | Repeated-seed experiments are independent; cache invalidation and comparison fixtures pass. Exports contain replayable small pipeline inputs/artifacts/script. Target-hardware and recovery checks from M8 are release gates here. Public write/data-isolation, rate-limit, and abuse-control checks from §14 are also release gates for an interactive public app. |
 | **M5 — Allocation and import depth** | Additional greedy strategies, CP-SAT, whole-order allocation, Census/ZCTA, JSON/GeoJSON, data review. | Strategy/stock reconciliation, provenance, exact small allocation oracle tests, and source-independent reproduction. |
 | **M6 — Roads and advanced routing** | Valhalla/imported matrices first; then supported fleet/window/depot/group/shipment/reload features in small capability-gated increments. Manual evaluator and verified warm starts. Optional working Labs surfaces. | Directed-matrix, synthetic-terminal, provider-limit and independent-validator fixtures for each exposed feature. |
@@ -570,6 +573,67 @@ Milestone numbers remain stable. M1 and the already-started M2 design review can
 Keep the minimal lease/token/attempt protections in M1: a one-worker deployment can still crash, restart, or send stale completion. Defer a general DAG scheduler, elaborate progress streaming, all advanced schema variants, and comprehensive lesson exports. Do not require a full orchestration framework before the first business pipeline.
 
 Every milestone must execute real behavior. A gallery may use labeled fixtures; the product must not use fake solver results, random routes, placeholder settings, or toast-only buttons as substitutes for persistence and execution.
+
+### M2 scope: design-review outcomes
+
+Source: the primary user's answers in the in-app review (`/dev/review`, submitted September 30, 2026; export `fillrate-design-review-2026-09-30.json`, question ids in `apps/web/src/app/dev/review/questions.ts`). Unanswered: `compare.star`, `data.orders`, `data.inventory`, `overall.fix`. `results.flow` was "mostly, with changes" but no changes were given. Nothing below is inferred for those; they go to round two.
+
+**What M2 builds.** M2 changes presentation and records policy; it adds no new pipeline stage. Apply every item below to (a) the gallery Blocks and `src/components/lab` components, and (b) the real `/runs/<id>` page, which already shows M1 pipeline output. Workbench editing, imports and sweeps remain M3/M4 screens; M2 only fixes how they look in the Blocks. Keep every gallery fixture labeled development-only.
+
+1. **Wording (user-facing labels only).**
+   - A group of nearby stops is a **Cluster** (unchanged).
+   - One truck with its stops and order lines is a **Shipment**: "Shipment 3", "12 shipments", Loads tab → **Shipments**. The vehicle keeps its name where the vehicle is meant: "trailer fill", "53 ft trailer". Metric labels become "Shipments" (count) and "Trailer fill".
+   - Pieces that don't go out are **Unshipped** (unchanged).
+   - Code, contracts, database columns and exports keep `load`/`route`/`truck`/`unplanned`; the mapping lives in one place (a copy module in `src/lib`, not scattered strings). Exports use the internal names with a header note giving the UI label.
+   - PyVRP's pickup-and-delivery "shipments" (§3, M6) must be labeled **pickup-delivery pairs** in the UI to avoid a clash.
+
+2. **Map first.** After a run, the default view is the cluster map (`workbench.first`); the summary strip and side panel stay alongside it. No layout change is needed beyond making the map the initial focus/tab at every width.
+
+3. **Trailer fill.** Fill % becomes the primary per-shipment visual (`workbench.trailer`: "readable, but a plain fill % would do"): a large `FillPercent` with a thin `FillMeter`. The segmented trailer bar (`TrailerFill`) moves to the shipment detail and shipment sheet, not lists or cluster cards.
+
+4. **Low-fill threshold 80%.** `FILL_LOW = 0.80` in `src/lib/units.ts` (was 0.60). Move `FILL_FULL` to 0.90 so the middle band stays meaningful (a provisional default; confirm in round two). Every legend, "Needs attention" list and band color reads these constants. Record both as run-display settings; they never affect the solver.
+
+5. **Coordinate provenance only on problems** (`orders.coords`). Hide the badge for file-provided and Census-matched coordinates, and for manual placement. Show it for ZIP-approximate and missing/unresolved. Add a "Show all sources" toggle to the orders table and a "Coordinate problems" filter. Map popups follow the same rule.
+
+6. **Stock coverage columns** (`orders.stock`): per product show **pieces short**, **fill rate %** (allocated ÷ ordered pieces, N/A when nothing was ordered) and **which orders were shorted** (expandable list or link to the filtered order lines). On-hand vs ordered and dollars short move into a details popover, not the default columns.
+
+7. **Pipeline stages visible** (`run.stages`). Keep the stage list expanded by default during and after a run; rename the heading from "Pipeline detail" to **Steps**. Collapsing is a remembered per-browser preference.
+
+8. **Blocking preflight checks** (`run.block`). Three checks block a run: **addresses with no coordinates**, **stops farther than 500 mi from the depot**, and **a stop larger than one trailer**. ZIP-only placement warns but runs. The Run pipeline Block shows blocked checks as errors that disable Run pipeline, each with its affected lines and resolutions:
+   - fix the data (M3 editing);
+   - **Exclude these lines and run**: an explicit, recorded exclusion with reason `excluded_by_user`, reconciled like any exclusion (§10);
+   - turn the check into a warning in Constraints; that choice is recorded in the run's settings snapshot.
+   These checks are policy, not physics. Per §7, a far stop can still be reachable through an intermediate stop, and an oversized stop can be split across shipments. The checks stop the run because the user asked for it, not because the plan is impossible. In M2, add the checks to the preflight contract and the Block. Enforcement at submission lands with M3 imports, because the bundled M1 example deliberately contains all three cases; the example must declare them as warnings so it keeps running and keeps testing those paths.
+
+9. **Results lead with revenue** (`results.judge`). The metric groups are ordered Revenue → Trailer fill → Tightness. The run summary headline is planned revenue with shipped/allocated/ordered amounts. The iteration table sorts by planned revenue by default. The default Pareto vector (§8a) already contains revenue; leave it unchanged. Keep the flow strip (Orders → Allocated → Stops → Clusters → Shipments → Shipped) as is until round two says what to change.
+
+10. **Unshipped reasons.** All four offered groups occur in his work: no stock, beyond the 500 mi leg limit, did not fit on a truck, bad or missing address data. Keep these four as the top-level groups, mapped from the §10 reason codes (`stock_shortage`; `unreachable_in_partition`/leg; oversize/capacity; excluded input incl. `excluded_by_user`). Other codes (validation failure, budget exhausted) appear in an "Other" group only when present.
+
+11. **Shipment sheet** (`results.load-sheet`). Each shipment gets a printable sheet and CSV with, per stop in visit order: **sequence**, **order numbers**, **linear feet**, **miles from previous stop** (depot for stop 1), and **dollar value**; plus shipment totals (stops, linear feet and fill %, loaded miles, value). Addresses and per-product pieces were not requested: leave them off by default, available as optional columns. Print styles: one shipment per page, black-and-white safe, no map. Implement on `/runs/<id>` (real data) with a Print button and a CSV link using the existing export route.
+
+12. **k explorer confirmed.** Trial-and-error k with seed stability matches his practice. Keep the Block's concepts and wording; add a "Use this k" action that carries k (and seed) into run settings.
+
+13. **Sweep emphasis** (`compare.vary`). He varies **k**, **seed**, **inventory available** and **mileage** (circuity factor or the 500-mile limit). Show those four first in the sweep builder and comparison "changed settings" columns. Order subsets and allocation rule go under "More". Inventory changes stay a changed-assumption cohort (§10), marked as such in the table.
+
+14. **Cost objective UI.** Add **Cost per truck** and **Cost per mile** (dollars) to the Fleet/Constraints inspector design, and an objective selector: Lowest cost (default once rates are set) / Fewest trucks, then miles / Fewest miles with truck penalty. Until both rates exist, show "Using fewest trucks, then miles until truck and mile costs are set." The solver work is M3 (§8b).
+
+15. **500-mile copy.** Everywhere the rule is described (tooltips, Constraints, Block copy, review page), say "no single drive over 500 mi, including depot → first stop." Remove cluster-diameter language from default views. Cluster cards keep "widest pair" as a tightness metric, not a limit. The diameter limit appears only under advanced Constraints as an optional policy, off by default. **Pipeline change in M2:** the M1 pipeline's default cluster-diameter policy becomes disabled (repair, validation and auto-k use it only when enabled). Update fixtures and tests so the bundled example still reconciles, and record the change in `docs/decisions.md`. With diameter off, auto-k only enforces solve size, so the Blocks present **fixed k from the explorer** as the normal path.
+
+16. **Tokens and `fillrate.fig`.** Rebuild the OpenPencil Components page on coss ui parts (it still mirrors shadcn). Add the missing tokens to Foundations (`--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`) and the new fill bands. Token changes still flow .fig → `globals.css`.
+
+17. **Round two review.** Extend `/dev/review` with a short second round. Use new question ids; never reuse round-one ids. Show the revised Blocks and ask:
+    - accept / change each revised Block;
+    - what to change in the flow strip;
+    - the ★ label (non-dominated / best trade-off / contender / none);
+    - **cost per truck and cost per mile**;
+    - whether a stop reachable only through another stop (e.g. 594 mi from the depot via a 396 mi stop) should still block;
+    - whether a stop larger than one trailer should block or just split;
+    - the 90% "full" band;
+    - example order and inventory rows (fake values);
+    - "what should we fix first".
+    Round-one answers stay stored and exported as-is.
+
+**Exit evidence.** Round-one answers and each decision above recorded in `docs/decisions.md`. Revised Blocks and `/runs/<id>` reviewed at desktop and 390 px widths with keyboard-only navigation (map selections have a table equivalent). The shipment sheet prints and exports correctly from a real run. The diameter-policy default change passes optimizer and Vitest suites. Round-two answers recorded, with explicit acceptance of the Blocks (or the requested changes applied and re-accepted). `fillrate.fig` Components uses coss parts. Lint, typecheck, build, pytest and Vitest pass.
 
 ## 16. Acceptance criteria and test plan
 
