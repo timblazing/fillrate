@@ -1,7 +1,7 @@
 # Progress
 
 ## Milestones (spec §15)
-- [ ] **M1 Foundation and capability proof**
+- [ ] **M1 Thin durable fulfillment slice**
   - [x] Monorepo skeleton, root Bun workspace, git
   - [x] `apps/web`: Next.js 16 + Tailwind 4 + coss ui (Base UI) + mapcn, light/dark/system theme (migrated from shadcn radix-nova on 2026-09-29)
   - [x] Dev-only component gallery at `/dev/components`
@@ -13,22 +13,28 @@
   - [x] PyVRP capability fixtures: capacity, fixed truck cost, open routes (workaround), prohibited legs (preprocessing + validator)
   - [ ] Drizzle schema + migrations, SQLite pragmas, migrate-on-start (`packages/db`)
   - [ ] API contracts (`packages/contracts`), worker claim/lease flow
-  - [ ] Minimal real PyVRP solve as a durable job, first export (the solve itself exists: `fillrate_optimizer.loads.solve_loads`)
+  - [ ] Durable synthetic fulfillment slice: preflight → allocate → aggregate → cluster/repair → real PyVRP → validate → persisted map/table, JSON/CSV export (the per-cluster solve itself exists)
+  - [ ] Spec v1.6 integration: truck-count-first objective with derived bound, graph reachability instead of depot-radius filtering, versioned stage manifests and independent metric reconstruction
   - [ ] Dockerfile, `ci.yml`, `image.yml`
 - [ ] **M2 Design** (in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
-- [ ] M3 Core pipeline (import → allocate → cluster → per-cluster PyVRP → cluster cards and truck loads)
-- [ ] M4 Iterations (k explorer, sweeps, comparison, unshipped reasons, H3 hex layer and clustering baseline, Fulfillment pipeline lesson)
+- [ ] M3 Operational core (CSV/versioned scenarios → real pipeline screens, per-cluster jobs, stage reuse, 2,000-order benchmark)
+- [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, partition bounds, H3 layer/baseline, lesson and small Python replay export)
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
 - [ ] M7 Learning and exports
 - [ ] M8 Verification and handoff
 
 ## Current state
+
+Spec **v1.6** is the current implementation target (2026-09-30). The spec revision researched all six suggested repositories and upstream APIs, reconciled the implemented optimizer findings, introduced model/adapter boundaries and stage reuse, and tightened objectives, clustering, comparisons and milestone gates. M1 now includes a small complete synthetic fulfillment pipeline; M3 expands it into the operational workflow. No new runtime capabilities were implemented. Verification: `bun run lint`, `bun run typecheck`, `bun run build`, `UV_PYTHON=python3.13 uv run pytest` (20 passed), `uv run ruff check .`, and `git diff --check` passed. These validate the existing implementation; new v1.6 acceptance fixtures are still future work.
+
+Project agent guidance is now tracked only at the repository root. The redundant `apps/web` agent files were removed; `apps/web/.gitignore` ignores local copies Next.js may regenerate during `next dev`.
+
 Frontend foundation plus the optimizer skeleton. `bun run lint`, `bun run typecheck`, and `bun run build` pass.
 
 `services/optimizer`: uv project pinned to Python 3.13 and the versions in `docs/decisions.md`. `travel.py` builds haversine × circuity matrices in integer meters; `loads.py` builds and solves one cluster's truckloads with PyVRP (open-route workaround, prohibited legs omitted, fixed truck cost, unlimited trucks) and validates the result independently; `capabilities.py` serves the capabilities document. `uv run pytest` (20 passed), `ruff check`, and `ruff format --check` pass; `uv run fillrate-optimizer` serves `/health` and `/capabilities`.
 
-The gallery (`src/app/dev/components`) is rebuilt around the v1.3 fulfillment pipeline. Every specimen reads one deterministic synthetic scenario (`fixtures/`: Memphis DC, 2,000 orders / 2,829 lines, 640 accounts, six SKUs with scarce stock) run through a TypeScript stand-in of the pipeline: piece-level "order date, then value" allocation, stop aggregation and trailer splits, k-means on 3D unit vectors with auto-k and bisecting diameter repair, a sweep heuristic standing in for PyVRP truck loads, metrics, and unshipped reasons. A k-explorer fixture (k 3–12 × seeds 0–9, inertia, ARI stability, co-assignment confidence) and a nine-run sweep with non-dominated marking feed the comparison views. The fixture is gallery-only; the real pipeline is Python (M3).
+The gallery (`src/app/dev/components`) is rebuilt around the v1.3 fulfillment pipeline. Every specimen reads one deterministic synthetic scenario (`fixtures/`: Memphis DC, 2,000 orders / 2,829 lines, 640 accounts, six SKUs with scarce stock) run through a TypeScript stand-in of the pipeline: piece-level "order date, then value" allocation, stop aggregation and trailer splits, k-means on 3D unit vectors with auto-k and bisecting diameter repair, a sweep heuristic standing in for PyVRP truck loads, metrics, and unshipped reasons. A k-explorer fixture (k 3–12 × seeds 0–9, inertia, ARI stability, co-assignment confidence) and a nine-run sweep with non-dominated marking feed the comparison views. The fixture is gallery-only; the real pipeline is Python (small synthetic slice in M1, operational expansion in M3).
 
 Sections: Foundations (adds status colors and fill bands), Primitives (pipeline copy), Fulfillment components, Charts, Map (pipeline map + confidence map), Blocks (Workbench, Orders & inventory, Run pipeline, Results, k explorer, Iteration comparison), and Later milestones (route timeline, matrix inspector with prohibited legs).
 
@@ -44,6 +50,10 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 5. Record the accepted direction in `docs/decisions.md`. M2 then builds the Blocks as real React screens.
 
 ## Known gaps
+- Spec v1.6 is ahead of the current code: `loads.py` still defaults the truck penalty to zero and creates one matrix node per stop; the gallery still uses its v1.3 stand-in policies. Stage contracts, graph preflight, objective derivation, shared-location nodes, metric reconstruction and new acceptance fixtures remain to implement.
+- `/capabilities` currently advertises diameter enforcement with a placeholder M3 fixture. Add explicit implemented/planned availability before product UI relies on it.
+- The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.
+- Truck-count-first priority and no separate depot radius are provisional v1.6 defaults; the owner's two clarifying questions were still unanswered when the draft was written. Existing friend questionnaire items remain pending below.
 - If uv fails with "Bad CPU type" from a Python 2.7 framework install on PATH, set `UV_PYTHON=python3.13`.
 - Chart and route palettes are placeholders (neutral shadcn chart colors, provisional route colors). Gallery charts use `--route-*` for series until a real chart palette lands.
 - New tokens `--chart-background/-foreground/-foreground-muted/-label/-grid` (aliases for bklit) and the coss status tokens `--info/--success/--warning(-foreground)`, `--destructive-foreground` are not on the OpenPencil Foundations page yet.
@@ -64,4 +74,4 @@ Sent 2026-09-30 as a Google Form (screenshots of the six Blocks, one page each).
 - Use his example rows (dummy values) to confirm the order and inventory CSV columns for M3 imports.
 
 ## Next step
-Start PR 2: `packages/db` (Drizzle schema, pragmas, migrate-on-start, claim/lease with a real-file race test). After the review comes back, mirror the accepted components/blocks on the OpenPencil Components and Blocks pages.
+Start PR 2: minimal `packages/db` schema and stage/artifact contracts for the M1 synthetic fulfillment slice, with SQLite pragmas, migrate-on-start, and claim/lease fencing tested against a real file. Keep the single sequential worker path; expand orchestration in M3. After design-review answers arrive, record accepted changes and mirror them in OpenPencil.
