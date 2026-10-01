@@ -173,7 +173,7 @@ export function Gallery() {
       </CommandDialog>
 
       <div className="mx-auto flex max-w-[88rem] gap-12 px-4 pt-14 pb-32 sm:px-6">
-        <nav ref={navRef} className="sticky top-20 hidden h-[calc(100svh-6rem)] w-48 shrink-0 overflow-y-auto pb-8 text-sm lg:block" aria-label="Gallery sections">
+        <nav ref={navRef} className="sticky top-20 hidden h-[calc(100svh-6rem)] w-48 shrink-0 overflow-y-auto pb-8 text-sm no-scrollbar lg:block" aria-label="Gallery sections">
           {toc.map((g, gi) => (
             <div key={g.id} className="mb-5">
               <a href={`#${g.id}`} onClick={(e) => onNavClick(e, g.id)} className="text-foreground mb-1.5 flex items-center gap-2 px-2 text-xs font-semibold">

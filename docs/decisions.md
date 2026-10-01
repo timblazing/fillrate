@@ -281,3 +281,7 @@ Exact resolved versions are in `bun.lock`.
 - **Smoke:** `deploy/smoke_experiments.py` (called from `smoke.sh` with the run key) checks the examples listing, an unknown-example 400, a lesson explorer (k 8–9 × 10 seeds + 3 H3 = 23 tasks), a sweep preview then a two-run sweep with Best option / 2nd best and the CSV ranking note, and a replay bundle of the smoke run. Locally it took 15 s.
 - **Not done:** Playwright (spec §16; consolidated in M8) and the owner's target-hardware and recovery gates. M4 is `waiting` on those.
 - **Evidence:** commit `1f1d23e`; `ci.yml` 36811740023 and `image.yml` 36811850360 passed. Both architectures passed the bundled, imported and experiments smokes (explorer stability 1 at k = 8, 0.93 at k = 9; sweep k = 8 Best option, k = 6 2nd best; 29-file replay bundle).
+
+## 2026-10-01: Thin scrollbars (Claude Code)
+**Decision:** `globals.css` sets `color-scheme` (light on `:root`, dark on `.dark`) and gives every element `scrollbar-width: thin` with a translucent muted-foreground thumb and no track. A `no-scrollbar` utility hides the bar on the gallery's section nav.
+**Reason:** The owner saw full-width platform scrollbars (macOS shows them when "Show scroll bars" is Always or a mouse is attached). Scrollbars stay on the page and on horizontally scrolling tables, because without them you can't tell a table scrolls; only the side nav hides its bar.
