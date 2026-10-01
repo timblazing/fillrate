@@ -2,7 +2,8 @@ import Link from "next/link"
 
 import { DevHeader } from "@/components/brand/dev-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { EXAMPLES, exampleInfo, maxSweepRuns, runsOpen } from "@/lib/server/runs"
+import { EXAMPLES, exampleInfo, maxSweepRuns, canStartRuns, runsClosedNote } from "@/lib/server/runs"
+import { pagePrincipal } from "@/lib/server/access"
 import { formatFeet } from "@/lib/units"
 
 import { LessonSteps } from "./lesson-steps"
@@ -69,7 +70,7 @@ export default async function FulfillmentLessonPage({ searchParams }: PageProps<
           </div>
         </section>
 
-        <LessonSteps open={runsOpen()} runKey={typeof key === "string" ? key : undefined} defaultK={settings.k ?? 8} sweepLimit={maxSweepRuns()} iterations={settings.solver_max_iterations ?? null} />
+        <LessonSteps open={canStartRuns(await pagePrincipal(), key)} closedNote={runsClosedNote()} runKey={typeof key === "string" ? key : undefined} defaultK={settings.k ?? 8} sweepLimit={maxSweepRuns()} iterations={settings.solver_max_iterations ?? null} />
       </main>
     </div>
   )

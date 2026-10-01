@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-01",
   "focus": "M4",
-  "productBehavior": 54,
+  "productBehavior": 57,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -13,7 +13,7 @@
       "weight": 10,
       "done": 95,
       "state": "waiting",
-      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
+      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: \u2605 = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
     },
     "M3": {
       "weight": 20,
@@ -23,9 +23,9 @@
     },
     "M4": {
       "weight": 15,
-      "done": 90,
-      "state": "active",
-      "notes": "Done: explorer jobs and screen, H3 and no-clustering baselines, bounded sweeps with cohorts, Pareto and ranked Best option / 2nd / 3rd, partition bounds, H3 layer, Python replay bundle, public run budget, examples registry (lesson scenario for runs, explorer and sweeps), flagship lesson page /learn/fulfillment-pipeline, image smoke for explorer, sweep and replay. Waiting on the owner's target-hardware and recovery release gates. Hosted accounts, ownership isolation and abuse limits are newly required release gates (spec v1.10), not implemented."
+      "done": 96,
+      "state": "waiting",
+      "notes": "Done: explorer, H3/no-clustering baselines, bounded ranked sweeps, partition bounds, replay bundle, examples and flagship lesson; hosted Better Auth (GitHub) with explicit hosted/local mode, per-user ownership on every path, persistent in-transaction quotas, export/delete and privacy disclosure (114 Vitest, 51 production hosted checks). Waiting on the owner: GitHub OAuth app and hosted .env, live two-account/quota/backup checks, and target-hardware and recovery release gates."
     },
     "M5": {
       "weight": 10,
@@ -47,17 +47,17 @@
     },
     "M8": {
       "weight": 7,
-      "done": 18,
+      "done": 24,
       "state": "active",
-      "notes": "Done: production public-lesson browser smoke, real worker, valid/complete result, revenue/shipments, JSON export and 1440/390 px overflow. Remaining: protected import and experiment flows, local target-hardware harness and VPS/Pi recovery evidence, hosted access gates, local distribution and handoff. The reported benchmark harness is unavailable and does not count as delivered."
+      "notes": "Done: production public-lesson browser smoke; production hosted/local acceptance script (`bun run test:hosted`: mode refusal, keyless local mode, two-account denials, quotas, sign-out/expiry, deletion); image smoke checks hosted refusal and keyless local startup. Remaining: protected import and experiment browser flows, target-hardware harness and VPS/Pi recovery evidence, live hosted checks, npm/Bun local distribution and handoff."
     }
   },
   "nextUp": [
-    "M4: hosted Better Auth and explicit local mode → per-user ownership → compute quotas; prepare target-hardware evidence alongside implementation.",
+    "Owner: dispatch image.yml for the hosted/local release; create the GitHub OAuth app and hosted .env, back up, deploy and run the live two-account/quota/backup checks (docs/hosted-operations.md).",
+    "Owner M4/M8: VPS/Pi timings and recovery; then tune hosted quotas before opening signup.",
     "M8: separate protected-import and experiment browser smokes; use existing lesson/result/export coverage.",
-    "Owner M4/M8: VPS/Pi timings and recovery; hosted OAuth/deployment and live checks after implementation gates.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil.",
     "M6: browser matrix selection, durable Valhalla snapshot job, pinned deployment and validated routing increments.",
-    "M7/M8: remaining verified lessons/exports, account-free local distribution and reproducible handoff."
+    "M7/M8: remaining verified lessons/exports, account-free npm/Bun local distribution and reproducible handoff."
   ]
 }

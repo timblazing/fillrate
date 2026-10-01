@@ -24,7 +24,7 @@ cd services/optimizer
 UV_PYTHON=python3.13 uv sync --locked
 ```
 
-Account-free local mode and npm startup are planned features; the current Bun commands do not establish their acceptance. Do not place deployment credentials or private data in Git.
+`FILLRATE_MODE=local` (account-free, no keys) is implemented. npm startup is still planned; the current Bun commands do not establish it. Do not place deployment credentials or private data in Git.
 
 ## Repeatable benchmark evidence
 
@@ -63,7 +63,7 @@ Perform disruptive recovery checks against synthetic/disposable data or a verifi
 3. **Cancellation:** cancel queued/running work, verify bounded termination and worker capacity recovery, and confirm late artifact writes are refused by lease fencing.
 4. **Backup/restore:** use a consistent SQLite backup method that handles WAL state; record source path, backup time and hash. Restore into a separate dataset, verify migrations and scenario/run/artifact/export integrity, then document the rollback procedure before applying hosted ownership/auth migrations. Retention and backup expiry must have defined semantics.
 5. **Ingress/transport:** verify canonical HTTPS configuration and private optimizer/worker boundaries. Production public synthetic access must remain bounded; existing operator data stays protected pending explicit migration.
-6. **Hosted acceptance (after implementation/configuration):** two users cannot read/mutate each other's scenarios, versions, jobs, snapshots, caches, indirect artifacts or exports by guessed IDs/hashes. Test login/logout/expiry, private import → solve → valid result → export/delete, quota/reset responses, concurrent admissions and retries, missing-config startup refusal, and retained synthetic viewing. Record deployed digest/volume and retention/deletion/geocoding disclosure.
+6. **Hosted acceptance (implemented; needs configuration and the live run):** `bun run test:hosted` covers these checks against a local production build, with database-written sessions. Repeat them on the deployment with two real GitHub accounts, following `hosted-operations.md`. two users cannot read/mutate each other's scenarios, versions, jobs, snapshots, caches, indirect artifacts or exports by guessed IDs/hashes. Test login/logout/expiry, private import → solve → valid result → export/delete, quota/reset responses, concurrent admissions and retries, missing-config startup refusal, and retained synthetic viewing. Record deployed digest/volume and retention/deletion/geocoding disclosure.
 7. **Local distribution (after explicit mode):** root Bun/npm install/dev/build/worker and amd64/arm64 Docker/Compose local startup need no auth credentials. Record native-platform support, dependency/lockfile policy, SQLite location/export/backups, loopback defaults and hosted misconfiguration refusal.
 
 ## Completion and handoff

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 
+import { AccountButton } from "@/components/account/account-button"
 import { AppIcon } from "@/components/brand/app-icon"
 import { ThemeToggle } from "@/components/theme/theme-toggle"
 import { cn } from "@/lib/utils"
@@ -54,6 +55,7 @@ export function DevHeader({ children }: { children?: ReactNode }) {
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
         {children}
         <ThemeToggle />
+        <AccountButton />
       </div>
     </header>
   )

@@ -138,7 +138,7 @@ test("an experiment and all of its runs commit together and replay idempotently"
   expect((store.experiment(id)!.comparison as { order: string[] }).order).toEqual(["trucks"]);
   // A failing insert rolls back the whole sweep.
   expect(() => store.createExperiment({ versionId: "missing", name: "x", spec: {}, comparison: {}, runs }, "key-2")).toThrow(/FOREIGN KEY/);
-  expect(store.listExperiments()).toHaveLength(1);
+  expect(store.listExperiments(50, "operator")).toHaveLength(1);
 });
 
 test("the global rate ledger refuses spending over the window and frees it afterwards", () => {

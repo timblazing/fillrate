@@ -1,8 +1,7 @@
-import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 
 import { initializeDatabase } from "@/lib/server/database"
-import { assertRunReadAccess } from "@/lib/server/scenarios"
+import { assertRunRead, pagePrincipal } from "@/lib/server/access"
 import { ApiError, runDetail } from "@/lib/server/runs"
 import { type SheetColumn, shipmentSheets } from "@/lib/shipment-sheet"
 
@@ -18,11 +17,11 @@ export default async function SheetPage({ params, searchParams }: PageProps<"/ru
   let detail
   try {
     const store = initializeDatabase()
-    assertRunReadAccess(store, id, new Request("http://localhost/sheet", {headers:{cookie:(await headers()).get("cookie") ?? ""}}))
+    assertRunRead(store, await pagePrincipal(), id)
     detail = runDetail(store, id)
   } catch (error) {
-    // Imported runs without operator access read as missing, so their existence is not revealed.
-    if (error instanceof ApiError && [403, 404, 503].includes(error.status)) notFound()
+    // Another owner's runs read as missing, so their existence is not revealed.
+    if (error instanceof ApiError && [403, 404].includes(error.status)) notFound()
     throw error
   }
   if (!detail.summary) notFound()

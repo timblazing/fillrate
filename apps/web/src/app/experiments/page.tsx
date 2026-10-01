@@ -4,8 +4,9 @@ import { DevHeader } from "@/components/brand/dev-header"
 import { ExampleSwitch } from "@/components/lab/example-switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { initializeDatabase } from "@/lib/server/database"
-import { publicExperiments } from "@/lib/server/experiments"
-import { EXAMPLES, exampleInfo, maxSweepRuns, pageExample, runsOpen } from "@/lib/server/runs"
+import { pagePrincipal } from "@/lib/server/access"
+import { visibleExperiments } from "@/lib/server/experiments"
+import { canStartRuns, EXAMPLES, exampleInfo, maxSweepRuns, pageExample, runsClosedNote } from "@/lib/server/runs"
 
 import { SweepBuilder } from "./sweep-builder"
 
@@ -15,7 +16,8 @@ export const metadata = { title: "Sweeps · Fillrate" }
 export default async function ExperimentsPage({ searchParams }: PageProps<"/experiments">) {
   const { key, k, example: exampleParam } = await searchParams
   const runKey = typeof key === "string" ? key : undefined
-  const experiments = publicExperiments(initializeDatabase(), false)
+  const who = await pagePrincipal()
+  const experiments = visibleExperiments(initializeDatabase(), who)
   // Sweeps default to the lesson scenario: the small example always has an unreachable stop, so it never ranks.
   const example = pageExample(exampleParam)
   const startK = typeof k === "string" && /^\d+$/.test(k) ? Number(k) : (example.settings.k ?? 4)
@@ -34,7 +36,7 @@ export default async function ExperimentsPage({ searchParams }: PageProps<"/expe
           </p>
           <ExampleSwitch examples={Object.values(EXAMPLES).map(exampleInfo)} current={example.id} href={(id) => `/experiments?example=${id}${keyQuery}`} />
           {example.id === "m1" && <p className="text-warning-foreground text-sm">The small example always leaves one stop unreachable, so its plans are partial and never ranked. Use the lesson scenario to see Best option, 2nd best and 3rd.</p>}
-          {runsOpen() ? <SweepBuilder key={example.id} example={example.id} initialK={startK} runKey={runKey} limit={maxSweepRuns()} /> : <p className="text-muted-foreground text-sm">Starting sweeps is disabled on this server. Existing sweeps stay viewable.</p>}
+          {canStartRuns(who, key) ? <SweepBuilder key={example.id} example={example.id} initialK={startK} runKey={runKey} limit={maxSweepRuns()} /> : <p className="text-muted-foreground text-sm">{runsClosedNote().replace("runs", "sweeps").replace("runs", "sweeps")}</p>}
         </section>
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium">Recent sweeps</h2>

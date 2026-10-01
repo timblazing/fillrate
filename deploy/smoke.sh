@@ -53,3 +53,26 @@ python3 "$(dirname "$0")/smoke_import.py" "$base" smoke-scenario
 python3 "$(dirname "$0")/smoke_geocode.py" "$base" smoke-scenario
 python3 "$(dirname "$0")/smoke_experiments.py" "$base" smoke "$id"
 python3 "$(dirname "$0")/smoke_travel.py" "$base" smoke-scenario
+
+# Explicit deployment modes (spec §14): hosted mode without auth settings refuses to start, and local mode
+# serves scenarios and runs with no keys or credentials.
+set +e
+timeout 180 docker run --rm --name "$name-hosted" ${platform:+--platform "$platform"} -e FILLRATE_MODE=hosted "$image" >/dev/null 2>&1
+refused=$?
+set -e
+docker rm -f "$name-hosted" >/dev/null 2>&1 || true
+# 0 means it ran and exited cleanly; 124 means it was still serving when the timeout hit.
+if [ "$refused" = 0 ] || [ "$refused" = 124 ]; then echo "hosted mode did not refuse incomplete auth settings (status $refused)"; exit 1; fi
+echo "hosted mode refused incomplete auth settings (status $refused)"
+local_name="$name-local"; local_port=$((port + 1))
+docker run -d --name "$local_name" ${platform:+--platform "$platform"} -p "127.0.0.1:$local_port:3000" -e FILLRATE_MODE=local "$image" >/dev/null
+trap 'docker rm -f "$local_name" >/dev/null 2>&1 || true; cleanup' EXIT
+for i in $(seq 1 120); do
+  curl -fsS "http://127.0.0.1:$local_port/api/health" >/dev/null 2>&1 && break
+  [ "$i" = 120 ] && { echo "local mode never became healthy"; exit 1; }
+  sleep 2
+done
+curl -fsS "http://127.0.0.1:$local_port/api/v1/scenarios" >/dev/null || { echo "local mode refused scenarios without a key"; exit 1; }
+curl -fsS -X POST "http://127.0.0.1:$local_port/api/v1/runs" -H "idempotency-key: local-$$" -H "content-type: application/json" -d '{}' >/dev/null \
+  || { echo "local mode refused a run without a key"; exit 1; }
+echo "local mode ok without keys"

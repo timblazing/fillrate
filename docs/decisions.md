@@ -376,3 +376,14 @@ Branch `m6-directed-snapshots`, rebased on `778f7ba`; not merged or pushed (need
 - **Commit graph:** Kibo UI `contribution-graph` (free shadcn registry item, `src/components/kibo-ui/contribution-graph`) colored on the `--success` token; data comes from the public GitHub commits API in the browser (the image has no `.git`), cached per session.
 - **Spec path:** `/dev` now reads `docs/fillrate-technical-spec.md` locally and from `main`, so the root backup is no longer required by the page.
 - **Verification:** lint, typecheck and production build pass; checked at 1440 px and 390 px (no page-level horizontal overflow) against the dev server, including live refresh, commit graph and scroll loading. Milestone estimates unchanged.
+
+## 2026-10-01: Hosted accounts, owner isolation and admission control (Claude Code)
+**Decision:** Implement spec v1.10 §14 as three explicit modes, owner IDs on stored rows, and admission checked inside the store's queuing transaction.
+- `FILLRATE_MODE=hosted|local`, with unset meaning the existing operator deployment, so the live site and image smoke keep working. Hosted mode refuses incomplete settings with exit 78. Auth settings present without a mode also refuse, so a hosted site is never served without accounts by accident. Local mode is the `operator` dataset with no keys.
+- Owners are strings: `operator`, `user:<Better Auth id>`, `examples` (public synthetic scenarios) and `public` (anonymous synthetic submissions). Existing imported data stays `operator`; nobody claims it by signing up. In hosted mode the operator key reaches only `operator` data.
+- Reads follow the scenario's owner; cancel and ranking edits follow the submitter. Another owner's IDs answer 404, the same as missing ones.
+- Stage reuse and geocoder answers are cached per owner. Travel snapshots stay content-addressed with one owner link per uploader, so a hash is never an access token.
+- "One active job per account" counts submissions: a sweep or a geocoding job counts once. Daily solve admissions charge each sweep run. Cancelling does not refund, and idempotent replays are free.
+- Hosted defaults: global queue 10, sweeps of at most 10 runs. Per-address limits and Better Auth's IP tracking use only an operator-named proxy header (`TRUSTED_CLIENT_IP_HEADER`).
+- Deleting a scenario deletes branches made from it. Deletion is refused while work is unfinished. Backups keep deleted data until they expire, at most 30 days (published on `/privacy`).
+**Reason:** Authorization in server queries and the store, not the UI. In-transaction admission is the only way to keep quotas correct under concurrent requests and restarts. Keeping the unset mode unchanged avoids breaking the deployed operator workflow before the owner configures OAuth.

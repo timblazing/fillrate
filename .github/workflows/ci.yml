@@ -75,6 +75,8 @@ jobs:
         run: bun run test
       - name: Build
         run: bun run build
+      - name: Hosted and local mode checks
+        run: bun run test:hosted
       - name: Install Playwright Chromium
         run: bunx playwright install --with-deps chromium
       - name: Browser smoke

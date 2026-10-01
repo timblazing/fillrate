@@ -18,7 +18,8 @@
     "contracts:generate": "cd services/optimizer && UV_PYTHON=python3.13 uv run python -m fillrate_optimizer.export_contracts && cd ../.. && node node_modules/openapi-typescript/bin/cli.js packages/contracts/openapi.json -o packages/contracts/src/generated.ts",
     "typecheck:packages": "tsc -p tsconfig.packages.json",
     "lint:packages": "node node_modules/eslint/bin/eslint.js packages vitest.config.mts",
-    "zcta:build": "cd services/optimizer && UV_PYTHON=python3.13 uv run python -m fillrate_optimizer.zcta"
+    "zcta:build": "cd services/optimizer && UV_PYTHON=python3.13 uv run python -m fillrate_optimizer.zcta",
+    "test:hosted": "node scripts/test-hosted.mjs"
   },
   "trustedDependencies": [
     "sharp",

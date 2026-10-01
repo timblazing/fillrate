@@ -5,8 +5,7 @@ import { initializeDatabase } from "@/lib/server/database"
 import { exportCsv, exportJson, type CsvTable } from "@/lib/server/export"
 import type { SheetColumn } from "@/lib/shipment-sheet"
 import { ApiError, errorResponse } from "@/lib/server/runs"
-
-import { assertRunReadAccess } from "@/lib/server/scenarios"
+import { assertRunRead, principal } from "@/lib/server/access"
 
 export const dynamic = "force-dynamic"
 
@@ -18,11 +17,11 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
     const params = new URL(request.url).searchParams
     const format = params.get("format") ?? "json"
     const store = initializeDatabase()
-    assertRunReadAccess(store, id, request)
+    assertRunRead(store, await principal(request), id)
     const name = `fillrate-run-${id.slice(0, 8)}`
     if (format === "json") {
       return new Response(JSON.stringify(exportJson(store, id), null, 1), {
-        headers: { "content-type": "application/json", "content-disposition": `attachment; filename="${name}.json"` },
+        headers: { "Cache-Control": "private, no-store", "content-type": "application/json", "content-disposition": `attachment; filename="${name}.json"` },
       })
     }
     if (format === "csv") {
@@ -31,7 +30,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
       const columns = (params.get("columns") ?? "").split(",").filter((c): c is SheetColumn => c === "location" || c === "pieces")
       const file = `${name}-${table === "sheet" ? `shipments${truck ? `-${truck}` : ""}` : table}.csv`.replace(/[^\w.-]/g, "_")
       return new Response(exportCsv(store, id, table, { truck, columns }), {
-        headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${file}"` },
+        headers: { "Cache-Control": "private, no-store", "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="${file}"` },
       })
     }
     if (format === "python") {
@@ -45,7 +44,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
         throw error
       }
       return new Response(new Uint8Array(zip), {
-        headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${name}-replay.zip"` },
+        headers: { "Cache-Control": "private, no-store", "content-type": "application/zip", "content-disposition": `attachment; filename="${name}-replay.zip"` },
       })
     }
     throw new ApiError(400, "invalid_format", "format must be json, csv or python.", ["format"])

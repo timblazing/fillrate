@@ -29,7 +29,7 @@ const POLICIES = [
  * The allocation lesson's three steps (spec §13: scarce stock; piece-level versus whole-order
  * allocation). Every step starts a real run of the bundled `allocation` scenario.
  */
-export function AllocationSteps({ open, runKey }: { open: boolean; runKey?: string }) {
+export function AllocationSteps({ open, closedNote = "Starting runs is disabled on this server.", runKey }: { open: boolean; closedNote?: string; runKey?: string }) {
   const { params, jobs, pending, setParam, start, reset } = useLessonState<Params, Job>(STORAGE_KEY, { strategy: "order_date_then_value", policy: "piece" }, runKey)
   const suffix = runKey ? `?key=${encodeURIComponent(runKey)}` : ""
 
@@ -61,7 +61,7 @@ export function AllocationSteps({ open, runKey }: { open: boolean; runKey?: stri
 
   return (
     <div className="flex flex-col gap-8">
-      {!open && <p className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">Starting runs is disabled on this server, so the steps below are read-only.</p>}
+      {!open && <p className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">{closedNote} The steps below are read-only.</p>}
 
       <Step
         n={1}

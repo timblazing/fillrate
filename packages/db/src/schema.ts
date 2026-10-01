@@ -1,9 +1,13 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, blob, uniqueIndex, index, check, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, blob, uniqueIndex, index, check, primaryKey, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
+// Owners (spec §14): "operator" is the account-free local / operator-key dataset, "user:<id>" a hosted
+// account, "examples" the bundled synthetic scenarios (publicly readable) and, on runs only, "public" for an
+// anonymous synthetic submission. Access checks compare these; IDs and content hashes never grant access.
 export const scenarios = sqliteTable("scenarios", {
   id: text().primaryKey(), name: text().notNull(), createdAt: integer().notNull(),
-});
+  ownerId: text().notNull().default("operator"),
+}, t => [index("scenarios_by_owner").on(t.ownerId)]);
 export const versions = sqliteTable("scenario_versions", {
   id: text().primaryKey(), scenarioId: text().notNull().references(() => scenarios.id),
   revision: integer().notNull(), schemaVersion: integer().notNull().default(1),
@@ -15,7 +19,9 @@ export const runs = sqliteTable("runs", {
   idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(),
   // "pipeline" runs the fulfillment pipeline; "explorer" is a clustering-only k explorer job (M4).
   kind: text().notNull().default("pipeline"),
-}, t => [index("run_status_date").on(t.status, t.createdAt)]);
+  // Who submitted it (quotas, cancel). Reads follow the scenario's owner.
+  ownerId: text().notNull().default("operator"),
+}, t => [index("run_status_date").on(t.status, t.createdAt), index("runs_by_owner").on(t.ownerId, t.status)]);
 export const jobs = sqliteTable("jobs", {
   id: text().primaryKey(), runId: text().notNull().unique().references(() => runs.id),
   status: text().notNull().default("queued"), attempt: integer().notNull().default(0),
@@ -56,10 +62,11 @@ export const clusterJobs = sqliteTable("cluster_jobs", {
   maxAttempts: integer().notNull().default(3), coordinatorToken: text(),
   result: text(), startedAt: integer(), endedAt: integer(), error: text(),
 }, t => [uniqueIndex("run_cluster").on(t.runId, t.clusterId)]);
+// Stage reuse is scoped by the scenario's owner, so one account's cache never answers another's lookup.
 export const stageCache = sqliteTable("stage_cache", {
-  inputHash: text().primaryKey(), artifactHash: text().notNull().references(() => artifacts.hash),
+  scope: text().notNull(), inputHash: text().notNull(), artifactHash: text().notNull().references(() => artifacts.hash),
   manifest: text().notNull(), runId: text().notNull().references(() => runs.id),
-});
+}, t => [primaryKey({ columns: [t.scope, t.inputHash] }), index("stage_cache_by_run").on(t.runId)]);
 export const scenarioSources = sqliteTable("scenario_sources", {
   versionId: text().primaryKey().references(() => versions.id),
   source: text().notNull(), metadata: text().notNull(),
@@ -76,6 +83,7 @@ export const experiments = sqliteTable("experiments", {
   id: text().primaryKey(), versionId: text().notNull().references(() => versions.id),
   name: text().notNull(), spec: text().notNull(), comparison: text().notNull(),
   idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(),
+  ownerId: text().notNull().default("operator"),
 }, t => [index("experiments_by_date").on(t.createdAt)]);
 export const experimentRuns = sqliteTable("experiment_runs", {
   id: text().primaryKey(), experimentId: text().notNull().references(() => experiments.id),
@@ -99,6 +107,7 @@ export const geocodeJobs = sqliteTable("geocode_jobs", {
   status: text().notNull().default("queued"), options: text().notNull(), author: text().notNull(), metadata: text().notNull(),
   progress: text(), report: text(), resultVersionId: text().references(() => versions.id), branched: integer({mode: "boolean"}).notNull().default(false),
   error: text(), idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
+  ownerId: text().notNull().default("operator"),
 }, t => [index("geocode_jobs_by_date").on(t.createdAt)]);
 
 // M6 directed travel snapshots (spec §7): immutable, stored by content hash (`id` = sha256 of the canonical
@@ -108,3 +117,36 @@ export const travelSnapshots = sqliteTable("travel_snapshots", {
   nodeCount: integer().notNull(), provider: text().notNull(), providerVersion: text().notNull(),
   datasetRevision: text().notNull(), profile: text().notNull(), createdAt: integer().notNull(),
 });
+// A snapshot is stored once by content hash; each owner that uploaded it holds a link, and reads need one.
+export const travelSnapshotOwners = sqliteTable("travel_snapshot_owners", {
+  snapshotId: text().notNull().references(() => travelSnapshots.id), ownerId: text().notNull(), createdAt: integer().notNull(),
+}, t => [primaryKey({ columns: [t.snapshotId, t.ownerId] }), index("snapshot_owner").on(t.ownerId)]);
+
+// Better Auth tables (hosted mode only; local mode never writes them). Column names follow Better Auth's
+// Drizzle SQLite schema. Owner IDs elsewhere are "user:" + user.id, so the provider stays replaceable.
+const ms = (name: string) => integer(name, { mode: "timestamp_ms" });
+const stamp = (name: string) => ms(name).default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`).notNull();
+const created = () => stamp("created_at");
+export const user = sqliteTable("user", {
+  id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
+  emailVerified: integer("email_verified", { mode: "boolean" }).default(false).notNull(), image: text("image"),
+  createdAt: created(), updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+});
+export const session = sqliteTable("session", {
+  id: text("id").primaryKey(), expiresAt: ms("expires_at").notNull(), token: text("token").notNull().unique(),
+  createdAt: created(), updatedAt: ms("updated_at").$onUpdate(() => new Date()).notNull(),
+  ipAddress: text("ip_address"), userAgent: text("user_agent"),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+}, t => [index("session_userId_idx").on(t.userId)]);
+export const account = sqliteTable("account", {
+  id: text("id").primaryKey(), accountId: text("account_id").notNull(), providerId: text("provider_id").notNull(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  accessToken: text("access_token"), refreshToken: text("refresh_token"), idToken: text("id_token"),
+  accessTokenExpiresAt: ms("access_token_expires_at"), refreshTokenExpiresAt: ms("refresh_token_expires_at"),
+  scope: text("scope"), password: text("password"),
+  createdAt: created(), updatedAt: ms("updated_at").$onUpdate(() => new Date()).notNull(),
+}, t => [index("account_userId_idx").on(t.userId)]);
+export const verification = sqliteTable("verification", {
+  id: text("id").primaryKey(), identifier: text("identifier").notNull(), value: text("value").notNull(),
+  expiresAt: ms("expires_at").notNull(), createdAt: created(), updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
+}, t => [index("verification_identifier_idx").on(t.identifier)]);

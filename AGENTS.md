@@ -13,8 +13,8 @@ The repository is the source of truth for Fillrate's specification, roadmap, dec
 5. If milestone progress moved, update `docs/status.json` too (see "Progress page" below). Keep completed implementation separate from owner configuration, deployment and hardware evidence.
 
 ## Hosted/local modes and releases
-- Spec v1.10 plans a free hosted service with Better Auth, owner-scoped server SQLite data and application compute quotas. Authentication alone does not establish data isolation or abuse protection. Until these gates pass, retain operator protections and bounded synthetic demonstrations.
-- Planned local distribution is account-free/single-user via Bun, npm and Docker, with loopback defaults and no auth credentials. Hosted/local mode must be explicit and hosted misconfiguration must never disable auth. npm compatibility and Better Auth are planned work, not existing support. Python remains a private worker and never opens SQLite.
+- Spec v1.10 calls for a free hosted service with Better Auth, owner-scoped server SQLite data and application compute quotas. Accounts, isolation and quotas are implemented (`FILLRATE_MODE=hosted`, `docs/hosted-operations.md`); every route resolves the caller with `principal()` in `apps/web/src/lib/server/access.ts`, and the store re-checks ownership and charges admissions in the queuing transaction. New routes or stored kinds must do the same. Until the owner configures OAuth and the live two-account checks pass, retain operator protections and bounded synthetic demonstrations.
+- Planned local distribution is account-free/single-user via Bun, npm and Docker, with loopback defaults and no auth credentials. Hosted/local mode must be explicit and hosted misconfiguration must never disable auth. `FILLRATE_MODE=local` exists (no keys or auth routes); npm compatibility is still planned work, not existing support. Python remains a private worker and never opens SQLite.
 - GitHub CI automatically runs only for relevant source/configuration changes. Documentation and `.fig` changes skip automatic checks. Image build/smoke/publish runs only for `v*` release tags or explicit dispatch, with reusable CI as prerequisite. Dispatch an image release when deployable runtime changes need publication; a Git push alone does not update the deployed image.
 
 ## Progress page (`/dev`)
@@ -42,7 +42,7 @@ The canonical specification is [`docs/fillrate-technical-spec.md`](docs/fillrate
 - `bun install`: install workspace deps (commit `bun.lock`)
 - `bun run dev`: Next.js dev server (http://localhost:3000); it also serves the loopback worker transport on 127.0.0.1:3100
 - `bun run worker`: Python worker supervisor that claims and runs pipeline jobs (run it next to `bun run dev`, then use `/runs`)
-- `bun run lint` / `bun run typecheck` / `bun run build`; `bun run test:browser` runs the production browser smoke (see `docs/browser-smoke.md`)
+- `bun run lint` / `bun run typecheck` / `bun run build`; `bun run test:browser` runs the production browser smoke (see `docs/browser-smoke.md`); `bun run test:hosted` runs the hosted/local mode and two-account checks against the production build
 - `bun run test`: Node Vitest persistence/contract/transport tests plus end-to-end tests that spawn the real Python worker (needs `uv`; `FILLRATE_SKIP_PYTHON=1` skips them); `bun run contracts:generate`: regenerate shared contracts from Python
 - `bun run db:generate`: generate migrations after schema changes; migrations apply automatically at web startup
 - `bun run zcta:build`: download the pinned Census Gazetteer ZCTA file and write the ZIP fallback lookup to `data/zcta-gazetteer-2024.tsv` (the image builds its own). Geocoding env: `FILLRATE_GEOCODER=off`, `CENSUS_GEOCODER_URL`, `GEOCODE_BATCH_SIZE`, `ZCTA_LOOKUP_PATH`

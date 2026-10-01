@@ -16,7 +16,7 @@ Revision notes:
 
 - 1.10 adds free hosted accounts using Better Auth, owner-scoped server data and abuse limits, preserves an auth-free local distribution, and limits automatic CI to relevant changes with explicit image releases. Hosted release gates remain open.
 
-Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. M1, M3 and M5 are complete; M2 design-file and M4 hosted-release gates remain open. M6 has Python travel-provider groundwork and immutable directed travel snapshots selected through the operator API and the worker, M7 has started (allocation lesson, tested replay semantics) and M8 remains. M2 still has its OpenPencil design-file item open, and M4 still needs hosted identity, owner isolation, quotas, and owner target-hardware/recovery release evidence. Road matrices cannot yet be selected in the browser, and no pinned Valhalla deployment is verified. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
+Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. M1, M3 and M5 are complete; M2 design-file and M4 hosted-release gates remain open. M6 has Python travel-provider groundwork and immutable directed travel snapshots selected through the operator API and the worker, M7 has started (allocation lesson, tested replay semantics) and M8 remains. M2 still has its OpenPencil design-file item open, M4 now implements hosted Better Auth accounts, the explicit hosted/local mode, owner isolation and persistent compute quotas (`docs/hosted-operations.md`), but it still needs owner target-hardware/recovery evidence plus hosted OAuth configuration and live two-account checks. Road matrices cannot yet be selected in the browser, and no pinned Valhalla deployment is verified. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
 
 Reading guide: §1 defines the product and terminology; §2–3 define architecture and capability boundaries; §5–8a define the model and pipeline; §9–12 define execution and results; §15–16 define delivery gates and verification. Keep these section numbers stable for code and decision-log references.
 
@@ -498,7 +498,7 @@ Python exports run without web application credentials and reproduce the experim
 
 ## 14. Deployment, access, and operations
 
-The target deployment is a publicly accessible website backed by Docker Compose running the single `ghcr.io/timblazing/fillrate` image with a mounted data volume, plus an optional Valhalla service. The application does not yet implement signup, accounts, or public data isolation. Only synthetic, read-only product surfaces may be exposed until public writes and real-data handling have appropriate controls. Initial native development uses Bun for web and uv for Python dependency environments. Provide .env.example; local mode needs no auth credentials, while hosted mode requires its auth configuration.
+The target deployment is a publicly accessible website backed by Docker Compose running the single `ghcr.io/timblazing/fillrate` image with a mounted data volume, plus an optional Valhalla service. `FILLRATE_MODE=hosted` implements GitHub accounts, owner isolation and quotas, but they are unproven on a live deployment. Until the owner configures OAuth and passes the live two-account checks, expose only synthetic product surfaces and protected operator workflows publicly. Initial native development uses Bun for web and uv for Python dependency environments. Provide .env.example; local mode needs no auth credentials, while hosted mode requires its auth configuration.
 
 Existing runtime environment variables (hosted auth configuration is additionally required):
 
@@ -523,7 +523,7 @@ Provide an explicit deployment mode, proposed `FILLRATE_MODE=hosted|local`. Host
 
 Local distribution target: supported Bun and npm commands with Node 24 and Python 3.13/uv, plus the published multi-architecture Docker image/Compose. npm compatibility is planned, not currently verified (Bun workspace scripts remain current). No browser-local storage overhaul or browser Python solver is required. The same fulfillment engine and data contracts serve both modes.
 
-Sources: https://better-auth.com/docs/adapters/drizzle and https://better-auth.com/docs/concepts/rate-limit. These are planned requirements, not claims of implemented authentication.
+Sources: https://better-auth.com/docs/adapters/drizzle and https://better-auth.com/docs/concepts/rate-limit. Implementation status and operation: `docs/hosted-operations.md`.
 
 ### Container image and CI
 

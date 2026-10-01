@@ -47,7 +47,11 @@ function TextSource({ label, accept, value, limit, onRead, onError }: { label: s
 function EditCell({ label, value, onCommit }: { label: string; value: string | number; onCommit: (value: string) => void }) {
   return <Input key={String(value)} aria-label={label} className="min-w-24" defaultValue={value} onBlur={e => onCommit(e.target.value)} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur() }} />
 }
-export function ScenarioWorkbench() {
+/** How this server grants scenario access: an account (hosted), nothing (local) or the operator key. */
+export type WorkbenchAccess = { mode: "hosted" | "local" | "operator"; account: string | null }
+
+export function ScenarioWorkbench({ access }: { access: WorkbenchAccess }) {
+  const usesKey = access.mode === "operator";
   const router = useRouter();
   const [key, setKey] = useState(""); const [author, setAuthor] = useState(""); const [browserId, setBrowserId] = useState("");
   const [timezone, setTimezone] = useState("America/Chicago"); const [planningDate, setPlanningDate] = useState("");
@@ -84,7 +88,7 @@ export function ScenarioWorkbench() {
     return () => window.clearTimeout(timeout);
   }, []);
   async function api<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
-    const response = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", "x-scenario-key": key, ...extraHeaders }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+    const response = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...(usesKey ? { "x-scenario-key": key } : {}), ...extraHeaders }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
     const data = await response.json(); if (!response.ok) { if (response.status === 409) setConflict(true); throw new Error(data.error?.message ?? data.message ?? JSON.stringify(data)); } return data;
   }
   async function saveRequest(path: string, body: unknown) {
@@ -120,8 +124,8 @@ export function ScenarioWorkbench() {
   async function submit(candidate: ScenarioRunSettings) { if (!saved) return; try { const run = await api<{ id: string }>("/api/v1/scenarios/runs", { versionId: saved.id, settings: candidate }, { "Idempotency-Key": crypto.randomUUID() }); router.push(`/runs/${run.id}`) } catch (error) { await preflight(candidate); throw error } }
   async function reviewAndRun(candidate = settings) { const checked = await preflight(candidate); if (checked.some(finding => finding.action === "block")) { setMessage("Resolve the blocking checks, exclude their lines, or change their policy to warn before running."); return } await submit(candidate) }
   return <div className="space-y-6">
-    <section className="rounded-xl border p-4 space-y-4"><h2 className="font-semibold">Workspace access & authorship</h2><p className="text-muted-foreground text-sm">Production uses a shared operator key. Your display name records authorship; it does not grant access.</p><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Field label="Operator key"><Input type="password" autoComplete="off" value={key} onChange={e => { setKey(e.target.value); sessionStorage.setItem("fillrate.scenario-key", e.target.value) }} /></Field>
+    <section className="rounded-xl border p-4 space-y-4"><h2 className="font-semibold">Workspace access & authorship</h2><p className="text-muted-foreground text-sm">{access.mode === "hosted" ? `Signed in as ${access.account}. Your scenarios, runs and results are private to your account.` : access.mode === "local" ? "Local mode: one account-free dataset stored on this machine." : "Production uses a shared operator key."} Your display name records authorship; it does not grant access.</p><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {usesKey && <Field label="Operator key"><Input type="password" autoComplete="off" value={key} onChange={e => { setKey(e.target.value); sessionStorage.setItem("fillrate.scenario-key", e.target.value) }} /></Field>}
       <Field label="Display name"><Input value={author} onChange={e => { setAuthor(e.target.value); localStorage.setItem("fillrate.author.v1", e.target.value) }} /></Field>
       <Field label="Planning date"><Input type="date" value={planningDate} onChange={e => setPlanningDate(e.target.value)} /></Field><Field label="Timezone"><Input value={timezone} onChange={e => setTimezone(e.target.value)} /></Field>
     </div><Button disabled={busy} variant="outline" onClick={() => action(async () => setList((await api<{scenarios: Listed[]}>("/api/v1/scenarios")).scenarios))}>Load scenarios</Button>
@@ -176,7 +180,7 @@ export function ScenarioWorkbench() {
         <p className="mt-3 text-xs text-muted-foreground">Cost objective requires both rates. Cluster diameter is optional and off by default; maximum leg limits each drive. Run settings are saved with each run.</p>
       </details>
       <div className="flex flex-wrap gap-2"><Button disabled={busy || dirty || conflict || (settings.objective === "cost" && (settings.cost_per_truck_cents === null || settings.cost_per_mile_cents === null))} onClick={() => action(() => reviewAndRun())}>Review and run saved version</Button><Button variant="outline" disabled={busy || dirty || conflict} onClick={() => action(async () => { await preflight(); setMessage("Preflight review updated.") })}>Review checks</Button><Button variant="outline" disabled={busy || dirty || conflict} onClick={() => action(async () => { const ks = settings.k ? [settings.k, settings.k + 1] : [1, 2]; const run = await api<{ id: string }>("/api/v1/explorer", { versionId: saved.id, base: settings, settings: { ks, selected_k: ks[0] } }, { "Idempotency-Key": crypto.randomUUID() }); router.push(`/explore/${run.id}`) })}>Explore k</Button><Button variant="outline" disabled={busy || dirty || conflict} onClick={() => setSweeping(!sweeping)}>{sweeping ? "Hide sweep" : "Sweep…"}</Button></div>
-      {sweeping && <SweepBuilder initialK={settings.k ?? 4} limit={25} versionId={saved.id} base={settings} scenarioKey={key} onCreated={id => router.push(`/experiments/${id}`)} />}
+      {sweeping && <SweepBuilder initialK={settings.k ?? 4} limit={25} versionId={saved.id} base={settings} scenarioKey={usesKey ? key : undefined} onCreated={id => router.push(`/experiments/${id}`)} />}
       {findings.length > 0 && <div className="space-y-3" aria-label="Preflight findings"><h3 className="font-medium">Preflight review</h3>{findings.map((finding, index) => <div key={`${finding.check}-${index}`} className="rounded-lg border p-3 text-sm"><p className="font-medium">{finding.check.replaceAll("_", " ")} · {finding.action === "block" ? "Blocks run" : "Warning"}</p><p className="mt-1 text-muted-foreground">{finding.message}</p><p className="mt-1 break-all text-xs text-muted-foreground">{finding.line_ids.length} affected lines{finding.line_ids.length ? `: ${finding.line_ids.slice(0, 30).join(", ")}${finding.line_ids.length > 30 ? "…" : ""}` : ""}</p><div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => { setTab(finding.check === "oversize_stop" ? "orders" : "locations"); setPage(0); document.getElementById("scenario-data")?.scrollIntoView({ behavior: "smooth" }) }}>Edit data</Button>{finding.action === "block" && finding.line_ids.length > 0 && <Button size="sm" variant="outline" disabled={busy} onClick={() => action(async () => { const candidate = { ...settings, excluded_line_ids: [...new Set([...settings.excluded_line_ids, ...finding.line_ids])] }; setSettings(candidate); await reviewAndRun(candidate) })}>Exclude these lines and run</Button>}{finding.action === "block" && finding.check !== "far_via_stop" && <Button size="sm" variant="outline" onClick={() => { setSettings(previous => ({ ...previous, preflight: { ...previous.preflight, [finding.check]: "warn" } })); setFindings([]); setMessage("Policy changed to warn. Review checks again before running.") }}>Warn only</Button>}</div></div>)}</div>}
     </section>}
     <p role="status" aria-live="polite" className="whitespace-pre-wrap break-words text-sm">{busy ? "Working…" : message}</p>

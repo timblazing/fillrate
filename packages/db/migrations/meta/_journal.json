@@ -57,6 +57,13 @@
       "when": 1790869062549,
       "tag": "0007_travel_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790895054350,
+      "tag": "0008_hosted_ownership",
+      "breakpoints": true
     }
   ]
 }

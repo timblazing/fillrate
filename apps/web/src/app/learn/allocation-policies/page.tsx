@@ -1,6 +1,7 @@
 import { DevHeader } from "@/components/brand/dev-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { EXAMPLES, exampleInfo, runsOpen } from "@/lib/server/runs"
+import { EXAMPLES, exampleInfo, canStartRuns, runsClosedNote } from "@/lib/server/runs"
+import { pagePrincipal } from "@/lib/server/access"
 import Link from "next/link"
 
 import { AllocationSteps } from "./allocation-steps"
@@ -66,7 +67,7 @@ export default async function AllocationLessonPage({ searchParams }: PageProps<"
           </div>
         </section>
 
-        <AllocationSteps open={runsOpen()} runKey={typeof key === "string" ? key : undefined} />
+        <AllocationSteps open={canStartRuns(await pagePrincipal(), key)} closedNote={runsClosedNote()} runKey={typeof key === "string" ? key : undefined} />
       </main>
     </div>
   )

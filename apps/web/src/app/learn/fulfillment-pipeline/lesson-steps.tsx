@@ -24,7 +24,7 @@ function list(raw: string, min: number, max: number) {
  * The lesson's four steps. Parameters and the jobs each step started are remembered per browser
  * (spec §13: editable starter scenario with a reset action); the runs themselves are durable.
  */
-export function LessonSteps({ open, runKey, defaultK, sweepLimit, iterations }: { open: boolean; runKey?: string; defaultK: number; sweepLimit: number; iterations: number | null }) {
+export function LessonSteps({ open, closedNote = "Starting runs is disabled on this server.", runKey, defaultK, sweepLimit, iterations }: { open: boolean; closedNote?: string; runKey?: string; defaultK: number; sweepLimit: number; iterations: number | null }) {
   const defaults: Params = { k: String(defaultK), inventory: "100", exploreK: String(defaultK), sweepKs: "6, 8, 10, 12", sweepSeeds: "0, 1" }
   const { params, jobs, pending, setParam, start, reset } = useLessonState<Params, Job>(STORAGE_KEY, defaults, runKey)
   const suffix = runKey ? `?key=${encodeURIComponent(runKey)}` : ""
@@ -55,7 +55,7 @@ export function LessonSteps({ open, runKey, defaultK, sweepLimit, iterations }: 
 
   return (
     <div className="flex flex-col gap-8">
-      {!open && <p className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">Starting runs is disabled on this server, so the steps below are read-only.</p>}
+      {!open && <p className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">{closedNote} The steps below are read-only.</p>}
 
       <Step n={1} title="Allocate scarce stock and build shipments" observe={[
         "Allocation gives stock by order date, then by value per piece. Full pallets and carpet rolls run out, so about 84% of the ordered value is allocated; the rest shows as Unshipped with “No stock”.",

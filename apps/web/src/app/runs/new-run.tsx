@@ -16,7 +16,7 @@ const kOptions = [
 
 // Starts a run of a bundled synthetic scenario. One idempotency key per click, so a retried
 // request never creates a second run.
-export function NewRun({ open, example, defaultK, runKey }: { open: boolean; example: string; defaultK: number; runKey?: string }) {
+export function NewRun({ open, example, defaultK, runKey, closedNote = "Starting runs is disabled on this server. Existing runs stay viewable." }: { open: boolean; example: string; defaultK: number; runKey?: string; closedNote?: string }) {
   const router = useRouter()
   // Fixed k is the normal path now that the diameter policy is off (spec v1.8); start from the example's k.
   const [k, setK] = useState(String(defaultK))
@@ -41,7 +41,7 @@ export function NewRun({ open, example, defaultK, runKey }: { open: boolean; exa
   }
 
   if (!open) {
-    return <p className="text-muted-foreground text-sm">Starting runs is disabled on this server. Existing runs stay viewable.</p>
+    return <p className="text-muted-foreground text-sm">{closedNote}</p>
   }
   return (
     <div className="flex flex-wrap items-end gap-3">
