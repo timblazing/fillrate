@@ -10,10 +10,10 @@ const scenario: ScenarioDocument = {
     { id: "near", label: "Near", lat: 0, lon: 1, coordinate_source: "zcta" },
   ],
   orders: [
-    { id: "O1", customer_id: null, location_id: "missing", order_date: "2026-09-30", lines: [{ id: "L1", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
-    { id: "O2", customer_id: null, location_id: "far", order_date: "2026-09-30", lines: [{ id: "L2", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
-    { id: "O3", customer_id: "near-customer", location_id: "near", order_date: "2026-09-30", lines: [{ id: "L3", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
-    { id: "O4", customer_id: "near-customer", location_id: "near", order_date: "2026-09-30", lines: [{ id: "L4", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
+    { id: "O1", customer_id: null, location_id: "missing", order_date: "2026-09-30", priority: 1, lines: [{ id: "L1", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
+    { id: "O2", customer_id: null, location_id: "far", order_date: "2026-09-30", priority: 1, lines: [{ id: "L2", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
+    { id: "O3", customer_id: "near-customer", location_id: "near", order_date: "2026-09-30", priority: 1, lines: [{ id: "L3", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
+    { id: "O4", customer_id: "near-customer", location_id: "near", order_date: "2026-09-30", priority: 1, lines: [{ id: "L4", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
   ], inventory: [{ product_id: "P", available_pieces: 4 }],
 };
 test("policy blocks two cases by default, warns oversize and ZIP and aggregates all lines at one stop", () => {
@@ -41,7 +41,7 @@ test("separate customers at the same location do not trigger oversize", () => {
 test("a far stop reachable through another stop only warns (round two)", () => {
   const chained = structuredClone(scenario);
   chained.locations.push({ id: "mid", label: "Mid", lat: 0, lon: 4, coordinate_source: "imported" });
-  chained.orders.push({ id: "O5", customer_id: null, location_id: "mid", order_date: "2026-09-30", lines: [{ id: "L5", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] });
+  chained.orders.push({ id: "O5", customer_id: null, location_id: "mid", order_date: "2026-09-30", priority: 1, lines: [{ id: "L5", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] });
   const hits = preflightChecks(chained);
   expect(hits.find(x => x.check === "far_from_depot")).toBeUndefined();
   expect(hits.find(x => x.check === "far_via_stop")).toMatchObject({ action: "warn", line_ids: ["L2"] });

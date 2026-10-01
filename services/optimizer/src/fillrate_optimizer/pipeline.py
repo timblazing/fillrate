@@ -23,6 +23,7 @@ from typing import Any
 
 import numpy as np
 
+from .allocation import allocate
 from .artifact_codec import decode_travel, encode_travel
 from .canonical import content_hash
 from .clustering import Clusterer, centroid
@@ -34,6 +35,7 @@ from .loads import (
     truck_count_first_penalty,
 )
 from .model import (
+    AllocationSummary,
     ClusteringSummary,
     ClusterSummary,
     Diagnostic,
@@ -235,6 +237,7 @@ def run_pipeline(
                 "product_id": line.product_id,
                 "location_id": order.location_id,
                 "order_date": order.order_date,
+                "priority": order.priority,
                 "ordered": line.ordered_pieces,
                 "value": line.net_value_per_piece_cents,
                 "lf": lf,
@@ -275,6 +278,8 @@ def run_pipeline(
     for line in lines.values():
         if reason := exclusion_reason(line, locations[line["location_id"]], cap, user_excluded):
             excluded[line["line_id"]] = reason
+    if settings.fulfillment_policy == "whole_order":
+        excluded |= whole_order_exclusions(lines.values(), excluded)
     for line_id, reason in sorted(excluded.items()):
         line = lines[line_id]
         if line["ordered"] == 0:
@@ -282,6 +287,9 @@ def run_pipeline(
         evidence = (
             "Excluded by the user before this run."
             if reason == "excluded_by_user"
+            else "Whole-order policy: another line of this order was excluded, so the order is "
+            "excluded as a whole."
+            if reason == "excluded_with_order"
             else f"Location {line['location_id']} has no resolved coordinates."
             if reason == "excluded_unresolved_coordinates"
             else f"One piece is {line['lf'] / 100:g} ft; a trailer holds {cap / 100:g} ft."
@@ -303,27 +311,41 @@ def run_pipeline(
             "preflight",
             "excluded_line_ids",
             "inventory_percent",
+            "fulfillment_policy",
         ],
     )
 
-    # ---- 2. Allocate: order date, then net value per piece, then stable ID (§8) ----------------
+    # ---- 2. Allocate (§8): the chosen strategy and fulfillment policy -------------------------
     report("allocation", {})
-    stock = dict(stock_start)
-    allocated: dict[str, int] = {}
-    order = sorted(
-        (ln for ln in lines.values() if ln["line_id"] not in excluded),
-        key=allocation_key,
-    )
-    allocation_hit = stages.lookup("allocation", ["preflight"], [])
-    for line in order:
-        take = (
-            allocation_hit["allocated"][line["line_id"]]
-            if allocation_hit
-            else min(line["ordered"], stock.get(line["product_id"], 0))
-        )
-        allocated[line["line_id"]] = take
-        stock[line["product_id"]] = stock.get(line["product_id"], 0) - take
-        short = line["ordered"] - take
+    allocation_keys = [
+        "allocation_strategy",
+        "fulfillment_policy",
+        "allocation_objective",
+        "respect_order_date",
+        "allocation_time_limit_s",
+    ]
+    eligible = [ln for ln in lines.values() if ln["line_id"] not in excluded]
+    allocation_hit = stages.lookup("allocation", ["preflight"], allocation_keys)
+    allocation_started = time.perf_counter()
+    if allocation_hit:
+        allocation_payload = allocation_hit
+    else:
+        result = run_allocation(eligible, stock_start, settings)
+        allocation_payload = {
+            "strategy": settings.allocation_strategy,
+            "fulfillment_policy": settings.fulfillment_policy,
+            "kind": result.kind,
+            "sequence": result.sequence,
+            "allocated": dict(sorted(result.allocated.items())),
+            "residual": dict(sorted(result.residual.items())),
+            "shortages": dict(sorted(result.shortages.items())),
+            "stages": [vars(stage) for stage in result.stages],
+            "notes": result.notes,
+        }
+    allocated: dict[str, int] = dict(allocation_payload["allocated"])
+    stock = dict(allocation_payload["residual"])
+    for line in eligible:
+        short = line["ordered"] - allocated[line["line_id"]]
         if short:
             unplanned.append(
                 unplanned_line(
@@ -331,21 +353,21 @@ def run_pipeline(
                     short,
                     "stock_shortage",
                     "allocation",
-                    f"{stock_start.get(line['product_id'], 0)} pieces of {line['product_id']} in "
-                    "stock were already given to earlier-dated or higher-value lines.",
+                    allocation_payload["shortages"][line["line_id"]],
                 )
             )
-    stages.add(
-        "allocation",
-        {
-            "strategy": "order_date_then_value",
-            "sequence": [ln["line_id"] for ln in order],
-            "allocated": dict(sorted(allocated.items())),
-            "residual": dict(sorted(stock.items())),
-        },
-        ["preflight"],
-        [],
+    allocation_summary = AllocationSummary(
+        strategy=allocation_payload["strategy"],
+        fulfillment_policy=allocation_payload["fulfillment_policy"],
+        kind=allocation_payload["kind"],
+        stages=allocation_payload["stages"],
+        notes=allocation_payload["notes"],
+        runtime_s=round(time.perf_counter() - allocation_started, 4),
     )
+    stages.add("allocation", allocation_payload, ["preflight"], allocation_keys)
+    # Aggregation splits oversize stops in this order, so whole pieces fill the same way for
+    # every strategy.
+    order = sorted(eligible, key=allocation_key)
 
     # ---- 3. Aggregate same-customer, same-location whole-piece visits (§5) --------------------
     report("aggregation", {})
@@ -988,6 +1010,7 @@ def run_pipeline(
         products=products_out,
         unplanned=sorted(unplanned, key=lambda u: (u.line_id, u.reason)),
         preflight=findings,
+        allocation=allocation_summary,
         diagnostics=diagnostics,
         versions=versions(),
     )
@@ -1019,38 +1042,64 @@ def allocation_key(line: dict[str, Any]) -> tuple:
     return (line["order_date"], -line["value"], line["line_id"])
 
 
+def whole_order_exclusions(lines, excluded: dict[str, str]) -> dict[str, str]:
+    """Whole-order mode (§8): an order with an excluded line is excluded as a whole, never
+    filled from its eligible subset."""
+    hit = {ln["order_id"] for ln in lines if ln["line_id"] in excluded}
+    return {
+        ln["line_id"]: "excluded_with_order"
+        for ln in lines
+        if ln["order_id"] in hit and ln["line_id"] not in excluded
+    }
+
+
+def run_allocation(eligible, stock, settings: RunSettings):
+    return allocate(
+        eligible,
+        stock,
+        settings.allocation_strategy,
+        settings.fulfillment_policy,
+        objective=settings.allocation_objective,
+        respect_order_date=settings.respect_order_date,
+        time_limit_s=settings.allocation_time_limit_s,
+    )
+
+
 def allocated_locations(scenario: ScenarioDocument, settings: RunSettings) -> list[str]:
     """The location population the cluster stage sees: locations with allocated pieces after
-    exclusions and the default allocation. Shared with the k explorer so both cluster the same
-    locations."""
+    exclusions and the run's allocation strategy. Shared with the k explorer so both cluster the
+    same locations."""
     products = {p.id: p for p in scenario.products}
     locations = {loc.id: loc for loc in scenario.locations}
     stock: dict[str, int] = defaultdict(int)
     for item in scenario.inventory:
         stock[item.product_id] += item.available_pieces * settings.inventory_percent // 100
     user_excluded = set(settings.excluded_line_ids)
-    eligible = []
+    lines = []
+    excluded: dict[str, str] = {}
     for order in scenario.orders:
         for ln in order.lines:
             line = {
                 "line_id": ln.id,
+                "order_id": order.id,
+                "customer_id": order.customer_id or order.id,
                 "order_date": order.order_date,
+                "priority": order.priority,
                 "value": ln.net_value_per_piece_cents,
                 "product_id": ln.product_id,
                 "location_id": order.location_id,
                 "ordered": ln.ordered_pieces,
                 "lf": ln.linear_feet_per_piece or products[ln.product_id].linear_feet_per_piece,
             }
+            lines.append(line)
             loc = locations[order.location_id]
-            if not exclusion_reason(line, loc, settings.trailer_capacity, user_excluded):
-                eligible.append(line)
-    out = set()
-    for line in sorted(eligible, key=allocation_key):
-        take = min(line["ordered"], stock[line["product_id"]])
-        stock[line["product_id"]] -= take
-        if take:
-            out.add(line["location_id"])
-    return sorted(out)
+            if reason := exclusion_reason(line, loc, settings.trailer_capacity, user_excluded):
+                excluded[ln.id] = reason
+    if settings.fulfillment_policy == "whole_order":
+        excluded |= whole_order_exclusions(lines, excluded)
+    eligible = [ln for ln in lines if ln["line_id"] not in excluded]
+    allocated = run_allocation(eligible, stock, settings).allocated
+    return sorted({ln["location_id"] for ln in eligible if allocated[ln["line_id"]]})
 
 
 def baseline_ineligible(clusterer: Clusterer, loc_ids: list[str], settings: RunSettings) -> None:
@@ -1199,7 +1248,13 @@ def reconcile(summary: RunSummary) -> None:
             n
             for (pid, r), n in by_reason.items()
             if pid == p.product_id
-            and r in ("excluded_by_user", "excluded_unresolved_coordinates", "oversize_piece")
+            and r
+            in (
+                "excluded_by_user",
+                "excluded_with_order",
+                "excluded_unresolved_coordinates",
+                "oversize_piece",
+            )
         )
         short = by_reason.get((p.product_id, "stock_shortage"), 0)
         later = sum(

@@ -42,6 +42,52 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AllocationStageSummary */
+        AllocationStageSummary: {
+            /** Bound */
+            bound: number | null;
+            /**
+             * Objective
+             * @enum {string}
+             */
+            objective: "revenue_cents" | "priority_weighted_pieces";
+            /** Runtime S */
+            runtime_s: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "optimal" | "feasible" | "infeasible" | "model_invalid" | "unknown";
+            /** Value */
+            value: number;
+        };
+        /**
+         * AllocationSummary
+         * @description Strategy provenance (spec §8): heuristic or CP-SAT, with each CP-SAT stage's status.
+         */
+        AllocationSummary: {
+            /**
+             * Fulfillment Policy
+             * @enum {string}
+             */
+            fulfillment_policy: "piece" | "whole_order";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "heuristic" | "cp_sat";
+            /** Notes */
+            notes: string[];
+            /** Runtime S */
+            runtime_s: number;
+            /** Stages */
+            stages: components["schemas"]["AllocationStageSummary"][];
+            /**
+             * Strategy
+             * @enum {string}
+             */
+            strategy: "order_date_then_value" | "first_come" | "priority" | "proportional" | "optimized";
+        };
         /** Behavior */
         Behavior: {
             /**
@@ -476,6 +522,11 @@ export interface components {
             location_id: string;
             /** Order Date */
             order_date: string;
+            /**
+             * Priority
+             * @default 1
+             */
+            priority: number;
         };
         /** OrderLine */
         OrderLine: {
@@ -596,6 +647,23 @@ export interface components {
         /** RunSettings */
         RunSettings: {
             /**
+             * Allocation Objective
+             * @default revenue
+             * @enum {string}
+             */
+            allocation_objective: "revenue" | "priority_then_revenue";
+            /**
+             * Allocation Strategy
+             * @default order_date_then_value
+             * @enum {string}
+             */
+            allocation_strategy: "order_date_then_value" | "first_come" | "priority" | "proportional" | "optimized";
+            /**
+             * Allocation Time Limit S
+             * @default 10
+             */
+            allocation_time_limit_s: number;
+            /**
              * Auto K Cap
              * @default 25
              */
@@ -623,6 +691,12 @@ export interface components {
             cost_per_truck_cents: number | null;
             /** Excluded Line Ids */
             excluded_line_ids?: string[];
+            /**
+             * Fulfillment Policy
+             * @default piece
+             * @enum {string}
+             */
+            fulfillment_policy: "piece" | "whole_order";
             /**
              * H3 Resolution
              * @default 2
@@ -671,6 +745,11 @@ export interface components {
             objective: "trucks_then_distance" | "weighted_distance" | "cost";
             preflight?: components["schemas"]["PreflightPolicy"];
             /**
+             * Respect Order Date
+             * @default false
+             */
+            respect_order_date: boolean;
+            /**
              * Schema Version
              * @default 1
              * @constant
@@ -709,6 +788,8 @@ export interface components {
         };
         /** RunSummary */
         RunSummary: {
+            /** @default null */
+            allocation: components["schemas"]["AllocationSummary"] | null;
             clustering: components["schemas"]["ClusteringSummary"];
             /** Clusters */
             clusters: components["schemas"]["ClusterSummary"][];
@@ -930,7 +1011,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "excluded_unresolved_coordinates" | "excluded_by_user" | "oversize_piece" | "stock_shortage" | "unreachable" | "unreachable_in_partition" | "candidate_invalid" | "no_valid_candidate";
+            reason: "excluded_unresolved_coordinates" | "excluded_by_user" | "excluded_with_order" | "oversize_piece" | "stock_shortage" | "unreachable" | "unreachable_in_partition" | "candidate_invalid" | "no_valid_candidate";
             /**
              * Stage
              * @enum {string}

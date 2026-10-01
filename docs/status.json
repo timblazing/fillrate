@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-01",
-  "focus": "M4",
-  "productBehavior": 44,
+  "focus": "M5",
+  "productBehavior": 47,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -29,9 +29,9 @@
     },
     "M5": {
       "weight": 10,
-      "done": 0,
-      "state": "planned",
-      "notes": "Nothing yet beyond the \"order date, then value\" rule in the gallery fixture."
+      "done": 30,
+      "state": "active",
+      "notes": "Done: all five spec \u00a78 allocation strategies in the pipeline (order date then value, first come, priority, fair share, CP-SAT with revenue or priority-then-revenue and the optional order-date rule), whole-order mode with whole-order exclusion, order priority, allocation provenance in the summary, exhaustive oracle tests, /scenarios selects. Not yet: provenance on /runs/<id>, sweep axes, Census/ZCTA geocoding, JSON/GeoJSON import, data review."
     },
     "M6": {
       "weight": 12,
@@ -53,9 +53,10 @@
     }
   },
   "nextUp": [
+    "M5: show allocation provenance on /runs/<id>; allocation strategy and policy as sweep axes.",
+    "M5: Census/ZCTA geocoding and JSON/GeoJSON import.",
     "M4 (owner): target-hardware timings and recovery checks on the VPS and Pi.",
     "M2: rebuild fillrate.fig Components on coss parts (needs OpenPencil open).",
-    "M5: allocation strategies, CP-SAT and whole-order mode.",
     "M8: Playwright browser smoke."
   ]
 }

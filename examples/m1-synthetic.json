@@ -269,6 +269,7 @@
     "customer_id": "customer-L01",
     "location_id": "L01",
     "order_date": "2026-09-05",
+    "priority": 1,
     "lines": [
      {
       "id": "O001-1",
@@ -291,6 +292,7 @@
     "customer_id": "customer-L01",
     "location_id": "L01",
     "order_date": "2026-09-16",
+    "priority": 1,
     "lines": [
      {
       "id": "O002-1",
@@ -313,6 +315,7 @@
     "customer_id": "customer-L02",
     "location_id": "L02",
     "order_date": "2026-09-07",
+    "priority": 1,
     "lines": [
      {
       "id": "O003-1",
@@ -328,6 +331,7 @@
     "customer_id": "customer-L02",
     "location_id": "L02",
     "order_date": "2026-09-11",
+    "priority": 1,
     "lines": [
      {
       "id": "O004-1",
@@ -350,6 +354,7 @@
     "customer_id": "customer-L03",
     "location_id": "L03",
     "order_date": "2026-09-15",
+    "priority": 1,
     "lines": [
      {
       "id": "O005-1",
@@ -365,6 +370,7 @@
     "customer_id": "customer-L03",
     "location_id": "L03",
     "order_date": "2026-09-22",
+    "priority": 1,
     "lines": [
      {
       "id": "O006-1",
@@ -380,6 +386,7 @@
     "customer_id": "customer-L04",
     "location_id": "L04",
     "order_date": "2026-09-26",
+    "priority": 1,
     "lines": [
      {
       "id": "O007-1",
@@ -402,6 +409,7 @@
     "customer_id": "customer-L04",
     "location_id": "L04",
     "order_date": "2026-09-24",
+    "priority": 1,
     "lines": [
      {
       "id": "O008-1",
@@ -424,6 +432,7 @@
     "customer_id": "customer-L05",
     "location_id": "L05",
     "order_date": "2026-09-14",
+    "priority": 1,
     "lines": [
      {
       "id": "O009-1",
@@ -439,6 +448,7 @@
     "customer_id": "customer-L06",
     "location_id": "L06",
     "order_date": "2026-09-14",
+    "priority": 1,
     "lines": [
      {
       "id": "O010-1",
@@ -461,6 +471,7 @@
     "customer_id": "customer-L06",
     "location_id": "L06",
     "order_date": "2026-09-23",
+    "priority": 1,
     "lines": [
      {
       "id": "O011-1",
@@ -483,6 +494,7 @@
     "customer_id": "customer-L07",
     "location_id": "L07",
     "order_date": "2026-09-04",
+    "priority": 1,
     "lines": [
      {
       "id": "O012-1",
@@ -498,6 +510,7 @@
     "customer_id": "customer-L07",
     "location_id": "L07",
     "order_date": "2026-09-08",
+    "priority": 1,
     "lines": [
      {
       "id": "O013-1",
@@ -513,6 +526,7 @@
     "customer_id": "customer-L08",
     "location_id": "L08",
     "order_date": "2026-09-10",
+    "priority": 1,
     "lines": [
      {
       "id": "O014-1",
@@ -535,6 +549,7 @@
     "customer_id": "customer-L09",
     "location_id": "L09",
     "order_date": "2026-09-17",
+    "priority": 1,
     "lines": [
      {
       "id": "O015-1",
@@ -557,6 +572,7 @@
     "customer_id": "customer-L09",
     "location_id": "L09",
     "order_date": "2026-09-26",
+    "priority": 1,
     "lines": [
      {
       "id": "O016-1",
@@ -572,6 +588,7 @@
     "customer_id": "customer-L10",
     "location_id": "L10",
     "order_date": "2026-09-25",
+    "priority": 1,
     "lines": [
      {
       "id": "O017-1",
@@ -587,6 +604,7 @@
     "customer_id": "customer-L11",
     "location_id": "L11",
     "order_date": "2026-09-19",
+    "priority": 1,
     "lines": [
      {
       "id": "O018-1",
@@ -609,6 +627,7 @@
     "customer_id": "customer-L11",
     "location_id": "L11",
     "order_date": "2026-09-06",
+    "priority": 1,
     "lines": [
      {
       "id": "O019-1",
@@ -631,6 +650,7 @@
     "customer_id": "customer-L12",
     "location_id": "L12",
     "order_date": "2026-09-22",
+    "priority": 1,
     "lines": [
      {
       "id": "O020-1",
@@ -653,6 +673,7 @@
     "customer_id": "customer-L12",
     "location_id": "L12",
     "order_date": "2026-09-01",
+    "priority": 1,
     "lines": [
      {
       "id": "O021-1",
@@ -668,6 +689,7 @@
     "customer_id": "customer-L13",
     "location_id": "L13",
     "order_date": "2026-09-11",
+    "priority": 1,
     "lines": [
      {
       "id": "O022-1",
@@ -690,6 +712,7 @@
     "customer_id": "customer-L13",
     "location_id": "L13",
     "order_date": "2026-09-20",
+    "priority": 1,
     "lines": [
      {
       "id": "O023-1",
@@ -705,6 +728,7 @@
     "customer_id": "customer-L14",
     "location_id": "L14",
     "order_date": "2026-09-04",
+    "priority": 1,
     "lines": [
      {
       "id": "O024-1",
@@ -727,6 +751,7 @@
     "customer_id": "customer-L15",
     "location_id": "L15",
     "order_date": "2026-09-11",
+    "priority": 1,
     "lines": [
      {
       "id": "O025-1",
@@ -749,6 +774,7 @@
     "customer_id": "customer-L16",
     "location_id": "L16",
     "order_date": "2026-09-09",
+    "priority": 1,
     "lines": [
      {
       "id": "O026-1",
@@ -764,6 +790,7 @@
     "customer_id": "customer-L16",
     "location_id": "L16",
     "order_date": "2026-09-27",
+    "priority": 1,
     "lines": [
      {
       "id": "O027-1",
@@ -786,6 +813,7 @@
     "customer_id": "customer-L17",
     "location_id": "L17",
     "order_date": "2026-09-28",
+    "priority": 1,
     "lines": [
      {
       "id": "O028-1",
@@ -801,6 +829,7 @@
     "customer_id": "customer-L17",
     "location_id": "L17",
     "order_date": "2026-09-24",
+    "priority": 1,
     "lines": [
      {
       "id": "O029-1",
@@ -823,6 +852,7 @@
     "customer_id": "customer-L18",
     "location_id": "L18",
     "order_date": "2026-09-05",
+    "priority": 1,
     "lines": [
      {
       "id": "O030-1",
@@ -838,6 +868,7 @@
     "customer_id": "customer-L18",
     "location_id": "L18",
     "order_date": "2026-09-26",
+    "priority": 1,
     "lines": [
      {
       "id": "O031-1",
@@ -853,6 +884,7 @@
     "customer_id": "customer-L19",
     "location_id": "L19",
     "order_date": "2026-09-10",
+    "priority": 1,
     "lines": [
      {
       "id": "O032-1",
@@ -868,6 +900,7 @@
     "customer_id": "customer-L19",
     "location_id": "L19",
     "order_date": "2026-09-27",
+    "priority": 1,
     "lines": [
      {
       "id": "O033-1",
@@ -890,6 +923,7 @@
     "customer_id": "customer-L20",
     "location_id": "L20",
     "order_date": "2026-09-10",
+    "priority": 1,
     "lines": [
      {
       "id": "O034-1",
@@ -912,6 +946,7 @@
     "customer_id": "customer-L21",
     "location_id": "L21",
     "order_date": "2026-09-26",
+    "priority": 1,
     "lines": [
      {
       "id": "O035-1",
@@ -927,6 +962,7 @@
     "customer_id": "customer-L21",
     "location_id": "L21",
     "order_date": "2026-09-23",
+    "priority": 1,
     "lines": [
      {
       "id": "O036-1",
@@ -942,6 +978,7 @@
     "customer_id": "customer-L22",
     "location_id": "L22",
     "order_date": "2026-09-12",
+    "priority": 1,
     "lines": [
      {
       "id": "O037-1",
@@ -964,6 +1001,7 @@
     "customer_id": "customer-L23",
     "location_id": "L23",
     "order_date": "2026-09-16",
+    "priority": 1,
     "lines": [
      {
       "id": "O038-1",
@@ -986,6 +1024,7 @@
     "customer_id": "customer-L24",
     "location_id": "L24",
     "order_date": "2026-09-03",
+    "priority": 1,
     "lines": [
      {
       "id": "O039-1",
@@ -1001,6 +1040,7 @@
     "customer_id": "customer-L24",
     "location_id": "L24",
     "order_date": "2026-09-26",
+    "priority": 1,
     "lines": [
      {
       "id": "O040-1",
@@ -1016,6 +1056,7 @@
     "customer_id": "customer-L25",
     "location_id": "L25",
     "order_date": "2026-09-03",
+    "priority": 1,
     "lines": [
      {
       "id": "O041-1",
@@ -1038,6 +1079,7 @@
     "customer_id": "customer-L25",
     "location_id": "L25",
     "order_date": "2026-09-15",
+    "priority": 1,
     "lines": [
      {
       "id": "O042-1",
@@ -1053,6 +1095,7 @@
     "customer_id": "customer-L26",
     "location_id": "L26",
     "order_date": "2026-09-10",
+    "priority": 1,
     "lines": [
      {
       "id": "O043-1",
@@ -1075,6 +1118,7 @@
     "customer_id": "customer-L26",
     "location_id": "L26",
     "order_date": "2026-09-10",
+    "priority": 1,
     "lines": [
      {
       "id": "O044-1",
@@ -1097,6 +1141,7 @@
     "customer_id": "customer-L27",
     "location_id": "L27",
     "order_date": "2026-09-20",
+    "priority": 1,
     "lines": [
      {
       "id": "O045-1",
@@ -1112,6 +1157,7 @@
     "customer_id": "customer-L28",
     "location_id": "L28",
     "order_date": "2026-09-07",
+    "priority": 1,
     "lines": [
      {
       "id": "O046-1",
@@ -1127,6 +1173,7 @@
     "customer_id": "customer-L28",
     "location_id": "L28",
     "order_date": "2026-09-13",
+    "priority": 1,
     "lines": [
      {
       "id": "O047-1",
@@ -1149,6 +1196,7 @@
     "customer_id": "customer-L-CHAIN-A",
     "location_id": "L-CHAIN-A",
     "order_date": "2026-09-03",
+    "priority": 1,
     "lines": [
      {
       "id": "O048-1",
@@ -1164,6 +1212,7 @@
     "customer_id": "customer-L-CHAIN-B",
     "location_id": "L-CHAIN-B",
     "order_date": "2026-09-04",
+    "priority": 1,
     "lines": [
      {
       "id": "O049-1",
@@ -1186,6 +1235,7 @@
     "customer_id": "customer-L-FAR",
     "location_id": "L-FAR",
     "order_date": "2026-09-02",
+    "priority": 1,
     "lines": [
      {
       "id": "O050-1",
@@ -1201,6 +1251,7 @@
     "customer_id": "customer-L-BIG",
     "location_id": "L-BIG",
     "order_date": "2026-09-01",
+    "priority": 1,
     "lines": [
      {
       "id": "O051-1",
@@ -1223,6 +1274,7 @@
     "customer_id": "customer-L-BIG",
     "location_id": "L-BIG",
     "order_date": "2026-09-05",
+    "priority": 1,
     "lines": [
      {
       "id": "O052-1",
@@ -1238,6 +1290,7 @@
     "customer_id": "customer-L-NOCOORD",
     "location_id": "L-NOCOORD",
     "order_date": "2026-09-02",
+    "priority": 1,
     "lines": [
      {
       "id": "O053-1",
@@ -1253,6 +1306,7 @@
     "customer_id": "customer-L05",
     "location_id": "L05",
     "order_date": "2026-09-06",
+    "priority": 1,
     "lines": [
      {
       "id": "O054-1",
@@ -1310,6 +1364,11 @@
   "inventory_percent": 100,
   "excluded_line_ids": [],
   "cost_per_truck_cents": null,
-  "cost_per_mile_cents": null
+  "cost_per_mile_cents": null,
+  "allocation_strategy": "order_date_then_value",
+  "fulfillment_policy": "piece",
+  "allocation_objective": "revenue",
+  "respect_order_date": false,
+  "allocation_time_limit_s": 10.0
  }
 }

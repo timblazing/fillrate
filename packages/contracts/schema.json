@@ -1,5 +1,118 @@
 {
   "$defs": {
+    "AllocationStageSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "bound": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Bound"
+        },
+        "objective": {
+          "enum": [
+            "revenue_cents",
+            "priority_weighted_pieces"
+          ],
+          "title": "Objective",
+          "type": "string"
+        },
+        "runtime_s": {
+          "title": "Runtime S",
+          "type": "number"
+        },
+        "status": {
+          "enum": [
+            "optimal",
+            "feasible",
+            "infeasible",
+            "model_invalid",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "objective",
+        "status",
+        "value",
+        "bound",
+        "runtime_s"
+      ],
+      "title": "AllocationStageSummary",
+      "type": "object"
+    },
+    "AllocationSummary": {
+      "additionalProperties": false,
+      "description": "Strategy provenance (spec \u00a78): heuristic or CP-SAT, with each CP-SAT stage's status.",
+      "properties": {
+        "fulfillment_policy": {
+          "enum": [
+            "piece",
+            "whole_order"
+          ],
+          "title": "Fulfillment Policy",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "heuristic",
+            "cp_sat"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "runtime_s": {
+          "title": "Runtime S",
+          "type": "number"
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/$defs/AllocationStageSummary"
+          },
+          "title": "Stages",
+          "type": "array"
+        },
+        "strategy": {
+          "enum": [
+            "order_date_then_value",
+            "first_come",
+            "priority",
+            "proportional",
+            "optimized"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategy",
+        "fulfillment_policy",
+        "kind",
+        "stages",
+        "notes",
+        "runtime_s"
+      ],
+      "title": "AllocationSummary",
+      "type": "object"
+    },
     "ClusterSummary": {
       "additionalProperties": false,
       "properties": {
@@ -970,6 +1083,13 @@
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
           "title": "Order Date",
           "type": "string"
+        },
+        "priority": {
+          "default": 1,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Priority",
+          "type": "integer"
         }
       },
       "required": [
@@ -1281,6 +1401,34 @@
     "RunSettings": {
       "additionalProperties": false,
       "properties": {
+        "allocation_objective": {
+          "default": "revenue",
+          "enum": [
+            "revenue",
+            "priority_then_revenue"
+          ],
+          "title": "Allocation Objective",
+          "type": "string"
+        },
+        "allocation_strategy": {
+          "default": "order_date_then_value",
+          "enum": [
+            "order_date_then_value",
+            "first_come",
+            "priority",
+            "proportional",
+            "optimized"
+          ],
+          "title": "Allocation Strategy",
+          "type": "string"
+        },
+        "allocation_time_limit_s": {
+          "default": 10,
+          "exclusiveMinimum": 0,
+          "maximum": 300,
+          "title": "Allocation Time Limit S",
+          "type": "number"
+        },
         "auto_k_cap": {
           "default": 25,
           "maximum": 100,
@@ -1342,6 +1490,15 @@
           "maxItems": 25000,
           "title": "Excluded Line Ids",
           "type": "array"
+        },
+        "fulfillment_policy": {
+          "default": "piece",
+          "enum": [
+            "piece",
+            "whole_order"
+          ],
+          "title": "Fulfillment Policy",
+          "type": "string"
         },
         "h3_resolution": {
           "default": 2,
@@ -1426,6 +1583,11 @@
         "preflight": {
           "$ref": "#/$defs/PreflightPolicy"
         },
+        "respect_order_date": {
+          "default": false,
+          "title": "Respect Order Date",
+          "type": "boolean"
+        },
         "schema_version": {
           "const": 1,
           "default": 1,
@@ -1494,6 +1656,17 @@
     "RunSummary": {
       "additionalProperties": false,
       "properties": {
+        "allocation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "clustering": {
           "$ref": "#/$defs/ClusteringSummary"
         },
@@ -2054,6 +2227,7 @@
           "enum": [
             "excluded_unresolved_coordinates",
             "excluded_by_user",
+            "excluded_with_order",
             "oversize_piece",
             "stock_shortage",
             "unreachable",

@@ -43,6 +43,7 @@ export const reasonGroup: Record<Reason, UnshippedGroup> = {
   oversize_piece: "did-not-fit",
   excluded_unresolved_coordinates: "address",
   excluded_by_user: "address",
+  excluded_with_order: "address",
   candidate_invalid: "other",
   no_valid_candidate: "other",
 }
@@ -63,6 +64,7 @@ export const reasonLabel: Record<Reason, string> = {
   oversize_piece: "Piece longer than a trailer",
   excluded_unresolved_coordinates: "No coordinates",
   excluded_by_user: "Excluded by you",
+  excluded_with_order: "Order excluded as a whole",
   candidate_invalid: "Failed validation",
   no_valid_candidate: "No valid shipment found",
 }

@@ -1,12 +1,12 @@
 import { parseContract, type ScenarioDocument } from "@fillrate/contracts";
 
-export const ORDER_COLUMNS = ["order_id", "customer_id", "line_id", "order_date", "location_id", "location_label", "address", "latitude", "longitude", "product", "ordered_pieces", "net_value_per_piece", "linear_feet_per_piece"] as const;
+export const ORDER_COLUMNS = ["order_id", "customer_id", "line_id", "order_date", "location_id", "location_label", "address", "latitude", "longitude", "product", "ordered_pieces", "net_value_per_piece", "linear_feet_per_piece", "priority"] as const;
 export const INVENTORY_COLUMNS = ["product", "available_pieces"] as const;
 export type OrderColumn = typeof ORDER_COLUMNS[number];
 export type InventoryColumn = typeof INVENTORY_COLUMNS[number];
 export type ColumnMapping<T extends string> = Partial<Record<T, string>>;
 export const CSV_TEMPLATES = {
-  orders: `${ORDER_COLUMNS.join(",")}\nO-1,customer-1,L-1,2026-09-30,C-1,Customer 1,,35.1,-90.1,SKU-1,10,12.50,1.25\n`,
+  orders: `${ORDER_COLUMNS.join(",")}\nO-1,customer-1,L-1,2026-09-30,C-1,Customer 1,,35.1,-90.1,SKU-1,10,12.50,1.25,1\n`,
   inventory: "product,available_pieces\nSKU-1,100\n",
 };
 export type ImportIssue = { file: "orders" | "inventory"; row: number; column: string; code: string; message: string };
@@ -111,6 +111,8 @@ export function previewCsvImport(input: CsvImportInput): CsvImportPreview {
     const value = decimal("net_value_per_piece"), feet = decimal("linear_feet_per_piece");
     if (!feet) issue("orders", row, "linear_feet_per_piece", "positive_load", "Linear feet must be at least 0.01 per piece.");
     if (!Number.isSafeInteger(pieces * value) || !Number.isSafeInteger(pieces * feet)) issue("orders", row, "ordered_pieces", "overflow", "Extended load or value exceeds the exact integer range.");
+    const priorityText = get("priority") || "1", priority = Number(priorityText);
+    if (!/^\d+$/.test(priorityText) || priority < 1 || priority > 100) issue("orders", row, "priority", "priority", "Priority must be a whole number from 1 to 100.");
     const address = get("address"), latText = get("latitude"), lonText = get("longitude");
     const coordinate = (text: string, limit: number) => /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text) && Number.isFinite(Number(text)) && Math.abs(Number(text)) <= limit;
     const suppliedCoordinates = !!latText || !!lonText;
@@ -122,12 +124,12 @@ export function previewCsvImport(input: CsvImportInput): CsvImportPreview {
     const priorLocation = locations.get(locationId);
     if (priorLocation && JSON.stringify(priorLocation) !== JSON.stringify(location)) issue("orders", row, "location_id", "conflicting_location", "Repeated location ID has conflicting coordinates or label.");
     const priorOrder = orders.get(orderId);
-    if (priorOrder && (priorOrder.location_id !== locationId || priorOrder.order_date !== date || priorOrder.customer_id !== customerId)) issue("orders", row, "order_id", "conflicting_order", "Repeated order ID must keep the same date, location and customer.");
+    if (priorOrder && (priorOrder.location_id !== locationId || priorOrder.order_date !== date || priorOrder.customer_id !== customerId || priorOrder.priority !== priority)) issue("orders", row, "order_id", "conflicting_order", "Repeated order ID must keep the same date, location, customer and priority.");
     if (errors.length !== before) continue;
     if (!suppliedCoordinates) warnings.push({ file: "orders", row, column: "address", code: "unresolved", message: "Address retained; geocoding is not available yet. Resolve coordinates before running." });
     products.set(product, products.get(product) ?? { id: product, label: product, linear_feet_per_piece: feet });
     locations.set(locationId, location);
-    const order = priorOrder ?? { id: orderId, customer_id: customerId, location_id: locationId, order_date: date, lines: [] };
+    const order = priorOrder ?? { id: orderId, customer_id: customerId, location_id: locationId, order_date: date, priority, lines: [] };
     order.lines.push({ id: lineId, product_id: product, ordered_pieces: pieces, net_value_per_piece_cents: value, linear_feet_per_piece: feet });
     orders.set(orderId, order);
   }

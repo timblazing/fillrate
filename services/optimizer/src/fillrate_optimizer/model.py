@@ -58,6 +58,8 @@ class Order(Doc):
     customer_id: Id | None = None
     location_id: Id
     order_date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+    # Used by the "priority" strategy and the lexicographic CP-SAT objective (spec §8).
+    priority: Annotated[int, Field(strict=True, ge=1, le=100)] = 1
     lines: list[OrderLine] = Field(min_length=1)
 
 
@@ -122,6 +124,14 @@ class RunSettings(Doc):
     excluded_line_ids: Annotated[list[Id], Field(max_length=25_000)] = Field(default_factory=list)
     cost_per_truck_cents: Count | None = None
     cost_per_mile_cents: Count | None = None
+    # Allocation (spec §8, M5). Greedy strategies are heuristics; "optimized" is CP-SAT.
+    allocation_strategy: Literal[
+        "order_date_then_value", "first_come", "priority", "proportional", "optimized"
+    ] = "order_date_then_value"
+    fulfillment_policy: Literal["piece", "whole_order"] = "piece"
+    allocation_objective: Literal["revenue", "priority_then_revenue"] = "revenue"
+    respect_order_date: bool = False
+    allocation_time_limit_s: Annotated[float, Field(gt=0, le=300)] = 10
 
     @model_validator(mode="after")
     def validate_cost_rates(self) -> RunSettings:
@@ -137,6 +147,7 @@ class RunSettings(Doc):
 UnplannedReason = Literal[
     "excluded_unresolved_coordinates",
     "excluded_by_user",
+    "excluded_with_order",
     "oversize_piece",
     "stock_shortage",
     "unreachable",
@@ -297,6 +308,27 @@ class Totals(Doc):
     sum_cluster_lower_bounds: int
 
 
+class AllocationStageSummary(Doc):
+    objective: Literal["revenue_cents", "priority_weighted_pieces"]
+    status: Literal["optimal", "feasible", "infeasible", "model_invalid", "unknown"]
+    value: int
+    bound: int | None
+    runtime_s: float
+
+
+class AllocationSummary(Doc):
+    """Strategy provenance (spec §8): heuristic or CP-SAT, with each CP-SAT stage's status."""
+
+    strategy: Literal[
+        "order_date_then_value", "first_come", "priority", "proportional", "optimized"
+    ]
+    fulfillment_policy: Literal["piece", "whole_order"]
+    kind: Literal["heuristic", "cp_sat"]
+    stages: list[AllocationStageSummary]
+    notes: list[str]
+    runtime_s: float
+
+
 class RunSummary(Doc):
     schema_version: Literal[1] = 1
     scenario_name: str
@@ -313,6 +345,8 @@ class RunSummary(Doc):
     products: list[ProductReconciliation]
     unplanned: list[UnplannedLine]
     preflight: list[PreflightFinding] = Field(default_factory=list)
+    # Absent on runs created before M5.
+    allocation: AllocationSummary | None = None
     diagnostics: list[Diagnostic]
     versions: dict[str, str]
 

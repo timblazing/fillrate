@@ -65,6 +65,14 @@
   - [ ] Release gates needing the owner: target-hardware timings (VPS, Pi) and recovery checks
   - [ ] Playwright browser smoke (spec §16; consolidated in M8). The lesson, `/runs` and `/experiments` were checked by hand at 1440 and 390 px
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
+  - [x] Allocation strategies in the pipeline (`allocation.py`): order date then value (default), first come, priority, proportional fair share (heuristic), optimized CP-SAT (revenue or priority then revenue, optional "respect order date", per-stage status)
+  - [x] Whole-order fulfillment policy for every strategy; an order with an excluded line is excluded as a whole (`excluded_with_order`)
+  - [x] Order `priority` (1–100, default 1) in the model and an optional `priority` CSV column
+  - [x] Allocation provenance in the run summary (`summary.allocation`) and the stage artifact (residual, shortages, CP-SAT stages)
+  - [x] Exact small-case oracle tests (CP-SAT vs exhaustive search, piece and whole-order, date rule, lexicographic priority); stock/reconciliation tests for every strategy × policy
+  - [x] `/scenarios` run settings: Allocation, Order fulfillment and Optimized allocation selects
+  - [ ] Show `summary.allocation` (strategy, CP-SAT status) on `/runs/<id>`; allocation strategy / policy as sweep axes
+  - [ ] Census/ZCTA geocoding, JSON/GeoJSON import, data review; source-independent reproduction evidence
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
 - [ ] M7 Learning and exports
 - [ ] M8 Verification and handoff
@@ -94,6 +102,8 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 **M3 is complete (2026-10-01).** `/scenarios` imports order and inventory CSVs (column mapping, row errors, samples, templates), saves immutable versions with authorship, optimistic conflicts and branches, edits lines/stock/coordinates, reviews preflight checks (block, exclude lines, or warn) and starts real worker runs with the full settings, including the cost objective. Runs reuse deterministic stages and checkpoint each cluster. Imported data needs `SCENARIO_KEY` in production. Evidence and benchmarks are under "M3 done" below.
 
 **M4 product work is done (2026-10-01); release gates wait on the owner.** Runs, the k explorer and sweeps take a bundled `example` (`lesson` is the 2,000-order flagship scenario and the UI default). `/learn/fulfillment-pipeline` walks through allocation, k, per-cluster loads and a ranked sweep with real runs. The image smoke now covers explorer, sweep and replay. Verification: Vitest 53, pytest 96, Ruff, lint (the existing `globe.tsx` warning), typecheck and build pass; `smoke_experiments.py` passed against dev and inside the tested image on amd64 and arm64 (`ci.yml` 36811740023, `image.yml` 36811850360, commit `1f1d23e`).
+
+**M5 started (2026-10-01).** Every spec §8 allocation strategy runs in the real pipeline, with whole-order mode and CP-SAT. Choose them in `/scenarios` run settings or with `allocation_strategy` / `fulfillment_policy` in run settings. Verification: pytest 117 passed (21 new in `test_allocation.py`), Vitest 53 passed, Ruff, lint (the existing `globe.tsx` warning), typecheck and build pass. Not yet: showing the allocation provenance on `/runs/<id>`, sweep axes, geocoding and the other imports.
 
 ## Design workflow (M2 prep)
 1. **Foundations** page in `fillrate.fig`: variables named exactly like the CSS tokens in `apps/web/src/app/globals.css` (light + dark modes), plus type scale, radius, spacing, and `route-1..8`.
@@ -158,4 +168,4 @@ Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be r
 M4 product work is done (2026-10-01); what is left are owner release gates:
 1. Owner: run the benchmark and a recovery check (kill the container mid-run, restart, the run resumes or fails cleanly) on the VPS and the Pi.
 2. M2: rebuild `fillrate.fig` Components on coss parts (needs the OpenPencil app open).
-3. Then M5 (allocation strategies, CP-SAT, whole-order mode).
+3. M5: show `summary.allocation` on `/runs/<id>`, add allocation strategy and fulfillment policy as sweep axes, then Census/ZCTA geocoding and JSON/GeoJSON import.
