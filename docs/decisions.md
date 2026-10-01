@@ -353,3 +353,8 @@ Branch `m6-directed-snapshots`, rebased on `778f7ba`; not merged or pushed (need
 ## 2026-10-01: Integrate M6 snapshots and move Actions to Node 24 (Codex)
 - Fast-forward `m6-directed-snapshots` at `2c00fcf` into `main` after confirming both checkouts were clean and the commit was directly based on `eb1134c`. Preserve the M7 commits already on `main`.
 - Pin CI's installed Node version and both Docker Node stages to 24.18.1. Update the remaining Node 20 Actions to Node 24 majors: `astral-sh/setup-uv@v7`, `docker/setup-buildx-action@v4`, `docker/build-push-action@v7`, `docker/login-action@v4`, `actions/upload-artifact@v6`, and `actions/download-artifact@v7`. Action metadata selects the Node 24 major runtime; it does not select a particular 24.x patch release. The Docker 24.18.1 tag has amd64 and arm64 images.
+
+## 2026-10-01: Linear is the project-management source of truth (Codex)
+- **Decision:** Use the Fillrate Linear project as the canonical hub for the specification, roadmap, milestones, issues, decisions, and progress. Keep complete repo copies as backups and `/dev` dashboard inputs. Add the spec at `docs/fillrate-technical-spec.md` while retaining the root copy as a backup.
+- **Reason:** Linear is being adopted for project and task management, while preserving source history and a recoverable local copy. `AGENTS.md` now directs future sessions to Linear first and explains the snapshot relationship.
+- **Migration:** Created Linear project documents from the technical specification, agent workflow, README, progress/status, decision log, durable foundation and road-matrix notes, and both design-review records. Created milestone-linked issues for remaining work.
