@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-01",
   "focus": "M6",
-  "productBehavior": 53,
+  "productBehavior": 54,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -41,9 +41,9 @@
     },
     "M7": {
       "weight": 6,
-      "done": 10,
-      "state": "planned",
-      "notes": "The flagship Fulfillment pipeline lesson and the Python replay bundle exist (M4); the other lessons are not built."
+      "done": 25,
+      "state": "active",
+      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle (M4); allocation lesson (/learn/allocation-policies, 90-order scarce-stock scenario, every observation asserted in pytest), /learn index, replay checks as tested Python (CP-SAT runtime false-difference fixed), allocation and estimated-travel provenance in expected.json. Remaining: other lessons, timeline/playback, route-geometry and explorer exports; road-matrix export waits for M6."
     },
     "M8": {
       "weight": 7,

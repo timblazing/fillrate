@@ -2,7 +2,7 @@ import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 
-export type ExampleOption = { id: string; name: string; blurb: string; orders: number; lines: number; locations: number }
+export type ExampleOption = { id: string; name: string; label?: string; blurb: string; orders: number; lines: number; locations: number }
 
 /** Server-rendered scenario picker for the bundled synthetic examples; the choice lives in `?example=`. */
 export function ExampleSwitch({ examples, current, href }: { examples: ExampleOption[]; current: string; href: (id: string) => string }) {
@@ -12,7 +12,7 @@ export function ExampleSwitch({ examples, current, href }: { examples: ExampleOp
       <nav aria-label="Bundled scenario" className="flex flex-wrap gap-2">
         {examples.map((e) => (
           <Button key={e.id} size="sm" variant={e.id === selected.id ? "secondary" : "outline"} aria-current={e.id === selected.id ? "page" : undefined} render={<Link href={href(e.id)} scroll={false} />}>
-            {e.id === "lesson" ? "Lesson, 2,000 orders" : `Small example, ${e.orders} orders`}
+            {e.label ?? e.name}
           </Button>
         ))}
       </nav>

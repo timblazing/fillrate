@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Experiments smoke (spec §14, M4): on the bundled lesson scenario, a k explorer job, a two-run
-sweep with a ranked Best option, and a Python replay bundle of a finished run.
+"""Experiments smoke (spec §14, M4/M7): on the bundled lesson scenario, a k explorer job, a two-run
+sweep with a ranked Best option, and a Python replay bundle of a finished run; on the allocation
+lesson scenario, a CP-SAT whole-order run and its replay bundle.
 Usage: smoke_experiments.py <base-url> <run-key> <finished-run-id>"""
 
 import io
@@ -43,7 +44,7 @@ def wait(check, what, seconds=300):
 
 
 examples = {e["id"] for e in call("/api/v1/examples")["examples"]}
-if examples != {"m1", "lesson"}:
+if examples != {"m1", "lesson", "allocation"}:
     sys.exit(f"unexpected examples: {examples}")
 call("/api/v1/runs", {"example": "nope"}, expect=400)
 
@@ -96,3 +97,27 @@ for required in ("replay.py", "scenario.json", "settings.json"):
     if not any(n.endswith(required) for n in names):
         sys.exit(f"replay bundle lacks {required}: {sorted(names)[:20]}")
 print(f"replay bundle ok: {len(names)} files")
+
+# Allocation lesson (M7): a CP-SAT whole-order run on the small scarce-stock scenario, then its bundle.
+call("/api/v1/runs", {"example": "allocation", "settings": {"allocation_strategy": "nope"}}, expect=400)
+lesson_run = call("/api/v1/runs", {"example": "allocation", "settings": {"allocation_strategy": "optimized", "fulfillment_policy": "whole_order"}}, expect=201)
+
+
+def lesson_done():
+    detail = call(f"/api/v1/runs/{lesson_run['id']}")
+    if detail["status"] in ("failed", "cancelled", "interrupted"):
+        sys.exit(f"allocation lesson run ended badly: {detail['status']}")
+    return detail if detail["status"] == "succeeded" else None
+
+
+detail = wait(lesson_done, "allocation lesson run", 300)
+summary = detail["summary"]
+if (summary["validity"], summary["coverage"]) != ("valid", "complete") or summary["allocation"]["kind"] != "cp_sat":
+    sys.exit(f"allocation lesson run unexpected: {summary['validity']}, {summary['coverage']}, {summary['allocation']['kind']}")
+bundle = zipfile.ZipFile(io.BytesIO(call(f"/api/v1/runs/{lesson_run['id']}/export?format=python", raw=True)))
+expected = json.loads(bundle.read("expected.json"))
+if expected["allocation"] != {"strategy": "optimized", "fulfillment_policy": "whole_order", "kind": "cp_sat"} or expected["travel"]["provider"] != "estimated":
+    sys.exit(f"replay expected.json lacks allocation/travel provenance: {expected}")
+if "optimizer/src/fillrate_optimizer/replay.py" not in bundle.namelist():
+    sys.exit("replay bundle lacks the replay module")
+print(f"allocation lesson ok: {summary['totals']['trucks']} shipments, ${summary['totals']['planned_cents'] / 100:,.0f} planned, replay bundle ok")

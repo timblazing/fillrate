@@ -5,7 +5,7 @@ import { ExampleSwitch } from "@/components/lab/example-switch"
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { initializeDatabase } from "@/lib/server/database"
-import { EXAMPLES, exampleInfo, runsOpen } from "@/lib/server/runs"
+import { EXAMPLES, exampleInfo, pageExample, runsOpen } from "@/lib/server/runs"
 
 import { publicRuns } from "@/lib/server/scenarios"
 
@@ -17,7 +17,7 @@ export const metadata = { title: "Runs · Fillrate" }
 export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
   const { key, example: exampleParam } = await searchParams
   const runs = publicRuns(initializeDatabase())
-  const example = exampleInfo(EXAMPLES[exampleParam === "m1" ? "m1" : "lesson"])
+  const example = exampleInfo(pageExample(exampleParam))
   const keyQuery = typeof key === "string" ? `&key=${encodeURIComponent(key)}` : ""
 
   return (

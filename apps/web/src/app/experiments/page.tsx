@@ -5,7 +5,7 @@ import { ExampleSwitch } from "@/components/lab/example-switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { initializeDatabase } from "@/lib/server/database"
 import { publicExperiments } from "@/lib/server/experiments"
-import { EXAMPLES, exampleInfo, maxSweepRuns, runsOpen } from "@/lib/server/runs"
+import { EXAMPLES, exampleInfo, maxSweepRuns, pageExample, runsOpen } from "@/lib/server/runs"
 
 import { SweepBuilder } from "./sweep-builder"
 
@@ -17,7 +17,7 @@ export default async function ExperimentsPage({ searchParams }: PageProps<"/expe
   const runKey = typeof key === "string" ? key : undefined
   const experiments = publicExperiments(initializeDatabase(), false)
   // Sweeps default to the lesson scenario: the small example always has an unreachable stop, so it never ranks.
-  const example = EXAMPLES[exampleParam === "m1" ? "m1" : "lesson"]
+  const example = pageExample(exampleParam)
   const startK = typeof k === "string" && /^\d+$/.test(k) ? Number(k) : (example.settings.k ?? 4)
   const keyQuery = runKey ? `&key=${encodeURIComponent(runKey)}` : ""
   return (

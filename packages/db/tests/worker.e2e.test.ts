@@ -18,6 +18,7 @@ import { writeFileSync } from "node:fs";
 
 const optimizer = resolve("services/optimizer");
 const example = JSON.parse(readFileSync(resolve("examples/m1-synthetic.json"), "utf8"));
+const allocationLesson = JSON.parse(readFileSync(resolve("examples/lesson-allocation.json"), "utf8"));
 const hasUv = spawnSync("uv", ["--version"]).status === 0 && process.env.FILLRATE_SKIP_PYTHON !== "1";
 const token = "e2e-token";
 const env = { ...process.env, UV_PYTHON: "python3.13", WORKER_TOKEN: token, WORKER_POLL_SECONDS: "0.2", WORKER_HEARTBEAT_SECONDS: "0.5" };
@@ -200,4 +201,33 @@ test.skipIf(!hasUv)("sweep runs are independent solves, ranked within one cohort
   expect(replay.stdout).toContain("REPLAY OK");
   expect(replay.stdout).toMatch(/clustering\s+reproduced/);
   expect(replay.status).toBe(0);
+}, 180_000);
+
+test.skipIf(!hasUv)("a CP-SAT whole-order run replays from its bundle; measured allocation runtimes are not differences", async () => {
+  const lessonVersion = store.createScenario("Allocation lesson", { schema_version: 1, document: allocationLesson.scenario }, "e2e").versionId;
+  const settings = { ...allocationLesson.settings, allocation_strategy: "optimized", fulfillment_policy: "whole_order" };
+  const runId = store.enqueue(lessonVersion, { schema_version: 1, document: settings }, "optimized-whole");
+  startWorker("replayer");
+  await waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status), 110_000);
+  const view = store.runView(runId)!;
+  expect(view.status).toBe("succeeded");
+  const allocation = store.readArtifact(view.artifacts.find(a => a.stage_type === "allocation")!.output_hash) as { stages: { status: string; runtime_s: number }[] };
+  expect(allocation.stages.map(x => x.status)).toEqual(["optimal"]);
+
+  const out = join(dir, "bundle"); const file = join(dir, "bundle.zip");
+  writeFileSync(file, replayBundle(store, runId, optimizer));
+  expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
+  const expected = JSON.parse(readFileSync(join(out, "expected.json"), "utf8"));
+  expect(expected.allocation).toEqual({ strategy: "optimized", fulfillment_policy: "whole_order", kind: "cp_sat" });
+  expect(expected.travel).toEqual({ provider: "estimated", circuity: 1.2 });
+  const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(replay.stdout).toMatch(/allocation\s+reproduced/);
+  expect(replay.stdout).toMatch(/fulfillment_policy\s+recorded whole_order\s+replay whole_order\s+=/);
+  expect(replay.stdout).toContain("REPLAY OK");
+  expect(replay.status).toBe(0);
+  // A bundle that declares another travel provider is refused, not replayed with estimated travel.
+  writeFileSync(join(out, "expected.json"), JSON.stringify({ ...expected, travel: { provider: "valhalla" } }));
+  const refused = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(refused.status).toBe(1);
+  expect(refused.stdout).toContain("cannot be replayed");
 }, 180_000);

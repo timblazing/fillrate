@@ -1,22 +1,21 @@
-import Link from "next/link"
-
 import { DevHeader } from "@/components/brand/dev-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { EXAMPLES, exampleInfo, maxSweepRuns, runsOpen } from "@/lib/server/runs"
-import { formatFeet } from "@/lib/units"
+import { EXAMPLES, exampleInfo, runsOpen } from "@/lib/server/runs"
+import Link from "next/link"
 
-import { LessonSteps } from "./lesson-steps"
+import { AllocationSteps } from "./allocation-steps"
 
 export const dynamic = "force-dynamic"
-export const metadata = { title: "Lesson: fulfillment pipeline · Fillrate" }
+export const metadata = { title: "Lesson: scarce stock · Fillrate" }
 
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-US")}`
 
-// Flagship lesson (spec §13): synthetic data only, real runs, expected observations rather than fixed answers.
-export default async function FulfillmentLessonPage({ searchParams }: PageProps<"/learn/fulfillment-pipeline">) {
+// Allocation lesson (spec §13: scarce single-product inventory; piece-level versus whole-order allocation).
+// Synthetic data only; routing uses the pipeline's estimated haversine travel, not road matrices.
+export default async function AllocationLessonPage({ searchParams }: PageProps<"/learn/allocation-policies">) {
   const { key } = await searchParams
-  const { scenario, settings } = EXAMPLES.lesson
-  const info = exampleInfo(EXAMPLES.lesson)
+  const { scenario } = EXAMPLES.allocation
+  const info = exampleInfo(EXAMPLES.allocation)
   const stock = new Map(scenario.inventory.map((i) => [i.product_id, i.available_pieces]))
   const products = scenario.products.map((p) => {
     let ordered = 0, value = 0
@@ -32,12 +31,12 @@ export default async function FulfillmentLessonPage({ searchParams }: PageProps<
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
         <section className="flex flex-col gap-3">
           <Link href="/learn" className="text-muted-foreground text-sm underline underline-offset-4">Lessons</Link>
-          <h1 className="text-2xl font-semibold tracking-tight">Fulfillment pipeline</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Scarce stock: partial lines or whole orders</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
-            {info.orders.toLocaleString()} synthetic open orders ({info.lines.toLocaleString()} lines) from {info.locations} customer locations in eight
-            regional markets around a Memphis DC, worth {money(orderedCents)}. Stock is short for two of the four products. You will allocate the stock,
-            choose a number of clusters, build 53 ft shipments with PyVRP and compare a small sweep. Every step starts a real run on this server;
-            the numbers below are what to look for, not fixed answers.
+            {info.orders} synthetic open orders ({info.lines} lines) from {info.locations} customer locations in three markets around a Memphis DC, worth {money(orderedCents)}.
+            Carpet rolls are short: stock covers half of the ordered rolls. Pallets and cartons are plentiful. You will decide who gets the rolls, first by a rule and
+            then by letting a solver choose, and see how filling lines piece by piece differs from shipping only complete orders. Every step starts a real run on this
+            server; the numbers are what to look for, not fixed answers. Travel is estimated (straight-line distance × 1.2); road matrices are not part of this lesson.
           </p>
         </section>
 
@@ -48,7 +47,6 @@ export default async function FulfillmentLessonPage({ searchParams }: PageProps<
               <TableHeader>
                 <TableRow>
                   <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Trailer length per piece</TableHead>
                   <TableHead className="text-right">Ordered pieces</TableHead>
                   <TableHead className="text-right">On hand</TableHead>
                   <TableHead className="text-right">Can fill</TableHead>
@@ -58,7 +56,6 @@ export default async function FulfillmentLessonPage({ searchParams }: PageProps<
                 {products.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell>{p.label} <span className="text-muted-foreground font-mono text-xs">{p.id}</span></TableCell>
-                    <TableCell className="text-right tabular-nums">{formatFeet(p.linear_feet_per_piece)}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.ordered.toLocaleString()}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.available.toLocaleString()}</TableCell>
                     <TableCell className={`text-right tabular-nums ${p.coverage < 1 ? "text-warning-foreground font-medium" : ""}`}>{Math.round(p.coverage * 100)}%</TableCell>
@@ -69,7 +66,7 @@ export default async function FulfillmentLessonPage({ searchParams }: PageProps<
           </div>
         </section>
 
-        <LessonSteps open={runsOpen()} runKey={typeof key === "string" ? key : undefined} defaultK={settings.k ?? 8} sweepLimit={maxSweepRuns()} iterations={settings.solver_max_iterations ?? null} />
+        <AllocationSteps open={runsOpen()} runKey={typeof key === "string" ? key : undefined} />
       </main>
     </div>
   )

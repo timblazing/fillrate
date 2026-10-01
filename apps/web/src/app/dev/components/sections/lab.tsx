@@ -256,8 +256,8 @@ export function Lab() {
           current="lesson"
           href={(id) => `#example-${id}`}
           examples={[
-            { id: "m1", name: "M1 synthetic: Memphis DC", blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop", orders: 54, lines: 81, locations: 33 },
-            { id: "lesson", name: "Fulfillment pipeline lesson — 2,000 synthetic orders", blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete", orders: 2000, lines: 3017, locations: 600 },
+            { id: "m1", name: "M1 synthetic: Memphis DC", label: "Small example", blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop", orders: 54, lines: 81, locations: 33 },
+            { id: "lesson", name: "Fulfillment pipeline lesson — 2,000 synthetic orders", label: "Lesson, 2,000 orders", blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete", orders: 2000, lines: 3017, locations: 600 },
           ]}
         />
       </Specimen>

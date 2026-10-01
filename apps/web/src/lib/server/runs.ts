@@ -4,20 +4,26 @@ import { timingSafeEqual } from "node:crypto";
 import { parseContract, type ExplorerSummary, type RunSettings, type RunSummary, type ScenarioDocument, type Snapshot } from "@fillrate/contracts";
 import type { Store } from "@fillrate/db";
 
+import allocation from "../../../../../examples/lesson-allocation.json";
 import lesson from "../../../../../examples/lesson-fulfillment.json";
 import m1 from "../../../../../examples/m1-synthetic.json";
 
 // Keyless and run-key submissions execute bundled synthetic scenarios only (spec §14: public
 // surfaces stay synthetic). `m1` is the small edge-case example (always partial coverage, so its
-// sweeps never rank); `lesson` is the 2,000-order flagship lesson scenario (spec §13).
+// sweeps never rank); `lesson` is the 2,000-order flagship lesson scenario; `allocation` is the small
+// scarce-stock scenario for the allocation lesson (spec §13).
 export const EXAMPLES = {
   m1: { id: "m1", scenario: m1.scenario as ScenarioDocument, settings: m1.settings as RunSettings, blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop" },
   lesson: { id: "lesson", scenario: lesson.scenario as ScenarioDocument, settings: lesson.settings as RunSettings, blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete" },
+  allocation: { id: "allocation", scenario: allocation.scenario as ScenarioDocument, settings: allocation.settings as RunSettings, blurb: "Allocation lesson: scarce carpet rolls, so strategy and piece or whole-order policy decide who ships" },
 } as const;
 export type ExampleId = keyof typeof EXAMPLES;
 export type Example = (typeof EXAMPLES)[ExampleId];
 export const exampleScenario = EXAMPLES.m1.scenario;
 export const exampleSettings = EXAMPLES.m1.settings;
+
+/** The example a page's `?example=` names; anything else is the flagship lesson. */
+export const pageExample = (param: unknown): Example => (typeof param === "string" && Object.hasOwn(EXAMPLES, param) ? EXAMPLES[param as ExampleId] : EXAMPLES.lesson);
 
 export function parseExample(input: unknown, fallback: ExampleId): Example {
   if (input === undefined || input === null) return EXAMPLES[fallback];
@@ -25,10 +31,12 @@ export function parseExample(input: unknown, fallback: ExampleId): Example {
   throw new ApiError(400, "unknown_example", `Unknown example; use one of ${Object.keys(EXAMPLES).join(", ")}.`, ["example"]);
 }
 
+const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson" };
+
 /** Small listing for pages and `GET /api/v1/examples`. */
 export function exampleInfo(example: Example) {
   const { scenario, settings } = example;
-  return { id: example.id, name: scenario.name, blurb: example.blurb, orders: scenario.orders.length, lines: scenario.orders.reduce((n, o) => n + o.lines.length, 0), locations: scenario.locations.length, k: settings.k ?? null };
+  return { id: example.id, name: scenario.name, label: EXAMPLE_LABELS[example.id], blurb: example.blurb, orders: scenario.orders.length, lines: scenario.orders.reduce((n, o) => n + o.lines.length, 0), locations: scenario.locations.length, k: settings.k ?? null };
 }
 
 export class ApiError extends Error {
@@ -123,6 +131,9 @@ export function exampleForVersion(store: Store, versionId: string): ExampleId | 
   return null;
 }
 
+const ALLOCATION_STRATEGIES = ["order_date_then_value", "first_come", "priority", "proportional", "optimized"] as const;
+const FULFILLMENT_POLICIES = ["piece", "whole_order"] as const;
+
 /** Only these settings are overridable on `/api/v1/runs`; the rest come from the bundled example. */
 export function parseOverrides(input: unknown): Partial<RunSettings> {
   if (input === undefined || input === null) return {};
@@ -141,6 +152,14 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
       if (!Number.isInteger(value) || (value as number) < 0 || (value as number) > 100)
         throw new ApiError(400, "invalid_settings", "inventory_percent must be an integer from 0 to 100.", ["settings.inventory_percent"]);
       out.inventory_percent = value as number;
+    } else if (key === "allocation_strategy") {
+      if (!ALLOCATION_STRATEGIES.includes(value as never))
+        throw new ApiError(400, "invalid_settings", `allocation_strategy must be one of ${ALLOCATION_STRATEGIES.join(", ")}.`, ["settings.allocation_strategy"]);
+      out.allocation_strategy = value as RunSettings["allocation_strategy"];
+    } else if (key === "fulfillment_policy") {
+      if (!FULFILLMENT_POLICIES.includes(value as never))
+        throw new ApiError(400, "invalid_settings", `fulfillment_policy must be one of ${FULFILLMENT_POLICIES.join(", ")}.`, ["settings.fulfillment_policy"]);
+      out.fulfillment_policy = value as RunSettings["fulfillment_policy"];
     } else {
       throw new ApiError(400, "invalid_settings", `Setting ${key} cannot be changed in this version.`, [`settings.${key}`]);
     }

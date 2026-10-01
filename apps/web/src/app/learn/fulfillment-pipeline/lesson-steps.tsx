@@ -2,49 +2,17 @@
 
 import { ArrowRight, FlaskConical, Play, RotateCcw, ScanSearch } from "lucide-react"
 import Link from "next/link"
-import { useState, useSyncExternalStore, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { toastManager } from "@/components/ui/toast"
+
+import { Step, useLessonState, wholeNumber } from "../lesson-kit"
 
 const STORAGE_KEY = "fillrate.lesson.fulfillment"
-const CHANGE_EVENT = "fillrate-lesson-change"
 
 type Params = { k: string; inventory: string; exploreK: string; sweepKs: string; sweepSeeds: string }
-type Jobs = { run?: string; explorer?: string; sweep?: string }
-type Saved = { params?: Partial<Params>; jobs?: Jobs }
-
-function read(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-function write(next: Saved | null) {
-  try {
-    if (next) localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    else localStorage.removeItem(STORAGE_KEY)
-  } catch {}
-  window.dispatchEvent(new Event(CHANGE_EVENT))
-}
-function subscribe(callback: () => void) {
-  window.addEventListener(CHANGE_EVENT, callback)
-  window.addEventListener("storage", callback)
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, callback)
-    window.removeEventListener("storage", callback)
-  }
-}
-function parse(raw: string | null): Saved {
-  try {
-    return raw ? (JSON.parse(raw) as Saved) : {}
-  } catch {
-    return {}
-  }
-}
+type Job = "run" | "explorer" | "sweep"
 
 function list(raw: string, min: number, max: number) {
   const values = [...new Set(raw.split(/[\s,]+/).filter(Boolean).map(Number))]
@@ -58,40 +26,12 @@ function list(raw: string, min: number, max: number) {
  */
 export function LessonSteps({ open, runKey, defaultK, sweepLimit, iterations }: { open: boolean; runKey?: string; defaultK: number; sweepLimit: number; iterations: number | null }) {
   const defaults: Params = { k: String(defaultK), inventory: "100", exploreK: String(defaultK), sweepKs: "6, 8, 10, 12", sweepSeeds: "0, 1" }
-  const saved = parse(useSyncExternalStore(subscribe, read, () => null))
-  const params = { ...defaults, ...saved.params }
-  const jobs = saved.jobs ?? {}
-  const [pending, setPending] = useState<keyof Jobs | null>(null)
+  const { params, jobs, pending, setParam, start, reset } = useLessonState<Params, Job>(STORAGE_KEY, defaults, runKey)
   const suffix = runKey ? `?key=${encodeURIComponent(runKey)}` : ""
 
-  const setParam = (patch: Partial<Params>) => write({ ...saved, params: { ...saved.params, ...patch } })
-
-  async function start(job: keyof Jobs, path: string, body: () => unknown) {
-    setPending(job)
-    try {
-      const res = await fetch(path, {
-        method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
-        body: JSON.stringify(body()),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error?.message ?? "Request failed.")
-      write({ ...saved, jobs: { ...jobs, [job]: json.id } })
-    } catch (error) {
-      toastManager.add({ type: "error", title: "Not started", description: error instanceof Error ? error.message : undefined })
-    } finally {
-      setPending(null)
-    }
-  }
-
-  const int = (raw: string, min: number, max: number, name: string) => {
-    const n = Number(raw)
-    if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${name} must be a whole number from ${min} to ${max}.`)
-    return n
-  }
-  const runBody = () => ({ example: "lesson", settings: { k: int(params.k, 1, 25, "k"), inventory_percent: int(params.inventory, 0, 100, "Inventory") } })
+  const runBody = () => ({ example: "lesson", settings: { k: wholeNumber(params.k, 1, 25, "k"), inventory_percent: wholeNumber(params.inventory, 0, 100, "Inventory") } })
   const explorerBody = () => {
-    const k = int(params.exploreK, 1, 24, "k")
+    const k = wholeNumber(params.exploreK, 1, 24, "k")
     return { example: "lesson", settings: { ks: [k, k + 1], selected_k: k } }
   }
   const sweepBody = () => ({ example: "lesson", name: "Lesson sweep", axes: { k: list(params.sweepKs, 1, 25), kmeans_seed: list(params.sweepSeeds, 0, 1000) } })
@@ -106,7 +46,7 @@ export function LessonSteps({ open, runKey, defaultK, sweepLimit, iterations }: 
       <Input id={`lesson-${id}`} value={params[id]} onChange={(e) => setParam({ [id]: e.target.value })} className={`${width} font-mono`} />
     </div>
   )
-  const openLink = (job: keyof Jobs, href: string, label: string) =>
+  const openLink = (job: Job, href: string, label: string) =>
     jobs[job] && (
       <Button variant="outline" render={<Link href={`${href}/${jobs[job]}${suffix}`} />}>
         {label} <ArrowRight aria-hidden />
@@ -169,32 +109,11 @@ export function LessonSteps({ open, runKey, defaultK, sweepLimit, iterations }: 
       </Step>
 
       <div className="flex flex-wrap items-center gap-3 border-t pt-6">
-        <Button variant="outline" onClick={() => write(null)}>
+        <Button variant="outline" onClick={reset}>
           <RotateCcw aria-hidden /> Reset lesson
         </Button>
         <p className="text-muted-foreground text-xs text-pretty">Restores the starting values and forgets which runs this browser started. Runs already made stay under Runs and Sweeps.</p>
       </div>
     </div>
-  )
-}
-
-function Step({ n, title, observe, children }: { n: number; title: string; observe: string[]; children: ReactNode }) {
-  return (
-    <section className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" aria-labelledby={`step-${n}`}>
-      <div className="flex flex-col gap-3">
-        <h2 id={`step-${n}`} className="text-lg font-semibold tracking-tight">
-          <span className="text-muted-foreground tabular-nums">{n}.</span> {title}
-        </h2>
-        <div className="flex flex-wrap items-end gap-3">{children}</div>
-      </div>
-      <div className="bg-card rounded-xl border p-4">
-        <h3 className="text-muted-foreground mb-2 text-xs font-medium uppercase">What to look for</h3>
-        <ul className="list-disc space-y-1.5 pl-4 text-sm text-pretty">
-          {observe.map((o) => (
-            <li key={o}>{o}</li>
-          ))}
-        </ul>
-      </div>
-    </section>
   )
 }

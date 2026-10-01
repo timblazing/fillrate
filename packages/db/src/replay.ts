@@ -41,6 +41,9 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
     clustering: summary.clustering,
     versions: summary.versions,
     deterministic_output_hashes: deterministic,
+    // Allocation identity is always checked; travel is the estimated matrix until M6 selects road providers.
+    allocation: summary.allocation ? { strategy: summary.allocation.strategy, fulfillment_policy: summary.allocation.fulfillment_policy, kind: summary.allocation.kind } : undefined,
+    travel: { provider: "estimated", circuity: (settings as { travel_circuity?: number }).travel_circuity ?? 1.2 },
     iteration_based: Boolean((settings as { solver_max_iterations?: number | null }).solver_max_iterations),
   };
   const json = (value: unknown) => Buffer.from(JSON.stringify(value, null, 1) + "\n");
@@ -76,9 +79,14 @@ aggregation and clustering outputs). No web credentials, network access or geoco
 The script reruns the pipeline and checks:
 
 1. The deterministic stages (preflight, allocation, aggregation, clustering) reproduce the recorded
-   output hashes exactly.
-2. The plan is validated again and its feasibility, coverage, shipments, planned revenue and loaded
-   miles are compared with \`expected.json\`.
+   outputs exactly. Measured runtimes (such as a CP-SAT allocation stage's \`runtime_s\`) are
+   provenance and are left out of the comparison.
+2. The allocation strategy and fulfillment policy match the recording, and the plan is validated
+   again: its feasibility must match, and its coverage, shipments, planned revenue and loaded miles
+   are compared with \`expected.json\`.
+3. Travel is the estimated matrix (straight-line distance × the recorded circuity factor). Road or
+   imported matrices are not part of bundles yet; a bundle that declared another provider would be
+   refused instead of replayed with estimated travel.
 
 ${iterationBased
     ? "This run used an iteration budget, so on the same pinned versions and platform the solve is expected to reproduce exactly. A difference is reported and fails the replay."
@@ -89,67 +97,19 @@ hundredths of a foot.
 `;
 }
 
+// The checks live in the bundled optimizer package (`fillrate_optimizer.replay`) so they are tested Python.
 const REPLAY_PY = `"""Replays a Fillrate pipeline run from this bundle. See README.md."""
 
-import argparse
-import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "optimizer" / "src"))
 
-from fillrate_optimizer.model import RunSettings, ScenarioDocument  # noqa: E402
-from fillrate_optimizer.pipeline import run_pipeline, versions  # noqa: E402
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--iterations", type=int, help="Rerun with a fixed solver iteration budget.")
-    args = parser.parse_args()
-    expected = json.loads((ROOT / "expected.json").read_text())
-    scenario = ScenarioDocument.model_validate(json.loads((ROOT / "scenario.json").read_text()))
-    settings = RunSettings.model_validate(json.loads((ROOT / "settings.json").read_text()))
-    exact = expected["iteration_based"]
-    if args.iterations:
-        settings = settings.model_copy(update={"solver_max_iterations": args.iterations})
-        exact = False
-    local = versions()
-    drift = {k: (v, local.get(k)) for k, v in expected["versions"].items() if local.get(k) != v}
-    if drift:
-        print(f"note: versions differ from the recording: {drift}")
-        exact = False
-
-    output = run_pipeline(scenario, settings)
-    failures = []
-    hashes = {a.stage: a.manifest["output_hash"] for a in output.artifacts}
-    for stage, recorded in expected["deterministic_output_hashes"].items():
-        ok = recorded is None or hashes.get(stage) == recorded
-        print(f"{stage:<12} {'reproduced' if ok else 'DIFFERS'}")
-        if not ok:
-            failures.append(stage)
-
-    summary, totals = output.summary, expected["totals"]
-    rows = [
-        ("validity", expected["validity"], summary.validity),
-        ("coverage", expected["coverage"], summary.coverage),
-        ("shipments", totals["trucks"], summary.totals.trucks),
-        ("planned_cents", totals["planned_cents"], summary.totals.planned_cents),
-        ("loaded_distance_m", totals["loaded_distance_m"], summary.totals.loaded_distance_m),
-    ]
-    for name, recorded, now in rows:
-        same = recorded == now
-        print(f"{name:<18} recorded {recorded!s:<12} replay {now!s:<12} {'=' if same else '≠'}")
-        if not same and (exact or name in ("validity",)):
-            failures.append(name)
-    if not exact:
-        print("solver metrics are informational: time budget, override or version drift (see README)")
-    print("REPLAY OK" if not failures else f"REPLAY FAILED: {', '.join(failures)}")
-    return 1 if failures else 0
-
+from fillrate_optimizer.replay import main  # noqa: E402
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(root=ROOT))
 `;
 
 /** Minimal ZIP writer (stored entries, no compression) so the bundle needs no dependency. */
