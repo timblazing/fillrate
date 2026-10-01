@@ -82,7 +82,7 @@ Exact resolved versions are in `bun.lock`.
 - Route timeline and matrix inspector moved to a "Later milestones" section (M6–M7).
 
 ## 2026-09-29: Project renamed to Fillrate (Claude Code)
-- **Decision:** PyVRP Lab is now **Fillrate** (spec v1.4). Repository `timblazing/fillrate`, image `ghcr.io/timblazing/fillrate`, database file `fillrate.sqlite`, spec `fillrate-technical-spec.md`, design file `fillrate.fig`, root package `fillrate`.
+- **Decision:** PyVRP Lab is now **Fillrate** (spec v1.4). Repository `timblazing/fillrate`, image `ghcr.io/timblazing/fillrate`, database file `fillrate.sqlite`, spec `docs/fillrate-technical-spec.md`, design file `fillrate.fig`, root package `fillrate`.
 - **Reason:** the owner wants a standalone product name that uses PyVRP under the hood rather than being named after it. "Fill rate" covers both inventory fill rate and truck fill.
 - **Domain:** the reference deployment is served at `fillrate.blasingame.dev`, a subdomain of the owner's existing domain, through the Caddy VPS (spec §14).
 - Earlier entries in this log keep the old file names as written; they refer to the same files.

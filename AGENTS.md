@@ -3,7 +3,7 @@
 Canonical instructions for Codex and Claude Code (`CLAUDE.md` just imports this file).
 
 ## Project records
-The repository is the source of truth for Fillrate's specification, roadmap, decisions, progress and verification evidence. Use `docs/fillrate-technical-spec.md` as the canonical specification; the root `fillrate-technical-spec.md` remains the original backup. Track remaining work and dependencies in `docs/progress.md`, append accepted decisions to `docs/decisions.md`, and keep dashboard estimates in `docs/status.json`. Supporting references and review records stay in `docs/`.
+The repository is the source of truth for Fillrate's specification, roadmap, decisions, progress and verification evidence. Use `docs/fillrate-technical-spec.md` as the canonical specification. Track remaining work and dependencies in `docs/progress.md`, append accepted decisions to `docs/decisions.md`, and keep dashboard estimates in `docs/status.json`. Supporting references and review records stay in `docs/`.
 
 ## Start of every session
 1. Read this file, check `git status`, then read `docs/progress.md`, `docs/decisions.md`, `docs/status.json`, and the relevant specification/reference sections. Reconcile those records with actual code and Git history before choosing the next increment.
@@ -36,7 +36,7 @@ deploy                `entrypoint.sh`, `smoke.sh` (+ `smoke_*.py`), `compose.yam
 fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 ```
 
-The canonical specification is [`docs/fillrate-technical-spec.md`](docs/fillrate-technical-spec.md); the root `fillrate-technical-spec.md` is a retained backup.
+The canonical specification is [`docs/fillrate-technical-spec.md`](docs/fillrate-technical-spec.md).
 
 ## Commands (run from the repo root; Bun is the package manager and script runner, Node 24 is the runtime)
 - `bun install`: install workspace deps (commit `bun.lock`)
