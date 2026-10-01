@@ -11,3 +11,7 @@ The Chromium smoke drives the bundled fulfillment lesson through a real Python w
 5. From the repository root, run `bun run test:browser`.
 
 The launcher starts `next start` on a loopback-only ephemeral port, starts the real worker against a separate loopback transport port, and creates a temporary database directory and run key. It removes the temporary database when the run ends. It does not use Docker or production data. CI installs Chromium with `bunx playwright install --with-deps chromium` before running the same command.
+
+## Remaining coverage
+
+The existing smoke covers the public lesson, core result page and JSON export. Add two separate flows using this production launcher: a minimal protected CSV import through preview/commit to a validated result, and a bounded deterministic experiment through combination preview to a ranked comparison. Both need meaningful persisted-outcome assertions and desktop/390 px overflow checks. Preserve operator protections for imports. Detailed acceptance and dependencies are in `progress.md`; target hardware and release evidence are in `release-verification.md`.

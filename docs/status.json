@@ -49,12 +49,15 @@
       "weight": 7,
       "done": 18,
       "state": "active",
-      "notes": "Added a production Playwright smoke for the public synthetic lesson, real worker, persisted valid/complete result, revenue and shipment metrics, JSON export, and 1440/390 px overflow. Remaining: target-hardware timings, recovery checks, hosted access gates, local distribution and reproducible handoff."
+      "notes": "Done: production public-lesson browser smoke, real worker, valid/complete result, revenue/shipments, JSON export and 1440/390 px overflow. Remaining: protected import and experiment flows, local target-hardware harness and VPS/Pi recovery evidence, hosted access gates, local distribution and handoff. The reported benchmark harness is unavailable and does not count as delivered."
     }
   },
   "nextUp": [
-    "M4: hosted Better Auth/local mode, owner isolation and compute quotas; then live release and target-hardware verification.",
+    "M4: hosted Better Auth and explicit local mode → per-user ownership → compute quotas; prepare target-hardware evidence alongside implementation.",
+    "M8: separate protected-import and experiment browser smokes; use existing lesson/result/export coverage.",
+    "Owner M4/M8: VPS/Pi timings and recovery; hosted OAuth/deployment and live checks after implementation gates.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil.",
-    "M6: browser matrix selection, durable snapshots and pinned Valhalla deployment."
+    "M6: browser matrix selection, durable Valhalla snapshot job, pinned deployment and validated routing increments.",
+    "M7/M8: remaining verified lessons/exports, account-free local distribution and reproducible handoff."
   ]
 }
