@@ -1,0 +1,35 @@
+import { afterEach, beforeEach, expect, test } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { openDatabase, type Store } from "../src/index";
+import { saveScenario, scenarioVersion, validateScenario } from "../src/scenarios";
+import example from "../../../examples/m1-synthetic.json";
+let store: Store, dir: string;
+const metadata = {timezone:"America/Chicago", planningDate:"2026-09-30", browserId:"test-browser"};
+const input = () => ({document:structuredClone(example.scenario),author:"Test",metadata,source:{ordersCsv:"original"}});
+beforeEach(() => { dir=mkdtempSync(join(tmpdir(),"fillrate-scenario-")); store=openDatabase(join(dir,"test.sqlite")); });
+afterEach(() => {store.close();rmSync(dir,{recursive:true,force:true});});
+test("save conflicts preserve edits, branch preserves source version and old runs", () => {
+  const first=saveScenario(store,input());
+  const run=store.enqueue(first.versionId,{schema_version:1,document:{}} ,"original");
+  const changed=input();changed.document.name="Changed";
+  const second=saveScenario(store,{...changed,scenarioId:first.scenarioId,expectedVersionId:first.versionId});
+  expect(() => saveScenario(store,{...input(),scenarioId:first.scenarioId,expectedVersionId:first.versionId})).toThrow("version_conflict");
+  const branch=saveScenario(store,{...input(),scenarioId:first.scenarioId,expectedVersionId:first.versionId,branch:true});
+  expect(branch.scenarioId).not.toBe(first.scenarioId);
+  expect(scenarioVersion(store,branch.scenarioId).parentVersionId).toBe(first.versionId);
+  expect(scenarioVersion(store,first.scenarioId).id).toBe(second.versionId);
+  expect(store.runView(run)?.versionId).toBe(first.versionId);
+  expect(scenarioVersion(store,first.scenarioId,first.versionId).source).toEqual({ordersCsv:"original"});
+  expect(scenarioVersion(store,first.scenarioId).metadata).toEqual(metadata);
+});
+test("invalid references, duplicate IDs, missing author and invalid dates do not save", () => {
+  const data=input();data.document.orders[0].location_id="missing";
+  expect(() => saveScenario(store,data)).toThrow("invalid_order_reference");
+  expect(() => saveScenario(store,{...input(),author:" "})).toThrow("invalid_author");
+  const duplicated=input();duplicated.document.orders.push(duplicated.document.orders[0]);
+  expect(() => validateScenario(duplicated.document)).toThrow("duplicate_id");
+  expect(() => saveScenario(store,{...input(),metadata:{...metadata,planningDate:"2026-02-30"}})).toThrow("invalid_metadata");
+  expect(store.sqlite.prepare("SELECT count(*) n FROM scenarios").get()).toEqual({n:0});
+});

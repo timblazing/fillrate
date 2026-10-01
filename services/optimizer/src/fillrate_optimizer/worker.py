@@ -106,12 +106,24 @@ def watch_parent(parent: int) -> None:
     threading.Thread(target=watch, daemon=True).start()
 
 
-def child_main(scenario: dict, settings: dict, execution_id: str, out: mp.Queue) -> None:
+def child_main(
+    scenario: dict,
+    settings: dict,
+    execution_id: str,
+    out: mp.Queue,
+    config: Config | None = None,
+    lease: dict | None = None,
+) -> None:
     """Runs in a separate process; reports progress, result, or a permanent error."""
     from .model import RunSettings, ScenarioDocument
     from .pipeline import Limits, PipelineError, run_pipeline
 
     watch_parent(os.getppid())
+
+    transport = Transport(config) if config else None
+
+    def rpc(path, **body):
+        return transport.post("/internal/worker/" + path, {"lease": lease, **body})
 
     try:
         output = run_pipeline(
@@ -120,8 +132,27 @@ def child_main(scenario: dict, settings: dict, execution_id: str, out: mp.Queue)
             limits=Limits.from_env(),
             progress=lambda stage, detail: out.put(("progress", {"stage": stage, **detail})),
             execution_id=execution_id,
+            cache=(lambda identity: rpc("cache", input_hash=identity)["artifact"])
+            if transport
+            else None,
+            checkpoint=(
+                lambda a: rpc("checkpoint", artifact={"manifest": a.manifest, "payload": a.payload})
+            )
+            if transport
+            else None,
+            cluster_task=(
+                lambda action, cid, identity, result: rpc(
+                    "cluster", action=action, cluster_id=cid, input_hash=identity, result=result
+                )
+            )
+            if transport
+            else None,
         )
-        artifacts = [{"manifest": a.manifest, "payload": a.payload} for a in output.artifacts]
+        artifacts = (
+            []
+            if transport
+            else [{"manifest": a.manifest, "payload": a.payload} for a in output.artifacts]
+        )
         out.put(
             (
                 "result",
@@ -198,6 +229,8 @@ class Supervisor:
                 job["settings"]["document"],
                 lease["lease_token"],  # execution ID: unique per attempt
                 out,
+                self.config,
+                lease,
             ),
             daemon=True,
         )

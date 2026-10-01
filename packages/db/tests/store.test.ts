@@ -164,3 +164,40 @@ test("design review answers upsert per browser, keep the first submit time and c
   expect(store.deleteReview(id)).toBe(true);
   expect(store.listReviews()).toEqual([]);
 });
+
+test("stage checkpoints survive a crashed lease and cache only deterministic stages", () => {
+  const runId = enqueue();
+  const first = store.claim("one", 1000, 100)!.lease;
+  const pre = artifact({ allocated: { L1: 2 } });
+  pre.manifest.execution_id = first.lease_token;
+  store.checkpoint(first, pre, 1001);
+  expect(store.cachedStage(first, pre.manifest.input_hash, 1002)?.payload).toEqual(pre.payload);
+  expect(store.runView(runId)?.artifacts).toHaveLength(1);
+  const solve = artifact({ routes: [["L1"]] });
+  solve.manifest.stage_type = "solve";
+  solve.manifest.input_hash = "b".repeat(64);
+  solve.manifest.execution_id = first.lease_token;
+  store.checkpoint(first, solve, 1003);
+  expect(store.cachedStage(first, solve.manifest.input_hash, 1004)).toBeNull();
+  const second = store.claim("two", 1100, 100)!.lease;
+  expect(() => store.checkpoint(first, pre, 1101)).toThrow("stale_lease");
+  expect(store.cachedStage(second, pre.manifest.input_hash, 1101)?.payload).toEqual(pre.payload);
+  expect(store.runView(runId)?.artifacts).toHaveLength(2);
+});
+
+test("cluster results resume on replacement lease and reject stale completion", () => {
+  const runId = enqueue();
+  const first = store.claim("one", 1000, 100)!.lease;
+  const hashA = "a".repeat(64), hashB = "b".repeat(64);
+  expect(store.clusterTask(first, "claim", "C1", hashA, undefined, 1001)).toMatchObject({ status: "running", attempt: 1 });
+  store.clusterTask(first, "complete", "C1", hashA, { status: "solved", routes: [["v1"]] }, 1002);
+  store.clusterTask(first, "claim", "C2", hashB, undefined, 1003);
+  const second = store.claim("two", 1100, 100)!.lease;
+  expect(store.clusterTask(second, "claim", "C1", hashA, undefined, 1101)).toMatchObject({ status: "succeeded", attempt: 1 });
+  expect(store.clusterTask(second, "claim", "C2", hashB, undefined, 1102)).toMatchObject({ status: "running", attempt: 2 });
+  expect(() => store.clusterTask(first, "complete", "C2", hashB, { status: "solved" }, 1103)).toThrow("stale_lease");
+  store.clusterTask(second, "complete", "C2", hashB, { status: "solved", routes: [] }, 1104);
+  expect(store.runView(runId)?.clusters.map(c => [c.clusterId, c.attempt, c.status])).toEqual([
+    ["C1", 1, "succeeded"], ["C2", 2, "succeeded"],
+  ]);
+});

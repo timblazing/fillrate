@@ -453,6 +453,16 @@ export interface components {
              * @default 1.2
              */
             cluster_circuity: number;
+            /**
+             * Cost Per Mile Cents
+             * @default null
+             */
+            cost_per_mile_cents: number | null;
+            /**
+             * Cost Per Truck Cents
+             * @default null
+             */
+            cost_per_truck_cents: number | null;
             /** Excluded Line Ids */
             excluded_line_ids?: string[];
             /**
@@ -490,7 +500,7 @@ export interface components {
              * @default trucks_then_distance
              * @enum {string}
              */
-            objective: "trucks_then_distance" | "weighted_distance";
+            objective: "trucks_then_distance" | "weighted_distance" | "cost";
             preflight?: components["schemas"]["PreflightPolicy"];
             /**
              * Schema Version

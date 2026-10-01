@@ -3,9 +3,11 @@ import { assertRunAccess, createRun, errorResponse, parseOverrides, runDetail } 
 
 export const dynamic = "force-dynamic"
 
+import { publicRuns } from "@/lib/server/scenarios"
+
 export function GET() {
   const store = initializeDatabase()
-  return Response.json({ runs: store.listRuns(50) })
+  return Response.json({ runs: publicRuns(store) })
 }
 
 // Creates a run of the bundled synthetic scenario. Requires an Idempotency-Key header.

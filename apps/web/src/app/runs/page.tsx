@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { initializeDatabase } from "@/lib/server/database"
 import { exampleScenario, runsOpen } from "@/lib/server/runs"
 
+import { publicRuns } from "@/lib/server/scenarios"
+
 import { NewRun } from "./new-run"
 
 export const dynamic = "force-dynamic"
@@ -13,7 +15,7 @@ export const metadata = { title: "Runs · Fillrate" }
 
 export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
   const { key } = await searchParams
-  const runs = initializeDatabase().listRuns(50)
+  const runs = publicRuns(initializeDatabase())
   const orders = exampleScenario.orders.length
   const lines = exampleScenario.orders.reduce((n, o) => n + o.lines.length, 0)
 
@@ -22,6 +24,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
       <DevHeader />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
         <section className="flex flex-col gap-3">
+          <Link href="/scenarios" className="text-sm underline underline-offset-4">Import and edit scenarios</Link>
           <h1 className="text-2xl font-semibold tracking-tight">Pipeline runs</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each run allocates stock, groups stops into clusters with k-means, builds 53 ft shipments with PyVRP and validates every

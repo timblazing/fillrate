@@ -16,6 +16,7 @@ Semantics for the pinned PyVRP 0.14.0 (see tests/test_pyvrp_capabilities.py):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import gcd
 
 import numpy as np
 import pyvrp
@@ -231,6 +232,7 @@ class PartitionProblem:
     capacity: int
     max_leg_m: int
     truck_penalty: int
+    distance_cost: int = 1
     seed: int = 0
     max_iterations: int | None = None
     max_runtime_s: float = 10.0
@@ -257,13 +259,39 @@ def truck_count_first_penalty(num_visits: int, max_leg_m: int) -> tuple[int, int
     return bound + 1, bound
 
 
-def check_objective_range(num_visits: int, truck_penalty: int, max_leg_m: int) -> None:
-    """Every truck used plus every allowed leg must stay well below PyVRP's MAX_VALUE."""
-    worst = num_visits * truck_penalty + num_visits * max_leg_m
+@dataclass(frozen=True)
+class MonetaryObjective:
+    truck_penalty: int
+    distance_cost: int
+    # Integer objective × numerator / denominator gives exact cents.
+    cents_numerator: int
+    cents_denominator: int = 201_168
+
+
+def monetary_objective(truck_cents: int, mile_cents: int) -> MonetaryObjective:
+    """Exact rational monetary ordering, including zero truck or mileage rates.
+
+    An international mile is exactly 201168/125 meters. Reduce the integer
+    coefficients together; physical distances remain meters for validation.
+    """
+    if any(type(rate) is not int or rate < 0 for rate in (truck_cents, mile_cents)):
+        raise ValueError("cost rates must be nonnegative integer cents")
+    fixed, distance = truck_cents * 201_168, mile_cents * 125
+    divisor = gcd(fixed, distance) or 1
+    return MonetaryObjective(fixed // divisor, distance // divisor, divisor)
+
+
+def check_objective_range(
+    num_visits: int, truck_penalty: int, max_leg_m: int, distance_cost: int = 1
+) -> None:
+    """Bound all costs without rounding monetary rates or risking overflow."""
+    if truck_penalty < 0 or distance_cost < 0:
+        raise ValueError("objective coefficients must be nonnegative")
+    worst = num_visits * truck_penalty + num_visits * max_leg_m * distance_cost
     if worst >= MAX_VALUE // 4:
         raise ValueError(
             f"objective range {worst} exceeds the safe bound for pinned PyVRP ({MAX_VALUE // 4});"
-            " reduce the cluster size or leg limit"
+            " reduce the cluster size, leg limit or cost rates"
         )
 
 
@@ -273,7 +301,9 @@ def solve_partition(problem: PartitionProblem) -> PartitionResult:
     for visit in problem.visits:
         if not 0 < visit.load <= problem.capacity:
             raise ValueError(f"visit {visit.id} load {visit.load} is outside (0, capacity]")
-    check_objective_range(len(problem.visits), problem.truck_penalty, problem.max_leg_m)
+    check_objective_range(
+        len(problem.visits), problem.truck_penalty, problem.max_leg_m, problem.distance_cost
+    )
 
     distance = problem.distance
     nodes = distance.shape[0]
@@ -288,6 +318,7 @@ def solve_partition(problem: PartitionProblem) -> PartitionResult:
         start_depot=depot,
         end_depot=depot,
         fixed_cost=problem.truck_penalty,
+        unit_distance_cost=problem.distance_cost,
         name="53ft",
     )
     for i in range(nodes):

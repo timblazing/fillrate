@@ -17,20 +17,26 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.metadata import version
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
 
 from .canonical import content_hash
 from .clustering import Clusterer, centroid
-from .loads import PartitionProblem, PartitionVisit, solve_partition, truck_count_first_penalty
+from .loads import (
+    PartitionProblem,
+    PartitionVisit,
+    monetary_objective,
+    solve_partition,
+    truck_count_first_penalty,
+)
 from .model import (
     ClusteringSummary,
     ClusterSummary,
     Diagnostic,
     LineOnBoard,
     MapLocation,
-    PreflightFinding,
     ProductReconciliation,
     Repair,
     RunSettings,
@@ -41,9 +47,10 @@ from .model import (
     TruckVisit,
     UnplannedLine,
 )
+from .preflight import preflight_checks
 from .travel import distance_matrix_m, haversine_m
 
-PRODUCER_VERSION = "fillrate-pipeline/1"
+PRODUCER_VERSION = "fillrate-pipeline/3"
 ADAPTER_VERSION = "pyvrp-partition/1"
 
 
@@ -92,26 +99,56 @@ Progress = Callable[[str, dict[str, Any]], None]
 class Stages:
     """Records artifacts with manifests chained by parent output hashes."""
 
-    def __init__(self, settings: RunSettings, execution_id: str, now_ms: Callable[[], int]):
+    def __init__(self, settings, execution_id, now_ms, scenario_hash, cache=None, checkpoint=None):
         self.settings = settings
         self.execution_id = execution_id
         self.now_ms = now_ms
+        self.scenario_hash = scenario_hash
+        self.cache = cache
+        self.checkpoint = checkpoint
         self.artifacts: list[Artifact] = []
         self.hashes: dict[str, str] = {}
+        self.hits: dict[str, dict] = {}
 
-    def add(self, stage: str, payload: dict[str, Any], parents: list[str], keys: list[str]):
-        dumped = self.settings.model_dump(mode="json")
-        effective = {k: dumped[k] for k in keys}
+    def identity(self, stage, parents, keys):
+        settings_json = self.settings.model_dump(mode="json")
+        effective = {k: settings_json[k] for k in keys}
         parent_hashes = [self.hashes[p] for p in parents]
         input_hash = content_hash(
             {
                 "stage": stage,
                 "parents": parent_hashes,
+                "scenario": self.scenario_hash if stage == "preflight" else None,
                 "settings": effective,
                 "producer": PRODUCER_VERSION,
+                "versions": versions(),
             }
         )
+        return input_hash, parent_hashes, effective
+
+    def lookup(self, stage, parents, keys):
+        if not self.cache:
+            return None
+        identity, _, _ = self.identity(stage, parents, keys)
+        hit = self.cache(identity)
+        if hit is None:
+            return None
+        manifest, payload = hit["manifest"], hit["payload"]
+        if (
+            manifest["input_hash"] != identity
+            or manifest["stage_type"] != stage
+            or content_hash(payload) != manifest["output_hash"]
+        ):
+            raise PipelineError("cache_corrupt", "Cached stage failed identity/hash validation.")
+        self.hits[stage] = manifest
+        return payload
+
+    def add(self, stage: str, payload: dict[str, Any], parents: list[str], keys: list[str]):
+        input_hash, parent_hashes, effective = self.identity(stage, parents, keys)
         output_hash = content_hash(payload)
+        hit = self.hits.pop(stage, None)
+        if hit and hit["output_hash"] != output_hash:
+            raise PipelineError("cache_corrupt", "Reused stage output changed.")
         self.hashes[stage] = output_hash
         manifest = {
             "schema_version": 1,
@@ -124,9 +161,12 @@ class Stages:
             "effective_settings": effective,
             "created_at_ms": self.now_ms(),
             "execution_id": self.execution_id,
-            "reused_from": None,
+            "reused_from": hit["execution_id"] if hit else None,
         }
-        self.artifacts.append(Artifact(stage, manifest, payload))
+        artifact = Artifact(stage, manifest, payload)
+        self.artifacts.append(artifact)
+        if self.checkpoint:
+            self.checkpoint(artifact)
 
 
 def versions() -> dict[str, str]:
@@ -143,13 +183,23 @@ def run_pipeline(
     limits: Limits | None = None,
     progress: Progress | None = None,
     execution_id: str | None = None,
+    cache: Callable | None = None,
+    checkpoint: Callable | None = None,
+    cluster_task: Callable | None = None,
     clock: Callable[[], float] = time.monotonic,
     now_ms: Callable[[], int] = lambda: int(time.time() * 1000),
 ) -> PipelineOutput:
     limits = limits or Limits()
     report = progress or (lambda stage, detail: None)
     deadline = clock() + limits.run_wall_limit_s
-    stages = Stages(settings, execution_id or str(uuid.uuid4()), now_ms)
+    stages = Stages(
+        settings,
+        execution_id or str(uuid.uuid4()),
+        now_ms,
+        content_hash(scenario.model_dump(mode="json")),
+        cache,
+        checkpoint,
+    )
     cap = settings.trailer_capacity
     diagnostics: list[Diagnostic] = []
     unplanned: list[UnplannedLine] = []
@@ -187,6 +237,27 @@ def run_pipeline(
             }
     if len(lines) > limits.max_order_lines:
         raise PipelineError("too_many_lines", f"{len(lines)} order lines exceed MAX_ORDER_LINES.")
+    try:
+        findings = preflight_checks(scenario, settings)
+    except ValueError as error:
+        raise PipelineError(
+            "unknown_line", f"Excluded line IDs not in the scenario: {error}"
+        ) from error
+    blocked = [finding for finding in findings if finding.action == "block"]
+    if blocked:
+        raise PipelineError(
+            "preflight_blocked",
+            "; ".join(
+                {
+                    "missing_coordinates": "Location has no coordinates",
+                    "far_from_depot": "Location is too far from the depot",
+                    "oversize_stop": (
+                        f"Stop orders more than one {settings.trailer_capacity / 100:g} ft trailer"
+                    ),
+                }.get(finding.check, finding.message)
+                for finding in blocked
+            ),
+        )
     stock_start: dict[str, int] = defaultdict(int)
     for item in scenario.inventory:
         if item.product_id not in products:
@@ -196,8 +267,6 @@ def run_pipeline(
         stock_start[item.product_id] += item.available_pieces
 
     user_excluded = set(settings.excluded_line_ids)
-    if unknown := sorted(user_excluded - set(lines)):
-        raise PipelineError("unknown_line", f"Excluded line IDs not in the scenario: {unknown[:5]}")
     excluded: dict[str, str] = {}
     for line in lines.values():
         loc = locations[line["location_id"]]
@@ -207,15 +276,6 @@ def run_pipeline(
             excluded[line["line_id"]] = "excluded_unresolved_coordinates"
         elif line["lf"] > cap:
             excluded[line["line_id"]] = "oversize_piece"
-    findings = preflight_checks(scenario, lines, user_excluded, settings)
-    blocking = [f for f in findings if f.action == "block"]
-    if blocking:
-        raise PipelineError(
-            "preflight_blocked",
-            "Blocked by preflight: "
-            + "; ".join(f.message for f in blocking)
-            + ". Fix the data, exclude these lines, or turn the check into a warning.",
-        )
     for line_id, reason in sorted(excluded.items()):
         line = lines[line_id]
         if line["ordered"] == 0:
@@ -248,8 +308,13 @@ def run_pipeline(
         (ln for ln in lines.values() if ln["line_id"] not in excluded),
         key=lambda ln: (ln["order_date"], -ln["value"], ln["line_id"]),
     )
+    allocation_hit = stages.lookup("allocation", ["preflight"], [])
     for line in order:
-        take = min(line["ordered"], stock.get(line["product_id"], 0))
+        take = (
+            allocation_hit["allocated"][line["line_id"]]
+            if allocation_hit
+            else min(line["ordered"], stock.get(line["product_id"], 0))
+        )
         allocated[line["line_id"]] = take
         stock[line["product_id"]] = stock.get(line["product_id"], 0) - take
         short = line["ordered"] - take
@@ -282,29 +347,33 @@ def run_pipeline(
     for line in order:  # allocation order, so splits fill whole pieces in the same order
         if allocated[line["line_id"]] > 0:
             by_location[line["location_id"]].append(line)
-    visits: dict[str, dict[str, Any]] = {}
-    for loc_id in sorted(by_location):
-        bundles: list[list[tuple[str, int]]] = [[]]
-        room = cap
-        for line in by_location[loc_id]:
-            pieces = allocated[line["line_id"]]
-            while pieces:
-                fit = min(pieces, room // line["lf"])
-                if fit == 0:
-                    bundles.append([])
-                    room = cap
-                    continue
-                bundles[-1].append((line["line_id"], fit))
-                room -= fit * line["lf"]
-                pieces -= fit
-        for n, bundle in enumerate(bundles, start=1):
-            visit_id = f"{loc_id}#{n}"
-            visits[visit_id] = {
-                "visit_id": visit_id,
-                "location_id": loc_id,
-                "lines": [{"line_id": lid, "pieces": p} for lid, p in bundle],
-                "load": sum(p * lines[lid]["lf"] for lid, p in bundle),
-            }
+    aggregation_hit = stages.lookup("aggregation", ["allocation"], ["trailer_capacity"])
+    if aggregation_hit:
+        visits = {v["visit_id"]: v for v in aggregation_hit["visits"]}
+    else:
+        visits: dict[str, dict[str, Any]] = {}
+        for loc_id in sorted(by_location):
+            bundles: list[list[tuple[str, int]]] = [[]]
+            room = cap
+            for line in by_location[loc_id]:
+                pieces = allocated[line["line_id"]]
+                while pieces:
+                    fit = min(pieces, room // line["lf"])
+                    if fit == 0:
+                        bundles.append([])
+                        room = cap
+                        continue
+                    bundles[-1].append((line["line_id"], fit))
+                    room -= fit * line["lf"]
+                    pieces -= fit
+            for n, bundle in enumerate(bundles, start=1):
+                visit_id = f"{loc_id}#{n}"
+                visits[visit_id] = {
+                    "visit_id": visit_id,
+                    "location_id": loc_id,
+                    "lines": [{"line_id": lid, "pieces": p} for lid, p in bundle],
+                    "load": sum(p * lines[lid]["lf"] for lid, p in bundle),
+                }
     if len(visits) > limits.max_visits:
         raise PipelineError("too_many_visits", f"{len(visits)} visits exceed MAX_VISITS.")
     split_locations = sorted(
@@ -330,70 +399,98 @@ def run_pipeline(
     report("clustering", {})
     loc_ids = sorted(by_location)
     lat_lon = np.array([[locations[i].lat, locations[i].lon] for i in loc_ids], dtype=float)
-    visit_count = defaultdict(int)
-    for v in visits.values():
-        visit_count[v["location_id"]] += 1
-    clusterer = Clusterer(
-        loc_ids,
-        lat_lon,
-        dict(visit_count),
-        circuity=settings.cluster_circuity,
-        max_diameter_m=settings.max_cluster_diameter_m,
-        max_stops=settings.max_stops,
-        seed=settings.kmeans_seed,
-        n_init=settings.kmeans_n_init,
+    clustering_hit = stages.lookup(
+        "clustering",
+        ["aggregation"],
+        [
+            "k",
+            "auto_k_cap",
+            "kmeans_seed",
+            "kmeans_n_init",
+            "cluster_circuity",
+            "max_cluster_diameter_m",
+            "max_stops",
+        ],
     )
-    try:
-        clustered = clusterer.run(settings.k, settings.auto_k_cap)
-    except ValueError as error:
-        raise PipelineError("invalid_k", str(error)) from error
-    # Visit partitions: all visits of a location stay together unless one location alone
-    # exceeds MAX_STOPS, which is chunked by stable visit order (recorded as size repair).
-    repairs = [Repair(reason=s.reason, detail=s.detail) for s in clustered.repairs]  # type: ignore[arg-type]
-    partitions: list[dict[str, Any]] = []
-    for group in clustered.partitions:
-        members = sorted(
-            (v for v in visits.values() if v["location_id"] in set(group)),
-            key=lambda v: (v["location_id"], int(v["visit_id"].rsplit("#", 1)[1])),
+    if clustering_hit:
+        clusters_meta = clustering_hit["clusters"]
+        repairs = [Repair.model_validate(r) for r in clustering_hit["repairs"]]
+        clustered = SimpleNamespace(
+            **{
+                k: clustering_hit[k]
+                for k in ("raw", "requested_k", "selected_k", "fits", "auto_limit_reached")
+            }
         )
-        chunks = [
-            members[i : i + settings.max_stops] for i in range(0, len(members), settings.max_stops)
-        ]
-        if len(chunks) > 1:
-            repairs.append(
-                Repair(
-                    reason="degenerate_size",
-                    detail=f"{len(members)} visits at one location chunked into "
-                    f"{len(chunks)} solves.",
+    else:
+        visit_count = defaultdict(int)
+        for v in visits.values():
+            visit_count[v["location_id"]] += 1
+        clusterer = Clusterer(
+            loc_ids,
+            lat_lon,
+            dict(visit_count),
+            circuity=settings.cluster_circuity,
+            max_diameter_m=settings.max_cluster_diameter_m,
+            max_stops=settings.max_stops,
+            seed=settings.kmeans_seed,
+            n_init=settings.kmeans_n_init,
+        )
+        try:
+            clustered = clusterer.run(settings.k, settings.auto_k_cap)
+        except ValueError as error:
+            raise PipelineError("invalid_k", str(error)) from error
+        # Visit partitions: all visits of a location stay together unless one location alone
+        # exceeds MAX_STOPS, which is chunked by stable visit order (recorded as size repair).
+        repairs = [Repair(reason=s.reason, detail=s.detail) for s in clustered.repairs]  # type: ignore[arg-type]
+        partitions: list[dict[str, Any]] = []
+        for group in clustered.partitions:
+            members = sorted(
+                (v for v in visits.values() if v["location_id"] in set(group)),
+                key=lambda v: (v["location_id"], int(v["visit_id"].rsplit("#", 1)[1])),
+            )
+            chunks = [
+                members[i : i + settings.max_stops]
+                for i in range(0, len(members), settings.max_stops)
+            ]
+            if len(chunks) > 1:
+                repairs.append(
+                    Repair(
+                        reason="degenerate_size",
+                        detail=f"{len(members)} visits at one location chunked into "
+                        f"{len(chunks)} solves.",
+                    )
+                )
+            for chunk in chunks:
+                partitions.append(
+                    {
+                        "locations": sorted({v["location_id"] for v in chunk}),
+                        "visits": [v["visit_id"] for v in chunk],
+                    }
+                )
+        clusters_meta = []
+        for i, part in enumerate(partitions):
+            cid = f"C{i + 1}"
+            diameter = clusterer.diameter(part["locations"]) if part["locations"] else 0
+            clusters_meta.append({"id": cid, **part, "diameter_m": diameter})
+        if clustered.auto_limit_reached:
+            diagnostics.append(
+                Diagnostic(
+                    code="auto_limit_reached",
+                    severity="warning",
+                    message=(
+                        f"No k up to {clustered.selected_k} passed the "
+                        + ("diameter and size" if settings.max_cluster_diameter_m else "solve-size")
+                        + " limits; repaired."
+                    ),
                 )
             )
-        for chunk in chunks:
-            partitions.append(
-                {
-                    "locations": sorted({v["location_id"] for v in chunk}),
-                    "visits": [v["visit_id"] for v in chunk],
-                }
-            )
-    clusters_meta = []
-    for i, part in enumerate(partitions):
-        cid = f"C{i + 1}"
-        diameter = clusterer.diameter(part["locations"]) if part["locations"] else 0
-        clusters_meta.append({"id": cid, **part, "diameter_m": diameter})
-    if clustered.auto_limit_reached:
-        diagnostics.append(
-            Diagnostic(
-                code="auto_limit_reached",
-                severity="warning",
-                message=f"No k up to {clustered.selected_k} passed the "
-                + ("diameter and size" if settings.max_cluster_diameter_m else "solve-size")
-                + " limits; repaired.",
-            )
-        )
     stages.add(
         "clustering",
         {
             "strategy": "kmeans",
             "raw": clustered.raw,
+            "fits": clustered.fits,
+            "auto_limit_reached": clustered.auto_limit_reached,
             "clusters": clusters_meta,
             "requested_k": clustered.requested_k,
             "selected_k": clustered.selected_k,
@@ -415,16 +512,28 @@ def run_pipeline(
     report("travel", {"clusters": len(clusters_meta)})
     depot = scenario.depot
     global_nodes = [(depot.lat, depot.lon)] + [tuple(r) for r in lat_lon]
-    global_matrix = distance_matrix_m(np.array(global_nodes), settings.travel_circuity)
-    reachable_global = reachable(global_matrix, settings.max_leg_m)
-    globally_reachable = {loc_ids[i - 1] for i in reachable_global if i > 0}
+    travel_hit = stages.lookup("travel", ["clustering"], ["travel_circuity", "max_leg_m"])
+    # A compact global reachability graph is computed once. On a cache hit it is
+    # recovered with the exact matrices, not silently recalculated.
+    global_matrix = (
+        None if travel_hit else distance_matrix_m(np.array(global_nodes), settings.travel_circuity)
+    )
+    if travel_hit:
+        globally_reachable = set(travel_hit["globally_reachable"])
+    else:
+        reachable_global = reachable(global_matrix, settings.max_leg_m)
+        globally_reachable = {loc_ids[i - 1] for i in reachable_global if i > 0}
     position = {loc: i for i, loc in enumerate(loc_ids)}
     travel = []
     problems = []
     for meta in clusters_meta:
         nodes = meta["locations"]
         idx = [0] + [position[n] + 1 for n in nodes]
-        matrix = global_matrix[np.ix_(idx, idx)]
+        matrix = (
+            np.array(travel_hit["clusters"][len(travel)]["matrix"], dtype=np.int64)
+            if travel_hit
+            else global_matrix[np.ix_(idx, idx)]
+        )
         reach = reachable(matrix, settings.max_leg_m)
         reachable_locs = {nodes[i - 1] for i in reach if i > 0}
         solve_visits, blocked = [], []
@@ -450,8 +559,16 @@ def run_pipeline(
             }
         )
         n = len(solve_visits)
+        distance_cost = 1
+        monetary = None
         if settings.objective == "trucks_then_distance":
             penalty, bound = truck_count_first_penalty(n, settings.max_leg_m)
+        elif settings.objective == "cost":
+            monetary = monetary_objective(
+                settings.cost_per_truck_cents, settings.cost_per_mile_cents
+            )
+            penalty, bound = monetary.truck_penalty, None
+            distance_cost = monetary.distance_cost
         else:
             penalty, bound = settings.weighted_truck_penalty_m or 0, None
         problems.append(
@@ -461,24 +578,62 @@ def run_pipeline(
                 "blocked": blocked,
                 "objective": settings.objective,
                 "truck_penalty": penalty,
+                "distance_cost": distance_cost,
+                "monetary": (
+                    {
+                        "cost_per_truck_cents": settings.cost_per_truck_cents,
+                        "cost_per_mile_cents": settings.cost_per_mile_cents,
+                        "cents_numerator": monetary.cents_numerator,
+                        "cents_denominator": monetary.cents_denominator,
+                    }
+                    if monetary
+                    else None
+                ),
                 "distance_bound_m": bound,
                 "vehicles_available": n,
             }
         )
     if settings.objective == "weighted_distance" and settings.weighted_truck_penalty_m is None:
         raise PipelineError("missing_penalty", "weighted_distance needs weighted_truck_penalty_m.")
-    stages.add("travel", {"clusters": travel}, ["clustering"], ["travel_circuity"])
+    stages.add(
+        "travel",
+        {"clusters": travel, "globally_reachable": sorted(globally_reachable)},
+        ["clustering"],
+        ["travel_circuity", "max_leg_m"],
+    )
     stages.add(
         "problem",
         {"clusters": problems},
         ["travel", "aggregation"],
-        ["max_leg_m", "trailer_capacity", "objective", "weighted_truck_penalty_m"],
+        [
+            "max_leg_m",
+            "trailer_capacity",
+            "objective",
+            "weighted_truck_penalty_m",
+            "cost_per_truck_cents",
+            "cost_per_mile_cents",
+        ],
     )
 
     # ---- 6. Solve one PyVRP problem per cluster (§8b) -----------------------------------------
     solves = []
     for i, (meta, prob, trav) in enumerate(zip(clusters_meta, problems, travel, strict=True)):
         report("solve", {"cluster": meta["id"], "index": i + 1, "of": len(problems)})
+        task_hash = content_hash(
+            {
+                "problem": prob,
+                "travel": trav,
+                "visits": visits,
+                "settings": settings.model_dump(mode="json"),
+                "versions": versions(),
+            }
+        )
+        task = cluster_task("claim", meta["id"], task_hash, None) if cluster_task else None
+        if task and task["status"] in ("succeeded", "failed"):
+            solves.append(
+                task["result"] or {"cluster_id": meta["id"], "status": "failed", "routes": []}
+            )
+            continue
         node_of = {loc: k for k, loc in enumerate(trav["nodes"])}
         pvisits = [
             PartitionVisit(vid, node_of[visits[vid]["location_id"]], visits[vid]["load"])
@@ -487,9 +642,13 @@ def run_pipeline(
         remaining = deadline - clock()
         if not pvisits:
             solves.append({"cluster_id": meta["id"], "status": "empty", "routes": []})
+            if cluster_task:
+                cluster_task("complete", meta["id"], task_hash, solves[-1])
             continue
         if remaining <= 0.5:
             solves.append({"cluster_id": meta["id"], "status": "budget_exhausted", "routes": []})
+            if cluster_task:
+                cluster_task("complete", meta["id"], task_hash, solves[-1])
             continue
         result = solve_partition(
             PartitionProblem(
@@ -498,6 +657,7 @@ def run_pipeline(
                 capacity=cap,
                 max_leg_m=settings.max_leg_m,
                 truck_penalty=prob["truck_penalty"],
+                distance_cost=prob["distance_cost"],
                 seed=settings.solver_seed,
                 max_iterations=settings.solver_max_iterations,
                 max_runtime_s=min(settings.solver_time_limit_s, remaining - 0.5),
@@ -514,6 +674,8 @@ def run_pipeline(
                 "cost": result.cost,
             }
         )
+        if cluster_task:
+            cluster_task("complete", meta["id"], task_hash, solves[-1])
     stages.add(
         "solve",
         {"clusters": solves},
@@ -828,85 +990,6 @@ def add_visit_unplanned(out, visit, lines, reason, stage, evidence) -> None:
             existing.amount_cents += part["pieces"] * line["value"]
         else:
             out.append(unplanned_line(line, part["pieces"], reason, stage, evidence))
-
-
-def preflight_checks(
-    scenario: ScenarioDocument,
-    lines: dict[str, dict[str, Any]],
-    user_excluded: set[str],
-    settings: RunSettings,
-) -> list[PreflightFinding]:
-    """M2 scope item 8. Three checks block by default; ZIP-only placement only warns.
-
-    These are policy, not physics: per §7 a far stop may still be reachable through an
-    intermediate stop, and an oversized stop is split across shipments.
-    """
-    policy = settings.preflight
-    locations = {loc.id: loc for loc in scenario.locations}
-    active = [
-        ln for ln in lines.values() if ln["ordered"] > 0 and ln["line_id"] not in user_excluded
-    ]
-    by_check: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
-    resolved = [
-        loc
-        for loc in scenario.locations
-        if loc.lat is not None and loc.lon is not None and loc.coordinate_source != "unresolved"
-    ]
-    depot_m: dict[str, int] = {}
-    if resolved:
-        nodes = np.array(
-            [(scenario.depot.lat, scenario.depot.lon)] + [(loc.lat, loc.lon) for loc in resolved]
-        )
-        row = distance_matrix_m(nodes, settings.travel_circuity)[0, 1:]
-        depot_m = {loc.id: int(m) for loc, m in zip(resolved, row, strict=True)}
-    stop_load: dict[str, int] = defaultdict(int)
-    for ln in active:
-        loc = locations[ln["location_id"]]
-        if loc.id not in depot_m:
-            by_check["missing_coordinates"][loc.id].append(ln["line_id"])
-            continue
-        if depot_m[loc.id] > settings.max_leg_m:
-            by_check["far_from_depot"][loc.id].append(ln["line_id"])
-        if loc.coordinate_source == "zcta":
-            by_check["approximate_coordinates"][loc.id].append(ln["line_id"])
-        if ln["lf"] <= settings.trailer_capacity:
-            stop_load[loc.id] += ln["ordered"] * ln["lf"]
-    for ln in active:
-        cap = settings.trailer_capacity
-        if stop_load.get(ln["location_id"], 0) > cap and ln["lf"] <= cap:
-            by_check["oversize_stop"][ln["location_id"]].append(ln["line_id"])
-    limit_mi = settings.max_leg_m / 1609.344
-    trailer_ft = settings.trailer_capacity / 100
-    text = {
-        "missing_coordinates": "{lines} at {locs} with no coordinates",
-        "far_from_depot": f"{{lines}} at {{locs}} farther than {limit_mi:.0f} mi from the depot",
-        "oversize_stop": f"{{lines}} at {{locs}} ordering more than one {trailer_ft:g} ft trailer",
-        "approximate_coordinates": "{lines} at {locs} placed by ZIP code only (approximate)",
-    }
-    out = []
-    for check in (
-        "missing_coordinates",
-        "far_from_depot",
-        "oversize_stop",
-        "approximate_coordinates",
-    ):
-        found = by_check.get(check)
-        if not found:
-            continue
-        line_ids = sorted(lid for ids in found.values() for lid in ids)
-        n, m = len(line_ids), len(found)
-        out.append(
-            PreflightFinding(
-                check=check,  # type: ignore[arg-type]
-                action="warn" if check == "approximate_coordinates" else getattr(policy, check),
-                location_ids=sorted(found),
-                line_ids=line_ids,
-                message=text[check].format(
-                    lines=f"{n} line{'s' * (n != 1)}", locs=f"{m} location{'s' * (m != 1)}"
-                ),
-            )
-        )
-    return out
 
 
 def reachable(matrix: np.ndarray, max_leg_m: int) -> set[int]:

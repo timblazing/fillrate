@@ -8,6 +8,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { openDatabase, type Store } from "../src/index";
 import { createWorkerTransport } from "../src/transport";
+import { previewCsvImport } from "../src/imports";
+import { saveScenario } from "../src/scenarios";
 import { parseContract, type RunSummary } from "@fillrate/contracts";
 import { sheetCsvRows, shipmentSheets } from "../../../apps/web/src/lib/shipment-sheet";
 
@@ -127,3 +129,27 @@ test.skipIf(!hasUv)("a crashed worker's job is retried by a new worker after lea
   store.cancel(runId);
   await waitFor(() => store.runView(runId)!.status === "cancelled", 10_000);
 }, 120_000);
+
+
+test.skipIf(!hasUv)("imported CSV version completes through the real worker and survives export", async () => {
+  const preview = previewCsvImport({
+    name: "Imported smoke", depot: {id:"depot",label:"Depot",lat:35.1495,lon:-90.049},
+    ordersCsv: "order_id,line_id,order_date,location_id,location_label,address,latitude,longitude,product,ordered_pieces,net_value_per_piece,linear_feet_per_piece\nO-1,L-1,2026-09-30,A,Stop A,,35.2,-90.1,SKU-1,10,12.50,1.25\nO-2,L-2,2026-09-30,B,Stop B,,35.3,-90.2,SKU-1,5,12.50,1.25\n",
+    inventoryCsv: "product,available_pieces\nSKU-1,20\n",
+  });
+  expect(preview.errors).toEqual([]);
+  expect(preview.document).not.toBeNull();
+  const saved = saveScenario(store,{document:preview.document,author:"Importer",metadata:{timezone:"America/Chicago",planningDate:"2026-09-30",browserId:"browser"},source:preview.originals});
+  const settings = {...example.settings,preflight:{missing_coordinates:"block",far_from_depot:"block",oversize_stop:"block"},k:1,solver_max_iterations:500};
+  const runId=store.enqueue(saved.versionId,{schema_version:1,document:settings},"imported");
+  startWorker("import-worker");
+  await waitFor(() => ["succeeded","failed"].includes(store.runView(runId)!.status));
+  const view=store.runView(runId)!;
+  expect(view.status).toBe("succeeded");
+  const manifest=view.artifacts.find(x=>x.stage_type==="summary")!;
+  const summary=parseContract("RunSummary",store.readArtifact(manifest.output_hash));
+  expect(summary.validity).toBe("valid");
+  expect(summary.totals.ordered_cents).toBe(18750);
+  expect(summary.totals.planned_cents).toBe(18750);
+  expect(store.versionDocument(saved.versionId).document).toEqual(preview.document);
+},120_000);

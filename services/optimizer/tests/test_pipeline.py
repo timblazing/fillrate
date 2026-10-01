@@ -62,6 +62,58 @@ def run(doc, **settings):
     return run_pipeline(doc, FAST.model_copy(update=settings))
 
 
+def test_stage_cache_reuses_preprocessing_but_not_a_new_solver_replicate():
+    doc = scenario(
+        [("A", east(50))],
+        [("O1", "A", "2026-09-01", "P", 2, 100)],
+        [("P", 2)],
+    )
+    cache = {}
+
+    def checkpoint(artifact):
+        cache.setdefault(artifact.manifest["input_hash"], {
+            "manifest": artifact.manifest,
+            "payload": artifact.payload,
+        })
+
+    first = run_pipeline(doc, FAST, execution_id="attempt-1", checkpoint=checkpoint)
+    second = run_pipeline(
+        doc,
+        FAST.model_copy(update={"solver_seed": 3}),
+        execution_id="attempt-2",
+        cache=cache.get,
+        checkpoint=checkpoint,
+    )
+    by_stage = {a.stage: a.manifest for a in second.artifacts}
+    for stage in ("allocation", "aggregation", "clustering", "travel"):
+        assert by_stage[stage]["reused_from"] == "attempt-1"
+    assert by_stage["solve"]["reused_from"] is None
+    assert first.summary.totals.planned_cents == second.summary.totals.planned_cents
+
+
+def test_cluster_result_checkpoint_resumes_after_attempt_change():
+    doc = scenario(
+        [("A", east(50))],
+        [("O1", "A", "2026-09-01", "P", 2, 100)],
+        [("P", 2)],
+    )
+    saved = {}
+    calls = []
+
+    def cluster_task(action, cluster_id, input_hash, result):
+        calls.append(action)
+        key = (cluster_id, input_hash)
+        if action == "claim":
+            return saved.get(key, {"status": "running"})
+        saved[key] = {"status": "succeeded", "result": result}
+        return saved[key]
+
+    first = run_pipeline(doc, FAST, cluster_task=cluster_task)
+    second = run_pipeline(doc, FAST, cluster_task=cluster_task)
+    assert calls == ["claim", "complete", "claim"]
+    assert first.summary.totals.planned_cents == second.summary.totals.planned_cents
+
+
 # ---- canonical JSON must match JavaScript -----------------------------------------------------
 
 

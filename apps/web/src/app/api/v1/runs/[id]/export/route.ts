@@ -3,6 +3,8 @@ import { exportCsv, exportJson, type CsvTable } from "@/lib/server/export"
 import type { SheetColumn } from "@/lib/shipment-sheet"
 import { ApiError, errorResponse } from "@/lib/server/runs"
 
+import { assertRunReadAccess } from "@/lib/server/scenarios"
+
 export const dynamic = "force-dynamic"
 
 // ?format=json (default) or ?format=csv&table=loads|unplanned|clusters|products|sheet
@@ -13,6 +15,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
     const params = new URL(request.url).searchParams
     const format = params.get("format") ?? "json"
     const store = initializeDatabase()
+    assertRunReadAccess(store, id, request)
     const name = `fillrate-run-${id.slice(0, 8)}`
     if (format === "json") {
       return new Response(JSON.stringify(exportJson(store, id), null, 1), {

@@ -1251,6 +1251,8 @@
    "far_from_depot": "warn",
    "oversize_stop": "warn"
   },
-  "excluded_line_ids": []
+  "excluded_line_ids": [],
+  "cost_per_truck_cents": null,
+  "cost_per_mile_cents": null
  }
 }

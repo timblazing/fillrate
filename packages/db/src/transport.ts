@@ -69,6 +69,18 @@ export function createWorkerTransport(store: Store, options: WorkerTransportOpti
         const beat = store.heartbeat(lease, now(), leaseMs);
         return send(res, 200, { cancel_requested: beat.cancelRequested, expires_at: beat.expiresAt });
       }
+      if (route === "/internal/worker/checkpoint") {
+        const { lease, artifact } = body as { lease: Lease; artifact: ArtifactInput };
+        return send(res, 200, store.checkpoint(lease, artifact, now()));
+      }
+      if (route === "/internal/worker/cache") {
+        const { lease, input_hash } = body as { lease: Lease; input_hash: string };
+        return send(res, 200, { artifact: store.cachedStage(lease, input_hash, now()) });
+      }
+      if (route === "/internal/worker/cluster") {
+        const { lease, action, cluster_id, input_hash, result } = body as { lease: Lease; action: string; cluster_id: string; input_hash: string; result?: unknown };
+        return send(res, 200, store.clusterTask(lease, action, cluster_id, input_hash, result, now()));
+      }
       if (route === "/internal/worker/events") {
         const { event, artifacts = [] } = body as { event: WorkerEvent; artifacts?: ArtifactInput[] };
         contact = { workerId: event?.lease?.worker_id, at: now() };

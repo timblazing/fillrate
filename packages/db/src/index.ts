@@ -12,6 +12,7 @@ import * as s from "./schema";
 export const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export const MAX_COMPLETION_BYTES = 16 * 1024 * 1024;
 export const MAX_REVIEW_BYTES = 64 * 1024;
+const DETERMINISTIC = new Set(["preflight", "allocation", "aggregation", "clustering", "travel", "problem"]);
 const active = new Set(["claimed", "running"]);
 const terminal = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
 
@@ -123,6 +124,7 @@ export class Store {
       const job = tx.select().from(s.jobs).where(eq(s.jobs.runId, runId)).get();
       if (!job) throw new Error("run_not_found");
       if (terminal.has(job.status)) return;
+      tx.update(s.clusterJobs).set({ status: "cancelled" }).where(and(eq(s.clusterJobs.runId, runId), sql`${s.clusterJobs.status} IN ('queued','running')`)).run();
       tx.update(s.jobs).set({ cancelRequested: true, ...(job.status === "queued" ? { status: "cancelled" } : {}) }).where(eq(s.jobs.id, job.id)).run();
       if (job.status === "queued") tx.update(s.runs).set({ status: "cancelled" }).where(eq(s.runs.id, runId)).run();
     }, { behavior: "immediate" });
@@ -193,6 +195,69 @@ export class Store {
       .map(r => ({ ...r, answers: JSON.parse(r.answers) as Record<string, unknown> }));
   }
 
+  checkpoint(lease: Lease, input: ArtifactInput, now = Date.now()) {
+    parseContract("Lease", lease);
+    parseContract("StageManifest", input.manifest);
+    const bytes = Buffer.from(canonical(input.payload));
+    if (bytes.length > MAX_ARTIFACT_BYTES) throw new Error("artifact_too_large");
+    if (contentHash(bytes) !== input.manifest.output_hash) throw new Error("artifact_hash_mismatch");
+    const compressed = gzipSync(bytes);
+    return this.db.transaction(tx => {
+      const job = tx.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get();
+      assertLease(job, lease, now);
+      if (job!.cancelRequested) throw new Error("cancel_requested");
+      if (input.manifest.execution_id !== lease.lease_token) throw new Error("stale_lease");
+      tx.insert(s.artifacts).values({ hash: input.manifest.output_hash, compressed, byteLength: bytes.length }).onConflictDoNothing().run();
+      const existing = tx.select().from(s.runArtifacts).where(and(eq(s.runArtifacts.runId, job!.runId), eq(s.runArtifacts.manifest, canonical(input.manifest)))).get();
+      if (!existing) tx.insert(s.runArtifacts).values({ id: randomUUID(), runId: job!.runId, artifactHash: input.manifest.output_hash, manifest: canonical(input.manifest) }).run();
+      if (DETERMINISTIC.has(input.manifest.stage_type)) {
+        tx.insert(s.stageCache).values({ inputHash: input.manifest.input_hash, artifactHash: input.manifest.output_hash, manifest: canonical(input.manifest), runId: job!.runId }).onConflictDoNothing().run();
+      }
+      return { stored: true };
+    }, { behavior: "immediate" });
+  }
+
+  cachedStage(lease: Lease, inputHash: string, now = Date.now()) {
+    parseContract("Lease", lease);
+    assertLease(this.db.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get(), lease, now);
+    if (!/^[a-f0-9]{64}$/.test(inputHash)) throw new Error("invalid_hash");
+    const cached = this.db.select().from(s.stageCache).where(eq(s.stageCache.inputHash, inputHash)).get();
+    if (!cached) return null;
+    const manifest = parseContract("StageManifest", JSON.parse(cached.manifest));
+    return { manifest, payload: this.readArtifact(cached.artifactHash) };
+  }
+
+  clusterTask(lease: Lease, action: string, clusterId: string, inputHash: string, result?: unknown, now = Date.now()) {
+    parseContract("Lease", lease);
+    if (!clusterId || clusterId.length > 200 || !/^[a-f0-9]{64}$/.test(inputHash)) throw new Error("invalid_cluster");
+    const resultJson = result === undefined ? null : canonical(result);
+    if (resultJson && Buffer.byteLength(resultJson) > MAX_ARTIFACT_BYTES) throw new Error("artifact_too_large");
+    return this.db.transaction(tx => {
+      const job = tx.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get();
+      assertLease(job, lease, now);
+      if (job!.cancelRequested) throw new Error("cancel_requested");
+      let task = tx.select().from(s.clusterJobs).where(and(eq(s.clusterJobs.runId, job!.runId), eq(s.clusterJobs.clusterId, clusterId))).get();
+      if (!task) {
+        if (action !== "claim") throw new Error("cluster_not_found");
+        task = tx.insert(s.clusterJobs).values({ id: randomUUID(), runId: job!.runId, clusterId, inputHash, maxAttempts: job!.maxAttempts }).returning().get()!;
+      }
+      if (task.inputHash !== inputHash) throw new Error("cluster_input_conflict");
+      if (task.status === "succeeded" || task.status === "failed") return { status: task.status, attempt: task.attempt, result: task.result ? JSON.parse(task.result) : null };
+      if (action === "claim") {
+        if (task.status === "running" && task.coordinatorToken === lease.lease_token) throw new Error("cluster_already_claimed");
+        if (task.attempt >= task.maxAttempts) {
+          tx.update(s.clusterJobs).set({ status: "failed", endedAt: now, error: "attempts_exhausted" }).where(eq(s.clusterJobs.id, task.id)).run();
+          return { status: "failed", attempt: task.attempt, result: null };
+        }
+        tx.update(s.clusterJobs).set({ status: "running", attempt: task.attempt + 1, coordinatorToken: lease.lease_token, startedAt: now, endedAt: null, error: task.attempt ? "prior_coordinator_expired" : null }).where(eq(s.clusterJobs.id, task.id)).run();
+        return { status: "running", attempt: task.attempt + 1, result: null };
+      }
+      if (action !== "complete" || !resultJson || task.coordinatorToken !== lease.lease_token) throw new Error("stale_lease");
+      tx.update(s.clusterJobs).set({ status: "succeeded", result: resultJson, endedAt: now }).where(eq(s.clusterJobs.id, task.id)).run();
+      return { status: "succeeded", attempt: task.attempt, result };
+    }, { behavior: "immediate" });
+  }
+
   findVersion(snapshot: Snapshot) {
     return this.db.select().from(s.versions).where(eq(s.versions.document, canonical(snapshot))).orderBy(asc(s.versions.createdAt)).get() ?? null;
   }
@@ -224,6 +289,7 @@ export class Store {
       settings: JSON.parse(run.settings) as Snapshot,
       attempt: job.attempt, maxAttempts: job.maxAttempts, cancelRequested: job.cancelRequested,
       events, attempts, artifacts,
+      clusters: this.db.select().from(s.clusterJobs).where(eq(s.clusterJobs.runId, runId)).all().map(({ result: _result, coordinatorToken: _token, ...task }) => task),
     };
   }
 

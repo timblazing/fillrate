@@ -1,0 +1,72 @@
+"""Submission policy checks mirrored by packages/db/src/preflight.ts.
+
+These checks are user policy, not routing feasibility. Excluded lines do not
+contribute to a stop's demand or its policy findings.
+"""
+from collections import defaultdict
+from math import asin, cos, radians, sin, sqrt
+
+from .model import PreflightFinding, RunSettings, ScenarioDocument
+from .travel import EARTH_RADIUS_M
+
+
+def _straight_distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    a = (
+        sin(radians(lat2 - lat1) / 2) ** 2
+        + cos(radians(lat1)) * cos(radians(lat2))
+        * sin(radians(lon2 - lon1) / 2) ** 2
+    )
+    return 2 * EARTH_RADIUS_M * asin(sqrt(min(1, max(0, a))))
+
+
+def preflight_checks(scenario: ScenarioDocument, settings: RunSettings) -> list[PreflightFinding]:
+    locations = {loc.id: loc for loc in scenario.locations}
+    products = {product.id: product for product in scenario.products}
+    all_ids = {line.id for order in scenario.orders for line in order.lines}
+    excluded = set(settings.excluded_line_ids)
+    if excluded - all_ids:
+        raise ValueError("Unknown excluded line IDs: " + ", ".join(sorted(excluded - all_ids)))
+    found: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+    grouped: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    for order in scenario.orders:
+        loc = locations[order.location_id]
+        active = [line for line in order.lines if line.ordered_pieces and line.id not in excluded]
+        if not active:
+            continue
+        missing = loc.lat is None or loc.lon is None or loc.coordinate_source == "unresolved"
+        far = (
+            not missing
+            and round(
+                _straight_distance_m(scenario.depot.lat, scenario.depot.lon, loc.lat, loc.lon)
+                * settings.travel_circuity
+            ) > settings.max_leg_m
+        )
+        for line in active:
+            if missing:
+                found["missing_coordinates"][loc.id].append(line.id)
+            if far:
+                found["far_from_depot"][loc.id].append(line.id)
+            if not missing and loc.coordinate_source == "zcta":
+                found["approximate_coordinates"][loc.id].append(line.id)
+            lf = line.linear_feet_per_piece or products[line.product_id].linear_feet_per_piece
+            grouped[loc.id].append((line.id, line.ordered_pieces * lf))
+    for loc_id, lines in grouped.items():
+        if sum(load for _, load in lines) > settings.trailer_capacity:
+            found["oversize_stop"][loc_id] = [line_id for line_id, _ in lines]
+    out = []
+    for check in (
+        "missing_coordinates", "far_from_depot", "oversize_stop", "approximate_coordinates"
+    ):
+        hits = found.get(check)
+        if hits:
+            line_ids = sorted(line_id for ids in hits.values() for line_id in ids)
+            out.append(PreflightFinding(
+                check=check,
+                action=(
+                    "warn" if check == "approximate_coordinates"
+                    else getattr(settings.preflight, check)
+                ),
+                location_ids=sorted(hits), line_ids=line_ids,
+                message=f"{check}: {len(line_ids)} line(s) at {len(hits)} location(s).",
+            ))
+    return out

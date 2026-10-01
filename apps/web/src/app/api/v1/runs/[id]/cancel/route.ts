@@ -1,13 +1,16 @@
 import { initializeDatabase } from "@/lib/server/database"
 import { ApiError, assertRunAccess, errorResponse, runDetail } from "@/lib/server/runs"
 
+import { assertScenarioAccess, isImportedRun } from "@/lib/server/scenarios"
+
 // Requests cancellation. A queued run is cancelled at once; a running one when the worker
 // has killed its solver process and acknowledged (or its lease expires).
 export async function POST(request: Request, ctx: RouteContext<"/api/v1/runs/[id]/cancel">) {
   try {
-    assertRunAccess(request)
     const { id } = await ctx.params
     const store = initializeDatabase()
+    if (isImportedRun(store,id)) assertScenarioAccess(request)
+    else assertRunAccess(request)
     try {
       store.cancel(id)
     } catch (error) {

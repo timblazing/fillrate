@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Id = Annotated[str, Field(min_length=1, max_length=200)]
 Count = Annotated[int, Field(strict=True, ge=0, le=9007199254740991)]
@@ -102,11 +102,21 @@ class RunSettings(Doc):
     solver_seed: Annotated[int, Field(strict=True, ge=0, le=2**31 - 1)] = 0
     solver_max_iterations: Annotated[int, Field(strict=True, ge=1, le=10_000_000)] | None = None
     solver_time_limit_s: Annotated[float, Field(gt=0, le=300)] = 10
-    objective: Literal["trucks_then_distance", "weighted_distance"] = "trucks_then_distance"
+    objective: Literal["trucks_then_distance", "weighted_distance", "cost"] = "trucks_then_distance"
     weighted_truck_penalty_m: Annotated[int, Field(strict=True, ge=0)] | None = None
     preflight: PreflightPolicy = Field(default_factory=PreflightPolicy)
     # "Exclude these lines and run": recorded, reconciled exclusions (reason excluded_by_user).
     excluded_line_ids: Annotated[list[Id], Field(max_length=25_000)] = Field(default_factory=list)
+    cost_per_truck_cents: Count | None = None
+    cost_per_mile_cents: Count | None = None
+
+    @model_validator(mode="after")
+    def validate_cost_rates(self) -> RunSettings:
+        if self.objective == "cost" and (
+            self.cost_per_truck_cents is None or self.cost_per_mile_cents is None
+        ):
+            raise ValueError("cost objective requires both truck and mile rates in integer cents")
+        return self
 
 
 # ---- Run summary (results, spec §10) ----------------------------------------------------------

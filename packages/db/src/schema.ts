@@ -44,3 +44,21 @@ export const designReviews = sqliteTable("design_reviews", {
   id: text().primaryKey(), reviewer: text().notNull(), answers: text().notNull(),
   submittedAt: integer(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
 }, t => [index("reviews_by_update").on(t.updatedAt)]);
+
+// Durable M3 cluster tasks. A coordinator lease owns each attempt; restart resumes
+// completed tasks only within this run, never treating another run as a replicate.
+export const clusterJobs = sqliteTable("cluster_jobs", {
+  id: text().primaryKey(), runId: text().notNull().references(() => runs.id),
+  clusterId: text().notNull(), inputHash: text().notNull(),
+  status: text().notNull().default("queued"), attempt: integer().notNull().default(0),
+  maxAttempts: integer().notNull().default(3), coordinatorToken: text(),
+  result: text(), startedAt: integer(), endedAt: integer(), error: text(),
+}, t => [uniqueIndex("run_cluster").on(t.runId, t.clusterId)]);
+export const stageCache = sqliteTable("stage_cache", {
+  inputHash: text().primaryKey(), artifactHash: text().notNull().references(() => artifacts.hash),
+  manifest: text().notNull(), runId: text().notNull().references(() => runs.id),
+});
+export const scenarioSources = sqliteTable("scenario_sources", {
+  versionId: text().primaryKey().references(() => versions.id),
+  source: text().notNull(), metadata: text().notNull(),
+});

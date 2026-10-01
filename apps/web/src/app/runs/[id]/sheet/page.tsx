@@ -1,6 +1,8 @@
+import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 
 import { initializeDatabase } from "@/lib/server/database"
+import { assertRunReadAccess } from "@/lib/server/scenarios"
 import { ApiError, runDetail } from "@/lib/server/runs"
 import { type SheetColumn, shipmentSheets } from "@/lib/shipment-sheet"
 
@@ -15,7 +17,9 @@ export default async function SheetPage({ params, searchParams }: PageProps<"/ru
   const [{ id }, query] = await Promise.all([params, searchParams])
   let detail
   try {
-    detail = runDetail(initializeDatabase(), id)
+    const store = initializeDatabase()
+    assertRunReadAccess(store, id, new Request("http://localhost/sheet", {headers:{cookie:(await headers()).get("cookie") ?? ""}}))
+    detail = runDetail(store, id)
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound()
     throw error

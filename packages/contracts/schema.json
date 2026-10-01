@@ -908,6 +908,34 @@
           "title": "Cluster Circuity",
           "type": "number"
         },
+        "cost_per_mile_cents": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Per Mile Cents"
+        },
+        "cost_per_truck_cents": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Per Truck Cents"
+        },
         "excluded_line_ids": {
           "items": {
             "maxLength": 200,
@@ -978,7 +1006,8 @@
           "default": "trucks_then_distance",
           "enum": [
             "trucks_then_distance",
-            "weighted_distance"
+            "weighted_distance",
+            "cost"
           ],
           "title": "Objective",
           "type": "string"

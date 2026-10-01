@@ -1,5 +1,18 @@
 {
-  "name": "@fillrate/db", "version": "0.1.0", "private": true, "type": "module",
-  "exports": {".": "./src/index.ts", "./transport": "./src/transport.ts"},
-  "dependencies": {"@fillrate/contracts": "workspace:*", "drizzle-orm": "0.45.3", "better-sqlite3": "13.0.3"}
+  "name": "@fillrate/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./transport": "./src/transport.ts",
+    "./scenarios": "./src/scenarios.ts",
+    "./imports": "./src/imports.ts",
+    "./preflight": "./src/preflight.ts"
+  },
+  "dependencies": {
+    "@fillrate/contracts": "workspace:*",
+    "drizzle-orm": "0.45.3",
+    "better-sqlite3": "13.0.3"
+  }
 }
