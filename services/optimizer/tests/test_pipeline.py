@@ -193,9 +193,9 @@ def test_allocation_order_date_then_value_is_deterministic():
     shortages = {u.line_id: u.pieces for u in out.summary.unplanned if u.reason == "stock_shortage"}
     # O2 is oldest; on 09-02 the higher value per piece (O1) wins; O3 gets nothing.
     assert shortages == {"O1-1": 1, "O3-1": 3}
-    assert run(doc).summary.model_dump(exclude={"clusters"}) == out.summary.model_dump(
-        exclude={"clusters"}
-    )
+    # Measured runtimes are provenance, not results; everything else must repeat exactly.
+    skip = {"clusters": True, "allocation": {"runtime_s"}}
+    assert run(doc).summary.model_dump(exclude=skip) == out.summary.model_dump(exclude=skip)
 
 
 def test_excluded_demand_never_consumes_stock():
