@@ -13,12 +13,13 @@ export const unshippedReasons: Record<
   { label: string; stage: string; icon: typeof PackageX; tone: string; dot: string }
 > = {
   "no-stock": { label: "No stock", stage: "Not allocated", icon: PackageX, tone: "text-warning-foreground", dot: "bg-warning" },
-  unreachable: { label: "Beyond leg limit", stage: "Allocated, not loaded", icon: Ruler, tone: "text-destructive-foreground", dot: "bg-destructive" },
-  "did-not-fit": { label: "Did not fit", stage: "Allocated, not loaded", icon: Container, tone: "text-destructive-foreground", dot: "bg-destructive" },
-  "data-quality": { label: "Data quality", stage: "Excluded", icon: FileWarning, tone: "text-info-foreground", dot: "bg-info" },
+  unreachable: { label: "Beyond the 500 mi leg limit", stage: "Allocated, not shipped", icon: Ruler, tone: "text-destructive-foreground", dot: "bg-destructive" },
+  "did-not-fit": { label: "Did not fit on a truck", stage: "Allocated, not shipped", icon: Container, tone: "text-destructive-foreground", dot: "bg-destructive" },
+  "data-quality": { label: "Bad or missing address data", stage: "Excluded", icon: FileWarning, tone: "text-info-foreground", dot: "bg-info" },
 }
 
-// Every unshipped line with a reason (spec §10), so nobody has to reverse-engineer the output.
+// Every unshipped line with a reason (spec §10), so nobody has to reverse-engineer the output. The four groups are
+// the ones the primary user confirmed (design review round one); `lib/copy.ts` maps the run's reason codes to them.
 // Competing lines are the earlier or higher-value lines that took the stock.
 export function UnshippedLines({
   items,

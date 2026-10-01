@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .model import RunSettings, ScenarioDocument
+from .model import PreflightPolicy, RunSettings, ScenarioDocument
 
 MEMPHIS = (35.1495, -90.0490)
 MILES_PER_DEG_LAT = 69.0934
@@ -143,7 +143,17 @@ def build() -> ScenarioDocument:
 
 
 # Iteration-bounded so the bundled run is quick and reproducible across machines.
-SETTINGS = RunSettings(solver_max_iterations=1_500, solver_time_limit_s=10)
+# The example deliberately contains all three blocking preflight cases, so it declares them as
+# warnings and keeps exercising those paths (spec §15 M2 scope item 8). With the diameter policy
+# off, auto-k only enforces solve size, so the example uses a fixed k as the Blocks do.
+SETTINGS = RunSettings(
+    k=4,
+    solver_max_iterations=1_500,
+    solver_time_limit_s=10,
+    preflight=PreflightPolicy(
+        missing_coordinates="warn", far_from_depot="warn", oversize_stop="warn"
+    ),
+)
 
 
 def main() -> None:

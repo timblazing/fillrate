@@ -54,10 +54,13 @@ export function stockRows(run: PipelineResult = baseline()): StockRow[] {
     const lines = run.lines.filter((l) => l.productId === product.id)
     const ordered = lines.reduce((s, l) => s + l.ordered, 0)
     const allocated = lines.reduce((s, l) => s + l.allocated, 0)
-    const shortAmount = run.unshipped
-      .filter((u) => u.productId === product.id && u.reason === "no-stock")
-      .reduce((s, u) => s + u.amount, 0)
-    return { product, ordered, stock: run.stock[product.id], allocated, shortAmount }
+    const noStock = run.unshipped.filter((u) => u.productId === product.id && u.reason === "no-stock")
+    const shortAmount = noStock.reduce((s, u) => s + u.amount, 0)
+    const excluded = run.unshipped
+      .filter((u) => u.productId === product.id && u.reason === "data-quality")
+      .reduce((s, u) => s + u.pieces, 0)
+    const shortedOrders = [...new Set(noStock.map((u) => u.orderId))].sort()
+    return { product, ordered, stock: run.stock[product.id], allocated, shortAmount, excluded, shortedOrders }
   })
 }
 

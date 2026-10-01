@@ -16,7 +16,8 @@ export type IterationRow = {
   id: string
   label: string
   state: JobState
-  changed: { field: string; value: string }[]
+  /** `assumption`: the change alters demand, stock or how miles are measured (a changed-assumption cohort, §10). */
+  changed: { field: string; value: string; assumption?: boolean }[]
   metrics: RunMetrics
   nonDominated: boolean
 }
@@ -30,9 +31,11 @@ type Col = {
   render: (m: RunMetrics) => React.ReactNode
 }
 
+// Revenue leads (design review round one); the table sorts by planned revenue by default.
 const cols: Col[] = [
   { key: "k", label: "k", group: null, value: (m) => m.k, render: (m) => m.k },
-  { key: "trucks", label: "Trucks", group: "fill", better: "down", value: (m) => m.trucks, render: (m) => formatCount(m.trucks) },
+  { key: "revenue", label: "Revenue", group: "rev", better: "up", value: (m) => m.revenueShipped, render: (m) => formatMoney(m.revenueShipped, { compact: true }) },
+  { key: "trucks", label: "Shipments", group: "fill", better: "down", value: (m) => m.trucks, render: (m) => formatCount(m.trucks) },
   { key: "avgFill", label: "Avg fill", group: "fill", better: "up", value: (m) => m.avgFill, render: (m) => <FillPercent fill={m.avgFill} /> },
   { key: "minFill", label: "Min fill", group: "fill", better: "up", value: (m) => m.minFill, render: (m) => <FillPercent fill={m.minFill} /> },
   { key: "centroid", label: "To centroid", group: "tight", better: "down", value: (m) => m.meanToCentroid, render: (m) => `${m.meanToCentroid.toFixed(0)} mi` },
@@ -46,10 +49,9 @@ const cols: Col[] = [
         </span>
       ),
   },
-  { key: "revenue", label: "Revenue", group: "rev", better: "up", value: (m) => m.revenueShipped, render: (m) => formatMoney(m.revenueShipped, { compact: true }) },
 ]
 
-const groupLabel = { fill: "Truck fill", tight: "Cluster tightness", rev: "Revenue" }
+const groupLabel = { fill: "Trailer fill", tight: "Cluster tightness", rev: "Revenue" }
 
 // Iteration comparison (spec §10): one row per run with the three metric groups and the varied settings.
 // ★ marks the non-dominated runs. The best value per column is emphasized; nothing is combined into one score.
@@ -67,7 +69,7 @@ export function IterationTable({
   onSelectedChange?: (ids: string[]) => void
   className?: string
 }) {
-  const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null)
+  const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>({ key: "revenue", dir: -1 })
   const best = useMemo(() => {
     const out: Record<string, number> = {}
     for (const c of cols) {
@@ -145,8 +147,16 @@ export function IterationTable({
                   <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1 pl-4.5 font-mono text-[10px]">
                     {r.id}
                     {r.changed.map((c) => (
-                      <span key={c.field} className="bg-muted text-foreground rounded px-1 py-px">
+                      <span
+                        key={c.field}
+                        title={c.assumption ? "Changed assumption: not directly comparable with the baseline" : undefined}
+                        className={cn(
+                          "rounded px-1 py-px",
+                          c.assumption ? "border-warning/60 text-warning-foreground border border-dashed" : "bg-muted text-foreground"
+                        )}
+                      >
                         {c.field} {c.value}
+                        {c.assumption && <span className="font-sans"> · changed assumption</span>}
                       </span>
                     ))}
                   </div>

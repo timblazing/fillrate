@@ -1,4 +1,4 @@
-"""k-means clustering of location groups with diameter and solve-size repair (spec §8a).
+"""k-means clustering of location groups with solve-size and optional diameter repair (§8a).
 
 Features are 3D unit vectors from latitude/longitude, one equally weighted
 observation per location. k-means minimizes squared chord distance in feature
@@ -69,7 +69,7 @@ class Clusterer:
         visits: dict[str, int],
         *,
         circuity: float,
-        max_diameter_m: int,
+        max_diameter_m: int | None,
         max_stops: int,
         seed: int,
         n_init: int,
@@ -116,10 +116,12 @@ class Clusterer:
             groups.setdefault(int(label), []).append(member)
         return list(groups.values())
 
+    def too_wide(self, diameter: int) -> bool:
+        """The diameter limit is an optional policy (spec v1.8 §1); None disables it."""
+        return self.max_diameter_m is not None and diameter > self.max_diameter_m
+
     def passes(self, members: list[str]) -> bool:
-        return (
-            self.diameter(members) <= self.max_diameter_m and self.size(members) <= self.max_stops
-        )
+        return not self.too_wide(self.diameter(members)) and self.size(members) <= self.max_stops
 
     def repair(self, groups: list[list[str]]) -> tuple[list[list[str]], list[RepairStep]]:
         """Deterministic bisection; every split strictly shrinks a partition."""
@@ -130,15 +132,16 @@ class Clusterer:
         while pending:
             group = pending.pop(0)
             diameter, size = self.diameter(group), self.size(group)
-            if (diameter <= self.max_diameter_m and size <= self.max_stops) or len(group) == 1:
+            if (not self.too_wide(diameter) and size <= self.max_stops) or len(group) == 1:
                 done.append(group)
                 continue
             if budget == 0:
-                steps.append(RepairStep("diameter", "Repair step limit reached; group kept."))
+                reason = "diameter" if self.too_wide(diameter) else "solve_size"
+                steps.append(RepairStep(reason, "Repair step limit reached; group kept."))
                 done.append(group)
                 continue
             budget -= 1
-            reason = "diameter" if diameter > self.max_diameter_m else "solve_size"
+            reason = "diameter" if self.too_wide(diameter) else "solve_size"
             halves = self.fit(group, 2) if self.distinct(group) > 1 else [group]
             if len(halves) < 2:
                 # Duplicate coordinates: stable-ID fallback, size repair only.

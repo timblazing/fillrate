@@ -29,14 +29,14 @@ export function stageSummaries(run: PipelineResult): Record<StageId, string> {
   return {
     allocate: `${formatCount(filled)} of ${formatCount(eligible.length)} lines filled, ${partial} partly · ${formatMoney(run.metrics.revenueAllocated, { compact: true })}`,
     aggregate: `${run.splits.length} split over one trailer`,
-    cluster: `k = ${run.metrics.k}${run.settings.k === "auto" ? " (auto)" : ""} · ${run.repairs.length} repairs · ${beyond} beyond leg limit`,
+    cluster: `k = ${run.metrics.k}${run.settings.k === "auto" ? " (auto)" : " from the explorer"} · ${beyond} beyond the 500 mi drive limit`,
     solve: "10 s search per cluster",
-    validate: `All ${formatCount(run.metrics.trucks)} trucks pass load, leg, and diameter checks`,
+    validate: `All ${formatCount(run.metrics.trucks)} shipments pass load and single-drive checks`,
     metrics: "Each unshipped line has a reason",
   }
 }
 
-/** The run as business objects: what came in, what got stock, and what ended up on a truck. */
+/** The run as business objects: what came in, what got stock, and what ended up on a shipment. */
 export function planFlowSteps(run: PipelineResult): PlanFlowStep[] {
   const orders = new Set(run.lines.map((l) => l.orderId)).size
   const allocated = run.lines.filter((l) => l.allocated > 0).length
@@ -54,13 +54,13 @@ export function planFlowSteps(run: PipelineResult): PlanFlowStep[] {
       drop: [noStock && `${formatCount(noStock)} no stock`, excluded && `${formatCount(excluded)} excluded`].filter(Boolean).join(" · ") || undefined,
     },
     { id: "stops", label: "Stops", value: formatCount(run.stops.length), detail: `${plural(run.splits.length, "split stop")} over one trailer` },
-    { id: "clusters", label: "Clusters", value: formatCount(run.clusters.length), detail: `${run.settings.k === "auto" ? "auto k" : `k = ${run.settings.k}`} · ${plural(run.repairs.length, "repair")}` },
+    { id: "clusters", label: "Clusters", value: formatCount(run.clusters.length), detail: run.settings.k === "auto" ? "auto k" : `k = ${run.settings.k} from the explorer` },
     {
       id: "trucks",
-      label: "Trucks",
+      label: "Shipments",
       value: formatCount(run.metrics.trucks),
-      detail: `${formatPercent(run.metrics.avgFill)} avg fill`,
-      drop: notLoaded ? `${formatCount(notLoaded)} lines not loaded` : undefined,
+      detail: `${formatPercent(run.metrics.avgFill)} avg trailer fill`,
+      drop: notLoaded ? `${formatCount(notLoaded)} lines not shipped` : undefined,
     },
     {
       id: "shipped",
@@ -77,7 +77,7 @@ function stageOutputs(run: PipelineResult): Record<StageId, PipelineStage["outpu
     allocate: { value: formatCount(run.lines.filter((l) => l.allocated > 0).length), label: "lines allocated" },
     aggregate: { value: formatCount(run.stops.length), label: "stops" },
     cluster: { value: formatCount(run.clusters.length), label: "clusters" },
-    solve: { value: formatCount(run.metrics.trucks), label: "trucks" },
+    solve: { value: formatCount(run.metrics.trucks), label: "shipments" },
     validate: { value: "0", label: "violations" },
     metrics: { value: formatCount(run.unshipped.length), label: "unshipped lines" },
   }
@@ -92,7 +92,7 @@ export function stagesAt(run: PipelineResult, elapsed: number | "done"): Pipelin
     allocate: "Allocate",
     aggregate: "Aggregate",
     cluster: "Cluster",
-    solve: "Solve loads",
+    solve: "Build shipments",
     validate: "Validate",
     metrics: "Metrics",
   }

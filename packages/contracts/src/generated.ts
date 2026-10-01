@@ -180,11 +180,8 @@ export interface components {
              * @default 1.2
              */
             circuity: number;
-            /**
-             * Max Cluster Diameter M
-             * @default 804672
-             */
-            max_cluster_diameter_m: number;
+            /** Max Cluster Diameter M */
+            max_cluster_diameter_m?: number | null;
             /**
              * Max Leg M
              * @default 804672
@@ -348,6 +345,52 @@ export interface components {
             /** Product Id */
             product_id: string;
         };
+        /**
+         * PreflightFinding
+         * @description One preflight check that found something. `action` is what the run did about it.
+         */
+        PreflightFinding: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "block" | "warn";
+            /**
+             * Check
+             * @enum {string}
+             */
+            check: "missing_coordinates" | "far_from_depot" | "oversize_stop" | "approximate_coordinates";
+            /** Line Ids */
+            line_ids: string[];
+            /** Location Ids */
+            location_ids: string[];
+            /** Message */
+            message: string;
+        };
+        /**
+         * PreflightPolicy
+         * @description M2 scope item 8: which preflight checks stop a run. Policy, not physics (§7).
+         */
+        PreflightPolicy: {
+            /**
+             * Far From Depot
+             * @default block
+             * @enum {string}
+             */
+            far_from_depot: "block" | "warn";
+            /**
+             * Missing Coordinates
+             * @default block
+             * @enum {string}
+             */
+            missing_coordinates: "block" | "warn";
+            /**
+             * Oversize Stop
+             * @default block
+             * @enum {string}
+             */
+            oversize_stop: "block" | "warn";
+        };
         /** Product */
         Product: {
             /** Id */
@@ -410,6 +453,8 @@ export interface components {
              * @default 1.2
              */
             cluster_circuity: number;
+            /** Excluded Line Ids */
+            excluded_line_ids?: string[];
             /**
              * K
              * @default null
@@ -427,9 +472,9 @@ export interface components {
             kmeans_seed: number;
             /**
              * Max Cluster Diameter M
-             * @default 804672
+             * @default null
              */
-            max_cluster_diameter_m: number;
+            max_cluster_diameter_m: number | null;
             /**
              * Max Leg M
              * @default 804672
@@ -446,6 +491,7 @@ export interface components {
              * @enum {string}
              */
             objective: "trucks_then_distance" | "weighted_distance";
+            preflight?: components["schemas"]["PreflightPolicy"];
             /**
              * Schema Version
              * @default 1
@@ -498,6 +544,8 @@ export interface components {
             diagnostics: components["schemas"]["Diagnostic"][];
             /** Locations */
             locations: components["schemas"]["MapLocation"][];
+            /** Preflight */
+            preflight?: components["schemas"]["PreflightFinding"][];
             /** Products */
             products: components["schemas"]["ProductReconciliation"][];
             /**
@@ -704,7 +752,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "excluded_unresolved_coordinates" | "oversize_piece" | "stock_shortage" | "unreachable" | "unreachable_in_partition" | "candidate_invalid" | "no_valid_candidate";
+            reason: "excluded_unresolved_coordinates" | "excluded_by_user" | "oversize_piece" | "stock_shortage" | "unreachable" | "unreachable_in_partition" | "candidate_invalid" | "no_valid_candidate";
             /**
              * Stage
              * @enum {string}

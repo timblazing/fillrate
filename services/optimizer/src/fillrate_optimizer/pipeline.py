@@ -30,6 +30,7 @@ from .model import (
     Diagnostic,
     LineOnBoard,
     MapLocation,
+    PreflightFinding,
     ProductReconciliation,
     Repair,
     RunSettings,
@@ -99,7 +100,8 @@ class Stages:
         self.hashes: dict[str, str] = {}
 
     def add(self, stage: str, payload: dict[str, Any], parents: list[str], keys: list[str]):
-        effective = {k: getattr(self.settings, k) for k in keys}
+        dumped = self.settings.model_dump(mode="json")
+        effective = {k: dumped[k] for k in keys}
         parent_hashes = [self.hashes[p] for p in parents]
         input_hash = content_hash(
             {
@@ -193,19 +195,35 @@ def run_pipeline(
             )
         stock_start[item.product_id] += item.available_pieces
 
+    user_excluded = set(settings.excluded_line_ids)
+    if unknown := sorted(user_excluded - set(lines)):
+        raise PipelineError("unknown_line", f"Excluded line IDs not in the scenario: {unknown[:5]}")
     excluded: dict[str, str] = {}
     for line in lines.values():
         loc = locations[line["location_id"]]
-        if loc.lat is None or loc.lon is None or loc.coordinate_source == "unresolved":
+        if line["line_id"] in user_excluded:
+            excluded[line["line_id"]] = "excluded_by_user"
+        elif loc.lat is None or loc.lon is None or loc.coordinate_source == "unresolved":
             excluded[line["line_id"]] = "excluded_unresolved_coordinates"
         elif line["lf"] > cap:
             excluded[line["line_id"]] = "oversize_piece"
+    findings = preflight_checks(scenario, lines, user_excluded, settings)
+    blocking = [f for f in findings if f.action == "block"]
+    if blocking:
+        raise PipelineError(
+            "preflight_blocked",
+            "Blocked by preflight: "
+            + "; ".join(f.message for f in blocking)
+            + ". Fix the data, exclude these lines, or turn the check into a warning.",
+        )
     for line_id, reason in sorted(excluded.items()):
         line = lines[line_id]
         if line["ordered"] == 0:
             continue
         evidence = (
-            f"Location {line['location_id']} has no resolved coordinates."
+            "Excluded by the user before this run."
+            if reason == "excluded_by_user"
+            else f"Location {line['location_id']} has no resolved coordinates."
             if reason == "excluded_unresolved_coordinates"
             else f"One piece is {line['lf'] / 100:g} ft; a trailer holds {cap / 100:g} ft."
         )
@@ -215,10 +233,11 @@ def run_pipeline(
         {
             "eligible_line_ids": sorted(set(lines) - set(excluded)),
             "excluded": [{"line_id": k, "reason": v} for k, v in sorted(excluded.items())],
+            "checks": [f.model_dump(mode="json") for f in findings],
             "stock": dict(sorted(stock_start.items())),
         },
         [],
-        ["trailer_capacity"],
+        ["trailer_capacity", "max_leg_m", "travel_circuity", "preflight", "excluded_line_ids"],
     )
 
     # ---- 2. Allocate: order date, then net value per piece, then stable ID (§8) ----------------
@@ -365,8 +384,9 @@ def run_pipeline(
             Diagnostic(
                 code="auto_limit_reached",
                 severity="warning",
-                message=f"No k up to {clustered.selected_k} passed the diameter and size "
-                "limits; repaired.",
+                message=f"No k up to {clustered.selected_k} passed the "
+                + ("diameter and size" if settings.max_cluster_diameter_m else "solve-size")
+                + " limits; repaired.",
             )
         )
     stages.add(
@@ -766,6 +786,7 @@ def run_pipeline(
         ],
         products=products_out,
         unplanned=sorted(unplanned, key=lambda u: (u.line_id, u.reason)),
+        preflight=findings,
         diagnostics=diagnostics,
         versions=versions(),
     )
@@ -809,6 +830,85 @@ def add_visit_unplanned(out, visit, lines, reason, stage, evidence) -> None:
             out.append(unplanned_line(line, part["pieces"], reason, stage, evidence))
 
 
+def preflight_checks(
+    scenario: ScenarioDocument,
+    lines: dict[str, dict[str, Any]],
+    user_excluded: set[str],
+    settings: RunSettings,
+) -> list[PreflightFinding]:
+    """M2 scope item 8. Three checks block by default; ZIP-only placement only warns.
+
+    These are policy, not physics: per §7 a far stop may still be reachable through an
+    intermediate stop, and an oversized stop is split across shipments.
+    """
+    policy = settings.preflight
+    locations = {loc.id: loc for loc in scenario.locations}
+    active = [
+        ln for ln in lines.values() if ln["ordered"] > 0 and ln["line_id"] not in user_excluded
+    ]
+    by_check: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+    resolved = [
+        loc
+        for loc in scenario.locations
+        if loc.lat is not None and loc.lon is not None and loc.coordinate_source != "unresolved"
+    ]
+    depot_m: dict[str, int] = {}
+    if resolved:
+        nodes = np.array(
+            [(scenario.depot.lat, scenario.depot.lon)] + [(loc.lat, loc.lon) for loc in resolved]
+        )
+        row = distance_matrix_m(nodes, settings.travel_circuity)[0, 1:]
+        depot_m = {loc.id: int(m) for loc, m in zip(resolved, row, strict=True)}
+    stop_load: dict[str, int] = defaultdict(int)
+    for ln in active:
+        loc = locations[ln["location_id"]]
+        if loc.id not in depot_m:
+            by_check["missing_coordinates"][loc.id].append(ln["line_id"])
+            continue
+        if depot_m[loc.id] > settings.max_leg_m:
+            by_check["far_from_depot"][loc.id].append(ln["line_id"])
+        if loc.coordinate_source == "zcta":
+            by_check["approximate_coordinates"][loc.id].append(ln["line_id"])
+        if ln["lf"] <= settings.trailer_capacity:
+            stop_load[loc.id] += ln["ordered"] * ln["lf"]
+    for ln in active:
+        cap = settings.trailer_capacity
+        if stop_load.get(ln["location_id"], 0) > cap and ln["lf"] <= cap:
+            by_check["oversize_stop"][ln["location_id"]].append(ln["line_id"])
+    limit_mi = settings.max_leg_m / 1609.344
+    trailer_ft = settings.trailer_capacity / 100
+    text = {
+        "missing_coordinates": "{lines} at {locs} with no coordinates",
+        "far_from_depot": f"{{lines}} at {{locs}} farther than {limit_mi:.0f} mi from the depot",
+        "oversize_stop": f"{{lines}} at {{locs}} ordering more than one {trailer_ft:g} ft trailer",
+        "approximate_coordinates": "{lines} at {locs} placed by ZIP code only (approximate)",
+    }
+    out = []
+    for check in (
+        "missing_coordinates",
+        "far_from_depot",
+        "oversize_stop",
+        "approximate_coordinates",
+    ):
+        found = by_check.get(check)
+        if not found:
+            continue
+        line_ids = sorted(lid for ids in found.values() for lid in ids)
+        n, m = len(line_ids), len(found)
+        out.append(
+            PreflightFinding(
+                check=check,  # type: ignore[arg-type]
+                action="warn" if check == "approximate_coordinates" else getattr(policy, check),
+                location_ids=sorted(found),
+                line_ids=line_ids,
+                message=text[check].format(
+                    lines=f"{n} line{'s' * (n != 1)}", locs=f"{m} location{'s' * (m != 1)}"
+                ),
+            )
+        )
+    return out
+
+
 def reachable(matrix: np.ndarray, max_leg_m: int) -> set[int]:
     """Nodes reachable from node 0 over allowed directed legs (≤ limit)."""
     allowed = matrix <= max_leg_m
@@ -834,7 +934,8 @@ def mean_centroid_distance(lat_lon: np.ndarray, circuity: float) -> float:
 
 
 def validate_cluster(meta, prob, trav, solve, visits, lines, settings) -> dict[str, Any]:
-    """Checks coverage, lineage load, capacity, physical legs, membership and diameter."""
+    """Checks coverage, lineage load, capacity, physical legs, membership and, when the
+    optional policy is on, cluster diameter."""
     violations: list[str] = []
     trucks = []
     if solve["status"] == "empty":
@@ -882,7 +983,8 @@ def validate_cluster(meta, prob, trav, solve, visits, lines, settings) -> dict[s
         trucks.append({"visits": route, "load": load, "legs_m": legs, "distance_m": sum(legs)})
     for vid in sorted(expected - set(seen)):
         violations.append(f"{vid} is not on any truck")
-    if meta["diameter_m"] > settings.max_cluster_diameter_m:
+    limit = settings.max_cluster_diameter_m
+    if limit is not None and meta["diameter_m"] > limit:
         violations.append(
             f"cluster diameter {meta['diameter_m'] / 1609.344:.0f} mi exceeds the limit"
         )
@@ -907,7 +1009,8 @@ def reconcile(summary: RunSummary) -> None:
         excluded = sum(
             n
             for (pid, r), n in by_reason.items()
-            if pid == p.product_id and r in ("excluded_unresolved_coordinates", "oversize_piece")
+            if pid == p.product_id
+            and r in ("excluded_by_user", "excluded_unresolved_coordinates", "oversize_piece")
         )
         short = by_reason.get((p.product_id, "stock_shortage"), 0)
         later = sum(

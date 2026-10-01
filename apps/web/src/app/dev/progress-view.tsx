@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowUpRight, Check, Circle, FileText, GitBranch, Maximize2, Shapes } from "lucide-react"
+import { ArrowUpRight, Check, Circle, ClipboardCheck, FileText, GitBranch, Maximize2, Shapes } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState, type ReactNode } from "react"
 
@@ -219,8 +219,9 @@ export function ProgressView({ initial, blocks }: { initial: ProjectDocs; blocks
 
       {/* Surfaces */}
       <Section id="surfaces" title="Surfaces" description="What you can open today. Everything here is development-only and runs on fixtures.">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SurfaceCard href="/dev/components" icon={Shapes} title="Design system" body="Foundations, primitives, fulfillment components, charts, map, and Blocks." />
+          <SurfaceCard href="/dev/review" icon={ClipboardCheck} title="Design review" body="Round two: accept each revised Block, plus costs and the open questions. Saving needs the review link's key." />
           <SurfaceCard href={REPO_URL} icon={GitBranch} title="Repository" body="Source, commits, and the web image workflow." external />
           <SurfaceCard href={`${REPO_URL}/blob/main/fillrate-technical-spec.md`} icon={FileText} title="Technical spec" body={`v${docs.spec.version}, the target this page measures against.`} external />
         </div>

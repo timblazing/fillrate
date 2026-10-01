@@ -9,9 +9,10 @@ import { formatFeet, formatMiles, formatMoney, plural } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import { TruckTag } from "./route-swatch"
-import { FillPercent, TrailerFill } from "./trailer-fill"
+import { ShipmentFill, TrailerFill } from "./trailer-fill"
 
-// Truck load (spec §10): stop sequence and the order lines on board, with fill % and loaded miles.
+// Shipment detail (spec §10; "Shipment" is the UI name for a truck load): stop sequence and the order lines on
+// board, with trailer fill % and loaded miles. The to-scale trailer bar lives here, not in lists.
 // Open route: the sequence ends at the last stop; there is no return leg.
 export function TruckLoad({
   truck,
@@ -43,13 +44,12 @@ export function TruckLoad({
   return (
     <div className={cn("bg-card overflow-hidden rounded-xl border", className)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3.5 py-2.5">
+        <span className="text-sm font-medium">Shipment</span>
         <TruckTag id={truck.id} cluster={truck.cluster} className="text-sm" />
         <span className="text-muted-foreground text-xs tabular-nums">
           {plural(seq.length, "stop")} · {formatMiles(truck.loadedMiles)} loaded · {formatMoney(truck.value)}
         </span>
-        <span className="ml-auto text-lg leading-none tracking-tight">
-          <FillPercent fill={truck.fill} />
-        </span>
+        <ShipmentFill fill={truck.fill} className="ml-auto w-16" />
       </div>
       <div className="px-3.5 pt-3 pb-2">
         <TrailerFill

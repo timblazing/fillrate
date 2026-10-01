@@ -28,27 +28,12 @@ type MetricRow = {
 
 const pts = (d: number) => `${(d * 100).toFixed(1)} pts`
 const groups: { title: string; rows: MetricRow[] }[] = [
-  {
-    title: "Truck fill",
-    rows: [
-      { label: "Trucks", goodWhen: "down", value: (m) => m.trucks, render: (m) => formatCount(m.trucks), delta: (d) => String(d) },
-      { label: "Avg fill", goodWhen: "up", value: (m) => m.avgFill, render: (m) => <FillPercent fill={m.avgFill} />, delta: pts },
-      { label: "Min fill", goodWhen: "up", value: (m) => m.minFill, render: (m) => <FillPercent fill={m.minFill} />, delta: pts },
-    ],
-  },
-  {
-    title: "Cluster tightness",
-    rows: [
-      { label: "To centroid", goodWhen: "down", value: (m) => m.meanToCentroid, render: (m) => formatMiles(m.meanToCentroid), delta: formatMiles },
-      { label: "Widest pair", goodWhen: "down", value: (m) => m.widestPair, render: (m) => formatMiles(m.widestPair), delta: formatMiles },
-      { label: "Loaded miles", goodWhen: "down", value: (m) => m.loadedMiles, render: (m) => formatMiles(m.loadedMiles), delta: formatMiles },
-    ],
-  },
+  // Revenue first, then trailer fill, then tightness (design review round one).
   {
     title: "Revenue",
     rows: [
       {
-        label: "Shipped",
+        label: "Planned",
         goodWhen: "up",
         value: (m) => m.revenueShipped,
         render: (m) => formatMoney(m.revenueShipped, { compact: true }),
@@ -61,6 +46,22 @@ const groups: { title: string; rows: MetricRow[] }[] = [
         render: (m) => formatMoney(m.revenueAllocated, { compact: true }),
         delta: (d) => formatMoney(d, { compact: true }),
       },
+    ],
+  },
+  {
+    title: "Trailer fill",
+    rows: [
+      { label: "Shipments", goodWhen: "down", value: (m) => m.trucks, render: (m) => formatCount(m.trucks), delta: (d) => String(d) },
+      { label: "Avg fill", goodWhen: "up", value: (m) => m.avgFill, render: (m) => <FillPercent fill={m.avgFill} />, delta: pts },
+      { label: "Min fill", goodWhen: "up", value: (m) => m.minFill, render: (m) => <FillPercent fill={m.minFill} />, delta: pts },
+    ],
+  },
+  {
+    title: "Cluster tightness",
+    rows: [
+      { label: "To centroid", goodWhen: "down", value: (m) => m.meanToCentroid, render: (m) => formatMiles(m.meanToCentroid), delta: formatMiles },
+      { label: "Widest pair", goodWhen: "down", value: (m) => m.widestPair, render: (m) => formatMiles(m.widestPair), delta: formatMiles },
+      { label: "Loaded miles", goodWhen: "down", value: (m) => m.loadedMiles, render: (m) => formatMiles(m.loadedMiles), delta: formatMiles },
     ],
   },
 ]

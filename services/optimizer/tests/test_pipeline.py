@@ -7,7 +7,7 @@ import pytest
 
 from fillrate_optimizer.canonical import canonical, content_hash, js_number
 from fillrate_optimizer.loads import truck_count_first_penalty
-from fillrate_optimizer.model import RunSettings, ScenarioDocument
+from fillrate_optimizer.model import PreflightPolicy, RunSettings, ScenarioDocument
 from fillrate_optimizer.pipeline import PipelineError, run_pipeline, validate_cluster
 from fillrate_optimizer.synthetic import build
 from fillrate_optimizer.travel import miles_to_m
@@ -15,7 +15,10 @@ from fillrate_optimizer.travel import miles_to_m
 from .conftest import MEMPHIS, east
 
 EXAMPLE = Path(__file__).resolve().parents[3] / "examples/m1-synthetic.json"
-FAST = RunSettings(solver_max_iterations=300, solver_time_limit_s=5)
+# Most fixtures exercise solver paths for far, unresolved or oversized stops, so the preflight
+# checks only warn here; test_preflight_* cover the blocking defaults.
+WARN = PreflightPolicy(missing_coordinates="warn", far_from_depot="warn", oversize_stop="warn")
+FAST = RunSettings(solver_max_iterations=300, solver_time_limit_s=5, preflight=WARN)
 
 
 def scenario(locations, orders, inventory, products=None) -> ScenarioDocument:
@@ -244,10 +247,83 @@ def test_diameter_repair_splits_wide_cluster():
         [("O1", "E", "2026-09-01", "P", 2, 100), ("O2", "W", "2026-09-01", "P", 2, 100)],
         [("P", 4)],
     )
-    s = run(doc, k=1).summary
+    limit = miles_to_m(500)
+    s = run(doc, k=1, max_cluster_diameter_m=limit).summary
     assert s.clustering.raw_cluster_count == 1 and s.clustering.effective_cluster_count == 2
     assert [r.reason for r in s.clustering.repairs] == ["diameter"]
-    assert all(c.diameter_m <= s.settings.max_cluster_diameter_m for c in s.clusters)
+    assert all(c.diameter_m <= limit for c in s.clusters)
+
+
+def test_diameter_policy_is_off_by_default():
+    """Spec v1.8: the 500-mile rule is per leg only; a wide cluster is not repaired or invalid."""
+    assert RunSettings().max_cluster_diameter_m is None
+    doc = scenario(
+        [("E", east(350)), ("W", east(-350))],
+        [("O1", "E", "2026-09-01", "P", 2, 100), ("O2", "W", "2026-09-01", "P", 2, 100)],
+        [("P", 4)],
+    )
+    s = run(doc, k=1).summary
+    assert s.clustering.effective_cluster_count == 1 and s.clustering.repairs == []
+    assert s.clusters[0].diameter_m > miles_to_m(500)
+    assert s.validity == "valid" and s.coverage == "complete"
+    # Auto-k only enforces solve size now, so one cluster suffices.
+    assert run(doc).summary.clustering.selected_k == 1
+
+
+# ---- preflight checks (M2 scope item 8) -------------------------------------------------------
+
+
+def blocking_doc():
+    return scenario(
+        [("NEAR", east(50)), ("FAR", east(560)), ("LOST", None), ("BIG", east(80))],
+        [
+            ("O1", "NEAR", "2026-09-01", "P", 2, 100),
+            ("O2", "FAR", "2026-09-01", "P", 2, 100),
+            ("O3", "LOST", "2026-09-01", "P", 2, 100),
+            ("O4", "BIG", "2026-09-01", "P", 14, 100),  # 14 × 4 ft = 56 ft > 53 ft
+        ],
+        [("P", 100)],
+    )
+
+
+def test_preflight_blocks_by_default_and_names_each_check():
+    with pytest.raises(PipelineError) as error:
+        run(blocking_doc(), preflight=PreflightPolicy())
+    assert error.value.code == "preflight_blocked"
+    message = str(error.value)
+    assert "no coordinates" in message and "from the depot" in message
+    assert "more than one 53 ft trailer" in message
+
+
+def test_preflight_warnings_are_recorded_and_the_run_proceeds():
+    s = run(blocking_doc(), k=2).summary
+    found = {f.check: f for f in s.preflight}
+    assert set(found) == {"missing_coordinates", "far_from_depot", "oversize_stop"}
+    assert all(f.action == "warn" for f in found.values())
+    assert found["far_from_depot"].location_ids == ["FAR"]
+    assert found["oversize_stop"].line_ids == ["O4-1"]
+    assert s.validity == "valid"
+
+
+def test_exclude_lines_and_run_records_excluded_by_user():
+    policy = PreflightPolicy()  # all blocking
+    s = run(
+        blocking_doc(), k=1, preflight=policy, excluded_line_ids=["O2-1", "O3-1", "O4-1"]
+    ).summary
+    assert s.preflight == []
+    excluded = {u.line_id: u.reason for u in s.unplanned}
+    assert excluded == {
+        "O2-1": "excluded_by_user",
+        "O3-1": "excluded_by_user",
+        "O4-1": "excluded_by_user",
+    }
+    product = s.products[0]
+    assert product.excluded == 18 and product.planned == 2  # reconciled like any exclusion
+
+
+def test_unknown_excluded_line_is_rejected():
+    with pytest.raises(PipelineError, match="not in the scenario"):
+        run(blocking_doc(), excluded_line_ids=["nope"])
 
 
 # ---- objective (spec §8b) ---------------------------------------------------------------------
@@ -311,7 +387,13 @@ def test_bundled_example_reconciles_and_chains_manifests():
     } <= reasons
     assert s.validity == "valid"
     assert all(t.load <= s.settings.trailer_capacity for t in s.trucks)
-    assert all(c.diameter_m <= s.settings.max_cluster_diameter_m for c in s.clusters)
+    assert s.settings.max_cluster_diameter_m is None
+    assert {f.check for f in s.preflight} == {
+        "missing_coordinates",
+        "far_from_depot",
+        "oversize_stop",
+    }
+    assert all(f.action == "warn" for f in s.preflight)
     seen: set[str] = set()
     for artifact in out.artifacts:
         assert artifact.manifest["output_hash"] == content_hash(artifact.payload)

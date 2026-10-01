@@ -9,6 +9,7 @@ import { useTheme } from "next-themes"
 import { useMemo, useState } from "react"
 
 import { FitBounds, type StopPointProps, StopPointsLayer } from "@/components/lab/map-layers"
+import { CoordinateSourceFlag } from "@/components/lab/provenance-badge"
 import { ClusterLegend, ClusterSwatch } from "@/components/lab/route-swatch"
 import { FillPercent } from "@/components/lab/trailer-fill"
 import { Label } from "@/components/ui/label"
@@ -69,7 +70,7 @@ export default function PipelineMap({
   const selectedStop = selectedStopProp !== undefined ? selectedStopProp : localStop
   const setSelectedStop = onSelectStop ?? setLocalStop
 
-  const { stops: stopById, trucks: truckById } = lookups(run)
+  const { stops: stopById, trucks: truckById, locations: locationById } = lookups(run)
   const ready = Object.keys(colors).length === tokens.length
   const clusterColor = (c: number) => colors[`--route-${((c - 1) % 8) + 1}`]
   const maxLeg = run.settings.maxLegMiles
@@ -165,7 +166,7 @@ export default function PipelineMap({
             {(
               [
                 ["Hulls", hulls, setHulls],
-                ["Trucks", trucks, setTrucks],
+                ["Shipments", trucks, setTrucks],
                 ["Leg limit", limit, setLimit],
               ] as const
             ).map(([label, value, set]) => (
@@ -236,6 +237,7 @@ export default function PipelineMap({
                   <div className="text-muted-foreground">
                     {stop.city} · <span className="font-mono">{stop.id}</span>
                   </div>
+                  {locationById.get(stop.locationId) && <CoordinateSourceFlag source={locationById.get(stop.locationId)!.source} className="mt-1" />}
                 </div>
                 <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
                   <dt className="text-muted-foreground">Load</dt>
@@ -250,7 +252,7 @@ export default function PipelineMap({
                   </dd>
                   {stopTruck && (
                     <>
-                      <dt className="text-muted-foreground">Truck</dt>
+                      <dt className="text-muted-foreground">Shipment</dt>
                       <dd className="text-right font-mono tabular-nums">
                         {stopTruck.id} · <FillPercent fill={stopTruck.fill} />
                       </dd>
@@ -264,7 +266,7 @@ export default function PipelineMap({
                   )}
                 </dl>
                 {stop.depotMiles > maxLeg && (
-                  <p className="text-destructive-foreground">Beyond the {maxLeg} mi leg limit: allocated, not loaded.</p>
+                  <p className="text-destructive-foreground">More than {maxLeg} mi from the depot in one drive: allocated, not shipped.</p>
                 )}
               </div>
             </MapPopup>
@@ -286,7 +288,7 @@ export default function PipelineMap({
               <span>assignment confidence</span>
             </div>
           ) : (
-            <div>Truck paths are straight schematic lines, not roads</div>
+            <div>Shipment paths are straight schematic lines, not roads</div>
           )}
           <div className="flex items-center gap-2.5">
             <span className="flex items-center gap-1">

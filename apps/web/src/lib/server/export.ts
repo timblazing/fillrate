@@ -2,9 +2,11 @@ import "server-only";
 
 import type { Store } from "@fillrate/db";
 
+import { EXPORT_NOTE } from "../copy";
+import { type SheetColumn, sheetCsvRows, shipmentSheets } from "../shipment-sheet";
 import { ApiError, runDetail } from "./runs";
 
-export type CsvTable = "loads" | "unplanned" | "clusters" | "products";
+export type CsvTable = "loads" | "unplanned" | "clusters" | "products" | "sheet";
 
 // Canonical run export (spec §13): input snapshot, settings, stage manifests, results and provenance.
 export function exportJson(store: Store, runId: string) {
@@ -22,15 +24,18 @@ export function exportJson(store: Store, runId: string) {
   };
 }
 
-function csv(header: string[], rows: (string | number | boolean | null | undefined)[][]) {
+function csv(header: string[], rows: (string | number | boolean | null | undefined)[][], note = `# ${EXPORT_NOTE}`) {
   const cell = (v: string | number | boolean | null | undefined) => {
     const s = v === null || v === undefined ? "" : String(v);
     return /[",\n\r]/.test(s) || /^[=+\-@]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  return [header, ...rows].map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";
+  // Exports keep internal names; the first line says which UI label each maps to (spec v1.8 §15 M2 item 1).
+  return [note, ...[header, ...rows].map(r => r.map(cell).join(","))].join("\r\n") + "\r\n";
 }
 
-export function exportCsv(store: Store, runId: string, table: CsvTable) {
+export type SheetOptions = { truck?: string | null; columns?: SheetColumn[] };
+
+export function exportCsv(store: Store, runId: string, table: CsvTable, sheet: SheetOptions = {}) {
   const summary = runDetail(store, runId).summary;
   if (!summary) throw new ApiError(409, "no_result", "This run has no result to export yet.");
   if (table === "loads") {
@@ -59,5 +64,14 @@ export function exportCsv(store: Store, runId: string, table: CsvTable) {
       summary.products.map(p => [p.product_id, p.label, p.starting_inventory, p.ordered, p.excluded, p.eligible, p.allocated, p.unselected, p.planned, p.allocated_unplanned, p.residual, p.ordered_cents, p.allocated_cents, p.planned_cents]),
     );
   }
-  throw new ApiError(400, "invalid_table", "table must be loads, unplanned, clusters or products.", ["table"]);
+  if (table === "sheet") {
+    let sheets = shipmentSheets(summary);
+    if (sheet.truck) {
+      sheets = sheets.filter(s => s.truckId === sheet.truck);
+      if (!sheets.length) throw new ApiError(404, "truck_not_found", "No truck with this ID in the run.", ["truck"]);
+    }
+    const { header, rows } = sheetCsvRows(sheets, sheet.columns);
+    return csv(header, rows, `# Fillrate shipment sheet. truck_id = Shipment in the app; miles are estimated (haversine × ${summary.settings.travel_circuity}).`);
+  }
+  throw new ApiError(400, "invalid_table", "table must be loads, unplanned, clusters, products or sheet.", ["table"]);
 }

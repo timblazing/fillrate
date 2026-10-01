@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge"
 export type LineState = "loaded" | "partial" | "short" | "unreachable" | "excluded"
 
 const states: Record<LineState, { label: string; variant: "success" | "warning" | "error" | "info" | "outline" }> = {
-  loaded: { label: "Loaded", variant: "success" },
+  loaded: { label: "On a shipment", variant: "success" },
   partial: { label: "Partly filled", variant: "warning" },
   short: { label: "No stock", variant: "warning" },
-  unreachable: { label: "Beyond leg limit", variant: "error" },
+  unreachable: { label: "Beyond 500 mi leg limit", variant: "error" },
   excluded: { label: "Excluded", variant: "info" },
 }
 

@@ -8,6 +8,7 @@ import { Explainer } from "@/components/lab/explainer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { toastManager } from "@/components/ui/toast"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -28,13 +29,20 @@ export function KExplorerBlock() {
   const [section, setSection] = useState<Section>("Cluster")
   const [range, setRange] = useState<number[]>([3, 12])
   const [k, setK] = useState(7)
-  const [adopted, setAdopted] = useState<number | null>(null)
+  const [seed, setSeed] = useState(0)
+  const [adopted, setAdopted] = useState<{ k: number; seed: number } | null>(null)
+  const use = () => {
+    setAdopted({ k, seed })
+    toastManager.add({ type: "success", title: `Run settings: k = ${k}, seed ${seed}`, description: "The next Run pipeline uses this fixed k and k-means seed." })
+  }
   const detail = explorer.detail(k)
   const confidence = new Map(explorer.stopIds.map((id, i) => [id, detail.confidence[i]]))
   const low = detail.confidence.filter((c) => c < 0.7).length
   const row = explorer.rows.find((r) => r.k === k)!
   const rows = explorer.rows.filter((r) => r.k >= range[0] && r.k <= range[1])
+  // With the diameter policy off (spec v1.8) no k needs repair, so stability alone ranks them.
   const bestStable = [...explorer.rows].filter((r) => r.repairs === 0).sort((a, b) => b.stability - a.stability)[0]
+  const anyRepairs = explorer.rows.some((r) => r.repairs > 0)
 
   return (
     <AppShell section={section} onSection={setSection} height={820}>
@@ -66,7 +74,7 @@ export function KExplorerBlock() {
                 <tr className="text-muted-foreground border-b text-xs">
                   <th className="px-3 py-2 text-left font-medium">k</th>
                   <th className="px-3 py-2 text-right font-medium">Variance (mi²)</th>
-                  <th className="px-3 py-2 text-right font-medium">Need repair</th>
+                  {anyRepairs && <th className="px-3 py-2 text-right font-medium">Need repair</th>}
                   <th className="px-3 py-2 text-right font-medium">
                     <span className="inline-flex items-center gap-1">
                       Stability
@@ -91,7 +99,9 @@ export function KExplorerBlock() {
                   >
                     <td className="px-3 py-1.5 font-mono font-medium">{r.k}</td>
                     <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">{(r.inertia / 1_000_000).toFixed(1)}M</td>
-                    <td className={cn("px-3 py-1.5 text-right font-mono text-xs tabular-nums", r.repairs && "text-warning-foreground")}>{r.repairs}</td>
+                    {anyRepairs && (
+                      <td className={cn("px-3 py-1.5 text-right font-mono text-xs tabular-nums", r.repairs && "text-warning-foreground")}>{r.repairs}</td>
+                    )}
                     <td className="px-3 py-1.5 text-right font-mono text-xs tabular-nums">
                       <span className="inline-flex items-center gap-2">
                         <span className="bg-muted h-1.5 w-16 overflow-hidden rounded-full">
@@ -118,19 +128,32 @@ export function KExplorerBlock() {
           <div className="flex flex-wrap items-center gap-3 border-b p-3">
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium">
-                k = {k} · stability {row.stability.toFixed(2)} · {row.repairs ? `${row.repairs} clusters need repair` : "no repairs"}
+                k = {k} · stability {row.stability.toFixed(2)}
+                {row.repairs ? ` · ${row.repairs} clusters over the diameter policy` : ""}
               </div>
               <div className="text-muted-foreground text-xs">
-                {low} of {explorer.stopIds.length} stops below 70% confidence (red) · reference seed 0
+                {low} of {explorer.stopIds.length} stops below 70% confidence (red) · reference seed {seed}
               </div>
             </div>
-            <Button size="sm" variant={adopted === k ? "outline" : "default"} onClick={() => setAdopted(k)}>
-              {adopted === k ? (
+            <Label className="text-muted-foreground gap-1.5 text-xs font-normal">
+              Seed
+              <Input
+                type="number"
+                min={0}
+                max={9}
+                value={seed}
+                onChange={(e) => setSeed(Math.max(0, Math.min(9, Number(e.target.value) || 0)))}
+                className="w-16 font-mono"
+                size="sm"
+              />
+            </Label>
+            <Button size="sm" variant={adopted?.k === k && adopted.seed === seed ? "outline" : "default"} onClick={use}>
+              {adopted?.k === k && adopted.seed === seed ? (
                 <>
-                  <Check /> Used for runs
+                  <Check /> In run settings
                 </>
               ) : (
-                `Use k = ${k} for runs`
+                `Use this k`
               )}
             </Button>
           </div>

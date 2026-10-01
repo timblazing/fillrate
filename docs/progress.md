@@ -21,7 +21,26 @@
   - [x] Single image with web + optimizer + worker (tini, `deploy/entrypoint.sh`), `HEALTHCHECK`, `deploy/smoke.sh`; arm64 image built and smoke-tested locally once (2026-09-30)
   - [x] `ci.yml` (lint, typecheck, Vitest incl. Python worker e2e, pytest, Ruff, contract drift, build) and `image.yml` (after CI on `main`, tags, manual; native amd64 + arm64 runners, smoke before push, multi-arch manifest from tested digests)
   - [x] First green `ci.yml` (run 36776415077) and `image.yml` (run 36776618684): amd64 and arm64 each built natively and passed the smoke run; `latest` and `sha-953cb1c` published as a multi-arch manifest
-- [ ] **M2 Design** (round-one review answered; the `/dev/review` pages were removed on 2026-09-30, in progress in `fillrate.fig` via OpenPencil; see below). Blocks now center on the pipeline screens (spec v1.3 §15).
+- [ ] **M2 Accepted design** (spec v1.8 §15 "M2 scope"; implementation done 2026-09-30, waiting on round-two answers and `fillrate.fig`)
+  - [x] Round-one answers recorded (`docs/reviews/fillrate-design-review-2026-09-30.json`, spec v1.8, `docs/decisions.md`)
+  - [x] Wording in one copy module (`src/lib/copy.ts`): Cluster / Shipment / Unshipped; internal names unchanged; CSV exports carry a header note
+  - [x] Map first on `/runs/<id>`, the Results Block and the Workbench
+  - [x] Fill % (`ShipmentFill`) is the per-shipment visual; the to-scale trailer moved to shipment detail and sheet
+  - [x] `FILL_LOW` 0.80, `FILL_FULL` 0.90 (display-only); every legend and "Needs attention" list reads them
+  - [x] Coordinate badges only for ZIP-approximate and missing; "Show all sources" toggle and "Coordinate problems" filter; map popups follow
+  - [x] Stock coverage: pieces short, fill rate %, shorted orders; on hand and dollars short in a popover
+  - [x] "Steps" expanded by default during and after a run; collapse remembered per browser
+  - [x] Blocking preflight checks in the contract (`RunSettings.preflight`, `excluded_line_ids`, `RunSummary.preflight`, reason `excluded_by_user`), enforced by the pipeline (`preflight_blocked`), and in the Run pipeline Block with the three resolutions; the bundled example declares them as warnings
+  - [x] Revenue first: metric groups, run headline, iteration table default sort, A/B comparison
+  - [x] Four unshipped groups (no stock, beyond the 500 mi leg limit, did not fit, bad or missing address data), "Other" only when present
+  - [x] Shipment sheet: `/runs/<id>/sheet` (one per page, black-and-white print, optional location/pieces columns) and `export?format=csv&table=sheet`
+  - [x] k explorer "Use this k" carries k and seed; sweeps lead with k, seed, inventory and mileage, the rest under "More"; changed-assumption chips
+  - [x] Cost per truck / per mile and objective selector design (`ObjectiveSettings`), with the fallback notice
+  - [x] 500-mile copy is per drive; cluster-diameter policy **off by default** in the pipeline (`max_cluster_diameter_m: null`), example uses fixed k = 4
+  - [x] Revised Blocks and `/runs/<id>` checked at 1440 px and 390 px (no page-level horizontal scroll); map selections have keyboard-reachable table equivalents
+  - [x] Round-two review restored at `/dev/review` with new `r2.*` question ids
+  - [ ] `fillrate.fig`: Components page on coss parts; Foundations gains `--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`, fill bands (OpenPencil app was not running this session)
+  - [ ] Round-two answers recorded and Blocks accepted (or changes applied and re-accepted)
 - [ ] M3 Operational core (CSV/versioned scenarios → real pipeline screens, per-cluster jobs, stage reuse, 2,000-order benchmark)
 - [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, partition bounds, H3 layer/baseline, lesson and small Python replay export)
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
@@ -31,7 +50,7 @@
 
 ## Current state
 
-Spec **v1.7** is the implementation target. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
+Spec **v1.8** is the implementation target. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
 
 **M1 is complete.** A real synthetic run now goes end to end: `POST /api/v1/runs` (idempotency key; production requires `RUN_KEY`) → SQLite job → the Python supervisor claims it over the loopback transport → a child process runs the pipeline (`services/optimizer/src/fillrate_optimizer/pipeline.py`) → nine stage artifacts and the run summary commit atomically → `/runs/<id>` shows the map, clusters, truck loads, unplanned lines with evidence, per-product reconciliation and provenance, with JSON/CSV export. The bundled scenario is `examples/m1-synthetic.json` (Memphis DC, 69 orders; regenerate with `uv run python -m fillrate_optimizer.synthetic`). It exercises stock shortage, a split oversize stop, a 396 + 198 mi chain to a stop 594 mi from the depot (planned), an isolated unreachable stop, an unresolved coordinate and an oversize piece.
 
@@ -48,6 +67,8 @@ The gallery page loads specimens on demand: each specimen's body mounts when it 
 Communication pass (2026-09-30, from the premium-planner research): new `PlanFlow`, `RunCompare`, `EditSession`, `FillBandLegend`; stage outputs; grouped section tabs; workbench Loads/Order lines/Unshipped tabs with View presets; timeline unassigned pool; trade-off label cleanup. See `docs/decisions.md`.
 
 Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillStrip`, `TrailerFill`/`FillMeter`/`FillPercent`, `TruckLoad`, `UnshippedLines`, `PipelineStages`, `RunMetricGroups`, `IterationTable`, `StockTable`, `LineStateBadge`, `StopPointsLayer`/`FitBounds` (map), `ClusterSwatch`/`ClusterLegend`/`TruckTag`; `DataTable` gained pagination; `CoordinateSourceBadge` gained `unresolved`; status colors moved to the coss `--info/--success/--warning/--destructive-foreground` tokens. Shared units/formatting in `src/lib/units.ts`, provisional pipeline types in `src/lib/fulfillment.ts` (to be replaced by generated contracts).
+
+**M2 implementation is in (2026-09-30); acceptance is open.** Spec v1.8 §15 "M2 scope" items 1–15 and 17 are built (checklist above). Exit evidence still missing: round-two answers with explicit acceptance, and item 16 (`fillrate.fig` Components on coss, missing Foundations tokens), which needs the OpenPencil desktop app. Verification: optimizer pytest 54 passed (new: diameter off by default, preflight block/warn, `excluded_by_user` reconciliation, unknown exclusions rejected); Vitest 24 passed (new: shipment sheets agree with validated trucks, a blocking preflight fails permanently on attempt 1, review store upsert/delete); Ruff, lint (one pre-existing `globe.tsx` warning), typecheck, contract regeneration and build pass. A dev run of the example (k = 4) gave 19 shipments, valid, partial coverage, all three checks recorded as warnings.
 
 ## Design workflow (M2 prep)
 1. **Foundations** page in `fillrate.fig`: variables named exactly like the CSS tokens in `apps/web/src/app/globals.css` (light + dark modes), plus type scale, radius, spacing, and `route-1..8`.
@@ -69,7 +90,11 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 - Run settings exposed publicly are only k, k-means seed and solver seed; everything else comes from the bundled example.
 - The legacy `solve_loads` spike in `loads.py` keeps its zero default truck penalty for its capability fixtures; the pipeline uses `solve_partition` with the derived penalty and shared location nodes. The gallery still uses its v1.3 TypeScript stand-in.
 - The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.
-- The pipeline still enforces the cluster-diameter limit by default; spec v1.8 makes it optional and off (M2 item 15). Trucks-then-miles stays the fallback objective until cost rates arrive.
+- The cluster-diameter limit is off by default (M2). With it off, auto-k only enforces `MAX_STOPS`, so auto k is usually 1; runs default to a fixed k. Trucks-then-miles stays the fallback objective until cost rates arrive; the cost objective is designed (`ObjectiveSettings`) but not in the solver (M3).
+- Preflight blocking is enforced when the pipeline runs (a `preflight_blocked` permanent failure), not yet at submission; the public API only overrides k and seeds, so it cannot yet send `preflight` or `excluded_line_ids` (M3 with imports).
+- CSV exports now start with a `# …` note line naming the UI labels (M2 item 1). Tools that do not skip comment lines see it as a first row.
+- The Run pipeline Block shows the previous (simulated) run's steps while preflight blocks a new one; resolution choices are local state only.
+- Runs created before this change have no `summary.preflight` and show no preflight panel.
 - If uv fails with "Bad CPU type" from a Python 2.7 framework install on PATH, set `UV_PYTHON=python3.13`.
 - Chart and route palettes are placeholders (neutral shadcn chart colors, provisional route colors). Gallery charts use `--route-*` for series until a real chart palette lands.
 - New tokens `--chart-background/-foreground/-foreground-muted/-label/-grid` (aliases for bklit) and the coss status tokens `--info/--success/--warning(-foreground)`, `--destructive-foreground` are not on the OpenPencil Foundations page yet.
@@ -78,19 +103,22 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 - No sample order/inventory rows from the primary user yet (round two asks again).
 - Chart recipes shared by charts and blocks live in `src/app/dev/components/recipes.tsx` until contracts exist.
 - The gallery fixture's truck loads come from a sweep heuristic, not PyVRP; numbers are illustrative of shape, not solver quality.
-- The Blocks are M2 design candidates and still need the user's review and acceptance (spec §15).
+- The Blocks are revised per round one and still need the user's round-two acceptance (spec §15).
 - The project is now targeted for public access. Public scenario writes, real customer data, and solver submissions need identity/data isolation, limits, and abuse controls before launch (spec v1.7 §14).
 - Vitest persistence/contract tests and optimizer pytest exist. Playwright end-to-end pipeline coverage remains for the next slice.
-- The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (see the gallery).
+- The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (M2 item 16; needs the OpenPencil app open).
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
 ## Waiting on the primary user (come back to this)
-Round one of the in-app review is answered (`docs/reviews/fillrate-design-review-2026-09-30.json`) and applied in spec v1.8 §15 "M2 scope". Still open, for round two:
-- Cost per truck and cost per mile (the objective he chose is lowest cost).
-- What to change in the Results flow strip ("mostly, with changes").
-- The ★ label on non-dominated runs.
-- Whether stops >500 mi from the depot but reachable via another stop, and stops larger than one trailer, should really block a run.
-- Example order and inventory rows for M3 imports, and "what should we fix first".
+Round two is live at `/dev/review` (production needs `REVIEW_KEY`; send the link with `?key=`). It asks him to:
+- Accept or change each revised Block, `/runs/<id>` and the shipment sheet.
+- Give cost per truck and cost per mile (needed for the "lowest cost" objective in M3).
+- Say what to change in the Results flow strip, and pick the ★ label.
+- Decide whether a stop >500 mi from the depot but reachable through another stop should still block, and whether a stop larger than one trailer should block or just split.
+- Confirm the 90% "full" band.
+- Paste example order and inventory rows (fake values), and say what to fix first.
+
+Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts (M2 item 16).
 
 ## Next step
-M2 per spec v1.8 §15 "M2 scope": apply the round-one answers to the Blocks, lab components and `/runs/<id>`, make the cluster-diameter policy off by default, add the shipment sheet, align `fillrate.fig`, then run review round two. M3 (imports, versioning, cost objective, blocking preflight enforcement) follows.
+Send the round-two review link; record the answers in `docs/decisions.md` and apply any requested changes. With OpenPencil open, rebuild the `fillrate.fig` Components page on coss parts and add the missing Foundations tokens (item 16). Then mark M2 done and start M3 (imports, versioning, cost objective once rates exist, preflight at submission, stage reuse, 2,000-order benchmark).

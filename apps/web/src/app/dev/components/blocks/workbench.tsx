@@ -9,7 +9,7 @@ import { ClusterCard } from "@/components/lab/cluster-card"
 import { DataTable } from "@/components/lab/data-table"
 import { JobStatusBadge } from "@/components/lab/job-status"
 import { ClusterSwatch, TruckTag } from "@/components/lab/route-swatch"
-import { FillBandLegend, FillMeter, FillPercent, TrailerFill } from "@/components/lab/trailer-fill"
+import { FillBandLegend, FillMeter, ShipmentFill } from "@/components/lab/trailer-fill"
 import { TruckLoad } from "@/components/lab/truck-load"
 import { UnshippedLines } from "@/components/lab/unshipped-lines"
 import { Badge } from "@/components/ui/badge"
@@ -20,7 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { fillBand, formatCount, formatMiles, formatMoney, plural } from "@/lib/units"
+import { FILL_LOW, fillBand, formatCount, formatMiles, formatMoney, formatPercent, plural } from "@/lib/units"
 
 import { baseline, depot, lookups } from "../fixtures"
 import { orderRows } from "../fixtures/order-rows"
@@ -127,7 +127,7 @@ export function WorkbenchBlock() {
                   <span className="font-medium">Baseline</span>
                   <span className="font-mono">run-0212</span>
                   <span className="text-muted-foreground">
-                    k {run.metrics.k} · {run.metrics.trucks} trucks · {Math.round(run.metrics.avgFill * 100)}% avg fill
+                    k {run.metrics.k} · {run.metrics.trucks} shipments · {Math.round(run.metrics.avgFill * 100)}% avg trailer fill
                   </span>
                 </div>
               </div>
@@ -138,7 +138,7 @@ export function WorkbenchBlock() {
                 <div className="flex items-center gap-3 border-b px-3">
                   <TabsList variant="underline">
                     <TabsTab value="loads">
-                      Loads <Badge variant="secondary" size="sm">{scopeTrucks.length}</Badge>
+                      Shipments <Badge variant="secondary" size="sm">{scopeTrucks.length}</Badge>
                     </TabsTab>
                     <TabsTab value="orders">
                       Order lines <Badge variant="secondary" size="sm">{formatCount(rows.length)}</Badge>
@@ -153,46 +153,39 @@ export function WorkbenchBlock() {
                   <ScrollArea className="h-full">
                     <div className="text-muted-foreground flex items-center justify-between gap-3 px-3 py-2 text-xs">
                       <span>
-                        {plural(scopeTrucks.length, "truck")}, fullest first ·{" "}
-                        <span className={cn(lowCount > 0 && "text-warning-foreground")}>{lowCount} under 60%</span>
+                        {plural(scopeTrucks.length, "shipment")}, fullest first ·{" "}
+                        <span className={cn(lowCount > 0 && "text-warning-foreground")}>
+                          {lowCount} under {formatPercent(FILL_LOW)}
+                        </span>
                       </span>
-                      <span>Segments are stops in visit order · hatched is empty floor</span>
+                      <FillBandLegend />
                     </div>
                     <ul className="divide-y border-t">
                       {scopeTrucks.map((t) => (
                         <li key={t.id}>
-                          {/* A div, not a button: the trailer segments inside are buttons themselves. */}
-                          <div
-                            role="button"
-                            tabIndex={0}
+                          {/* Fill % is the list visual; the to-scale trailer bar is in the shipment detail (design review). */}
+                          <button
+                            type="button"
                             onClick={() => {
                               setCluster(t.cluster)
                               setTruck(t.id)
                             }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault()
-                                setCluster(t.cluster)
-                                setTruck(t.id)
-                              }
-                            }}
                             aria-pressed={truck === t.id}
                             className={cn(
-                              "hover:bg-muted/50 focus-visible:ring-ring/50 grid w-full cursor-pointer grid-cols-[4.5rem_minmax(0,1fr)_3rem_9rem] items-center gap-3 px-3 py-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+                              "hover:bg-muted/50 focus-visible:ring-ring/50 grid w-full cursor-pointer grid-cols-[4.5rem_4.5rem_minmax(0,1fr)_7rem] items-center gap-3 px-3 py-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
                               truck === t.id && "bg-muted/70"
                             )}
                           >
                             <TruckTag id={t.id} cluster={t.cluster} />
-                            <TrailerFill
-                              size="sm"
-                              cluster={t.cluster}
-                              segments={t.stops.map((id) => ({ id, load: look.stops.get(id)!.load, label: look.stops.get(id)!.label }))}
-                            />
-                            <FillPercent fill={t.fill} className="text-right" />
+                            <ShipmentFill fill={t.fill} size="sm" />
+                            <span className="text-muted-foreground truncate tabular-nums">
+                              {look.stops.get(t.stops[0])?.label}
+                              {t.stops.length > 1 && ` → ${look.stops.get(t.stops[t.stops.length - 1])?.label}`}
+                            </span>
                             <span className="text-muted-foreground truncate text-right tabular-nums">
                               {plural(t.stops.length, "stop")} · {formatMiles(t.loadedMiles)}
                             </span>
-                          </div>
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -201,7 +194,7 @@ export function WorkbenchBlock() {
                 <TabsPanel value="orders" className="min-h-0 flex-1 overflow-auto">
                   <DataTable
                     key={cluster ?? "all"}
-                    columns={orderColumns}
+                    columns={orderColumns()}
                     data={rows}
                     pageSize={8}
                     filterPlaceholder={cluster != null ? `Lines in cluster ${cluster}…` : "Filter lines…"}
@@ -222,7 +215,7 @@ export function WorkbenchBlock() {
               {openTruck ? (
                 <>
                   <button type="button" className="text-muted-foreground hover:text-foreground block px-3 py-2 text-xs" onClick={() => setTruck(null)}>
-                    ← Cluster {openTruck.cluster} trucks
+                    ← Cluster {openTruck.cluster} shipments
                   </button>
                   <TruckLoad
                     truck={openTruck}
@@ -248,7 +241,9 @@ export function WorkbenchBlock() {
                   />
                   <div className="text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-2 text-xs">
                     <span className={cn("font-medium", lowTrucks.length ? "text-warning-foreground" : "text-foreground")}>
-                      {lowTrucks.length ? `Needs attention · ${plural(lowTrucks.length, "truck")} under 60%` : "Every truck is 60% full or more"}
+                      {lowTrucks.length
+                        ? `Needs attention · ${plural(lowTrucks.length, "shipment")} under ${formatPercent(FILL_LOW)}`
+                        : `Every shipment is ${formatPercent(FILL_LOW)} full or more`}
                     </span>
                     <button type="button" className="hover:text-foreground" onClick={() => setCluster(null)}>
                       All clusters
@@ -267,7 +262,7 @@ export function WorkbenchBlock() {
                             <span className="text-muted-foreground truncate tabular-nums">
                               {plural(t.stops.length, "stop")} · {formatMiles(t.loadedMiles)}
                             </span>
-                            <FillMeter fill={t.fill} />
+                            <ShipmentFill fill={t.fill} size="sm" />
                           </button>
                         </li>
                       ))}
@@ -276,14 +271,14 @@ export function WorkbenchBlock() {
                   <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
                     <FillBandLegend className="text-[10px]" />
                     <Button variant="ghost" size="xs" onClick={() => setTab("loads")}>
-                      All {trucks.length} loads ↓
+                      All {trucks.length} shipments ↓
                     </Button>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="text-muted-foreground border-b px-3 py-2 text-xs">
-                    {run.clusters.length} clusters · {formatCount(run.metrics.trucks)} trucks · select one
+                    {run.clusters.length} clusters · {formatCount(run.metrics.trucks)} shipments · select one
                   </div>
                   {run.clusters.map((x) => (
                     <button
@@ -296,7 +291,7 @@ export function WorkbenchBlock() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{look.clusterArea(x.id)}</span>
                         <span className="text-muted-foreground block text-xs tabular-nums">
-                          {plural(x.stops.length, "stop")} · {plural(x.trucks.length, "truck")} · {formatMoney(x.value, { compact: true })}
+                          {plural(x.stops.length, "stop")} · {plural(x.trucks.length, "shipment")} · {formatMoney(x.value, { compact: true })}
                         </span>
                       </span>
                       <FillMeter fill={x.avgFill} className="w-28" />

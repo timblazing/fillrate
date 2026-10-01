@@ -37,13 +37,17 @@ export function ComparisonBlock() {
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="font-medium">{sweep.length} runs</span>
             <span className="text-muted-foreground">of 25 max · same scenario v14 and matrix · varied:</span>
-            {["k", "k-means seed", "inventory", "strategy", "circuity", "max leg"].map((v) => (
+            {/* What the primary user varies leads (design review `compare.vary`); the rest sits under More. */}
+            {["k", "seed", "inventory available", "mileage"].map((v) => (
               <Badge key={v} variant="outline">
                 {v}
               </Badge>
             ))}
+            <Badge variant="outline" className="text-muted-foreground border-dashed">
+              More: allocation rule, n_init
+            </Badge>
             <span className="text-muted-foreground ml-auto text-xs">
-              ★ {sweep.filter((r) => r.nonDominated).length} non-dominated · tick two runs to compare
+              ★ {sweep.filter((r) => r.nonDominated).length} non-dominated · sorted by planned revenue · tick two runs to compare
             </span>
           </div>
 

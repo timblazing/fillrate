@@ -75,13 +75,25 @@ class ScenarioDocument(Doc):
     inventory: list[InventoryItem]
 
 
+PreflightAction = Literal["block", "warn"]
+
+
+class PreflightPolicy(Doc):
+    """M2 scope item 8: which preflight checks stop a run. Policy, not physics (§7)."""
+
+    missing_coordinates: PreflightAction = "block"
+    far_from_depot: PreflightAction = "block"
+    oversize_stop: PreflightAction = "block"
+
+
 class RunSettings(Doc):
     schema_version: Literal[1] = 1
     trailer_capacity: Annotated[int, Field(strict=True, ge=1, le=1_000_000)] = 5_300
     travel_circuity: Annotated[float, Field(ge=1, le=5)] = 1.2
     cluster_circuity: Annotated[float, Field(ge=1, le=5)] = 1.2
     max_leg_m: Annotated[int, Field(strict=True, ge=1, le=20_000_000)] = 804_672
-    max_cluster_diameter_m: Annotated[int, Field(strict=True, ge=1, le=20_000_000)] = 804_672
+    # Optional policy, off by default (spec v1.8 §1): the 500-mile rule is per leg only.
+    max_cluster_diameter_m: Annotated[int, Field(strict=True, ge=1, le=20_000_000)] | None = None
     k: Annotated[int, Field(strict=True, ge=1, le=1000)] | None = None
     auto_k_cap: Annotated[int, Field(strict=True, ge=1, le=100)] = 25
     kmeans_seed: Annotated[int, Field(strict=True, ge=0, le=2**31 - 1)] = 0
@@ -92,12 +104,16 @@ class RunSettings(Doc):
     solver_time_limit_s: Annotated[float, Field(gt=0, le=300)] = 10
     objective: Literal["trucks_then_distance", "weighted_distance"] = "trucks_then_distance"
     weighted_truck_penalty_m: Annotated[int, Field(strict=True, ge=0)] | None = None
+    preflight: PreflightPolicy = Field(default_factory=PreflightPolicy)
+    # "Exclude these lines and run": recorded, reconciled exclusions (reason excluded_by_user).
+    excluded_line_ids: Annotated[list[Id], Field(max_length=25_000)] = Field(default_factory=list)
 
 
 # ---- Run summary (results, spec §10) ----------------------------------------------------------
 
 UnplannedReason = Literal[
     "excluded_unresolved_coordinates",
+    "excluded_by_user",
     "oversize_piece",
     "stock_shortage",
     "unreachable",
@@ -215,6 +231,21 @@ class ClusteringSummary(Doc):
     repairs: list[Repair]
 
 
+PreflightCheckId = Literal[
+    "missing_coordinates", "far_from_depot", "oversize_stop", "approximate_coordinates"
+]
+
+
+class PreflightFinding(Doc):
+    """One preflight check that found something. `action` is what the run did about it."""
+
+    check: PreflightCheckId
+    action: Literal["block", "warn"]
+    location_ids: list[Id]
+    line_ids: list[Id]
+    message: str
+
+
 class Diagnostic(Doc):
     code: str
     severity: Literal["info", "warning", "error"]
@@ -253,5 +284,6 @@ class RunSummary(Doc):
     locations: list[MapLocation]
     products: list[ProductReconciliation]
     unplanned: list[UnplannedLine]
+    preflight: list[PreflightFinding] = Field(default_factory=list)
     diagnostics: list[Diagnostic]
     versions: dict[str, str]

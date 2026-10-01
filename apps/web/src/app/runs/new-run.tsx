@@ -10,7 +10,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/c
 import { toastManager } from "@/components/ui/toast"
 
 const kOptions = [
-  { value: "auto", label: "Auto (first k within limits)" },
+  { value: "auto", label: "Auto (smallest k within the solve-size limit)" },
   ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: `k = ${i + 1}` })),
 ]
 
@@ -18,7 +18,8 @@ const kOptions = [
 // request never creates a second run.
 export function NewRun({ open, runKey }: { open: boolean; runKey?: string }) {
   const router = useRouter()
-  const [k, setK] = useState("auto")
+  // Fixed k is the normal path now that the diameter policy is off (spec v1.8); 4 is the bundled example's k.
+  const [k, setK] = useState("4")
   const [seed, setSeed] = useState("0")
   const [pending, setPending] = useState(false)
 

@@ -494,7 +494,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                   <MenuItem>
                     Scenario JSON <MenuShortcut>⌘E</MenuShortcut>
                   </MenuItem>
-                  <MenuItem>Truck loads (CSV)</MenuItem>
+                  <MenuItem>Shipment sheets (CSV)</MenuItem>
                   <MenuItem>Unshipped lines (CSV)</MenuItem>
                   <MenuItem>GeoJSON</MenuItem>
                   <MenuItem>Python bundle</MenuItem>
@@ -776,7 +776,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                 <CardDescription>Validation</CardDescription>
                 <CardTitle className="text-2xl">All trucks pass</CardTitle>
               </CardHeader>
-              <CardFooter className="text-muted-foreground text-xs">Load, leg, and diameter checks · best found, not proven optimal</CardFooter>
+              <CardFooter className="text-muted-foreground text-xs">Load and single-drive checks · best found, not proven optimal</CardFooter>
             </Card>
             <Card>
               <CardHeader>
@@ -806,7 +806,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                 </FrameHeader>
                 {[
                   ["53 ft dry van", "53.0 linear ft · open route · $850 fixed per truck · Memphis DC"],
-                  ["Limits", "500 mi max leg · 500 mi max cluster diameter · solver miles"],
+                  ["Limits", "No single drive over 500 mi, including depot → first stop · solver miles"],
                 ].map(([title, description]) => (
                   <FramePanel key={title} className="flex items-center gap-3">
                     <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
@@ -919,7 +919,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
                 <FlaskConical />
               </EmptyMedia>
               <EmptyTitle>No runs yet</EmptyTitle>
-              <EmptyDescription>Run the pipeline to see clusters, truck loads, and why lines didn&apos;t ship.</EmptyDescription>
+              <EmptyDescription>Run the pipeline to see clusters, shipments, and why lines didn&apos;t ship.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button>

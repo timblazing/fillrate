@@ -1,7 +1,7 @@
 {
   "updated": "2026-09-30",
   "focus": "M2",
-  "productBehavior": 12,
+  "productBehavior": 14,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -11,15 +11,15 @@
     },
     "M2": {
       "weight": 10,
-      "done": 45,
-      "state": "active",
-      "notes": "Round-one review answered and written into spec v1.8 (§15 \"M2 scope\"). Next: apply it to the Blocks and `/runs/<id>`, align `fillrate.fig` with coss, then round two."
+      "done": 85,
+      "state": "waiting",
+      "notes": "Round-one answers applied to the Blocks, lab components and the real /runs/<id> page: Shipment wording, map first, fill % with an 80% line, problem-only coordinate badges, stock coverage, Steps, blocking preflight (contract + pipeline), revenue first, printable shipment sheets and CSV, diameter policy off by default. Round two is live at /dev/review. Waiting on his answers and on fillrate.fig (needs the OpenPencil app)."
     },
     "M3": {
       "weight": 20,
       "done": 5,
       "state": "planned",
-      "notes": "Gallery components can be reused. No CSV import, scenario versioning, settings, or real screens."
+      "notes": "Gallery components and the preflight/cost contracts can be reused. No CSV import, scenario versioning, settings API, or cost objective in the solver yet."
     },
     "M4": {
       "weight": 15,
@@ -53,9 +53,9 @@
     }
   },
   "nextUp": [
-    "M2: apply the review answers (wording, 80% low fill, revenue-first results, stock/coordinate display, steps visible) to the Blocks, lab components and /runs/<id>.",
-    "M2: cluster-diameter policy off by default; printable shipment sheet on /runs/<id>; preflight blocking checks in the contract and Block.",
-    "M2: coss Components page in fillrate.fig, then review round two (cost rates, flow strip, ★ label, sample rows).",
-    "M3: CSV import, scenario versioning, cost objective, preflight enforcement, stage reuse, 2,000-order benchmark."
+    "M2: send the round-two review link (/dev/review?key=…); record answers and apply requested changes.",
+    "M2: open fillrate.fig in OpenPencil; rebuild Components on coss parts and add the missing Foundations tokens.",
+    "M3: CSV import, scenario versioning, cost objective (once rates arrive), preflight at submission and exclusions through the API.",
+    "M3: per-cluster jobs, stage reuse, 2,000-order benchmark with stage timings."
   ]
 }

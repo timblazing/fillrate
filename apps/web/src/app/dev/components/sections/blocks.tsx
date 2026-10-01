@@ -35,7 +35,7 @@ export const blocks = {
   results: {
     Block: ResultsBlock,
     title: "Results",
-    description: "Run summary, then clusters and their truck loads, unshipped reasons, and the map. Replaces reading the raw output by hand.",
+    description: "Revenue-first run summary with the map as the first view, then clusters and their shipments, unshipped reasons, and printable shipment sheets. Replaces reading the raw output by hand.",
   },
   "k-explorer": {
     Block: KExplorerBlock,

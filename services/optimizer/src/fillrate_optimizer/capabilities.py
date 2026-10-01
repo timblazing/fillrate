@@ -44,7 +44,8 @@ class Defaults(BaseModel):
     trailer_capacity: int = TRAILER_53FT
     circuity: float = DEFAULT_CIRCUITY
     max_leg_m: int = DEFAULT_MAX_LEG_M
-    max_cluster_diameter_m: int = DEFAULT_MAX_LEG_M
+    # Optional policy, off by default (spec v1.8): the 500-mile rule is per leg only.
+    max_cluster_diameter_m: int | None = None
 
 
 class Units(BaseModel):
@@ -102,10 +103,11 @@ BEHAVIORS = [
         id="max_cluster_diameter",
         provided_by="preprocessing",
         description=(
-            "k-means on 3D unit vectors, then deterministic 2-means bisection of any cluster "
-            "whose widest pair (haversine × cluster circuity) exceeds the limit. "
-            "The validator re-checks it."
+            "Optional policy, off by default. When a limit is set: k-means on 3D unit vectors, "
+            "then deterministic 2-means bisection of any cluster whose widest pair "
+            "(haversine × cluster circuity) exceeds it. The validator re-checks it."
         ),
+        restrictions=["Off unless max_cluster_diameter_m is set in run settings."],
         fixture="tests/test_pipeline.py::test_diameter_repair_splits_wide_cluster",
     ),
     Behavior(
@@ -132,8 +134,9 @@ BEHAVIORS = [
         id="independent_validation",
         provided_by="validation",
         description=(
-            "Coverage, piece lineage, capacity, physical legs, cluster membership and diameter are "
-            "rechecked from the raw travel artifact; solver feasibility is never trusted alone."
+            "Coverage, piece lineage, capacity, physical legs, cluster membership and (when "
+            "enabled) diameter are rechecked from the raw travel artifact; solver feasibility "
+            "is never trusted alone."
         ),
         fixture="tests/test_pipeline.py::test_validator_rejects_solver_feasible_missing_edge_candidate",
     ),

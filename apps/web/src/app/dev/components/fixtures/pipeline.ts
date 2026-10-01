@@ -35,12 +35,13 @@ const unit = (lat: number, lon: number): Vec => [
 const sq = (a: Vec, b: Vec) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
 
 export const defaultSettings: PipelineSettings = {
-  k: "auto",
+  // Fixed k from the explorer is the normal path once the diameter policy is off (spec v1.8 §15 item 15).
+  k: 6,
   kmeansSeed: 0,
   nInit: 4,
   circuity: 1.2,
   maxLegMiles: 500,
-  maxDiameterMiles: 500,
+  maxDiameterMiles: null,
   inventoryPct: 100,
   strategy: "date-value",
   fulfillment: "piece",
@@ -276,11 +277,13 @@ export function runPipeline(overrides: Partial<PipelineSettings> = {}): Pipeline
   // 3. Cluster reachable stops with k-means on 3D unit vectors; 4. bisect clusters over the diameter.
   const vecs = reachable.map((s) => unit(s.latitude, s.longitude))
   const ll = reachable.map((s) => [s.latitude, s.longitude] as [number, number])
+  const tooWide = (members: [number, number][]) =>
+    settings.maxDiameterMiles != null && widestPair(members, settings.circuity) > settings.maxDiameterMiles
   const overLimit = (labels: number[], k: number) => {
     let n = 0
     for (let c = 0; c < k; c++) {
       const members = ll.filter((_, i) => labels[i] === c)
-      if (widestPair(members, settings.circuity) > settings.maxDiameterMiles) n++
+      if (tooWide(members)) n++
     }
     return n
   }
@@ -311,7 +314,7 @@ export function runPipeline(overrides: Partial<PipelineSettings> = {}): Pipeline
   }))
   for (let guard = 0; guard < 24; guard++) {
     const idx = groups.findIndex(
-      (g) => g.members.length > 1 && widestPair(g.members.map((i) => ll[i]), settings.circuity) > settings.maxDiameterMiles
+      (g) => g.members.length > 1 && tooWide(g.members.map((i) => ll[i]))
     )
     if (idx < 0) break
     const g = groups[idx]

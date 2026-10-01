@@ -150,3 +150,17 @@ test("simultaneous heartbeat and completion calls leave one durable terminal res
   expect(store.db.select().from(s.runArtifacts).all()).toHaveLength(1);
   expect(store.db.select().from(s.runs).get()?.status).toBe("succeeded");
 });
+
+test("design review answers upsert per browser, keep the first submit time and can be deleted", () => {
+  const id = randomUUID();
+  store.saveReview(id, "", { "r2.you.name": "Sam" }, false, 1_000);
+  const first = store.saveReview(id, "Sam", { "r2.you.name": "Sam", "r2.fill.full": "90" }, true, 2_000);
+  expect(first.submittedAt).toBe(2_000);
+  expect(store.saveReview(id, "Sam", { "r2.fill.full": "85" }, false, 3_000).submittedAt).toBe(2_000);
+  const [row] = store.listReviews();
+  expect(row.answers).toEqual({ "r2.fill.full": "85" });
+  expect(() => store.saveReview("not-a-uuid", "x", {}, false)).toThrow("invalid_review");
+  expect(() => store.saveReview(randomUUID(), "x", { big: "x".repeat(70_000) }, false)).toThrow("review_too_large");
+  expect(store.deleteReview(id)).toBe(true);
+  expect(store.listReviews()).toEqual([]);
+});

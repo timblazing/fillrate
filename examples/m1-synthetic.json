@@ -1235,8 +1235,8 @@
   "travel_circuity": 1.2,
   "cluster_circuity": 1.2,
   "max_leg_m": 804672,
-  "max_cluster_diameter_m": 804672,
-  "k": null,
+  "max_cluster_diameter_m": null,
+  "k": 4,
   "auto_k_cap": 25,
   "kmeans_seed": 0,
   "kmeans_n_init": 10,
@@ -1245,6 +1245,12 @@
   "solver_max_iterations": 1500,
   "solver_time_limit_s": 10.0,
   "objective": "trucks_then_distance",
-  "weighted_truck_penalty_m": null
+  "weighted_truck_penalty_m": null,
+  "preflight": {
+   "missing_coordinates": "warn",
+   "far_from_depot": "warn",
+   "oversize_stop": "warn"
+  },
+  "excluded_line_ids": []
  }
 }

@@ -36,10 +36,10 @@ const sectionGroups: [string | null, Section[]][] = [
   [null, ["Results"]],
 ]
 
-export function RunPipelineButton({ onRun, running }: { onRun?: () => void; running?: boolean }) {
+export function RunPipelineButton({ onRun, running, blocked }: { onRun?: () => void; running?: boolean; blocked?: boolean }) {
   return (
     <ButtonGroup>
-      <Button size="sm" onClick={onRun} disabled={running}>
+      <Button size="sm" onClick={onRun} disabled={running || blocked} title={blocked ? "Resolve the blocking preflight checks first" : undefined}>
         <Play /> {running ? "Running…" : "Run pipeline"}
       </Button>
       <GroupSeparator />

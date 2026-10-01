@@ -12,7 +12,7 @@ const bandText = {
   full: "text-success-foreground",
 }
 
-/** Fill % colored by band: under 60% is flagged, 85% and up reads as full. */
+/** Fill % colored by band: under FILL_LOW (80%) is flagged, FILL_FULL (90%) and up reads as full. */
 export function FillPercent({ fill, className }: { fill: number; className?: string }) {
   return <span className={cn("font-medium tabular-nums", bandText[fillBand(fill)], className)}>{formatPercent(fill)}</span>
 }
@@ -55,6 +55,32 @@ export function FillMeter({ fill, cluster, className }: { fill: number; cluster?
         <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: cssPercent(Math.min(1, fill)), background: color }} />
       </span>
       <FillPercent fill={fill} className="w-9 text-right text-xs" />
+    </span>
+  )
+}
+
+/**
+ * The primary per-shipment visual (design review: "a plain fill % would do"): a large fill % over a thin meter.
+ * The segmented `TrailerFill` belongs in the shipment detail and the shipment sheet, not in lists or cards.
+ */
+export function ShipmentFill({ fill, size = "md", className }: { fill: number; size?: "sm" | "md" | "lg"; className?: string }) {
+  const band = fillBand(fill)
+  return (
+    <span className={cn("inline-flex min-w-16 flex-col gap-1", className)}>
+      <FillPercent
+        fill={fill}
+        className={cn("leading-none tracking-tight", size === "lg" ? "text-3xl font-semibold" : size === "md" ? "text-xl" : "text-base")}
+      />
+      <span
+        className="bg-muted relative h-1 w-full overflow-hidden rounded-full"
+        role="meter"
+        aria-valuenow={Math.round(fill * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Trailer fill"
+      >
+        <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: cssPercent(Math.min(1, fill)), background: bandColor[band] }} />
+      </span>
     </span>
   )
 }

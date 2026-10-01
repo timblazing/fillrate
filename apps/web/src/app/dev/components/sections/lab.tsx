@@ -12,7 +12,9 @@ import { ImportDropzone } from "@/components/lab/import-dropzone"
 import { IterationTable } from "@/components/lab/iteration-table"
 import { JobStatusBadge, JobStatusDot, jobStates } from "@/components/lab/job-status"
 import { LineStateBadge, type LineState, lineStates } from "@/components/lab/line-state"
-import { PipelineStages } from "@/components/lab/pipeline-stages"
+import { ObjectiveSettings } from "@/components/lab/objective-settings"
+import { PipelineStages, StepsPanel } from "@/components/lab/pipeline-stages"
+import { type PreflightCheckItem, PreflightChecks, type PreflightResolution } from "@/components/lab/preflight-checks"
 import { PlanFlow } from "@/components/lab/plan-flow"
 import { CoordinateSourceBadge, TravelModeBadge } from "@/components/lab/provenance-badge"
 import { ClusterLegend, ClusterSwatch, TruckTag } from "@/components/lab/route-swatch"
@@ -20,7 +22,7 @@ import { RunCompare } from "@/components/lab/run-compare"
 import { RunMetricGroups } from "@/components/lab/run-metrics"
 import { SettingRow, SettingSourceBadge } from "@/components/lab/setting-source"
 import { StockTable } from "@/components/lab/stock-table"
-import { FillBandLegend, FillMeter, FillPercent, TrailerFill } from "@/components/lab/trailer-fill"
+import { FillBandLegend, FillMeter, FillPercent, ShipmentFill, TrailerFill } from "@/components/lab/trailer-fill"
 import { TruckLoad } from "@/components/lab/truck-load"
 import { UnshippedLines } from "@/components/lab/unshipped-lines"
 import { Badge } from "@/components/ui/badge"
@@ -149,8 +151,8 @@ export function Lab() {
 
       <Specimen
         id="fill"
-        title="Truck fill"
-        description="A 53 ft trailer drawn to scale: one segment per stop in visit order, hatching is empty floor. Under 60% is flagged; 85% and up reads as full. These are the fullest, median, and emptiest trucks of the run."
+        title="Trailer fill"
+        description="Fill % is the primary per-shipment visual (a large percent over a thin meter); under 80% is flagged, 90% and up reads as full. The to-scale trailer, one segment per stop in visit order with empty floor hatched, belongs in the shipment detail and the shipment sheet. These are the fullest, median, and emptiest shipments of the run."
       >
         <div className="grid gap-6 lg:grid-cols-[1fr_16rem]">
           <div className="space-y-5">
@@ -161,6 +163,7 @@ export function Lab() {
                   <span className="text-muted-foreground text-xs">
                     {plural(t.stops.length, "stop")} · {formatMiles(t.loadedMiles)} loaded
                   </span>
+                  <ShipmentFill fill={t.fill} className="ml-auto w-16" />
                 </div>
                 <TrailerFill
                   cluster={t.cluster}
@@ -222,14 +225,15 @@ export function Lab() {
 
       <Specimen
         id="stages"
-        title="Pipeline stages"
-        description="Pipeline detail under the plan flow: six stored stages, each leading with what it produced. Solve fans out into one durable PyVRP job per cluster. Press Run to watch the live states; real runs poll persisted job state every ~2 s."
+        title="Steps"
+        description="The stage list under the plan flow, expanded by default during and after a run; collapsing is remembered per browser. Each step leads with what it produced. Solve fans out into one durable PyVRP job per cluster. Press Run to watch the live states; real runs poll persisted job state every ~2 s."
       >
+        <StepsPanel>
         <div className="bg-background space-y-5 rounded-xl border p-4">
           <div className="flex flex-wrap items-center gap-3">
             <JobStatusBadge state={live.running ? "running" : "succeeded"} />
             <span className="font-mono text-xs">run-0212</span>
-            <span className="text-muted-foreground text-xs">k auto · seed 0 · 10 s per cluster</span>
+            <span className="text-muted-foreground text-xs">k = 6 · seed 0 · 10 s per cluster</span>
             <div className="ml-auto flex items-center gap-2">
               {live.running && <Progress value={Math.round(live.progress * 100)} className="w-32" />}
               <Button size="sm" variant={live.running ? "outline" : "default"} onClick={live.running ? live.reset : live.start}>
@@ -239,20 +243,21 @@ export function Lab() {
           </div>
           <PipelineStages stages={live.stages} />
         </div>
+        </StepsPanel>
       </Specimen>
 
       <Specimen
         id="run-metrics"
         title="Run metrics"
-        description="The three metric groups, side by side with no composite score. Here run-0214 (k = 8) against the baseline (auto k = 6)."
+        description="The three metric groups, revenue first, side by side with no composite score. Here run-0214 (k = 8) against the baseline (k = 6)."
       >
-        <RunMetricGroups metrics={k8.metrics} baseline={run.metrics} maxDiameter={run.settings.maxDiameterMiles} />
+        <RunMetricGroups metrics={k8.metrics} baseline={run.metrics} />
       </Specimen>
 
       <Specimen
         id="cluster-cards"
         title="Cluster cards"
-        description="Per cluster: stops, trucks, loaded feet, fill, revenue, one bar per truck with the 60% line dashed (amber = under it), and widest pair against the 500 mi limit (amber past 90%). Click to select."
+        description="Per cluster: stops, shipments, revenue, average and lowest trailer fill, widest pair as a tightness metric (not a limit), and one bar per shipment with the 80% line dashed (amber = under it). Click to select."
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {run.clusters.map((c) => (
@@ -271,8 +276,8 @@ export function Lab() {
 
       <Specimen
         id="truck-loads"
-        title="Truck loads"
-        description={`Stop sequence with leg miles and the order lines on board. Open route from ${depot.label}. Cluster ${cluster}'s fullest and emptiest trucks; select a cluster card above to switch.`}
+        title="Shipment detail"
+        description={`Stop sequence with leg miles and the order lines on board, under the to-scale trailer. Open route from ${depot.label}. Cluster ${cluster}'s fullest and emptiest shipments; select a cluster card above to switch.`}
       >
         <div className="grid gap-4 lg:grid-cols-2">
           {[loadExamples[0], loadExamples[loadExamples.length - 1]].map((t, i) => (
@@ -295,12 +300,12 @@ export function Lab() {
       <Specimen
         id="unshipped"
         title="Unshipped lines"
-        description="Every line that does not ship, with its reason: no stock (and who took it), beyond the leg limit, did not fit, or excluded for data quality. Click a reason to filter."
+        description="Every line that does not ship, in the four groups the primary user confirmed: no stock (and who took it), beyond the 500 mi leg limit, did not fit on a truck, and bad or missing address data. Click a group to filter."
       >
         <UnshippedLines items={run.unshipped} products={look.products} locations={look.locations} />
       </Specimen>
 
-      <Specimen id="stock" title="Inventory coverage" description="Stock against open demand per SKU. The notch is 100% coverage.">
+      <Specimen id="stock" title="Stock coverage" description="Per product: pieces short, fill rate (allocated ÷ ordered, N/A when nothing was ordered) and which orders were shorted (expand). On hand vs ordered and dollars short are in the details popover.">
         <StockTable rows={stockRows(run)} />
       </Specimen>
 
@@ -310,7 +315,7 @@ export function Lab() {
         description={`All ${formatCount(rows.length)} lines of ${formatCount(2000)} orders, paginated. Pieces show allocated/ordered; the state says where each line ended up.`}
       >
         <DataTable
-          columns={orderColumns}
+          columns={orderColumns()}
           data={filteredRows}
           pageSize={12}
           filterPlaceholder="Line, account, product…"
@@ -341,7 +346,12 @@ export function Lab() {
       </Specimen>
 
       <div className="grid gap-10 xl:grid-cols-2 [&>*]:min-w-0">
-        <Specimen id="diagnostics" title="Preflight checks" description="Computed from this scenario before a run. Only provable problems block.">
+        <Specimen
+          id="diagnostics"
+          title="Preflight checks"
+          description="Three checks block Run pipeline by default: no coordinates, farther than 500 mi from the depot, and a stop larger than one trailer. Each offers fix the data (M3), exclude the lines (recorded as excluded_by_user), or turn it into a warning. ZIP-only placement only warns. Below: the older observation list."
+        >
+          <PreflightDemo />
           <DiagnosticList
             items={[
               {
@@ -379,6 +389,14 @@ export function Lab() {
           />
         </Specimen>
 
+        <Specimen
+          id="objective"
+          title="Cost and objective"
+          description="Fleet / Constraints inspector design. Lowest cost (cost per truck + cost per mile) is the default once both rates are set; until then the run says it uses fewest trucks, then miles. The cluster-diameter limit sits under Advanced as an optional policy, off by default. Solver support lands in M3."
+        >
+          <ObjectiveSettings className="max-w-md" />
+        </Specimen>
+
         <Specimen id="settings" title="Settings rows" description="Label, meaning, where the value comes from, and reset to inherited.">
           <div className="bg-card divide-y rounded-xl border px-4">
             <SettingRow label="Circuity factor" description="Haversine miles × this factor. The primary user's mileage cushion." source="workspace">
@@ -390,7 +408,7 @@ export function Lab() {
                 </NumberFieldGroup>
               </NumberField>
             </SettingRow>
-            <SettingRow label="Maximum leg" description="Between consecutive stops and from the depot, in solver miles." source="default">
+            <SettingRow label="Max single drive" description="No single drive over 500 mi, including depot → first stop. Solver miles." source="default">
               <InputGroup className="w-28">
                 <InputGroupInput defaultValue={500} type="number" />
                 <InputGroupAddon align="inline-end">
@@ -398,7 +416,7 @@ export function Lab() {
                 </InputGroupAddon>
               </InputGroup>
             </SettingRow>
-            <SettingRow label="Cluster count (k)" description="Auto picks the smallest k whose clusters all pass the diameter check." source="scenario">
+            <SettingRow label="Cluster count (k)" description="Fixed k from the k explorer is the normal path; auto only enforces the solve-size limit." source="scenario">
               <ToggleGroup defaultValue={["7"]} variant="outline" size="sm">
                 <ToggleGroupItem value="auto">Auto</ToggleGroupItem>
                 <ToggleGroupItem value="7">k = 7</ToggleGroupItem>
@@ -558,4 +576,15 @@ export function Lab() {
       </Specimen>
     </Group>
   )
+}
+
+function PreflightDemo() {
+  const [resolved, setResolved] = useState<Record<string, PreflightResolution | null>>({})
+  const items: PreflightCheckItem[] = [
+    { id: "missing_coordinates", title: "Addresses with no coordinates", action: "block", lines: 14, locations: 6, refs: ["L-01182", "L-01407"] },
+    { id: "far_from_depot", title: "Stops farther than 500 mi from the depot", action: "block", lines: 9, locations: 4, detail: "May still be reachable through another stop" },
+    { id: "oversize_stop", title: "A stop larger than one trailer", action: "block", lines: 21, locations: 3, detail: "As a warning, it is split across shipments" },
+    { id: "approximate_coordinates", title: "Placed by ZIP code only", action: "warn", lines: 38, locations: 17 },
+  ].map((c) => ({ ...c, resolution: resolved[c.id] ?? null }) as PreflightCheckItem)
+  return <PreflightChecks items={items} onResolve={(id, r) => setResolved((x) => ({ ...x, [id]: r }))} className="mb-4" />
 }

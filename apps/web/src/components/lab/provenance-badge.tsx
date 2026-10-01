@@ -15,7 +15,7 @@ const coordinateSources: Record<
   manual: { label: "Manual", icon: Hand, hint: "Placed or corrected on the map" },
   census: { label: "Census", icon: Landmark, hint: "Census address match (interpolated, not rooftop)" },
   zcta: {
-    label: "ZCTA approx.",
+    label: "ZIP approx.",
     icon: MapPinned,
     hint: "ZIP/ZCTA internal point fallback. Review before running.",
     tone: "approximate",
@@ -26,6 +26,18 @@ const coordinateSources: Record<
     hint: "No coordinates. Excluded from allocation until placed on the map.",
     tone: "missing",
   },
+}
+
+/**
+ * Design review `orders.coords`: only problems carry a badge by default (ZIP-approximate and missing). File,
+ * Census and manual coordinates stay unbadged unless the viewer asks for "Show all sources". Popups follow suit.
+ */
+export const isCoordinateProblem = (source: CoordinateSource) => source === "zcta" || source === "unresolved"
+
+/** The badge, or nothing when the source is not a problem and `showAll` is off. */
+export function CoordinateSourceFlag({ source, showAll = false, className }: { source: CoordinateSource; showAll?: boolean; className?: string }) {
+  if (!showAll && !isCoordinateProblem(source)) return null
+  return <CoordinateSourceBadge source={source} className={className} />
 }
 
 export function CoordinateSourceBadge({ source, className }: { source: CoordinateSource; className?: string }) {
@@ -55,7 +67,7 @@ const travelModes: Record<TravelMode, { label: string; icon: typeof Ruler; hint:
   haversine: {
     label: "Estimated · haversine",
     icon: Ruler,
-    hint: "Great-circle miles × the circuity factor. Limits (leg, cluster diameter) use these solver miles.",
+    hint: "Great-circle miles × the circuity factor. The 500 mi single-drive limit uses these solver miles.",
   },
   valhalla: { label: "Valhalla road network", icon: Route, hint: "Directed road distances and durations (truck costing)" },
   imported: { label: "Imported matrix", icon: TableProperties, hint: "User-supplied directed matrix" },

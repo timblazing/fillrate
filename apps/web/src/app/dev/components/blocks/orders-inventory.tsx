@@ -1,14 +1,17 @@
 "use client"
 
 import { Upload } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 import { DataTable } from "@/components/lab/data-table"
-import { CoordinateSourceBadge, type CoordinateSource } from "@/components/lab/provenance-badge"
+import { CoordinateSourceBadge, type CoordinateSource, isCoordinateProblem } from "@/components/lab/provenance-badge"
 import { StockTable } from "@/components/lab/stock-table"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
+import { Toggle } from "@/components/ui/toggle"
 import { formatCount, formatMoney } from "@/lib/units"
 
 import { baseline, stockRows, syntheticScenario } from "../fixtures"
@@ -31,7 +34,12 @@ export function OrdersInventoryBlock() {
   const run = baseline()
   const scen = syntheticScenario()
   const [section, setSection] = useState<Section>("Data")
-  const rows = orderRows(run)
+  const allRows = orderRows(run)
+  const [showAllSources, setShowAllSources] = useState(false)
+  const [problemsOnly, setProblemsOnly] = useState(false)
+  const rows = problemsOnly ? allRows.filter((r) => isCoordinateProblem(r.source)) : allRows
+  const columns = useMemo(() => orderColumns(showAllSources), [showAllSources])
+  const problemCount = allRows.filter((r) => isCoordinateProblem(r.source)).length
   const sources = scen.locations.reduce<Record<CoordinateSource, number>>(
     (acc, l) => ({ ...acc, [l.source]: (acc[l.source] ?? 0) + 1 }),
     { imported: 0, census: 0, manual: 0, zcta: 0, unresolved: 0 }
@@ -66,8 +74,8 @@ export function OrdersInventoryBlock() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-muted-foreground mr-1">Coordinates</span>
-            {(Object.keys(sources) as CoordinateSource[]).map((s) => (
+            <span className="text-muted-foreground mr-1">Coordinate problems</span>
+            {(Object.keys(sources) as CoordinateSource[]).filter((s) => showAllSources || isCoordinateProblem(s)).map((s) => (
               <span key={s} className="flex items-center gap-1.5">
                 <CoordinateSourceBadge source={s} />
                 <span className="font-mono tabular-nums">{sources[s]}</span>
@@ -91,13 +99,30 @@ export function OrdersInventoryBlock() {
           )}
 
           <section className="space-y-2">
-            <h3 className="text-sm font-medium">Inventory at Memphis DC</h3>
+            <h3 className="text-sm font-medium">Stock coverage at Memphis DC</h3>
             <StockTable rows={stockRows(run)} />
           </section>
 
           <section className="space-y-2">
             <h3 className="text-sm font-medium">Order lines</h3>
-            <DataTable columns={orderColumns} data={rows} pageSize={10} filterPlaceholder="Line, account, product…" className="bg-card" />
+            <DataTable
+              columns={columns}
+              data={rows}
+              pageSize={10}
+              filterPlaceholder="Line, account, product…"
+              className="bg-card"
+              toolbar={
+                <>
+                  <Toggle variant="outline" size="sm" pressed={problemsOnly} onPressedChange={setProblemsOnly}>
+                    Coordinate problems <span className="text-muted-foreground font-mono tabular-nums">{problemCount}</span>
+                  </Toggle>
+                  <Label className="gap-2 text-xs font-normal">
+                    <Switch checked={showAllSources} onCheckedChange={setShowAllSources} />
+                    Show all sources
+                  </Label>
+                </>
+              }
+            />
           </section>
         </div>
       </ScrollArea>

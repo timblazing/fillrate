@@ -131,7 +131,8 @@ export type PipelineSettings = {
   nInit: number
   circuity: number
   maxLegMiles: number
-  maxDiameterMiles: number
+  /** Optional cluster-diameter policy; null (the default) means off (spec v1.8 §1). */
+  maxDiameterMiles: number | null
   inventoryPct: number
   strategy: "date-value" | "first-come"
   fulfillment: "piece" | "whole-order"

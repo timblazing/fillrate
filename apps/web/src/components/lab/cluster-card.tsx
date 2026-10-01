@@ -5,13 +5,13 @@ import { GitFork } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Cluster, Truck } from "@/lib/fulfillment"
-import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, plural, cssPercent } from "@/lib/units"
+import { FILL_LOW, fillBand, formatCount, formatMiles, formatMoney, plural, cssPercent } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import { ClusterSwatch, routeColor } from "./route-swatch"
 import { FillPercent } from "./trailer-fill"
 
-/** A measured value against a hard limit, e.g. widest pair distance against the 500 mi diameter. */
+/** A measured value against a hard limit, e.g. widest pair against an (optional) cluster-diameter policy. */
 export function LimitBar({
   value,
   limit,
@@ -48,11 +48,11 @@ export function LimitBar({
   )
 }
 
-/** One column per truck, sorted fullest first; height is fill. Low-fill trucks stand out at the right. */
+/** One column per shipment, sorted fullest first; height is trailer fill. Low-fill ones stand out at the right. */
 export function TruckFillStrip({ trucks, cluster, className }: { trucks: Truck[]; cluster: number; className?: string }) {
   const sorted = [...trucks].sort((a, b) => b.fill - a.fill)
   return (
-    <div className={cn("relative flex h-9 items-end gap-px", className)} role="img" aria-label={`Fill of ${plural(trucks.length, "truck")}`}>
+    <div className={cn("relative flex h-9 items-end gap-px", className)} role="img" aria-label={`Trailer fill of ${plural(trucks.length, "shipment")}`}>
       <span
         aria-hidden
         className="border-foreground/35 pointer-events-none absolute inset-x-0 z-10 border-t border-dashed"
@@ -81,7 +81,8 @@ export function TruckFillStrip({ trucks, cluster, className }: { trucks: Truck[]
   )
 }
 
-// Cluster card (spec §10): stops, trucks, loaded linear feet, average and minimum fill, widest pair, revenue.
+// Cluster card (spec §10): stops, shipments, loaded linear feet, average and lowest fill, revenue, and widest pair
+// as a tightness metric. The widest pair is drawn against a limit only when the optional diameter policy is on.
 export function ClusterCard({
   cluster,
   trucks,
@@ -95,7 +96,8 @@ export function ClusterCard({
   trucks: Truck[]
   /** A human hint for where the cluster is, e.g. "Nashville, TN + 14 cities". */
   area: string
-  maxDiameter: number
+  /** Optional cluster-diameter policy in miles; null or omitted (the default) shows widest pair as a metric only. */
+  maxDiameter?: number | null
   selected?: boolean
   onSelect?: () => void
   className?: string
@@ -103,11 +105,11 @@ export function ClusterCard({
   const low = trucks.filter((t) => fillBand(t.fill) === "low").length
   const stats: [string, React.ReactNode][] = [
     ["Stops", formatCount(cluster.stops.length)],
-    ["Trucks", formatCount(cluster.trucks.length)],
-    ["Loaded", formatFeet(cluster.load, 0)],
-    ["Avg fill", <FillPercent key="a" fill={cluster.avgFill} />],
-    ["Min fill", <FillPercent key="m" fill={cluster.minFill} />],
+    ["Shipments", formatCount(cluster.trucks.length)],
     ["Revenue", formatMoney(cluster.value, { compact: true })],
+    ["Avg fill", <FillPercent key="a" fill={cluster.avgFill} />],
+    ["Lowest fill", <FillPercent key="m" fill={cluster.minFill} />],
+    ["Widest pair", formatMiles(cluster.widestPair)],
   ]
   return (
     <div
@@ -146,7 +148,7 @@ export function ClusterCard({
             <TooltipTrigger render={<Badge variant="outline" size="sm" />}>
               <GitFork /> split
             </TooltipTrigger>
-            <TooltipPopup>Bisected from k-means cluster {cluster.repairedFrom} to meet the diameter limit</TooltipPopup>
+            <TooltipPopup>Bisected from k-means cluster {cluster.repairedFrom} to meet the optional diameter policy</TooltipPopup>
           </Tooltip>
         )}
       </div>
@@ -161,13 +163,13 @@ export function ClusterCard({
       <div className="space-y-1">
         <TruckFillStrip trucks={trucks} cluster={cluster.id} />
         <div className="text-muted-foreground flex justify-between text-[11px] tabular-nums">
-          <span>{plural(trucks.length, "truck")}, fullest first</span>
+          <span>{plural(trucks.length, "shipment")}, fullest first</span>
           <span className={cn(low > 0 && "text-warning-foreground")}>
             {low > 0 ? `${low} under ${Math.round(FILL_LOW * 100)}%` : `none under ${Math.round(FILL_LOW * 100)}%`}
           </span>
         </div>
       </div>
-      <LimitBar label="Widest pair" value={cluster.widestPair} limit={maxDiameter} />
+      {maxDiameter != null && <LimitBar label="Widest pair vs diameter policy" value={cluster.widestPair} limit={maxDiameter} />}
     </div>
   )
 }

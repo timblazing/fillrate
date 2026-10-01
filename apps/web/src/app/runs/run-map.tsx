@@ -14,8 +14,8 @@ import { useCssColors } from "@/lib/css-color"
 
 const tokens = [...Array.from({ length: 8 }, (_, i) => `--route-${i + 1}`), "--background", "--muted-foreground", "--destructive"]
 
-// Run results map (spec §10): stops by cluster, cluster hulls, and truck paths drawn as straight
-// lines (schematic, not road geometry). Hollow red rings are unplanned or excluded locations.
+// Run results map (spec §10): stops by cluster, cluster hulls, and shipment paths drawn as straight
+// lines (schematic, not road geometry). Hollow red rings are unshipped or excluded locations.
 export default function RunMap({
   summary,
   cluster,
@@ -114,7 +114,7 @@ export default function RunMap({
         <MapControls />
       </Map>
       <span className="bg-background/85 text-muted-foreground absolute bottom-2 left-2 rounded-md px-2 py-1 text-[11px] backdrop-blur">
-        Truck paths are straight-line schematics, not roads.
+        Shipment paths are straight-line schematics, not roads.
       </span>
     </div>
   )

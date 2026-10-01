@@ -2,7 +2,7 @@
 
 import { dataTableColumns } from "@/components/lab/data-table"
 import { LineStateBadge } from "@/components/lab/line-state"
-import { CoordinateSourceBadge } from "@/components/lab/provenance-badge"
+import { CoordinateSourceFlag } from "@/components/lab/provenance-badge"
 import { TruckTag } from "@/components/lab/route-swatch"
 import { formatMoney } from "@/lib/units"
 
@@ -10,7 +10,8 @@ import type { OrderRow } from "./fixtures/order-rows"
 
 const col = dataTableColumns<OrderRow>()
 
-export const orderColumns = col.columns([
+/** Order-line columns. Coordinates show only problems unless `showAllSources` (design review `orders.coords`). */
+export const orderColumns = (showAllSources = false) => col.columns([
   col.accessor("id", {
     header: "Line",
     cell: ({ row }) => (
@@ -68,6 +69,6 @@ export const orderColumns = col.columns([
   col.accessor("source", {
     header: "Coordinates",
     enableGlobalFilter: false,
-    cell: ({ getValue }) => <CoordinateSourceBadge source={getValue()} />,
+    cell: ({ getValue }) => <CoordinateSourceFlag source={getValue()} showAll={showAllSources} />,
   }),
 ])

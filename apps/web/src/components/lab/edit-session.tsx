@@ -92,7 +92,7 @@ export function EditSession({
         <div className="space-y-3 border-t p-3">
           <div className={cn("flex items-center gap-2 text-sm font-medium", ok ? "text-success-foreground" : "text-destructive-foreground")}>
             {ok ? <CircleCheck className="size-4" /> : <TriangleAlert className="size-4" />}
-            {ok ? "0 violations · passes leg, capacity, and diameter checks" : `${evaluation.violations.length} violations`}
+            {ok ? "0 violations · passes single-drive and capacity checks" : `${evaluation.violations.length} violations`}
           </div>
           {!ok && (
             <ul className="text-destructive-foreground list-disc pl-5 text-xs">
@@ -102,7 +102,7 @@ export function EditSession({
             </ul>
           )}
           <dl className="grid gap-3 text-xs sm:grid-cols-2">
-            <Change label="Trucks" before={String(evaluation.trucks.before)} after={String(evaluation.trucks.after)} delta={evaluation.trucks.after - evaluation.trucks.before} goodWhen="down" />
+            <Change label="Shipments" before={String(evaluation.trucks.before)} after={String(evaluation.trucks.after)} delta={evaluation.trucks.after - evaluation.trucks.before} goodWhen="down" />
             <Change
               label="Loaded miles"
               before={formatMiles(evaluation.loadedMiles.before)}

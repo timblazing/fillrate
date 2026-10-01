@@ -9,6 +9,7 @@ import { join, resolve } from "node:path";
 import { openDatabase, type Store } from "../src/index";
 import { createWorkerTransport } from "../src/transport";
 import { parseContract, type RunSummary } from "@fillrate/contracts";
+import { sheetCsvRows, shipmentSheets } from "../../../apps/web/src/lib/shipment-sheet";
 
 const optimizer = resolve("services/optimizer");
 const example = JSON.parse(readFileSync(resolve("examples/m1-synthetic.json"), "utf8"));
@@ -68,6 +69,33 @@ test.skipIf(!hasUv)("a synthetic run completes, validates and reconciles", async
     expect(p.starting_inventory).toBe(p.allocated + p.residual);
   }
   expect(view.events.filter(e => e.kind === "progress").map(e => e.payload.stage)).toContain("solve");
+  // The example declares its three blocking preflight cases as warnings (spec v1.8 §15 M2 item 8).
+  expect(summary.preflight?.map(f => [f.check, f.action])).toEqual([["missing_coordinates", "warn"], ["far_from_depot", "warn"], ["oversize_stop", "warn"]]);
+  // Shipment sheets (M2 item 11) agree with the validated trucks: per-stop feet, legs and value sum to the totals.
+  const sheets = shipmentSheets(summary);
+  expect(sheets).toHaveLength(summary.trucks.length);
+  for (const [i, sheet] of sheets.entries()) {
+    const truck = summary.trucks[i];
+    expect(sheet.stops.map(x => x.sequence)).toEqual(truck.visits.map((_, n) => n + 1));
+    expect(sheet.stops.reduce((n, x) => n + x.linearFeet, 0)).toBe(truck.load);
+    expect(sheet.stops.reduce((n, x) => n + x.value, 0)).toBe(truck.amount_cents);
+    expect(sheet.stops.reduce((n, x) => n + x.milesFromPrevious, 0)).toBeCloseTo(truck.distance_m / 1609.344, 6);
+  }
+  const csv = sheetCsvRows(sheets, ["location"]);
+  expect(csv.header.slice(0, 7)).toEqual(["truck_id", "shipment_number", "sequence", "order_ids", "linear_feet", "miles_from_previous", "value_dollars"]);
+  expect(csv.rows).toHaveLength(summary.trucks.reduce((n, t) => n + t.visits.length, 0));
+}, 120_000);
+
+test.skipIf(!hasUv)("blocking preflight checks fail the run permanently with the reasons", async () => {
+  const runId = enqueue({ preflight: { missing_coordinates: "block", far_from_depot: "block", oversize_stop: "warn" } }, "blocked");
+  startWorker("w1");
+  await waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status));
+  const view = store.runView(runId)!;
+  expect(view.status).toBe("failed");
+  expect(view.attempt).toBe(1);
+  const failure = view.events.find(e => e.kind === "failed")!.payload;
+  expect(failure.code).toBe("preflight_blocked");
+  expect(String(failure.message)).toMatch(/no coordinates.*farther than 500 mi from the depot/);
 }, 120_000);
 
 test.skipIf(!hasUv)("cancelling a running solve kills it and frees the worker", async () => {

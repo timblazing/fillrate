@@ -24,8 +24,8 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
         <section className="flex flex-col gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Pipeline runs</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
-            Each run allocates stock, groups stops with k-means, builds 53 ft truckloads with PyVRP and validates every
-            load independently. Runs use the bundled synthetic scenario <span className="text-foreground font-medium">{exampleScenario.name}</span>{" "}
+            Each run allocates stock, groups stops into clusters with k-means, builds 53 ft shipments with PyVRP and validates every
+            shipment independently. Runs use the bundled synthetic scenario <span className="text-foreground font-medium">{exampleScenario.name}</span>{" "}
             ({orders} orders, {lines} lines, {exampleScenario.locations.length} locations). No real customer data.
           </p>
           <NewRun open={runsOpen()} runKey={typeof key === "string" ? key : undefined} />

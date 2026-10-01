@@ -53,7 +53,9 @@ let cached: KExploration | null = null
 export function exploreK(kMin = 3, kMax = 12, seeds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]): KExploration {
   if (cached) return cached
   const run = baseline()
-  const { circuity, maxDiameterMiles, maxLegMiles } = run.settings
+  const { circuity, maxLegMiles } = run.settings
+  // Repairs only count when the optional diameter policy is on; it is off by default (spec v1.8).
+  const maxDiameterMiles = run.settings.maxDiameterMiles ?? Infinity
   const stops = run.stops.filter((s) => s.depotMiles <= maxLegMiles)
   const vecs = stops.map((s) => {
     const lat = rad(s.latitude)

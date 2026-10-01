@@ -1,6 +1,6 @@
 "use client"
 
-import { Download, GitBranch, GitCompare } from "lucide-react"
+import { Download, GitBranch, GitCompare, Printer } from "lucide-react"
 import dynamic from "next/dynamic"
 import { useState } from "react"
 
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
-import { formatCount, formatMoney, plural } from "@/lib/units"
+import { FILL_LOW, formatCount, formatMoney, formatPercent, plural } from "@/lib/units"
 
 import { baseline, depot, lookups } from "../fixtures"
 import { planFlowSteps } from "../fixtures/stages"
@@ -29,7 +29,8 @@ export function ResultsBlock() {
   const look = lookups(run)
   const [cluster, setCluster] = useState(3)
   const [stop, setStop] = useState<string | null>(null)
-  const [tab, setTab] = useState("clusters")
+  // Map first (design review `workbench.first`): the cluster map is the initial view after a run.
+  const [tab, setTab] = useState("map")
   // Each business step opens the view that explains it.
   const stepTab: Record<string, string> = { orders: "unshipped", allocated: "unshipped", stops: "map", clusters: "clusters", trucks: "clusters", shipped: "unshipped" }
   const trucks = run.trucks.filter((t) => t.cluster === cluster).sort((a, b) => b.fill - a.fill)
@@ -43,6 +44,9 @@ export function ResultsBlock() {
         <>
           <Button variant="ghost" size="sm">
             <Download /> Export
+          </Button>
+          <Button variant="ghost" size="sm">
+            <Printer /> Shipment sheets
           </Button>
           <Button variant="outline" size="sm">
             <GitBranch /> Branch
@@ -64,7 +68,7 @@ export function ResultsBlock() {
               </div>
             </div>
             <div className="ml-auto flex flex-wrap gap-1.5">
-              {["k auto → 6", "seed 0", "× 1.2", "500 mi leg / diameter", "order date → value"].map((c) => (
+              {["k = 6 (explorer)", "seed 0", "× 1.2", "500 mi max drive", "order date → value", "fewest trucks, then miles"].map((c) => (
                 <Badge key={c} variant="outline">
                   {c}
                 </Badge>
@@ -74,23 +78,24 @@ export function ResultsBlock() {
 
           <PlanFlow steps={planFlowSteps(run)} onSelect={(id) => setTab(stepTab[id] ?? "clusters")} />
 
-          <RunMetricGroups metrics={run.metrics} maxDiameter={run.settings.maxDiameterMiles} />
+          <RunMetricGroups metrics={run.metrics} />
 
           <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
             <TabsList variant="underline">
+              <TabsTab value="map">Map</TabsTab>
               <TabsTab value="clusters">
-                Clusters & trucks <Badge variant="secondary" size="sm">{run.clusters.length}</Badge>
+                Clusters & shipments <Badge variant="secondary" size="sm">{run.clusters.length}</Badge>
               </TabsTab>
               <TabsTab value="unshipped">
                 Unshipped <Badge variant="warning" size="sm">{formatMoney(unshippedAmount, { compact: true })}</Badge>
               </TabsTab>
-              <TabsTab value="map">Map</TabsTab>
             </TabsList>
 
             <TabsPanel value="clusters" className="space-y-4 pt-4">
               <p className="text-muted-foreground flex items-center gap-2 text-xs">
                 <span className="bg-warning h-2.5 w-1.5 rounded-[2px]" aria-hidden />
-                One bar per truck, fullest first. Amber bars are under 60% fill; the dashed line marks 60%.
+                One bar per shipment, fullest first. Amber bars are under {formatPercent(FILL_LOW)} trailer fill; the dashed line marks{" "}
+                {formatPercent(FILL_LOW)}.
               </p>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {run.clusters.map((c) => (
@@ -107,7 +112,7 @@ export function ResultsBlock() {
               </div>
               <div className="flex items-baseline justify-between">
                 <h3 className="text-sm font-medium">
-                  Cluster {cluster} · {plural(trucks.length, "truck")}
+                  Cluster {cluster} · {plural(trucks.length, "shipment")}
                 </h3>
                 <span className="text-muted-foreground text-xs">fullest first · showing 4 of {formatCount(trucks.length)}</span>
               </div>

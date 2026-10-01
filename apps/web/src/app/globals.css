@@ -244,3 +244,15 @@
     @apply bg-transparent! dark:invert;
   }
 }
+/* Shipment sheets print black on white regardless of theme (spec v1.8 §15 M2 item 11). */
+@media print {
+  :root,
+  .dark {
+    color-scheme: light;
+  }
+  html,
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}

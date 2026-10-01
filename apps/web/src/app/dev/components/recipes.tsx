@@ -86,6 +86,8 @@ export function KElbowChart({
           />
         </ComposedChart>
       </ChartContainer>
+      {/* Only when the optional diameter policy is on; with it off (the default) no k needs repair. */}
+      {rows.some((r) => r.repairs > 0) && (
       <div className="text-muted-foreground mt-1 flex items-center gap-2 pr-8 text-[10px]">
         <span className="w-7 shrink-0 text-right leading-tight">repair</span>
         <div className="grid flex-1 gap-px" style={{ gridTemplateColumns: `repeat(${rows.length}, 1fr)` }}>
@@ -100,13 +102,14 @@ export function KElbowChart({
                 r.repairs ? "bg-warning/15 text-warning-foreground" : "bg-muted text-muted-foreground",
                 r.k === chosen && "ring-foreground/40 ring-1"
               )}
-              title={`${r.repairs} clusters over the diameter limit at k = ${r.k}`}
+              title={`${r.repairs} clusters over the diameter policy at k = ${r.k}`}
             >
               {r.repairs || "✓"}
             </button>
           ))}
         </div>
       </div>
+      )}
     </div>
   )
 }

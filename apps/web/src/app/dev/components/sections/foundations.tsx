@@ -56,8 +56,8 @@ export function Foundations() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             ["info", "Running, claimed, excluded lines"],
-            ["success", "Succeeded, full trucks (≥ 85%), non-dominated runs"],
-            ["warning", "Low fill (< 60%), no stock, approximate coordinates"],
+            ["success", "Succeeded, full trailers (≥ 90%), non-dominated runs"],
+            ["warning", "Low trailer fill (< 80%), no stock, approximate coordinates"],
             ["destructive", "Failed, beyond leg limit, over a hard limit"],
           ].map(([t, use]) => (
             <div key={t} className="bg-card overflow-hidden rounded-xl border">
@@ -76,8 +76,8 @@ export function Foundations() {
         </div>
         <Row label="Truck fill bands (lib/units fillBand)" className="mt-6">
           <div className="flex h-8 w-full max-w-xl overflow-hidden rounded-lg border text-[11px] font-medium">
-            <span className="bg-warning/15 text-warning-foreground flex items-center px-2" style={{ width: "60%" }}>
-              low · under 60%
+            <span className="bg-warning/15 text-warning-foreground flex items-center px-2" style={{ width: "80%" }}>
+              low · under 80%
             </span>
             <span className="bg-muted text-muted-foreground flex items-center px-2" style={{ width: "25%" }}>
               fair
@@ -128,7 +128,7 @@ export function Foundations() {
             {[
               ["text-4xl font-semibold tracking-tight", "4xl / semibold", "Fuller trucks."],
               ["text-2xl font-semibold tracking-tight", "2xl / semibold", "Mid-South open orders · v14"],
-              ["text-lg font-medium", "lg / medium", "Cluster 3 · 22 trucks"],
+              ["text-lg font-medium", "lg / medium", "Cluster 3 · 22 shipments"],
               ["text-sm", "sm / regular", "Body text. The default workbench size for tables, inspectors, and forms."],
               ["text-muted-foreground text-xs", "xs / muted", "Captions, units, and secondary metadata."],
               ["font-mono text-xs tabular-nums", "mono xs / tabular", "C3-T14 · 45.3 ft · 87% · 412 mi · $26,410"],

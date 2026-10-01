@@ -9,7 +9,6 @@ import {
   LabelList,
   Line,
   LineChart,
-  ReferenceLine,
   Scatter,
   ScatterChart,
   XAxis,
@@ -112,7 +111,7 @@ export function Charts() {
   const radarMetrics = [
     { key: "avgFill", label: "Avg fill" },
     { key: "minFill", label: "Min fill" },
-    { key: "trucks", label: "Fewer trucks" },
+    { key: "trucks", label: "Fewer shipments" },
     { key: "tight", label: "Tightness" },
     { key: "revenue", label: "Revenue" },
   ]
@@ -169,7 +168,7 @@ export function Charts() {
         <Specimen
           id="fill-distribution"
           title="Fill distribution"
-          description="Trucks per 10% fill bucket for two runs. The shaded area is the under-60% band the user wants to shrink."
+          description="Shipments per 10% trailer-fill bucket for two runs. The shaded area is the under-80% band the user wants to shrink."
         >
           <ChartCard>
             <ChartContainer config={fillConfig} className="h-72 w-full">
@@ -193,7 +192,7 @@ export function Charts() {
         <Specimen
           id="k-elbow"
           title="k explorer: elbow & stability"
-          description="Within-cluster variance falls as k grows; stability is the mean adjusted Rand index over seeds 0–9. The row below counts clusters that need diameter repair."
+          description="Within-cluster variance falls as k grows; stability is the mean adjusted Rand index over seeds 0–9. A repair row appears only when the optional diameter policy is on."
         >
           <ChartCard>
             <KElbowChart rows={explorer.rows} chosen={7} />
@@ -213,7 +212,7 @@ export function Charts() {
         <Specimen
           id="cluster-scatter"
           title="Cluster tightness vs fill"
-          description="One bubble per cluster: widest pair against average fill, sized by revenue. The dashed line is the 500 mi diameter limit."
+          description="One bubble per cluster: widest pair (a tightness measure, not a limit) against average trailer fill, sized by revenue."
         >
           <ChartCard>
             <ChartContainer config={{}} className="h-72 w-full">
@@ -222,7 +221,6 @@ export function Charts() {
                 <XAxis type="number" dataKey="widest" domain={[250, 520]} tickLine={false} axisLine={false} unit=" mi" name="Widest pair" />
                 <YAxis type="number" dataKey="fill" domain={[70, 90]} tickLine={false} axisLine={false} width={40} unit="%" />
                 <ZAxis type="number" dataKey="revenue" range={[160, 900]} />
-                <ReferenceLine x={500} stroke="var(--destructive)" strokeDasharray="4 4" label={{ value: "limit", position: "insideTopRight", fontSize: 10, fill: "var(--destructive)" }} />
                 <ChartTooltip
                   cursor={{ strokeDasharray: "3 3" }}
                   content={({ payload }) => {
@@ -230,7 +228,7 @@ export function Charts() {
                     if (!d) return null
                     return (
                       <Tip title={<><ClusterSwatch cluster={d.id} size="sm" /> {look.clusterArea(d.id)}</>}>
-                        {formatMiles(d.widest)} wide · {d.fill}% avg fill · {d.trucks} trucks · {formatMoney(d.revenue * 100, { compact: true })}
+                        {formatMiles(d.widest)} wide · {d.fill}% avg fill · {d.trucks} shipments · {formatMoney(d.revenue * 100, { compact: true })}
                       </Tip>
                     )
                   }}

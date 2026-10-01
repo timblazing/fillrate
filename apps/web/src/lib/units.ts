@@ -32,9 +32,11 @@ export function formatCount(n: number) {
 /** Fill bands used by every truck-fill visual, so "low" means the same thing everywhere. */
 export type FillBand = "low" | "fair" | "full"
 
-/** Band edges: under LOW is flagged, FULL and up reads as full. Legends read these so they never drift. */
-export const FILL_LOW = 0.6
-export const FILL_FULL = 0.85
+/** Band edges: under LOW is flagged, FULL and up reads as full. Legends read these so they never drift.
+ * Run-display settings only; they never affect the solver. 80% is the primary user's low-fill line
+ * (design review round one); 90% is a provisional default to confirm in round two. */
+export const FILL_LOW = 0.8
+export const FILL_FULL = 0.9
 
 export function fillBand(fill: number): FillBand {
   if (fill < FILL_LOW) return "low"
