@@ -655,19 +655,32 @@ def run_pipeline(
             if cluster_task:
                 cluster_task("complete", meta["id"], task_hash, solves[-1])
             continue
-        result = solve_partition(
-            PartitionProblem(
-                distance=np.array(trav["matrix"], dtype=np.int64),
-                visits=pvisits,
-                capacity=cap,
-                max_leg_m=settings.max_leg_m,
-                truck_penalty=prob["truck_penalty"],
-                distance_cost=prob["distance_cost"],
-                seed=settings.solver_seed,
-                max_iterations=settings.solver_max_iterations,
-                max_runtime_s=min(settings.solver_time_limit_s, remaining - 0.5),
+        try:
+            result = solve_partition(
+                PartitionProblem(
+                    distance=np.array(trav["matrix"], dtype=np.int64),
+                    visits=pvisits,
+                    capacity=cap,
+                    max_leg_m=settings.max_leg_m,
+                    truck_penalty=prob["truck_penalty"],
+                    distance_cost=prob["distance_cost"],
+                    seed=settings.solver_seed,
+                    max_iterations=settings.solver_max_iterations,
+                    max_runtime_s=min(settings.solver_time_limit_s, remaining - 0.5),
+                )
             )
-        )
+        except Exception as error:  # noqa: BLE001 - one cluster's failure must not hide the others
+            # Spec §9: a failed cluster invalidates the plan; other clusters stay inspectable.
+            # Not checkpointed, so a retried attempt solves this cluster again.
+            solves.append(
+                {
+                    "cluster_id": meta["id"],
+                    "status": "solver_error",
+                    "error": f"{type(error).__name__}: {error}"[:500],
+                    "routes": [],
+                }
+            )
+            continue
         solves.append(
             {
                 "cluster_id": meta["id"],
@@ -789,6 +802,12 @@ def run_pipeline(
                 else (
                     "no_valid_candidate",
                     "solve",
+                    "The solver raised an error for this cluster: " + solve.get("error", ""),
+                )
+                if solve["status"] == "solver_error"
+                else (
+                    "no_valid_candidate",
+                    "solve",
                     "PyVRP returned no feasible candidate within its budget; "
                     "not proof of infeasibility.",
                 )
@@ -817,7 +836,8 @@ def run_pipeline(
                     else "validated"
                     if valid
                     else "no_candidate"
-                    if solve["status"] == "budget_exhausted" or not solve.get("solver_feasible")
+                    if solve["status"] in ("budget_exhausted", "solver_error")
+                    or not solve.get("solver_feasible")
                     else "invalid_candidate"
                 ),
                 trucks=len(cluster_trucks),
@@ -1032,7 +1052,7 @@ def validate_cluster(meta, prob, trav, solve, visits, lines, settings) -> dict[s
         return {
             "cluster_id": meta["id"],
             "valid": False,
-            "violations": ["no candidate"],
+            "violations": [solve.get("error", "no candidate")],
             "trucks": [],
         }
     if not solve["solver_feasible"]:

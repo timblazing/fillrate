@@ -25,7 +25,7 @@ export function validateMetadata(input: ScenarioMetadata) {
   return input;
 }
 export function scenarioList(store: Store) {
-  return store.sqlite.prepare(`SELECT s.id, s.name, v.id AS versionId, v.revision, v.author, v.createdAt FROM scenarios s JOIN scenario_versions v ON v.scenarioId=s.id WHERE v.revision=(SELECT MAX(revision) FROM scenario_versions WHERE scenarioId=s.id) ORDER BY v.createdAt DESC LIMIT 100`).all();
+  return store.sqlite.prepare(`SELECT s.id, s.name, v.id AS versionId, v.revision, v.author, v.createdAt, (SELECT parentVersionId FROM scenario_versions WHERE scenarioId=s.id AND revision=1) AS branchedFrom FROM scenarios s JOIN scenario_versions v ON v.scenarioId=s.id WHERE v.revision=(SELECT MAX(revision) FROM scenario_versions WHERE scenarioId=s.id) ORDER BY v.createdAt DESC LIMIT 100`).all();
 }
 export function scenarioVersion(store: Store, scenarioId: string, versionId?: string) {
   const row = store.sqlite.prepare(`SELECT * FROM scenario_versions WHERE scenarioId=? ${versionId ? "AND id=?" : "ORDER BY revision DESC LIMIT 1"}`).get(...(versionId ? [scenarioId, versionId] : [scenarioId])) as { id: string; scenarioId: string; revision: number; parentVersionId: string | null; document: string; author: string; createdAt: number } | undefined;

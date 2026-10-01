@@ -1,7 +1,8 @@
 #!/bin/bash
 # Container smoke test (spec §14): start the image with a fresh volume, wait for the web app
 # and worker, run the bundled synthetic pipeline through the public API, and check that the
-# result is validated and exportable. Usage: deploy/smoke.sh <image> [platform]
+# result is validated and exportable; then run an imported CSV scenario behind the operator key
+# (smoke_import.py). Usage: deploy/smoke.sh <image> [platform]
 set -euo pipefail
 image="$1"
 platform="${2:-}"
@@ -13,7 +14,7 @@ cleanup() { docker logs "$name" 2>&1 | tail -40 || true; docker rm -f "$name" >/
 trap cleanup EXIT
 
 docker run -d --name "$name" ${platform:+--platform "$platform"} -p "127.0.0.1:$port:3000" \
-  -e RUN_KEY=smoke -v "$volume:/app/data" "$image" >/dev/null
+  -e RUN_KEY=smoke -e SCENARIO_KEY=smoke-scenario -v "$volume:/app/data" "$image" >/dev/null
 
 base="http://127.0.0.1:$port"
 for i in $(seq 1 120); do
@@ -45,3 +46,4 @@ rows=$(curl -fsS "$base/api/v1/runs/$id/export?format=csv&table=loads" | wc -l)
 [ "$rows" -gt 1 ] || { echo "empty loads export"; exit 1; }
 curl -fsS "$base/api/v1/runs/$id/export?format=json" | json 'd["summary"]["totals"]["planned_cents"]' >/dev/null
 echo "smoke ok: $rows loads CSV rows"
+python3 "$(dirname "$0")/smoke_import.py" "$base" smoke-scenario

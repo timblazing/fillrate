@@ -21,7 +21,8 @@ export default async function SheetPage({ params, searchParams }: PageProps<"/ru
     assertRunReadAccess(store, id, new Request("http://localhost/sheet", {headers:{cookie:(await headers()).get("cookie") ?? ""}}))
     detail = runDetail(store, id)
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) notFound()
+    // Imported runs without operator access read as missing, so their existence is not revealed.
+    if (error instanceof ApiError && [403, 404, 503].includes(error.status)) notFound()
     throw error
   }
   if (!detail.summary) notFound()

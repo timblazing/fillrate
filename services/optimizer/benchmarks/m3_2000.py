@@ -1,13 +1,19 @@
 """Reproducible M3 throughput probe: 2,000 order lines and 640 locations.
 
-Run from services/optimizer: uv run python benchmarks/m3_2000.py.
-This generates synthetic input only and writes no customer data.
+Run from services/optimizer: uv run python benchmarks/m3_2000.py [--default-budget] [--out PATH].
+The default probe caps PyVRP at 500 iterations per cluster so timings are comparable across
+machines; --default-budget uses the spec §9 pipeline default (10 s per cluster, no iteration cap),
+the wall time an operator actually waits. image.yml runs both inside the tested image on amd64
+and arm64. This generates synthetic input only and writes no customer data.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
+import os
+import platform
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -59,8 +65,16 @@ def make_scenario() -> ScenarioDocument:
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--default-budget", action="store_true")
+    parser.add_argument("--out", type=Path, default=Path("benchmarks/m3_2000_result.json"))
+    args = parser.parse_args()
     scenario = make_scenario()
-    settings = RunSettings(k=8, solver_max_iterations=500, solver_time_limit_s=5)
+    settings = (
+        RunSettings(k=8)
+        if args.default_budget
+        else RunSettings(k=8, solver_max_iterations=500, solver_time_limit_s=5)
+    )
     events: list[tuple[str, float]] = []
     started = time.monotonic()
     output = run_pipeline(
@@ -74,6 +88,17 @@ def main():
     for (name, at), (_, next_at) in zip(events, events[1:] + [("end", ended)], strict=True):
         stages[name] += next_at - at
     report = {
+        "budget": (
+            "default: 10 s per cluster"
+            if args.default_budget
+            else "500 iterations per cluster (5 s cap)"
+        ),
+        "platform": {
+            "machine": platform.machine(),
+            "system": platform.system(),
+            "cpus": os.cpu_count(),
+            "python": platform.python_version(),
+        },
         "orders": len(scenario.orders),
         "lines": sum(len(o.lines) for o in scenario.orders),
         "locations": len(scenario.locations),
@@ -84,7 +109,7 @@ def main():
         "clusters": len(output.summary.clusters),
     }
     print(json.dumps(report, indent=2))
-    Path("benchmarks/m3_2000_result.json").write_text(json.dumps(report, indent=2) + "\n")
+    args.out.write_text(json.dumps(report, indent=2) + "\n")
 
 
 if __name__ == "__main__":

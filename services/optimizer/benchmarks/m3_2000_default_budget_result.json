@@ -1,5 +1,5 @@
 {
-  "budget": "500 iterations per cluster (5 s cap)",
+  "budget": "default: 10 s per cluster",
   "platform": {
     "machine": "arm64",
     "system": "Darwin",
@@ -9,18 +9,18 @@
   "orders": 2000,
   "lines": 2000,
   "locations": 640,
-  "elapsed_s": 2.659,
+  "elapsed_s": 80.717,
   "stage_s": {
     "preflight": 0.037,
-    "allocation": 0.005,
+    "allocation": 0.006,
     "aggregation": 0.023,
-    "clustering": 0.075,
-    "travel": 0.058,
-    "solve": 2.303,
-    "validation": 0.007,
-    "summary": 0.112
+    "clustering": 0.076,
+    "travel": 0.059,
+    "solve": 80.358,
+    "validation": 0.006,
+    "summary": 0.114
   },
   "validity": "valid",
-  "trucks": 205,
+  "trucks": 203,
   "clusters": 8
 }

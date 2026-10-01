@@ -117,6 +117,35 @@ def test_cluster_result_checkpoint_resumes_after_attempt_change():
     assert first.summary.totals.planned_cents == second.summary.totals.planned_cents
 
 
+def test_solver_error_in_one_cluster_keeps_other_clusters_as_partial_plan(monkeypatch):
+    import fillrate_optimizer.pipeline as pipeline
+
+    doc = scenario(
+        [("E", east(100)), ("W", east(-100))],
+        [("O1", "E", "2026-09-01", "P", 2, 100), ("O2", "W", "2026-09-01", "P", 2, 100)],
+        [("P", 4)],
+    )
+    real = pipeline.solve_partition
+    calls = []
+
+    def flaky(problem):
+        calls.append(problem)
+        if len(calls) == 1:
+            raise RuntimeError("solver crashed")
+        return real(problem)
+
+    monkeypatch.setattr(pipeline, "solve_partition", flaky)
+    out = run(doc, k=2)
+    statuses = sorted(c.status for c in out.summary.clusters)
+    assert statuses == ["no_candidate", "validated"]
+    assert out.summary.validity == "invalid"
+    assert out.summary.coverage == "partial"
+    assert out.summary.totals.trucks == 1
+    failed = [u for u in out.summary.unplanned if "solver raised" in u.evidence]
+    assert len(failed) == 1 and failed[0].reason == "no_valid_candidate"
+    assert any(d.code == "partial_plan" for d in out.summary.diagnostics)
+
+
 # ---- canonical JSON must match JavaScript -----------------------------------------------------
 
 

@@ -20,7 +20,8 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
     assertRunReadAccess(store, id, new Request("http://localhost/runs", {headers: {cookie: (await headers()).get("cookie") ?? ""}}))
     detail = runDetail(store, id)
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) notFound()
+    // Imported runs without operator access read as missing, so their existence is not revealed.
+    if (error instanceof ApiError && [403, 404, 503].includes(error.status)) notFound()
     throw error
   }
   return (

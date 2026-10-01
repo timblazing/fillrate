@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDatabase, type Store } from "../src/index";
-import { saveScenario, scenarioVersion, validateScenario } from "../src/scenarios";
+import { saveScenario, scenarioList, scenarioVersion, validateScenario } from "../src/scenarios";
 import example from "../../../examples/m1-synthetic.json";
 let store: Store, dir: string;
 const metadata = {timezone:"America/Chicago", planningDate:"2026-09-30", browserId:"test-browser"};
@@ -19,6 +19,9 @@ test("save conflicts preserve edits, branch preserves source version and old run
   const branch=saveScenario(store,{...input(),scenarioId:first.scenarioId,expectedVersionId:first.versionId,branch:true});
   expect(branch.scenarioId).not.toBe(first.scenarioId);
   expect(scenarioVersion(store,branch.scenarioId).parentVersionId).toBe(first.versionId);
+  const listed = scenarioList(store) as { id: string; branchedFrom: string | null }[];
+  expect(listed.find(x=>x.id===branch.scenarioId)?.branchedFrom).toBe(first.versionId);
+  expect(listed.find(x=>x.id===first.scenarioId)?.branchedFrom).toBeNull();
   expect(scenarioVersion(store,first.scenarioId).id).toBe(second.versionId);
   expect(store.runView(run)?.versionId).toBe(first.versionId);
   expect(scenarioVersion(store,first.scenarioId,first.versionId).source).toEqual({ordersCsv:"original"});
