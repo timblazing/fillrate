@@ -41,11 +41,14 @@
   - [x] Round-two review restored at `/dev/review` with new `r2.*` question ids
   - [ ] `fillrate.fig`: Components page on coss parts; Foundations gains `--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`, fill bands (OpenPencil app was not running this session)
   - [ ] Round-two answers recorded and Blocks accepted (or changes applied and re-accepted)
-- [ ] **M3 Operational core** (implementation largely in place; final checks remain)
+- [x] **M3 Operational core** (done 2026-10-01)
   - [x] CSV preview/commit, scenario editing and versioning, real imported runs and exports
   - [x] Cost objective, customer-aware stops, blocking preflight, durable cluster checkpoints and deterministic stage reuse
   - [x] Compressed large travel artifacts and a measured 2,000-order benchmark
-  - [ ] Production access and narrow-width browser checks, target-hardware benchmark
+  - [x] A solver exception in one cluster gives an invalid partial plan; the other clusters stay validated and inspectable (spec §9)
+  - [x] Production operator-key access checked against `next start` and in the image smoke (`deploy/smoke_import.py`): refusal without the key, preview → save → preflight block → excluded-line run → validated result → private export → branch → conflict
+  - [x] Narrow-width (390 px) browser check: `/scenarios` and an imported `/runs/<id>` have no page-level horizontal scroll; imported run pages without access return 404
+  - [x] 2,000-order benchmark inside the tested image on amd64 and arm64 GitHub runners (`image.yml` job summary and artifacts)
 - [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, partition bounds, H3 layer/baseline, lesson and small Python replay export)
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
@@ -74,6 +77,8 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 
 **M2 implementation is in (2026-09-30); acceptance is open.** Spec v1.8 §15 "M2 scope" items 1–15 and 17 are built (checklist above). Exit evidence still missing: round-two answers with explicit acceptance, and item 16 (`fillrate.fig` Components on coss, missing Foundations tokens), which needs the OpenPencil desktop app. Verification: optimizer pytest 54 passed (new: diameter off by default, preflight block/warn, `excluded_by_user` reconciliation, unknown exclusions rejected); Vitest 24 passed (new: shipment sheets agree with validated trucks, a blocking preflight fails permanently on attempt 1, review store upsert/delete); Ruff, lint (one pre-existing `globe.tsx` warning), typecheck, contract regeneration and build pass. A dev run of the example (k = 4) gave 19 shipments, valid, partial coverage, all three checks recorded as warnings.
 
+**M3 is complete (2026-10-01).** `/scenarios` imports order and inventory CSVs (column mapping, row errors, samples, templates), saves immutable versions with authorship, optimistic conflicts and branches, edits lines/stock/coordinates, reviews preflight checks (block, exclude lines, or warn) and starts real worker runs with the full settings, including the cost objective. Runs reuse deterministic stages and checkpoint each cluster. Imported data needs `SCENARIO_KEY` in production. Evidence and benchmarks are under "M3 done" below.
+
 ## Design workflow (M2 prep)
 1. **Foundations** page in `fillrate.fig`: variables named exactly like the CSS tokens in `apps/web/src/app/globals.css` (light + dark modes), plus type scale, radius, spacing, and `route-1..8`.
 2. Export tokens → `globals.css`; check them in `/dev/components`.
@@ -81,24 +86,33 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 4. **Blocks**: app shell, orders and inventory, run pipeline, k explorer, cluster cards, truck loads, unshipped reasons, iteration comparison, and map (spec v1.3 §8a, §10). Route timeline is secondary.
 5. Record the accepted direction in `docs/decisions.md`. M2 then builds the Blocks as real React screens.
 
+## M3 done (2026-10-01)
+Exit evidence: commit `0c4c32c`. `ci.yml` run 36802654448 passed; `image.yml` run 36802773247 built amd64 and arm64, and each image passed the bundled smoke plus the imported-scenario smoke (validated run, 8 shipments, $855.00 planned, branch saved, stale save → 409). Benchmarks in the tested image, 2,000 orders / 640 locations / k = 8, 4-CPU runners:
+
+| Budget | amd64 total (solve) | arm64 total (solve) | Shipments |
+| --- | --- | --- | --- |
+| 500 iterations per cluster | 4.62 s (4.11 s) | 4.15 s (3.69 s) | 205 |
+| Default 10 s per cluster | 81.0 s (80.5 s) | 80.9 s (80.5 s) | 203 |
+
+Both stay far below `RUN_WALL_LIMIT_SECONDS` (600). GitHub runners stand in for the deployment VPS and Raspberry Pi; measuring the real machines is an M4 release gate (spec §15). Local Mac: 2.66 s and 80.7 s (`services/optimizer/benchmarks/*.json`).
+
 ## M3 checkpoint (2026-09-30)
 Imported CSV completed preview → immutable save → real worker → validated shipment in a browser. Local checks passed: 43 Vitest, 72 pytest, Ruff, lint, typecheck and production build. A synthetic 2,000-order / 640-location / 8-cluster run took 2.733 s on this Mac; solve was 2.366 s (`services/optimizer/benchmarks/m3_2000_result.json`). Production imported-data access uses `SCENARIO_KEY`; public multi-user isolation is still a release gate. Cluster tasks are sequential but completed clusters resume after lease expiry. Solver exceptions still fail a run; matrix subpart reuse across changed partitions remains open. Actual cost rates await the primary user.
 
 ## Known gaps
 - The home page (`/`) is a minimal hero: title, one-line description, GitHub and "See my progress" (`/dev`) buttons beside the cobe globe (`components/animated/hero-globe.tsx`). It has no header and does not link the component gallery; the `/dev` header logo links back to `/`.
 - SQLite lives in `/app/data` (not the spec's `/data`, kept for the existing review deployment) and is ephemeral unless a volume is mounted there.
-- The travel artifact stores each cluster's full matrix as JSON; fine for M1, but a 500-stop cluster approaches the 8 MiB artifact cap. Chunked/binary matrix artifacts are M3 work.
-- Stage reuse/caching is not implemented: every run recomputes all stages (manifests record input hashes for M3 reuse).
+- Cluster solves run sequentially inside one leased job (default solve concurrency is one); each cluster is a durable checkpoint that resumes after lease expiry. Matrix subpart reuse across changed partitions (spec §9 "may") is not implemented; travel takes about 0.06 s at 2,000 orders, so it waits for M4 sweeps.
+- Imported runs are visible only with the operator key; the `fillrate_operator` cookie (set when a run is started from `/scenarios`) is what lets `/runs/<id>` open them, so opening an imported run link in a fresh browser shows 404 until a run is started there.
 - The pipeline stores integer-meter matrices from haversine × circuity only; no service-radius policy (disabled by default per spec) and no Valhalla.
 - A capacity-forced prohibited leg (B reachable only via A, but A + B exceed a trailer) ends as "no valid candidate": PyVRP prefers an overloaded infeasible route over a MAX_VALUE edge. Correctly reported, never counted as planned.
 - `ghcr.io/timblazing/fillrate:latest` is now the combined web + optimizer image. Deployments keep `/app/data`; starting runs in production needs `RUN_KEY`.
 - Several workflow actions still target Node 20 (GitHub forces Node 24 and warns); bump their major versions when available.
 - No Playwright browser smoke yet (spec §14 CI item); the image smoke covers the public API only.
-- Run settings exposed publicly are only k, k-means seed and solver seed; everything else comes from the bundled example.
 - The legacy `solve_loads` spike in `loads.py` keeps its zero default truck penalty for its capability fixtures; the pipeline uses `solve_partition` with the derived penalty and shared location nodes. The gallery still uses its v1.3 TypeScript stand-in.
 - The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.
-- The cluster-diameter limit is off by default (M2). With it off, auto-k only enforces `MAX_STOPS`, so auto k is usually 1; runs default to a fixed k. Trucks-then-miles stays the fallback objective until cost rates arrive; the cost objective is designed (`ObjectiveSettings`) but not in the solver (M3).
-- Preflight blocking is enforced when the pipeline runs (a `preflight_blocked` permanent failure), not yet at submission; the public API only overrides k and seeds, so it cannot yet send `preflight` or `excluded_line_ids` (M3 with imports).
+- The cluster-diameter limit is off by default (M2). With it off, auto-k only enforces `MAX_STOPS`, so auto k is usually 1; runs default to a fixed k. Trucks-then-miles stays the default objective; the cost objective works in the solver but needs his real rates.
+- The synthetic `/api/v1/runs` API still only overrides k and seeds; full settings, preflight policies and exclusions go through `/api/v1/scenarios/runs` (operator key), which enforces preflight at submission.
 - CSV exports now start with a `# …` note line naming the UI labels (M2 item 1). Tools that do not skip comment lines see it as a first row.
 - The Run pipeline Block shows the previous (simulated) run's steps while preflight blocks a new one; resolution choices are local state only.
 - Runs created before this change have no `summary.preflight` and show no preflight panel.
@@ -128,4 +142,4 @@ Round two is live at `/dev/review` (production needs `REVIEW_KEY`; send the link
 Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts (M2 item 16).
 
 ## Next step
-Finish M3 production access and narrow-width checks; measure on target hardware. Separately, send the round-two review link; record the answers in `docs/decisions.md` and apply any requested changes. With OpenPencil open, rebuild the `fillrate.fig` Components page on coss parts and add the missing Foundations tokens (item 16). Then mark M2 done and start M3 (imports, versioning, cost objective once rates exist, preflight at submission, stage reuse, 2,000-order benchmark).
+Start M4 (k explorer on real runs, bounded sweeps, comparison signatures, partition bounds, H3 baseline, flagship lesson). In parallel: send the round-two review link and record the answers (including cost per truck and per mile); with OpenPencil open, rebuild the `fillrate.fig` Components page on coss parts and add the missing Foundations tokens, then mark M2 done.

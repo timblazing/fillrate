@@ -1,7 +1,7 @@
 {
-  "updated": "2026-09-30",
-  "focus": "M3",
-  "productBehavior": 27,
+  "updated": "2026-10-01",
+  "focus": "M4",
+  "productBehavior": 31,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -17,9 +17,9 @@
     },
     "M3": {
       "weight": 20,
-      "done": 80,
-      "state": "active",
-      "notes": "CSV imports, versioned scenarios, real imported runs, cost solving, preflight, stage reuse and 2,000-order benchmark work locally. Final access, narrow-width and target-hardware checks remain."
+      "done": 100,
+      "state": "done",
+      "notes": "Done: CSV preview/commit, versioned scenarios with branches and conflicts, preflight at submission, cost objective, stage reuse and per-cluster checkpoints, partial plans on solver errors. The image smoke runs an imported scenario behind the operator key on amd64 and arm64; 2,000 orders take about 4 s at 500 iterations per cluster and 81 s at the default 10 s per cluster."
     },
     "M4": {
       "weight": 15,
@@ -53,8 +53,8 @@
     }
   },
   "nextUp": [
-    "M3: verify production operator-key access and narrow-width scenario flow.",
-    "M3: benchmark on target hardware and close remaining cluster/matrix limits.",
-    "M2: collect round-two review answers and finish OpenPencil Components."
+    "M4: k explorer and bounded sweeps on real runs, with comparison signatures and partition bounds.",
+    "M4: H3 baseline, flagship lesson, and target-hardware/public-access release gates.",
+    "M2: collect round-two review answers (including cost rates) and finish OpenPencil Components."
   ]
 }
