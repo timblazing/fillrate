@@ -29,9 +29,9 @@
     },
     "M5": {
       "weight": 10,
-      "done": 95,
-      "state": "active",
-      "notes": "Done: all five allocation strategies, whole-order mode, CP-SAT with per-stage status, provenance on /runs/<id>, allocation sweep axes, Census batch and one-line geocoding with cache and background jobs, pinned ZIP/ZCTA fallback, GeoJSON and scenario JSON imports, data review, coordinate review with map placement and undo, source-independent reproduction tests. Left: image.yml evidence for the ZCTA stage and the geocode smoke."
+      "done": 100,
+      "state": "done",
+      "notes": "Done: all five allocation strategies, whole-order mode, CP-SAT with per-stage status, provenance on /runs/<id>, allocation sweep axes, Census batch and one-line geocoding with cache and background jobs, pinned ZIP/ZCTA fallback, GeoJSON and scenario JSON imports, data review, coordinate review with map placement and undo, source-independent reproduction tests. image.yml 36828389128 built the ZCTA stage and passed the geocode smoke on amd64 and arm64."
     },
     "M6": {
       "weight": 12,
@@ -54,7 +54,6 @@
   },
   "nextUp": [
     "M6: durable directed matrix snapshots and worker selection; preflight, cache/comparison identities and replay integration, then a pinned Valhalla deployment.",
-    "M5: record image.yml evidence (ZCTA stage, smoke_geocode.py on amd64 and arm64).",
     "M4 (owner): target-hardware timings and recovery checks on the VPS and Pi.",
     "M2: rebuild fillrate.fig Components on coss parts (needs OpenPencil open).",
     "M8: Playwright browser smoke."

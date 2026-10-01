@@ -315,3 +315,7 @@ Exact resolved versions are in `bun.lock`.
 - After M5 integration, the export trace contains all 24 required optimizer assets and excludes optimizer tests, benchmarks, bytecode and virtual environments. Verified directly against the generated route trace after a Node 24 build.
 - Validation after M5 integration: 170 optimizer tests, Ruff lint and format, 67 Vitest tests including the real Python worker and offline replay, contract regeneration without drift, lint, typecheck and production build. Web checks use Node 24.21.0. The existing vendored `globe.tsx` hook-dependency lint warning remains. Docker builds were not run locally.
 - The first combined verification ran the build and test suite together and hit the existing five-second SQLite process-race test timeout. The unchanged test suite passed all 67 tests when rerun after the build finished.
+
+## 2026-10-01: M5 image evidence recorded, M5 done (Claude)
+- `image.yml` run 36828389128 (commit `126422b`, after `ci.yml` 36828119214) built the pinned ZCTA stage (33,791 ZCTAs from `zcta-gazetteer-2024`) and passed `deploy/smoke_geocode.py` on native amd64 and arm64 runners: one Census exact match, one ZCTA fallback, nothing unresolved. The multi-arch manifest was published from the tested digests.
+- M5 is marked done in `docs/progress.md` and `docs/status.json` (100%, `done`); the M5 item is removed from `nextUp`. `productBehavior` stays 53: the geocoding behavior was already counted, and this run only adds release evidence.
