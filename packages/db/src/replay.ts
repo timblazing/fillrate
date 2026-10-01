@@ -13,11 +13,12 @@ const DETERMINISTIC = ["preflight", "allocation", "aggregation", "clustering"] a
 /** Files the bundle needs from services/optimizer: project metadata, the lock and the package source. */
 function optimizerFiles(sourceDir: string) {
   const files: [string, Buffer][] = [];
-  for (const name of ["pyproject.toml", "uv.lock", ".python-version"]) files.push([`optimizer/${name}`, readFileSync(join(sourceDir, name))]);
-  const pkg = join(sourceDir, "src/fillrate_optimizer");
-  for (const name of readdirSync(pkg).sort()) {
-    const path = join(pkg, name);
-    if (name.endsWith(".py") && statSync(path).isFile()) files.push([`optimizer/${relative(sourceDir, path)}`, readFileSync(path)]);
+  // next.config.ts includes these replay assets explicitly; Docker also copies them to /app/optimizer.
+  for (const name of ["pyproject.toml", "uv.lock", ".python-version"]) files.push([`optimizer/${name}`, readFileSync(/* turbopackIgnore: true */ join(/* turbopackIgnore: true */ sourceDir, name))]);
+  const pkg = join(/* turbopackIgnore: true */ sourceDir, "src/fillrate_optimizer");
+  for (const name of readdirSync(/* turbopackIgnore: true */ pkg).sort()) {
+    const path = join(/* turbopackIgnore: true */ pkg, name);
+    if (name.endsWith(".py") && statSync(/* turbopackIgnore: true */ path).isFile()) files.push([`optimizer/${relative(sourceDir, path)}`, readFileSync(/* turbopackIgnore: true */ path)]);
   }
   return files;
 }
@@ -177,4 +178,3 @@ export function zipStore(files: [string, Buffer][]) {
   end.writeUInt32LE(directory.length, 12); end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, directory, end]);
 }
-

@@ -135,7 +135,7 @@ def test_forced_prohibited_leg_is_caught_by_the_validator():
     result = solve_loads(problem([stop("too_far", north(600), 1_000)]))
     assert result.solver_feasible
     assert not result.feasible
-    assert [v.code for v in result.violations] == ["leg_too_long"]
+    assert [v.code for v in result.violations] == ["leg_too_long", "distance_mismatch"]
     assert result.trucks[0].distance_m == MAX_VALUE
 
 
@@ -167,4 +167,10 @@ def test_validator_flags_coverage_and_capacity():
     d = problem_matrix(p)
     trucks = [Truck(["a", "b"], 6_000, 0), Truck(["b"], 3_000, 0)]
     codes = sorted(v.code for v in validate_loads(p, trucks, d))
-    assert codes == ["duplicate_stop", "over_capacity", "unassigned_stop"]
+    assert codes == [
+        "distance_mismatch",
+        "distance_mismatch",
+        "duplicate_stop",
+        "over_capacity",
+        "unassigned_stop",
+    ]

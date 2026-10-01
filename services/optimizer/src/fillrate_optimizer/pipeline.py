@@ -1149,7 +1149,7 @@ def add_visit_unplanned(out, visit, lines, reason, stage, evidence) -> None:
 
 def reachable(matrix: np.ndarray, max_leg_m: int) -> set[int]:
     """Nodes reachable from node 0 over allowed directed legs (≤ limit)."""
-    allowed = matrix <= max_leg_m
+    allowed = (matrix >= 0) & (matrix <= max_leg_m)
     np.fill_diagonal(allowed, False)
     seen, frontier = {0}, [0]
     while frontier:
@@ -1209,6 +1209,8 @@ def validate_cluster(meta, prob, trav, solve, visits, lines, settings) -> dict[s
             load += sum(p["pieces"] * lines[p["line_id"]]["lf"] for p in v["lines"])
             node = node_of[v["location_id"]]
             leg = int(matrix[prev][node])
+            if leg < 0:
+                violations.append(f"leg to {v['location_id']} is unreachable in the raw matrix")
             if leg > settings.max_leg_m:
                 violations.append(
                     f"leg to {v['location_id']} is {leg / 1609.344:.0f} mi > "

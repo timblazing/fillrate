@@ -69,6 +69,20 @@ class Capabilities(BaseModel):
 
 BEHAVIORS = [
     Behavior(
+        id="directed_road_travel",
+        availability="planned",
+        provided_by="preprocessing",
+        description=(
+            "M6 provider modules validate imported snapshots and assemble bounded Valhalla "
+            "truck matrices. Worker selection and durable matrix snapshots are still pending."
+        ),
+        restrictions=[
+            "Python provider fixtures only; not selectable in browser or worker jobs.",
+            "No live Valhalla deployment or route geometry has been verified.",
+        ],
+        fixture=None,
+    ),
+    Behavior(
         id="capacitated_loads",
         provided_by="native",
         description="Linear feet as the only load dimension; one vehicle type, unlimited count.",

@@ -157,8 +157,16 @@ def validate_loads(
             )
 
         path = [0] + [index[s] for s in truck.stop_ids if s in index]
+        physical_distance = 0
         for a, b in zip(path, path[1:], strict=False):
-            if distance[a, b] > problem.max_leg_m:
+            leg = int(distance[a, b])
+            if leg < 0:
+                violations.append(
+                    Violation("unreachable_leg", "Route uses a missing provider edge.", t)
+                )
+            else:
+                physical_distance += leg
+            if leg > problem.max_leg_m:
                 to_id = problem.stops[b - 1].id
                 violations.append(
                     Violation(
@@ -168,6 +176,17 @@ def validate_loads(
                         to_id,
                     )
                 )
+        if all(distance[a, b] >= 0 for a, b in zip(path, path[1:], strict=False)) and (
+            physical_distance != truck.distance_m
+        ):
+            violations.append(
+                Violation(
+                    "distance_mismatch",
+                    f"Reported distance {truck.distance_m} ≠ "
+                    f"physical distance {physical_distance}.",
+                    t,
+                )
+            )
 
     for stop in problem.stops:
         if stop.id not in seen:
@@ -306,7 +325,21 @@ def solve_partition(problem: PartitionProblem) -> PartitionResult:
     )
 
     distance = problem.distance
+    if (
+        distance.ndim != 2
+        or distance.shape[0] != distance.shape[1]
+        or distance.dtype.kind not in "iu"
+        or np.any(distance < -1)
+        or np.any(np.diag(distance) != 0)
+    ):
+        raise ValueError(
+            "partition matrix must be square integer meters with zero diagonal; -1 is missing"
+        )
     nodes = distance.shape[0]
+    if len({visit.id for visit in problem.visits}) != len(problem.visits) or any(
+        not 0 < visit.node < nodes for visit in problem.visits
+    ):
+        raise ValueError("partition visits must have unique IDs and valid non-depot matrix nodes")
     model = pyvrp.Model()
     locations = [model.add_location(0, i, name=f"node-{i}") for i in range(nodes)]
     depot = model.add_depot(locations[0], name="depot")
@@ -327,9 +360,9 @@ def solve_partition(problem: PartitionProblem) -> PartitionResult:
                 continue
             if j == 0:
                 model.add_edge(locations[i], locations[0], 0)  # open-route workaround
-            elif distance[i, j] <= problem.max_leg_m:
+            elif 0 <= distance[i, j] <= problem.max_leg_m:
                 model.add_edge(locations[i], locations[j], int(distance[i, j]))
-            # Longer legs are omitted: PyVRP prices them at MAX_VALUE; validation rejects them.
+            # Missing/long legs are omitted. Independent validation rejects their use.
 
     stop = MaxRuntime(problem.max_runtime_s)
     if problem.max_iterations is not None:

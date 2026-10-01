@@ -1,6 +1,6 @@
 {
   "updated": "2026-10-01",
-  "focus": "M5",
+  "focus": "M6",
   "productBehavior": 53,
   "milestones": {
     "M1": {
@@ -36,8 +36,8 @@
     "M6": {
       "weight": 12,
       "done": 2,
-      "state": "planned",
-      "notes": "PyVRP capability fixtures only (capacity, fixed cost, open routes, prohibited legs). No Valhalla."
+      "state": "active",
+      "notes": "Started: typed raw directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly, provider-limit/HTTP/retry/cancellation fixtures and real PyVRP open-terminal proof. Road travel stays planned in capabilities; durable snapshots, browser/worker selection, preflight, cache/comparison/replay integration and a live pinned deployment remain. Provider fixtures do not increase productBehavior."
     },
     "M7": {
       "weight": 6,
@@ -53,9 +53,9 @@
     }
   },
   "nextUp": [
-    "M5: push and record image.yml evidence (ZCTA stage, smoke_geocode.py on amd64 and arm64).",
+    "M6: durable directed matrix snapshots and worker selection; preflight, cache/comparison identities and replay integration, then a pinned Valhalla deployment.",
+    "M5: record image.yml evidence (ZCTA stage, smoke_geocode.py on amd64 and arm64).",
     "M4 (owner): target-hardware timings and recovery checks on the VPS and Pi.",
-    "M6: Valhalla and imported matrices.",
     "M2: rebuild fillrate.fig Components on coss parts (needs OpenPencil open).",
     "M8: Playwright browser smoke."
   ]

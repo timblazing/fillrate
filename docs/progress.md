@@ -78,14 +78,19 @@
   - [x] Location provenance: original address, geocode match record, and the original coordinate kept when a correction or re-geocode replaces it
   - [x] GeoJSON point and canonical scenario JSON imports beside CSV; data review in the import preview and on the loaded scenario; coordinate review with problem filter, map placement/drag, address lookup and undo
   - [x] Source-independent reproduction: CSV, GeoJSON and JSON give one canonical document (Vitest); coordinate provenance never changes the plan (pytest)
-  - [ ] Image evidence: `image.yml` builds the ZCTA stage and passes `smoke_geocode.py` on amd64 and arm64 (needs a push)
+  - [ ] Image evidence: `image.yml` builds the ZCTA stage and passes `smoke_geocode.py` on amd64 and arm64 (CI evidence pending)
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
+  - [x] Python travel-provider groundwork: validated raw directed snapshots, estimated/imported providers, and bounded Valhalla truck matrix assembly (`travel_provider.py`, `valhalla.py`); no browser or worker selection yet
+  - [x] Directed-matrix, missing-edge, unit/order, provider-limit, retry/cancellation and real PyVRP synthetic-terminal fixtures; independent validators reject missing physical edges
+  - [ ] Durable matrix snapshots, run selection, preflight, cache/comparison identities and offline replay integration
+  - [ ] Pinned Valhalla Compose deployment, extract metadata and live coverage/configuration evidence; matrix inspector and inspected-route geometry
+  - [ ] Capability-gated fleet/window/depot/group/pickup-delivery/reload increments, manual evaluator and verified warm starts
 - [ ] M7 Learning and exports
 - [ ] M8 Verification and handoff
 
 ## Current state
 
-Spec **v1.8** is the implementation target. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
+Spec **v1.9** is the implementation target. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
 
 **M1 is complete.** A real synthetic run now goes end to end: `POST /api/v1/runs` (idempotency key; production requires `RUN_KEY`) → SQLite job → the Python supervisor claims it over the loopback transport → a child process runs the pipeline (`services/optimizer/src/fillrate_optimizer/pipeline.py`) → nine stage artifacts and the run summary commit atomically → `/runs/<id>` shows the map, clusters, truck loads, unplanned lines with evidence, per-product reconciliation and provenance, with JSON/CSV export. The bundled scenario is `examples/m1-synthetic.json` (Memphis DC, 69 orders; regenerate with `uv run python -m fillrate_optimizer.synthetic`). It exercises stock shortage, a split oversize stop, a 396 + 198 mi chain to a stop 594 mi from the depot (planned), an isolated unreachable stop, an unresolved coordinate and an oversize piece.
 
@@ -109,7 +114,9 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 
 **M4 product work is done (2026-10-01); release gates wait on the owner.** Runs, the k explorer and sweeps take a bundled `example` (`lesson` is the 2,000-order flagship scenario and the UI default). `/learn/fulfillment-pipeline` walks through allocation, k, per-cluster loads and a ranked sweep with real runs. The image smoke now covers explorer, sweep and replay. Verification: Vitest 53, pytest 96, Ruff, lint (the existing `globe.tsx` warning), typecheck and build pass; `smoke_experiments.py` passed against dev and inside the tested image on amd64 and arm64 (`ci.yml` 36811740023, `image.yml` 36811850360, commit `1f1d23e`).
 
-**M5 started (2026-10-01).** Every spec §8 allocation strategy runs in the real pipeline, with whole-order mode and CP-SAT. Choose them in `/scenarios` run settings or with `allocation_strategy` / `fulfillment_policy` in run settings. Verification: pytest 117 passed (21 new in `test_allocation.py`), Vitest 53 passed, Ruff, lint (the existing `globe.tsx` warning), typecheck and build pass. Not yet: showing the allocation provenance on `/runs/<id>`, sweep axes, geocoding and the other imports.
+**M5 product work is done (2026-10-01); image evidence waits on CI.** `/scenarios` imports CSV, GeoJSON points or scenario JSON, shows a data review, resolves addresses through the Census batch geocoder with the ZIP/ZCTA fallback as a background job (saved as a new version), and has a coordinate review with map placement, address lookup and undo. Runs show allocation provenance; sweeps vary allocation strategy and fulfillment policy. Verification: pytest 120 (3 new), Vitest 67 (10 geocoding, 3 import-format), Ruff, lint (the existing `globe.tsx` warning), typecheck and build pass. A browser run against the dev server imported GeoJSON, geocoded live (Census: 1 exact; ZIP fallback: 1; unresolved: 1 without a ZIP), reused the cache on a second job (3 cached, 0 sent), placed the last stop on the map, saved, and ran it (valid, 2 shipments, preflight warned about the ZIP stop). Not yet run: the Docker ZCTA stage and `smoke_geocode.py` in `image.yml`.
+
+**M6 started (2026-10-01).** Python travel providers validate raw directed distance/duration snapshots and assemble bounded Valhalla truck matrices with declared deployment metadata. Fixtures prove unit/order preservation, coordinate invalidation, missing-edge rejection, provider limits, HTTP failures, retries, cancellation, and open-terminal mileage using real PyVRP. Road travel stays `planned` in capabilities and unavailable to browser/worker jobs until durable snapshots, submission preflight, comparison/cache identities and replay are integrated. See `docs/m6-road-matrices.md`. Earlier validator gap fixed: reported truck mileage must match physical legs. Replay export tracing now explicitly includes optimizer assets rather than tracing the whole project. Verification after M5 integration: 170 pytest and 67 Vitest tests pass, including worker/replay e2e; Ruff lint/format, contract drift, lint, typecheck and production build pass under Node 24.21.0. The existing vendored `globe.tsx` lint warning remains. Integrated on top of the verified M5 commits after the owner's go-ahead; browser/worker road selection remains pending.
 
 ## Design workflow (M2 prep)
 1. **Foundations** page in `fillrate.fig`: variables named exactly like the CSS tokens in `apps/web/src/app/globals.css` (light + dark modes), plus type scale, radius, spacing, and `route-1..8`.
@@ -167,8 +174,6 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (M2 item 16; needs the OpenPencil app open).
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
-**M5 product work is done (2026-10-01); image evidence waits on CI.** `/scenarios` imports CSV, GeoJSON points or scenario JSON, shows a data review, resolves addresses through the Census batch geocoder with the ZIP/ZCTA fallback as a background job (saved as a new version), and has a coordinate review with map placement, address lookup and undo. Runs show allocation provenance; sweeps vary allocation strategy and fulfillment policy. Verification: pytest 120 (3 new), Vitest 67 (10 geocoding, 3 import-format), Ruff, lint (the existing `globe.tsx` warning), typecheck and build pass. A browser run against the dev server imported GeoJSON, geocoded live (Census: 1 exact; ZIP fallback: 1; unresolved: 1 without a ZIP), reused the cache on a second job (3 cached, 0 sent), placed the last stop on the map, saved, and ran it (valid, 2 shipments, preflight warned about the ZIP stop). Not yet run: the Docker ZCTA stage and `smoke_geocode.py` in `image.yml`.
-
 ## Waiting on the primary user (come back to this)
 Round two is answered (2026-10-01). Still open from him:
 - Example order and inventory rows (fake values) and "what should we fix first" (unanswered in both rounds).
@@ -180,5 +185,5 @@ Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be r
 M4 product work is done (2026-10-01); what is left are owner release gates:
 1. Owner: run the benchmark and a recovery check (kill the container mid-run, restart, the run resumes or fails cleanly) on the VPS and the Pi.
 2. M2: rebuild `fillrate.fig` Components on coss parts (needs the OpenPencil app open).
-3. M5: push, then record `ci.yml` and `image.yml` evidence (the ZCTA build stage and `smoke_geocode.py`, which calls the live Census geocoder, on amd64 and arm64).
-4. M6: Valhalla and imported matrices.
+3. M5: record `ci.yml` and `image.yml` evidence (the ZCTA build stage and `smoke_geocode.py`, which calls the live Census geocoder, on amd64 and arm64).
+4. M6: persist and select directed travel snapshots through worker jobs, preflight, stage reuse, comparisons and replay; then verify a pinned Valhalla deployment. See `docs/m6-road-matrices.md`.

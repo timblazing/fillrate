@@ -40,6 +40,6 @@ def distance_matrix_m(lat_lon: np.ndarray, circuity: float = DEFAULT_CIRCUITY) -
 
 def prohibited_legs(distance: np.ndarray, max_leg_m: int) -> np.ndarray:
     """Boolean mask of legs longer than the limit. The diagonal is never prohibited."""
-    mask = distance > max_leg_m
+    mask = (distance < 0) | (distance > max_leg_m)
     np.fill_diagonal(mask, False)
     return mask
