@@ -257,3 +257,7 @@ Exact resolved versions are in `bun.lock`.
 - **New M4 requirement:** "Best option, 2nd best, 3rd" becomes a ranked top-three view over comparable validated runs with a visible lexicographic order (spec §10), not a weighted score.
 - **Review pages removed** as after round one: `/dev/review`, its routes, `lib/server/review.ts`, the store methods and test, `REVIEW_KEY`, and the header/surface links. The `design_reviews` table stays so deployed answers are not dropped.
 - **M4 start:** `explorer.py` computes k explorer statistics (clustering only) with a task cap; not yet a job or screen.
+
+## 2026-10-01: Image smoke opts into the oversize block policy (Claude Code)
+- `image.yml` 36806011441 failed on both architectures: `smoke_import.py` still expected the default policy to block oversize stops (422), but `oversize_stop` now defaults to `warn`, so submission returned 201.
+- The smoke now sends `preflight: {"oversize_stop": "block"}` for the blocked submission, which keeps the 422 / line-id check, then runs with the default policy and those lines excluded. Verified locally against `bun run dev` + `bun run worker` (the key-gate 403 checks only apply in production).

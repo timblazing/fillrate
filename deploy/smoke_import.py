@@ -61,8 +61,10 @@ saved = call("/api/v1/imports/commit", {**IMPORT, "author": "smoke", "metadata":
 version = call(f"/api/v1/scenarios/{saved['scenarioId']}")
 assert version["revision"] == 1 and version["source"]["originals"]["inventoryCsv"] == INVENTORY
 
-# Stops with i % 3 == 2 order more than one trailer (57 ft): the default preflight blocks submission.
-blocked = call("/api/v1/scenarios/runs", {"versionId": saved["versionId"], "settings": SETTINGS},
+# Stops with i % 3 == 2 order more than one trailer (57 ft). They split by default (spec v1.9), so opt into
+# the block policy to check that preflight refuses submission and names the lines.
+BLOCKING = {**SETTINGS, "preflight": {"oversize_stop": "block"}}
+blocked = call("/api/v1/scenarios/runs", {"versionId": saved["versionId"], "settings": BLOCKING},
                idempotent=True, expect=422)
 assert blocked["error"]["code"] == "preflight_blocked", blocked
 excluded = blocked["error"]["fields"]
