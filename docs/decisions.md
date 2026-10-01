@@ -317,3 +317,8 @@ Exact resolved versions are in `bun.lock`.
 ## 2026-10-01: Configure the existing project Git author (Codex)
 - **Decision:** at the owner's request, set repository-local `user.name` to `timblazing` and `user.email` to `timothy.blasingame@okstate.edu`, matching recent commits. The signed-in GitHub account is `timblazing`. Local configuration applies to every Fillrate worktree; machine-wide defaults are unchanged.
 - **Verification:** `git var GIT_AUTHOR_IDENT` resolves the configured identity in the research worktree. Commit the already-verified research proposal on `agent/paper-direction-1001`. No runtime changes or milestone progress; retain the previous passing lint/typecheck/build results.
+
+
+## 2026-10-01: Submit the research proposal for pull-request review (Codex)
+- **Decision:** the owner explicitly requested a pull request to main for morning review. This request overrides the usual direct-main workflow for this proposal. Rebased the research branch onto main's M5 completion commit `bbb0a66`, preserving the M5 progress, status and decision entries; resolved the append-only decision-log conflict.
+- **Handoff:** publish `agent/paper-direction-1001` and open a pull request to main. Proposed requirements remain unaccepted. Earlier lint/typecheck/build passed; the rebased documentation passes parser compatibility and whitespace checks. No implementation or milestone estimates changed.
