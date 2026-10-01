@@ -23,6 +23,26 @@ Value = Annotated[float, Field(strict=True, ge=0, le=MAX_TRAVEL_VALUE, allow_inf
 Text = Annotated[str, Field(min_length=1, max_length=200)]
 
 
+class SnapshotBindingError(ValueError):
+    """A snapshot does not describe the requested nodes: absent, or at different coordinates.
+
+    `missing` and `moved` list node IDs; a moved node means its coordinates were edited after
+    the snapshot was taken, so the recorded legs no longer describe it (spec §7).
+    """
+
+    def __init__(self, missing: list[str], moved: list[str], detail: str | None = None):
+        self.missing, self.moved = missing, moved
+        if detail:
+            super().__init__(detail)
+            return
+        parts = []
+        if missing:
+            parts.append("not in the snapshot: " + ", ".join(missing[:5]))
+        if moved:
+            parts.append("coordinates changed since the snapshot: " + ", ".join(moved[:5]))
+        super().__init__("matrix has no matching coordinates for node(s) " + "; ".join(parts))
+
+
 class TravelNode(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     id: Text
@@ -78,11 +98,15 @@ class TravelSnapshot(BaseModel):
         if len({node.id for node in requested}) != len(requested):
             raise ValueError("requested node IDs must be unique")
         positions = {node.id: i for i, node in enumerate(self.nodes)}
-        indices = []
-        for node in requested:
-            if node.id not in positions or self.nodes[positions[node.id]] != node:
-                raise ValueError(f"matrix has no matching coordinates for node {node.id}")
-            indices.append(positions[node.id])
+        missing = sorted(node.id for node in requested if node.id not in positions)
+        moved = sorted(
+            node.id
+            for node in requested
+            if node.id in positions and self.nodes[positions[node.id]] != node
+        )
+        if missing or moved:
+            raise SnapshotBindingError(missing, moved)
+        indices = [positions[node.id] for node in requested]
         scale = {"meters": 1, "kilometers": 1000, "miles": METERS_PER_MILE}[self.distance_units]
         time_scale = 1 if self.duration_units == "seconds" else 60
 
@@ -108,6 +132,20 @@ class TravelProvider(Protocol):
         progress: Progress | None = None,
         check_cancelled: CheckCancelled | None = None,
     ) -> TravelSnapshot: ...
+
+
+def stop_nodes(
+    depot_id: str, depot: tuple[float, float], stops: dict[str, tuple[float, float]]
+) -> list[TravelNode]:
+    """Matrix nodes for a run: the depot first, then stops sorted by ID.
+
+    Depot and stop IDs share one node namespace, so a collision cannot be bound to a snapshot.
+    """
+    if depot_id in stops:
+        raise SnapshotBindingError([], [], f"depot ID {depot_id!r} is also a location ID")
+    return [TravelNode(id=depot_id, lat=depot[0], lon=depot[1])] + [
+        TravelNode(id=stop_id, lat=lat, lon=lon) for stop_id, (lat, lon) in sorted(stops.items())
+    ]
 
 
 def validate_nodes(nodes: list[TravelNode]) -> None:

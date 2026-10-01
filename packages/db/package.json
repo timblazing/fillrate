@@ -9,6 +9,7 @@
     "./scenarios": "./src/scenarios.ts",
     "./imports": "./src/imports.ts",
     "./preflight": "./src/preflight.ts",
+    "./travel": "./src/travel.ts",
     "./experiments": "./src/experiments.ts",
     "./canonical": "./src/canonical.ts",
     "./replay": "./src/replay.ts",

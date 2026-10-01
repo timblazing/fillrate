@@ -6,7 +6,8 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { openDatabase, type Store } from "../src/index";
+import { canonical, openDatabase, type Store } from "../src/index";
+import { randomUUID } from "node:crypto";
 import { createWorkerTransport } from "../src/transport";
 import { previewCsvImport } from "../src/imports";
 import { saveScenario } from "../src/scenarios";
@@ -231,3 +232,88 @@ test.skipIf(!hasUv)("a CP-SAT whole-order run replays from its bundle; measured 
   expect(refused.status).toBe(1);
   expect(refused.stdout).toContain("cannot be replayed");
 }, 180_000);
+
+// ---- Directed travel snapshots (spec §7, M6) --------------------------------------------------------------------
+const parity = JSON.parse(readFileSync(resolve("packages/contracts/fixtures/travel-parity.json"), "utf8"));
+const WARN = { missing_coordinates: "warn", far_from_depot: "warn", oversize_stop: "warn", approximate_coordinates: "warn" };
+const roadSettings = (extra: Record<string, unknown> = {}) => ({ ...example.settings, preflight: WARN, k: 1, solver_max_iterations: 300, ...extra });
+const summaryOf = (runId: string) => parseContract("RunSummary", store.readArtifact(store.runView(runId)!.artifacts.find(a => a.stage_type === "summary")!.output_hash)) as RunSummary;
+const finished = (runId: string) => waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status));
+/** A run row written straight to SQLite, as a bug or an old client could: the worker must still refuse it. */
+function rawRun(version: string, document: Record<string, unknown>, key: string) {
+  const id = randomUUID(), now = Date.now();
+  store.sqlite.prepare("INSERT INTO runs (id, versionId, settings, status, idempotencyKey, requestHash, createdAt, kind) VALUES (?,?,?,?,?,?,?,?)").run(id, version, canonical({ schema_version: 1, document }), "queued", key, "raw", now, "pipeline");
+  store.sqlite.prepare("INSERT INTO jobs (id, runId, status, attempt, maxAttempts, cancelRequested, createdAt) VALUES (?,?,'queued',0,3,0,?)").run(randomUUID(), id, now);
+  return id;
+}
+
+test.skipIf(!hasUv)("a run on a stored directed snapshot routes over its legs, reuses its travel stage and replays offline", async () => {
+  const road = store.createScenario("Parity", { schema_version: 1, document: parity.scenario }, "e2e").versionId;
+  const snapshotId = store.saveTravelSnapshot(parity.snapshot).id;
+  expect(snapshotId).toBe(parity.identity);
+  const queue = (extra: Record<string, unknown>, key: string) => store.enqueue(road, { schema_version: 1, document: roadSettings(extra) as never }, key);
+  const estimated = queue({}, "estimated"), first = queue({ travel_snapshot_id: snapshotId }, "road-1"), second = queue({ travel_snapshot_id: snapshotId, solver_seed: 1 }, "road-2");
+  const blocking = queue({ travel_snapshot_id: snapshotId, preflight: { missing_coordinates: "warn", far_from_depot: "block", oversize_stop: "warn", approximate_coordinates: "warn" } }, "blocked");
+  startWorker("road");
+  for (const id of [estimated, first, second, blocking]) await finished(id);
+
+  // Straight lines put every stop on one eastbound line (one truck); the directed matrix needs two.
+  const flat = summaryOf(estimated);
+  expect([flat.validity, flat.totals.trucks, flat.travel?.mode]).toEqual(["valid", 1, "estimated"]);
+  const roads = summaryOf(first);
+  expect(roads.validity).toBe("valid");
+  expect(roads.totals.trucks).toBe(2);
+  expect(roads.totals.loaded_distance_m).toBe(100_000 + 200_000 + 300_000 + 804_672);
+  expect(roads.unplanned.map(u => [u.location_id, u.reason])).toEqual([["F", "unreachable"], ["M", "excluded_unresolved_coordinates"]]);
+  expect(roads.travel).toMatchObject({ mode: "snapshot", snapshot_id: snapshotId, provider: "imported", profile: "truck", node_count: 7 });
+  expect(roads.settings.travel_snapshot_id).toBe(snapshotId);
+
+  // Stage reuse is bound to the snapshot: the second run reuses the first run's travel stage.
+  const travel = (id: string) => store.runView(id)!.artifacts.find(a => a.stage_type === "travel")!;
+  expect(travel(second).reused_from).toBe(travel(first).execution_id);
+  expect(travel(first).effective_settings).toEqual({ max_leg_m: 804672, travel_snapshot_id: snapshotId });
+  expect(travel(estimated).effective_settings).toEqual({ max_leg_m: 804672, travel_circuity: 1.2 });
+
+  // The worker's preflight reads the same matrix as the submission preflight: only F is far.
+  const refused = store.runView(blocking)!;
+  expect(refused.status).toBe("failed");
+  expect(refused.attempt).toBe(1);
+  expect(refused.events.find(e => e.kind === "failed")!.payload).toMatchObject({ code: "preflight_blocked", message: "Location is too far from the depot" });
+
+  // The bundle carries the exact snapshot, and the offline replay verifies its identity.
+  const zip = replayBundle(store, first, optimizer);
+  const out = join(dir, "road-bundle"), file = join(dir, "road-bundle.zip");
+  writeFileSync(file, zip);
+  expect(spawnSync("python3", ["-c", `import zipfile; z=zipfile.ZipFile(${JSON.stringify(file)}); assert 'travel-snapshot.json' in z.namelist(); z.extractall(${JSON.stringify(out)})`]).status).toBe(0);
+  const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(replay.stdout).toContain("REPLAY OK");
+  expect(replay.stdout).toMatch(/travel\s+snapshot identity verified/);
+  expect(replay.stdout).toMatch(/travel data\s+reproduced/);
+  expect(replay.stdout).toMatch(/preflight\s+reproduced/);
+  expect(replay.status).toBe(0);
+  // A tampered snapshot in the bundle no longer hashes to the identity the run recorded.
+  const tampered = JSON.parse(readFileSync(join(out, "travel-snapshot.json"), "utf8"));
+  tampered.distances[0][1] = 1;
+  writeFileSync(join(out, "travel-snapshot.json"), JSON.stringify(tampered));
+  const bad = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(bad.status).not.toBe(0);
+  expect(bad.stdout + bad.stderr).toMatch(/IDENTITY DIFFERS|identity/);
+}, 180_000);
+
+test.skipIf(!hasUv)("a worker refuses a snapshot it cannot use and fails the run permanently", async () => {
+  const snapshotId = store.saveTravelSnapshot(parity.snapshot).id;
+  // Stale coordinates: a version whose stop B moved after the snapshot was taken.
+  const moved = structuredClone(parity.scenario);
+  moved.locations.find((l: { id: string }) => l.id === "B").lat = 0.01;
+  const stale = store.createScenario("Moved", { schema_version: 1, document: moved }, "e2e").versionId;
+  const unknown = "f".repeat(64);
+  const staleRun = rawRun(stale, roadSettings({ travel_snapshot_id: snapshotId }), "stale");
+  const missingRun = rawRun(stale, roadSettings({ travel_snapshot_id: unknown }), "missing");
+  startWorker("refuser");
+  await finished(staleRun); await finished(missingRun);
+  const failure = (id: string): Record<string, unknown> => { const v = store.runView(id)!; return { status: v.status, attempt: v.attempt, ...(v.events.find(e => e.kind === "failed")?.payload ?? {}) }; };
+  expect(failure(staleRun)).toMatchObject({ status: "failed", attempt: 1, code: "travel_snapshot_mismatch" });
+  expect(String(failure(staleRun).message)).toContain("B");
+  expect(failure(missingRun)).toMatchObject({ status: "failed", attempt: 1, code: "travel_snapshot_unavailable" });
+  expect(String(failure(missingRun).message)).toContain("travel_snapshot_not_found");
+}, 120_000);

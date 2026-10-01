@@ -151,6 +151,13 @@ def child_main(
             )
             if transport
             else None,
+            # Immutable directed travel snapshot named by the settings; the pipeline re-checks
+            # its identity, so the transport is not trusted for content.
+            snapshot_loader=(
+                lambda snapshot_id: rpc("snapshot", snapshot_id=snapshot_id)["snapshot"]
+            )
+            if transport
+            else None,
         )
         artifacts = (
             []

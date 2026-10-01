@@ -2032,6 +2032,19 @@
             "title": "Travel Circuity",
             "type": "number"
           },
+          "travel_snapshot_id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Travel Snapshot Id"
+          },
           "weighted_truck_penalty_m": {
             "anyOf": [
               {
@@ -2134,6 +2147,17 @@
           },
           "totals": {
             "$ref": "#/components/schemas/Totals"
+          },
+          "travel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TravelSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "trucks": {
             "items": {
@@ -2473,6 +2497,98 @@
           "sum_cluster_lower_bounds"
         ],
         "title": "Totals",
+        "type": "object"
+      },
+      "TravelSummary": {
+        "additionalProperties": false,
+        "description": "Which travel data the run used (spec \u00a77): estimated, or a stored directed snapshot.",
+        "properties": {
+          "circuity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Circuity"
+          },
+          "dataset_revision": {
+            "maxLength": 200,
+            "title": "Dataset Revision",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "estimated",
+              "snapshot"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "node_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Node Count"
+          },
+          "profile": {
+            "maxLength": 200,
+            "title": "Profile",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 200,
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_version": {
+            "maxLength": 200,
+            "title": "Provider Version",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Id"
+          },
+          "warning_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Warning Count"
+          }
+        },
+        "required": [
+          "mode",
+          "provider",
+          "provider_version",
+          "dataset_revision",
+          "profile"
+        ],
+        "title": "TravelSummary",
         "type": "object"
       },
       "TruckSummary": {

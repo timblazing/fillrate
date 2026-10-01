@@ -43,3 +43,20 @@ def prohibited_legs(distance: np.ndarray, max_leg_m: int) -> np.ndarray:
     mask = (distance < 0) | (distance > max_leg_m)
     np.fill_diagonal(mask, False)
     return mask
+
+
+def reachable(matrix: np.ndarray, max_leg_m: int) -> set[int]:
+    """Nodes reachable from node 0 over allowed directed legs (≥ 0 and ≤ the limit).
+
+    Edges are directed: matrix[i][j] is the leg from i to j, and -1 is a missing edge.
+    """
+    allowed = (matrix >= 0) & (matrix <= max_leg_m)
+    np.fill_diagonal(allowed, False)
+    seen, frontier = {0}, [0]
+    while frontier:
+        node = frontier.pop()
+        for nxt in np.nonzero(allowed[node])[0]:
+            if int(nxt) not in seen:
+                seen.add(int(nxt))
+                frontier.append(int(nxt))
+    return seen

@@ -80,9 +80,11 @@
   - [x] Source-independent reproduction: CSV, GeoJSON and JSON give one canonical document (Vitest); coordinate provenance never changes the plan (pytest)
   - [x] Image evidence: `image.yml` run 36828389128 (commit `126422b`, after `ci.yml` 36828119214) built the ZCTA stage (33,791 ZCTAs) and passed `smoke_geocode.py` on amd64 and arm64 (Census: 1 exact; ZCTA fallback: 1)
 - [ ] M6 Roads and advanced routing (Valhalla, `truck` costing)
-  - [x] Python travel-provider groundwork: validated raw directed snapshots, estimated/imported providers, and bounded Valhalla truck matrix assembly (`travel_provider.py`, `valhalla.py`); no browser or worker selection yet
+  - [x] Python travel-provider groundwork: validated raw directed snapshots, estimated/imported providers, and bounded Valhalla truck matrix assembly (`travel_provider.py`, `valhalla.py`)
   - [x] Directed-matrix, missing-edge, unit/order, provider-limit, retry/cancellation and real PyVRP synthetic-terminal fixtures; independent validators reject missing physical edges
-  - [ ] Durable matrix snapshots, run selection, preflight, cache/comparison identities and offline replay integration
+  - [x] Durable immutable snapshots (content-hash identity, SQLite immutability triggers, verified reads), `travel_snapshot_id` in run settings, and binding to stage identities, comparison signatures, `RunSummary.travel` and offline replay (a snapshot ships in the bundle and is identity-checked)
+  - [x] Edited coordinates are refused before enqueue (`travel_snapshot_stale`); submission preflight (TypeScript) and the Python worker read the selected directed matrix for reachability; the validator cross-checks every leg against the snapshot
+  - [ ] Imported-matrix preview, browser selection of a snapshot and the matrix inspector (`directed_road_travel` stays `planned` until then)
   - [ ] Pinned Valhalla Compose deployment, extract metadata and live coverage/configuration evidence; matrix inspector and inspected-route geometry
   - [ ] Capability-gated fleet/window/depot/group/pickup-delivery/reload increments, manual evaluator and verified warm starts
 - [ ] M7 Learning and exports (spec §13, §15; independent of M6 road selection)
@@ -124,6 +126,8 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 
 **M7 increment (2026-10-01, on main as `778f7ba`).** A second lesson, `/learn/allocation-policies`, runs a small synthetic scenario through every allocation strategy and both fulfillment policies; every claim in its "what to look for" lists is asserted in `tests/test_lesson_allocation.py`. The Python replay export now has tested semantics (`tests/test_replay.py`) and no longer reports a false allocation difference for CP-SAT runs. Exports and lessons use only estimated travel; replay bundles say so and refuse any other provider, so this work does not depend on the unfinished M6 road selection. Verification: pytest 202, Vitest 68 (incl. the new replay e2e), Ruff, lint (the existing `globe.tsx` warning), typecheck, contract regeneration (no drift) and build pass under Node 24.18.1; a dev server + worker ran the lesson API, a 10-run sweep (piece-level cohort ranked, whole-order cohort separate) and an offline replay of the exported bundle (`REPLAY OK`). `ci.yml` 36886974428 passed; `image.yml` 36887302457 built and smoke-tested amd64 and arm64 (allocation lesson: 15 shipments, $64,749 planned, replay bundle ok) and published `latest`.
 
+**M6 snapshot slice (2026-10-01, on branch `m6-directed-snapshots`, not merged).** Immutable directed travel snapshots are stored by content hash (`POST /api/v1/travel-snapshots`, operator key) and selected with `RunSettings.travel_snapshot_id`. Submission preflight and the Python worker use that matrix for reachability and legs; the preflight and travel stage hashes, the comparison signature and the replay bundle carry its identity, and `RunSummary.travel` records it. A scenario edited after the snapshot is refused before enqueue. A real worker run over a directed fixture needs two trucks where straight lines need one, and replays offline with the snapshot identity verified. Road travel is still `planned`: the browser cannot select a snapshot, there is no matrix preview or inspector, and no live Valhalla deployment exists. See `docs/m6-road-matrices.md`.
+
 **M6 started (2026-10-01).** Python travel providers validate raw directed distance/duration snapshots and assemble bounded Valhalla truck matrices with declared deployment metadata. Fixtures prove unit/order preservation, coordinate invalidation, missing-edge rejection, provider limits, HTTP failures, retries, cancellation, and open-terminal mileage using real PyVRP. Road travel stays `planned` in capabilities and unavailable to browser/worker jobs until durable snapshots, submission preflight, comparison/cache identities and replay are integrated. See `docs/m6-road-matrices.md`. Earlier validator gap fixed: reported truck mileage must match physical legs. Replay export tracing now explicitly includes optimizer assets rather than tracing the whole project. Verification after M5 integration: 170 pytest and 67 Vitest tests pass, including worker/replay e2e; Ruff lint/format, contract drift, lint, typecheck and production build pass under Node 24.21.0. The existing vendored `globe.tsx` lint warning remains. Integrated on top of the verified M5 commits after the owner's go-ahead; browser/worker road selection remains pending.
 
 ## Design workflow (M2 prep)
@@ -147,6 +151,9 @@ Both stay far below `RUN_WALL_LIMIT_SECONDS` (600). GitHub runners stand in for 
 Imported CSV completed preview → immutable save → real worker → validated shipment in a browser. Local checks passed: 43 Vitest, 72 pytest, Ruff, lint, typecheck and production build. A synthetic 2,000-order / 640-location / 8-cluster run took 2.733 s on this Mac; solve was 2.366 s (`services/optimizer/benchmarks/m3_2000_result.json`). Production imported-data access uses `SCENARIO_KEY`; public multi-user isolation is still a release gate. Cluster tasks are sequential but completed clusters resume after lease expiry. Solver exceptions still fail a run; matrix subpart reuse across changed partitions remains open. Actual cost rates await the primary user.
 
 ## Known gaps
+- Travel snapshots are operator-API only: there is no browser upload, preview or selector, and nothing builds a Valhalla snapshot in a job yet. A replay bundle for a run on the largest snapshots (about 1,000 nodes with high-entropy values) is several tens of MB.
+- A snapshot's nodes are the depot plus stop IDs (one namespace); a location whose ID equals the depot's cannot use a snapshot. Stops are matched by exact coordinates, so any edit to a stop with demand needs a new snapshot.
+- Reading, hashing and storing a snapshot happens in memory in the web process (about 36 MB at 1,001 nodes); the upload route is operator-only.
 - Geocoding jobs run inside the web process, one at a time. A restart marks queued or running jobs failed (start again; Census answers already received are cached). Census errors fail the whole job rather than silently falling back to ZIP centroids.
 - The ZIP fallback reads only a trailing 5-digit ZIP (or ZIP+4) of the one-line address. Census one-line lookups do not report exact vs non-exact, so those matches carry no match type.
 - Imports before M5 defaulted missing line and location IDs to `csv-line-<row>` / `csv-location-<order>`; new imports use `line-<n>` / `location-<order>` for every format. Saved versions keep their IDs.
@@ -191,8 +198,8 @@ Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be r
 
 ## Next step
 M6 is the focus; M2 and M4 wait only on owner items:
-1. M6: persist and select directed travel snapshots through worker jobs, preflight, stage reuse, comparisons and replay; then verify a pinned Valhalla deployment. See `docs/m6-road-matrices.md`.
+1. M6: imported-matrix preview, browser selection and the matrix inspector (then enable `directed_road_travel`); then a pinned Valhalla deployment and a job that builds a snapshot from it. See `docs/m6-road-matrices.md`.
 2. Owner (M4 release gate): run the benchmark and a recovery check (kill the container mid-run, restart, the run resumes or fails cleanly) on the VPS and the Pi.
 3. M2: rebuild `fillrate.fig` Components on coss parts (needs the OpenPencil app open).
-4. M7: remaining lessons and exports that need no road data (see the M7 checklist); the road-matrix export waits for M6 snapshots.
+4. M7: remaining lessons and exports (see the M7 checklist); a road-matrix lesson can use the M6 snapshot bundle once the matrix inspector exists.
 5. M8: Playwright browser smoke.

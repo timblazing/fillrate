@@ -6,8 +6,10 @@ import Database from "better-sqlite3";
 import { and, eq, asc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { parseContract, type Lease, type StageManifest, type Snapshot, type WorkerEvent } from "@fillrate/contracts";
+import { parseContract, type Lease, type ScenarioDocument, type StageManifest, type Snapshot, type WorkerEvent } from "@fillrate/contracts";
+import { assertSnapshotBinding } from "./preflight";
 import * as s from "./schema";
+import { MAX_SNAPSHOT_BYTES, normalizeSnapshot, rememberIdentity, type TravelSnapshot } from "./travel";
 
 export const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export const MAX_COMPLETION_BYTES = 16 * 1024 * 1024;
@@ -63,6 +65,7 @@ export class Store {
   enqueue(versionId: string, settings: Snapshot, idempotencyKey: string, now = Date.now(), maxAttempts = 3, kind: RunKind = "pipeline") {
     parseContract("Snapshot", settings);
     if (!idempotencyKey || idempotencyKey.length > 200) throw new Error("invalid_idempotency_key");
+    if (kind === "pipeline") this.checkTravel(versionId, settings, new Map());
     const requestHash = contentHash(canonical({ versionId, settings, ...(kind === "pipeline" ? {} : { kind }) }));
     return this.db.transaction(tx => {
       const existing = tx.select().from(s.runs).where(eq(s.runs.idempotencyKey, idempotencyKey)).get();
@@ -74,11 +77,61 @@ export class Store {
     }, { behavior: "immediate" });
   }
 
+  /**
+   * Run settings that select a travel snapshot must name a stored one, and every stop with demand must
+   * match the snapshot's coordinates, or the run would route over a stale matrix (spec §7).
+   */
+  private checkTravel(versionId: string, settings: Snapshot, loaded: Map<string, TravelSnapshot>) {
+    const document = settings.document as { travel_snapshot_id?: string | null; excluded_line_ids?: string[] };
+    if (!document.travel_snapshot_id) return;
+    let snapshot = loaded.get(document.travel_snapshot_id);
+    if (!snapshot) { snapshot = this.travelSnapshot(document.travel_snapshot_id); loaded.set(document.travel_snapshot_id, snapshot); }
+    assertSnapshotBinding(this.versionDocument(versionId).document as unknown as ScenarioDocument, document.excluded_line_ids ?? [], snapshot);
+  }
+
+  /** Stores a validated snapshot under its content hash. Saving the same document again is a no-op. */
+  saveTravelSnapshot(input: unknown, now = Date.now()) {
+    const snapshot = normalizeSnapshot(input);
+    const bytes = Buffer.from(canonical(snapshot));
+    if (bytes.length > MAX_SNAPSHOT_BYTES) throw new Error(`travel_snapshot_too_large: ${bytes.length} bytes exceed ${MAX_SNAPSHOT_BYTES}`);
+    const id = contentHash(bytes);
+    const created = this.db.insert(s.travelSnapshots).values({ id, compressed: gzipSync(bytes), byteLength: bytes.length, nodeCount: snapshot.nodes.length, provider: snapshot.provider, providerVersion: snapshot.provider_version, datasetRevision: snapshot.dataset_revision, profile: snapshot.profile, createdAt: now }).onConflictDoNothing().run().changes > 0;
+    return { created, ...this.travelSnapshotInfo(id)! };
+  }
+
+  travelSnapshotInfo(id: string) {
+    return this.db.select({ id: s.travelSnapshots.id, byteLength: s.travelSnapshots.byteLength, nodeCount: s.travelSnapshots.nodeCount, provider: s.travelSnapshots.provider, providerVersion: s.travelSnapshots.providerVersion, datasetRevision: s.travelSnapshots.datasetRevision, profile: s.travelSnapshots.profile, createdAt: s.travelSnapshots.createdAt })
+      .from(s.travelSnapshots).where(eq(s.travelSnapshots.id, id)).get() ?? null;
+  }
+
+  /** The stored snapshot, re-hashed on every read: a row that no longer matches its identity is corrupt. */
+  travelSnapshot(id: string): TravelSnapshot {
+    const row = this.db.select().from(s.travelSnapshots).where(eq(s.travelSnapshots.id, id)).get();
+    if (!row) throw new Error("travel_snapshot_not_found: no stored travel snapshot has this identity");
+    const bytes = gunzipSync(row.compressed, { maxOutputLength: MAX_SNAPSHOT_BYTES });
+    if (bytes.length !== row.byteLength || contentHash(bytes) !== id) throw new Error("travel_snapshot_corrupt: stored bytes do not match the identity");
+    const snapshot = JSON.parse(bytes.toString("utf8")) as TravelSnapshot;
+    rememberIdentity(snapshot, id);
+    return snapshot;
+  }
+
+  /** The snapshot a leased run selected, for its worker; any other identity is refused. */
+  leaseTravelSnapshot(lease: Lease, snapshotId: string, now = Date.now()) {
+    parseContract("Lease", lease);
+    const job = this.db.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get();
+    assertLease(job, lease, now);
+    const run = this.db.select().from(s.runs).where(eq(s.runs.id, job!.runId)).get()!;
+    if ((JSON.parse(run.settings) as Snapshot).document.travel_snapshot_id !== snapshotId) throw new Error("travel_snapshot_not_selected: this run did not select that snapshot");
+    return this.travelSnapshot(snapshotId);
+  }
+
   /** One sweep: the experiment and all of its runs commit together, or nothing does (no partial sweep). */
   createExperiment(input: { versionId: string; name: string; spec: unknown; comparison: unknown; runs: { settings: Snapshot; varied: unknown }[] }, idempotencyKey: string, now = Date.now()) {
     if (!idempotencyKey || idempotencyKey.length > 180) throw new Error("invalid_idempotency_key");
     if (!input.runs.length) throw new Error("empty_sweep");
     for (const run of input.runs) parseContract("Snapshot", run.settings);
+    const loaded = new Map<string, TravelSnapshot>();
+    for (const run of input.runs) this.checkTravel(input.versionId, run.settings, loaded);
     const requestHash = contentHash(canonical({ versionId: input.versionId, name: input.name, spec: input.spec, runs: input.runs }));
     return this.db.transaction(tx => {
       const existing = tx.select().from(s.experiments).where(eq(s.experiments.idempotencyKey, idempotencyKey)).get();

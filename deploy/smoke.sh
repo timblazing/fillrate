@@ -3,7 +3,8 @@
 # and worker, run the bundled synthetic pipeline through the public API, and check that the
 # result is validated and exportable; then run an imported CSV scenario behind the operator key
 # (smoke_import.py), a GeoJSON import geocoded through Census and the bundled ZIP lookup
-# (smoke_geocode.py), and the lesson explorer, sweep and replay bundle (smoke_experiments.py).
+# (smoke_geocode.py), the lesson explorer, sweep and replay bundle (smoke_experiments.py), and a run
+# over an uploaded directed travel snapshot (smoke_travel.py).
 # Usage: deploy/smoke.sh <image> [platform]
 set -euo pipefail
 image="$1"
@@ -51,3 +52,4 @@ echo "smoke ok: $rows loads CSV rows"
 python3 "$(dirname "$0")/smoke_import.py" "$base" smoke-scenario
 python3 "$(dirname "$0")/smoke_geocode.py" "$base" smoke-scenario
 python3 "$(dirname "$0")/smoke_experiments.py" "$base" smoke "$id"
+python3 "$(dirname "$0")/smoke_travel.py" "$base" smoke-scenario

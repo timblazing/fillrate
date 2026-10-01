@@ -852,6 +852,11 @@ export interface components {
              */
             travel_circuity: number;
             /**
+             * Travel Snapshot Id
+             * @default null
+             */
+            travel_snapshot_id: string | null;
+            /**
              * Weighted Truck Penalty M
              * @default null
              */
@@ -894,6 +899,8 @@ export interface components {
             schema_version: 1;
             settings: components["schemas"]["RunSettings"];
             totals: components["schemas"]["Totals"];
+            /** @default null */
+            travel: components["schemas"]["TravelSummary"] | null;
             /** Trucks */
             trucks: components["schemas"]["TruckSummary"][];
             /** Unplanned */
@@ -1011,6 +1018,45 @@ export interface components {
             utilization: number | null;
             /** Visits */
             visits: number;
+        };
+        /**
+         * TravelSummary
+         * @description Which travel data the run used (spec §7): estimated, or a stored directed snapshot.
+         */
+        TravelSummary: {
+            /**
+             * Circuity
+             * @default null
+             */
+            circuity: number | null;
+            /** Dataset Revision */
+            dataset_revision: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "estimated" | "snapshot";
+            /**
+             * Node Count
+             * @default null
+             */
+            node_count: number | null;
+            /** Profile */
+            profile: string;
+            /** Provider */
+            provider: string;
+            /** Provider Version */
+            provider_version: string;
+            /**
+             * Snapshot Id
+             * @default null
+             */
+            snapshot_id: string | null;
+            /**
+             * Warning Count
+             * @default null
+             */
+            warning_count: number | null;
         };
         /** TruckSummary */
         TruckSummary: {

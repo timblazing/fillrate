@@ -77,6 +77,10 @@ export function createWorkerTransport(store: Store, options: WorkerTransportOpti
         const { lease, input_hash } = body as { lease: Lease; input_hash: string };
         return send(res, 200, { artifact: store.cachedStage(lease, input_hash, now()) });
       }
+      if (route === "/internal/worker/snapshot") {
+        const { lease, snapshot_id } = body as { lease: Lease; snapshot_id: string };
+        return send(res, 200, { snapshot: store.leaseTravelSnapshot(lease, snapshot_id, now()) });
+      }
       if (route === "/internal/worker/cluster") {
         const { lease, action, cluster_id, input_hash, result } = body as { lease: Lease; action: string; cluster_id: string; input_hash: string; result?: unknown };
         return send(res, 200, store.clusterTask(lease, action, cluster_id, input_hash, result, now()));

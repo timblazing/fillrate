@@ -100,3 +100,11 @@ export const geocodeJobs = sqliteTable("geocode_jobs", {
   progress: text(), report: text(), resultVersionId: text().references(() => versions.id), branched: integer({mode: "boolean"}).notNull().default(false),
   error: text(), idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
 }, t => [index("geocode_jobs_by_date").on(t.createdAt)]);
+
+// M6 directed travel snapshots (spec §7): immutable, stored by content hash (`id` = sha256 of the canonical
+// document, verified on every read). Run settings name one by id; triggers forbid update and delete.
+export const travelSnapshots = sqliteTable("travel_snapshots", {
+  id: text().primaryKey(), compressed: blob({mode: "buffer"}).notNull(), byteLength: integer().notNull(),
+  nodeCount: integer().notNull(), provider: text().notNull(), providerVersion: text().notNull(),
+  datasetRevision: text().notNull(), profile: text().notNull(), createdAt: integer().notNull(),
+});

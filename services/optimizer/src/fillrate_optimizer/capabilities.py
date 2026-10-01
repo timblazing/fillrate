@@ -73,11 +73,14 @@ BEHAVIORS = [
         availability="planned",
         provided_by="preprocessing",
         description=(
-            "M6 provider modules validate imported snapshots and assemble bounded Valhalla "
-            "truck matrices. Worker selection and durable matrix snapshots are still pending."
+            "M6: immutable directed travel snapshots (imported or Valhalla truck matrices) are "
+            "stored by content hash and selected in run settings; the worker's travel stage, "
+            "reachability and the submission preflight read that matrix. The browser cannot "
+            "select one yet."
         ),
         restrictions=[
-            "Python provider fixtures only; not selectable in browser or worker jobs.",
+            "Selectable only through the operator API (travel_snapshot_id) and the worker; "
+            "no browser control or matrix preview yet.",
             "No live Valhalla deployment or route geometry has been verified.",
         ],
         fixture=None,

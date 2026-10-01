@@ -35,9 +35,9 @@
     },
     "M6": {
       "weight": 12,
-      "done": 2,
+      "done": 8,
       "state": "active",
-      "notes": "Started: typed raw directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly, provider-limit/HTTP/retry/cancellation fixtures and real PyVRP open-terminal proof. Road travel stays planned in capabilities; durable snapshots, browser/worker selection, preflight, cache/comparison/replay integration and a live pinned deployment remain. Provider fixtures do not increase productBehavior."
+      "notes": "Done: typed raw directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash snapshot storage, `travel_snapshot_id` in run settings with stage-identity, comparison and replay binding, stale-coordinate refusal before enqueue, and directed-matrix preflight and worker reachability with independent leg validation (on branch m6-directed-snapshots, awaiting review). Road travel stays planned: no browser selection, matrix preview or inspector, and no live pinned Valhalla deployment yet. Fixtures and API-only selection do not increase productBehavior."
     },
     "M7": {
       "weight": 6,
@@ -53,7 +53,7 @@
     }
   },
   "nextUp": [
-    "M6: durable directed matrix snapshots and worker selection; preflight, cache/comparison identities and replay integration, then a pinned Valhalla deployment.",
+    "M6: imported-matrix preview, browser snapshot selection and the matrix inspector; then a pinned Valhalla deployment and a job that builds a snapshot.",
     "M4 (owner): target-hardware timings and recovery checks on the VPS and Pi.",
     "M2: rebuild fillrate.fig Components on coss parts (needs OpenPencil open).",
     "M8: Playwright browser smoke."

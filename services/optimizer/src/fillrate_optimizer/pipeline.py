@@ -47,12 +47,14 @@ from .model import (
     RunSummary,
     ScenarioDocument,
     Totals,
+    TravelSummary,
     TruckSummary,
     TruckVisit,
     UnplannedLine,
 )
 from .preflight import preflight_checks
-from .travel import distance_matrix_m, haversine_m
+from .travel import distance_matrix_m, haversine_m, reachable
+from .travel_provider import SnapshotBindingError, TravelSnapshot, stop_nodes
 
 PRODUCER_VERSION = "fillrate-pipeline/3"
 ADAPTER_VERSION = "pyvrp-partition/1"
@@ -191,11 +193,17 @@ def run_pipeline(
     cache: Callable | None = None,
     checkpoint: Callable | None = None,
     cluster_task: Callable | None = None,
+    travel_snapshot: TravelSnapshot | None = None,
+    snapshot_loader: Callable[[str], dict[str, Any]] | None = None,
     clock: Callable[[], float] = time.monotonic,
     now_ms: Callable[[], int] = lambda: int(time.time() * 1000),
 ) -> PipelineOutput:
     limits = limits or Limits()
     report = progress or (lambda stage, detail: None)
+    snapshot = resolve_snapshot(settings, travel_snapshot, snapshot_loader)
+    # With a selected snapshot, preflight and the travel stage depend on its identity instead of
+    # the estimating circuity (which is then unused for travel).
+    travel_keys = ["travel_snapshot_id"] if snapshot else ["travel_circuity"]
     deadline = clock() + limits.run_wall_limit_s
     stages = Stages(
         settings,
@@ -245,7 +253,9 @@ def run_pipeline(
     if len(lines) > limits.max_order_lines:
         raise PipelineError("too_many_lines", f"{len(lines)} order lines exceed MAX_ORDER_LINES.")
     try:
-        findings = preflight_checks(scenario, settings)
+        findings = preflight_checks(scenario, settings, snapshot)
+    except SnapshotBindingError as error:
+        raise PipelineError("travel_snapshot_mismatch", str(error)) from error
     except ValueError as error:
         raise PipelineError(
             "unknown_line", f"Excluded line IDs not in the scenario: {error}"
@@ -307,7 +317,7 @@ def run_pipeline(
         [
             "trailer_capacity",
             "max_leg_m",
-            "travel_circuity",
+            *travel_keys,
             "preflight",
             "excluded_line_ids",
             "inventory_percent",
@@ -552,12 +562,24 @@ def run_pipeline(
     report("travel", {"clusters": len(clusters_meta)})
     depot = scenario.depot
     global_nodes = [(depot.lat, depot.lon)] + [tuple(r) for r in lat_lon]
-    travel_hit = stages.lookup("travel", ["clustering"], ["travel_circuity", "max_leg_m"])
+    travel_stage_keys = [*travel_keys, "max_leg_m"]
+    travel_hit = stages.lookup("travel", ["clustering"], travel_stage_keys)
     # A compact global reachability graph is computed once. On a cache hit it is
     # recovered with the exact matrices, not silently recalculated.
-    global_matrix = (
-        None if travel_hit else distance_matrix_m(np.array(global_nodes), settings.travel_circuity)
-    )
+    raw_meters = None
+    if snapshot:
+        stops = {i: (locations[i].lat, locations[i].lon) for i in loc_ids}
+        try:
+            raw_meters = snapshot.effective(stop_nodes(depot.id, (depot.lat, depot.lon), stops))[0]
+        except SnapshotBindingError as error:
+            raise PipelineError("travel_snapshot_mismatch", str(error)) from error
+        global_matrix = raw_meters
+    else:
+        global_matrix = (
+            None
+            if travel_hit
+            else distance_matrix_m(np.array(global_nodes), settings.travel_circuity)
+        )
     if travel_hit:
         globally_reachable = set(travel_hit["globally_reachable"])
     else:
@@ -591,8 +613,12 @@ def run_pipeline(
         travel.append(
             {
                 "cluster_id": meta["id"],
-                "provider": "haversine",
-                "circuity": settings.travel_circuity,
+                "provider": snapshot.provider if snapshot else "haversine",
+                **(
+                    {"snapshot_id": settings.travel_snapshot_id}
+                    if snapshot
+                    else {"circuity": settings.travel_circuity}
+                ),
                 "units": "meters",
                 "nodes": ["depot", *nodes],
                 "matrix": matrix.tolist(),
@@ -635,12 +661,13 @@ def run_pipeline(
         )
     if settings.objective == "weighted_distance" and settings.weighted_truck_penalty_m is None:
         raise PipelineError("missing_penalty", "weighted_distance needs weighted_truck_penalty_m.")
-    stages.add(
-        "travel",
-        {"clusters": travel, "globally_reachable": sorted(globally_reachable)},
-        ["clustering"],
-        ["travel_circuity", "max_leg_m"],
-    )
+    travel_payload: dict[str, Any] = {
+        "clusters": travel,
+        "globally_reachable": sorted(globally_reachable),
+    }
+    if snapshot:
+        travel_payload["snapshot"] = snapshot_provenance(snapshot, settings)
+    stages.add("travel", travel_payload, ["clustering"], travel_stage_keys)
     stages.add(
         "problem",
         {"clusters": problems},
@@ -750,8 +777,11 @@ def run_pipeline(
             )
         )
     validations = []
+    raw_leg = snapshot_leg_reader(raw_meters, loc_ids)
     for meta, prob, trav, solve in zip(clusters_meta, problems, travel, solves, strict=True):
-        validations.append(validate_cluster(meta, prob, trav, solve, visits, lines, settings))
+        validations.append(
+            validate_cluster(meta, prob, trav, solve, visits, lines, settings, raw_leg)
+        )
     stages.add(
         "validation",
         {"lineage_ok": lineage_ok, "clusters": validations},
@@ -1011,6 +1041,7 @@ def run_pipeline(
         unplanned=sorted(unplanned, key=lambda u: (u.line_id, u.reason)),
         preflight=findings,
         allocation=allocation_summary,
+        travel=travel_summary(snapshot, settings),
         diagnostics=diagnostics,
         versions=versions(),
     )
@@ -1025,6 +1056,99 @@ def run_pipeline(
 
 
 # ---- helpers ------------------------------------------------------------------------------------
+
+
+def resolve_snapshot(
+    settings: RunSettings,
+    provided: TravelSnapshot | None,
+    loader: Callable[[str], dict[str, Any]] | None,
+) -> TravelSnapshot | None:
+    """The selected directed snapshot, checked against the identity the settings name (spec §7).
+
+    The loader is the worker transport (or a bundle on disk for replay); it is never trusted:
+    the loaded document is validated and its content hash must equal the selected identity.
+    """
+    wanted = settings.travel_snapshot_id
+    if wanted is None:
+        if provided is not None:
+            raise PipelineError(
+                "travel_snapshot_unbound",
+                "A travel snapshot was supplied but the run settings do not select one.",
+            )
+        return None
+    snapshot = provided
+    if snapshot is None:
+        if loader is None:
+            raise PipelineError(
+                "travel_snapshot_missing",
+                f"Travel snapshot {wanted[:12]} is selected but no source for it was provided.",
+            )
+        try:
+            snapshot = TravelSnapshot.model_validate(loader(wanted))
+        except Exception as error:  # noqa: BLE001 - transport, missing row and invalid document
+            raise PipelineError(
+                "travel_snapshot_unavailable",
+                f"Travel snapshot {wanted[:12]} could not be loaded: {error}"[:500],
+            ) from error
+    if snapshot.identity != wanted:
+        raise PipelineError(
+            "travel_snapshot_identity",
+            f"The loaded travel snapshot hashes to {snapshot.identity[:12]}, not the selected "
+            f"{wanted[:12]}.",
+        )
+    return snapshot
+
+
+def snapshot_leg_reader(raw_meters: np.ndarray | None, loc_ids: list[str]):
+    """`leg(a, b)` in meters straight from the snapshot's effective matrix, by travel-node name
+    ("depot" or a location ID); None for estimated travel."""
+    if raw_meters is None:
+        return None
+    index = {"depot": 0, **{loc: i + 1 for i, loc in enumerate(loc_ids)}}
+
+    def leg(a: str, b: str) -> int:
+        return int(raw_meters[index[a], index[b]])
+
+    return leg
+
+
+def snapshot_provenance(snapshot: TravelSnapshot, settings: RunSettings) -> dict[str, Any]:
+    """Everything about a snapshot except its matrices, recorded in the travel artifact."""
+    return {
+        "id": settings.travel_snapshot_id,
+        "provider": snapshot.provider,
+        "provider_version": snapshot.provider_version,
+        "dataset_revision": snapshot.dataset_revision,
+        "profile": snapshot.profile,
+        "options": snapshot.options,
+        "distance_units": snapshot.distance_units,
+        "duration_units": snapshot.duration_units,
+        "conversion": snapshot.conversion,
+        "node_count": len(snapshot.nodes),
+        "warnings": snapshot.warnings,
+    }
+
+
+def travel_summary(snapshot: TravelSnapshot | None, settings: RunSettings) -> TravelSummary:
+    if snapshot:
+        return TravelSummary(
+            mode="snapshot",
+            provider=snapshot.provider,
+            provider_version=snapshot.provider_version,
+            dataset_revision=snapshot.dataset_revision,
+            profile=snapshot.profile,
+            snapshot_id=settings.travel_snapshot_id,
+            node_count=len(snapshot.nodes),
+            warning_count=len(snapshot.warnings),
+        )
+    return TravelSummary(
+        mode="estimated",
+        provider="haversine",
+        provider_version="haversine/1",
+        dataset_revision="earth-radius-6371008.8m",
+        profile="estimated",
+        circuity=settings.travel_circuity,
+    )
 
 
 def exclusion_reason(line, loc, cap: int, user_excluded: set[str]) -> str | None:
@@ -1147,20 +1271,6 @@ def add_visit_unplanned(out, visit, lines, reason, stage, evidence) -> None:
             out.append(unplanned_line(line, part["pieces"], reason, stage, evidence))
 
 
-def reachable(matrix: np.ndarray, max_leg_m: int) -> set[int]:
-    """Nodes reachable from node 0 over allowed directed legs (≤ limit)."""
-    allowed = (matrix >= 0) & (matrix <= max_leg_m)
-    np.fill_diagonal(allowed, False)
-    seen, frontier = {0}, [0]
-    while frontier:
-        node = frontier.pop()
-        for nxt in np.nonzero(allowed[node])[0]:
-            if int(nxt) not in seen:
-                seen.add(int(nxt))
-                frontier.append(int(nxt))
-    return seen
-
-
 def mean_centroid_distance(lat_lon: np.ndarray, circuity: float) -> float:
     if len(lat_lon) == 0:
         return 0.0
@@ -1171,9 +1281,13 @@ def mean_centroid_distance(lat_lon: np.ndarray, circuity: float) -> float:
     return round(float(d.mean()), 1)
 
 
-def validate_cluster(meta, prob, trav, solve, visits, lines, settings) -> dict[str, Any]:
+def validate_cluster(
+    meta, prob, trav, solve, visits, lines, settings, raw_leg=None
+) -> dict[str, Any]:
     """Checks coverage, lineage load, capacity, physical legs, membership and, when the
-    optional policy is on, cluster diameter."""
+    optional policy is on, cluster diameter. With a selected travel snapshot, `raw_leg(a, b)`
+    reads the leg from the snapshot itself, so a travel artifact that disagrees with it (a stale
+    cache entry, the wrong matrix) is rejected rather than trusted."""
     violations: list[str] = []
     trucks = []
     if solve["status"] == "empty":
@@ -1216,6 +1330,13 @@ def validate_cluster(meta, prob, trav, solve, visits, lines, settings) -> dict[s
                     f"leg to {v['location_id']} is {leg / 1609.344:.0f} mi > "
                     f"{settings.max_leg_m / 1609.344:.0f} mi"
                 )
+            if raw_leg is not None:
+                recorded = raw_leg(trav["nodes"][prev], trav["nodes"][node])
+                if leg != recorded:
+                    violations.append(
+                        f"leg to {v['location_id']} is {leg} m in the travel artifact but "
+                        f"{recorded} m in the travel snapshot"
+                    )
             legs.append(leg)
             prev = node
         if load > settings.trailer_capacity:
