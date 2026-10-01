@@ -85,7 +85,7 @@
 
 ## Current state
 
-Spec **v1.8** is the implementation target. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
+Spec **v1.9** is the accepted implementation target. This worktree contains a **v1.10-proposed** research revision; it is not accepted or implemented. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
 
 **M1 is complete.** A real synthetic run now goes end to end: `POST /api/v1/runs` (idempotency key; production requires `RUN_KEY`) → SQLite job → the Python supervisor claims it over the loopback transport → a child process runs the pipeline (`services/optimizer/src/fillrate_optimizer/pipeline.py`) → nine stage artifacts and the run summary commit atomically → `/runs/<id>` shows the map, clusters, truck loads, unplanned lines with evidence, per-product reconciliation and provenance, with JSON/CSV export. The bundled scenario is `examples/m1-synthetic.json` (Memphis DC, 69 orders; regenerate with `uv run python -m fillrate_optimizer.synthetic`). It exercises stock shortage, a split oversize stop, a 396 + 198 mi chain to a stop 594 mi from the depot (planned), an isolated unreachable stop, an unresolved coordinate and an oversize piece.
 
@@ -130,6 +130,12 @@ Both stay far below `RUN_WALL_LIMIT_SECONDS` (600). GitHub runners stand in for 
 
 ## M3 checkpoint (2026-09-30)
 Imported CSV completed preview → immutable save → real worker → validated shipment in a browser. Local checks passed: 43 Vitest, 72 pytest, Ruff, lint, typecheck and production build. A synthetic 2,000-order / 640-location / 8-cluster run took 2.733 s on this Mac; solve was 2.366 s (`services/optimizer/benchmarks/m3_2000_result.json`). Production imported-data access uses `SCENARIO_KEY`; public multi-user isolation is still a release gate. Cluster tasks are sequential but completed clusters resume after lease expiry. Solver exceptions still fail a run; matrix subpart reuse across changed partitions remains open. Actual cost rates await the primary user.
+
+## Research proposal (2026-10-01)
+
+Studied the full 61-page Moraes thesis and checked its key table/diagram visually. Proposed changes are in `docs/research/2026-10-01-route-planning-adjustments.md` and spec v1.10-proposed: planner outcomes/reasons, immutable manual revisions, explicit review metrics, a synthetic lesson and a controlled planner pilot. Readiness and recurring rules wait for evidence from the primary user's workflow. Current M5/M6 work and release gates continue under accepted v1.9. No runtime changes or milestone completion were made; `docs/status.json` remains unchanged.
+
+Verification: `bun run lint`, `bun run typecheck`, `bun run build`, the `/dev` parser compatibility check, and `git diff --check` passed with Node 24.21.0 and Bun 1.4.2. Lint reports the existing hook-dependency warning in vendored `ui/globe.tsx`; build reports two existing dynamic-filesystem tracing warnings in `packages/db/src/replay.ts`. No optimizer or runtime source changed, so Python and broader runtime suites were not rerun. Repository-local Git identity now matches recent project commits and the signed-in GitHub account. The verified proposal is committed on its research branch for review.
 
 ## Known gaps
 - Geocoding jobs run inside the web process, one at a time. A restart marks queued or running jobs failed (start again; Census answers already received are cached). Census errors fail the whole job rather than silently falling back to ZIP centroids.
@@ -177,6 +183,8 @@ Round two is answered (2026-10-01). Still open from him:
 Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts and the missing Foundations tokens added (M2 item 16, the last M2 item).
 
 ## Next step
+Review the research proposal before implementing its additions; answer the readiness and usual-correction questions in the research note when practical. The existing implementation sequence below remains in effect.
+
 M4 product work is done (2026-10-01); what is left are owner release gates:
 1. Owner: run the benchmark and a recovery check (kill the container mid-run, restart, the run resumes or fails cleanly) on the VPS and the Pi.
 2. M2: rebuild `fillrate.fig` Components on coss parts (needs the OpenPencil app open).

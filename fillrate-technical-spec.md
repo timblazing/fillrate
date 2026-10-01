@@ -1,8 +1,10 @@
 # Fillrate — Technical Specification
 
-Version: 1.9 · Revised October 1, 2026
+Version: 1.10-proposed · Revised October 1, 2026
 
 Revision notes:
+
+- 1.10-proposed studies Moraes's 2025 route-planning adjustment thesis (§19). Proposes planner reviews, immutable manual revisions, explicit intervention metrics, and a staged pilot (§5, §10, §13, §15–16). These additions are **not accepted or implemented**; v1.9 remains the accepted implementation target until owner review. Corrects stale overview and cluster-diameter default wording to match existing decisions. Research, evidence limits, delivery order and open questions are in `docs/research/2026-10-01-route-planning-adjustments.md`.
 
 - 1.1 replaces Neon PostgreSQL with a local SQLite file, packages the app as a single GHCR container image, and adds a GitHub Actions build workflow. The application requires no third-party credentials.
 - 1.2 closes the remaining open decisions: Node LTS server runtime with `better-sqlite3`, network-level access control with no in-app auth, optional self-hosted single-state OSRM, public repository and image, Census ZCTA Gazetteer fallback, single-day time model, mapcn default basemap, concrete allocation heuristics, cost units, CI, and cross-session handoff documents.
@@ -14,7 +16,7 @@ Revision notes:
 - 1.8 applies the primary user's design-review answers (in-app review, submitted September 30, 2026). Confirms the per-piece value tiebreak and same-customer stop combining. **The 500-mile rule is per leg only**: the cluster-diameter limit becomes an optional policy, off by default. **Cost decides between plans**: a monetary objective (cost per truck + cost per mile) moves from M6 to M3, with rates still to be supplied. Rewrites M2 (§15, "M2 scope") around the answers: wording (Cluster / Shipment / Unshipped), an 80% low-fill flag, revenue-first results, blocking preflight checks, a printable shipment sheet, and a second, short review round.
 - 1.9 records the round-two answers (export `fillrate-design-review-2026-10-01.json`). Every revised Block, `/runs/<id>` and the shipment sheet are **accepted**; the flow strip stays; ★ is labeled **Best trade-off**; the 90% "full" band is confirmed. **A far stop reachable through another stop only warns**, and **a stop larger than one trailer splits by default** instead of blocking (§15 M2 item 8). He has no cost rates ("N/A"), so trucks-then-miles stays the default objective. New M4 requirement: rank comparable plans as **Best option, 2nd best, 3rd** (§10, §15). M2 closes except `fillrate.fig` (item 16).
 
-Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. The current implementation has a frontend gallery, a small Python load solver, and database/job foundations, not the complete pipeline. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
+Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. The implementation includes the durable fulfillment pipeline, imported scenarios, experiments, and the flagship lesson; see `docs/progress.md` for completed work and remaining gaps. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
 
 Reading guide: §1 defines the product and terminology; §2–3 define architecture and capability boundaries; §5–8a define the model and pipeline; §9–12 define execution and results; §15–16 define delivery gates and verification. Keep these section numbers stable for code and decision-log references.
 
@@ -152,7 +154,7 @@ The primary workflow (§1) also needs these behaviors. Each records its native/p
 | --- | --- |
 | Open routes (no return to the depot) | Proven workaround in 0.14.0: an end depot remains in the model, with zero-cost terminal return edges. Omit that synthetic return from physical legs, map geometry, mileage, and exports of planned service. Keep the raw travel matrix intact. Time-window/reload adapters require separate proof that terminal time semantics are correct. |
 | Maximum leg distance (500 mi default) | Adapter discourages forbidden arcs by omitting them; PyVRP substitutes finite `MAX_VALUE`, so this is **not a native hard constraint**. Fillrate independently rejects any candidate using a forbidden physical leg. Preflight tests graph reachability; it must not simply drop every stop beyond a 500-mile depot radius. |
-| Maximum cluster diameter (500 mi default) | Enforced by the clustering stage (§8a), not by PyVRP. The route validator re-checks it. |
+| Maximum cluster diameter (optional, off by default) | Enforced by the clustering stage (§8a), not by PyVRP. The route validator re-checks it. |
 | Geographic clustering | scikit-learn k-means before PyVRP (§8a); not a PyVRP feature. |
 
 Verify exact cost fields, overtime fields, shipment APIs, groups, depot time behavior, warm starts, and search parameters against the pinned release. Do not simulate unsupported constraints while labeling them native.
@@ -194,6 +196,14 @@ Scenario identity and editable metadata are separate from versioned content. Sav
 Authorship: on first visit, the browser asks for a display name and stores it with a random browser identifier. The display name is recorded on saved versions, runs, and experiments. It is a label, not authentication. Before publicly exposing saved scenarios, real customer data, imports, or run submission, implement and test an identity and data-isolation policy; a browser identifier does not protect shared state.
 
 Time model: each scenario has an IANA timezone (default taken from the browser) and a planning date, and it plans a single-day horizon. Time windows, shifts, and release times are entered as local clock times and normalized to elapsed integer seconds from the instant of local midnight on the planning date. Store the timezone and resolved offsets; reject nonexistent DST clock times and require a choice for ambiguous times. Do not equate clock-hour labels with elapsed seconds across DST changes. Late shifts may extend past midnight up to a scenario horizon end (default 24:00, maximum 48:00). The timeline and exports display local clock times; the solver receives the integer seconds. Multi-day horizons are out of scope for v1.
+
+### Proposed planner-review records (v1.10, awaiting owner review)
+
+A planner review references an immutable run, a review outcome (`accepted | needs_changes | not_usable`), an author label, timestamp, optional structured reason/note, and affected stable shipment/visit/line IDs. A negative outcome requires a reason or note. Superseding a review preserves its history. Review state is separate from job completion, validation, coverage, and proof status. Unreviewed runs do not imply acceptance. These records follow the same real-data access controls as their source runs.
+
+Manual plan revisions reference the original run and parent revision, preserve edit events and piece/visit lineage, and store independent validation results. Generated shipment numbers are not stable matching keys. Splits and merges require explicit many-to-many lineage; unknown matches remain unknown. Changed input or effective constraints create a scenario/run branch, rather than overwriting a solver result. Begin with the planned M6 reorder/reassignment evaluator; expose additional edits only when lineage and validation support them.
+
+Inventory availability does not prove that goods are ready for dispatch. Investigate the primary user's readiness semantics before changing the model. A future readiness snapshot must identify line-level ready quantities, source and as-of time, preserve whole-order eligibility and account separately for not-ready pieces. Unknown readiness cannot become ready by default in a readiness-aware mode. New eligibility/release policies require capability fixtures, cache identities and comparison signatures. This remains a research direction, not a new default preflight rule.
 
 ### Four model boundaries
 
@@ -408,6 +418,16 @@ For pipeline tradeoffs, derive a separate `comparisonSignature`: demand/inventor
 
 For each product: ordered = excluded + eligible; eligible = allocated + allocation-unselected; allocated = validated-planned + allocated-unplanned; starting inventory = allocated + residual (pieces per depot/product). Demand amounts use each line's net price; residual inventory has no implied revenue valuation when lines have different prices. Demand counts and amounts reconcile without double-counting a line split across trucks. Failed partitions contribute no planned revenue from invalid candidates. Show null/N/A ratios when denominators are zero.
 
+### Proposed operational review and controlled changes (v1.10)
+
+Offer planner outcome and reason capture before adding more routing policies. Suggested reasons are incorrect destination, goods not ready, vehicle availability, service requirement, grouping preference, data correction, and other. A reason records the planner's assessment; it neither proves a root cause nor creates a solver constraint. Preserve the original result and compare any manual revision using the same normalized problem, raw matrices and validator. Changes to coordinates, stock, eligibility, demand or effective fleet constraints are changed-assumption branches. A valid manual revision does not imply optimality or execution.
+
+Review metrics appear beside the current optimization metrics and do not change Best option ranking. Define accepted-unchanged rate over reviewed runs and show review coverage over eligible completed runs separately. Define materially revised suggestions over original suggested shipments in reviewed cases, counting distinct parents once even after a split/merge or repeated edits. Define removal only when a parent has no successor and removal is confirmed. Report explicitly created shipments as a count, with their own denominator if shown as a share. Export case set, cutoff, comparison fields, numerator, denominator, missing/unmatched counts and metric version. Aggregate period rates from summed counts; zero denominators yield N/A.
+
+Execution-as-suggested needs observed execution data and declared matching fields, with all observed executed shipments as its denominator. Planner acceptance, validation and playback cannot populate it. Execution import remains deferred. Rework time is an optional measured active duration, with coverage; elapsed time between records is not labor time.
+
+Recurring scoped corrections produce review candidates with frequency and opportunity counts. They do not automatically update coordinates, carrier preferences, or routing rules. A proposed parameter change states a hypothesis, changes one declared assumption, replays both configurations on saved cases with equal budgets, reports validity and fulfillment/truck/mileage outcomes alongside review effort, and provides rollback. Repeated-seed outputs remain independent. Operational changes and missing records are reported as possible confounders. The pilot protocol is in `docs/research/2026-10-01-route-planning-adjustments.md`; its acceptance criteria come from the primary user, not the thesis percentages.
+
 ## 11. Settings and override semantics
 
 Provide a real Settings surface with General, Maps & Travel, Imports & Geocoding, Solver Defaults, Allocation Defaults, Experiments, and Administration. Add search, descriptions, units, reset-to-default, validation, and source indicators.
@@ -423,7 +443,7 @@ Resolution order: built-in default → workspace setting → scenario override �
 | Travel mode | Haversine × circuity factor, estimated | Workspace/scenario/run |
 | Circuity factor | 1.2 | Workspace/scenario/run |
 | Maximum leg distance | 500 mi (solver miles) | Workspace/scenario/run |
-| Maximum cluster diameter | 500 mi (symmetric spatial miles; haversine × 1.2) | Workspace/scenario/run |
+| Maximum cluster diameter | Disabled; when enabled, symmetric spatial miles (haversine × cluster circuity) | Workspace/scenario/run |
 | Depot service radius | Disabled; explicit separate policy | Workspace/scenario/run |
 | Trailer | 53 ft, linear feet only, open route, unlimited count | Workspace/scenario/run |
 | Estimated speed | 25 mph, clearly labeled | Workspace/scenario/run |
@@ -493,6 +513,10 @@ Exports:
 - Python reproduction bundle with the full pipeline (allocation, stop aggregation, k-means and diameter repair, per-cluster model builder), supplied matrix data, allocation inputs/results, requirements or lock information, and README command.
 
 Python exports run without web application credentials and reproduce the experiment pipeline. Include secrets-free provider metadata and cached matrices rather than requiring live geocoding/routing calls. Explain time-budget variability and support an iteration-based reproduction mode. VRPLIB import/export is a later feature until the supported rich-variant subset is validated; JSON is the canonical lossless format.
+
+### Proposed planner-review lesson and export (v1.10)
+
+Add a small synthetic lesson to M7 after the review records and M6 evaluator exist. Demonstrate an unchanged plan, a valid reorder, an invalid overload edit, and a destination correction requiring a new scenario version. Export original and revised plans, lineage, reasons, validation evidence and metric definitions. The lesson must distinguish planner judgment, modeled feasibility and observed execution. Review-only exports remain possible before full editing; unsupported fields/actions stay hidden.
 
 ## 14. Deployment, access, and operations
 
@@ -576,6 +600,10 @@ Milestone numbers remain stable. M1 and the already-started M2 design review can
 Keep the minimal lease/token/attempt protections in M1: a one-worker deployment can still crash, restart, or send stale completion. Defer a general DAG scheduler, elaborate progress streaming, all advanced schema variants, and comprehensive lesson exports. Do not require a full orchestration framework before the first business pipeline.
 
 Every milestone must execute real behavior. A gallery may use labeled fixtures; the product must not use fake solver results, random routes, placeholder settings, or toast-only buttons as substitutes for persistence and execution.
+
+### Proposed research follow-up (v1.10, not a release gate)
+
+Keep the accepted milestone table and existing release gates above. Proposed delivery order: M7 review outcome/reason capture; M6 manual-evaluator lineage and revision comparison; M7 synthetic review lesson and exports; M8 an optional owner-approved planner pilot. A capture-only slice can precede full editing. No milestone is reopened and no completion estimate increases for this document. Readiness, regional policies and execution imports need separate scope decisions after user evidence; they are not prerequisites for the current first release.
 
 ### M2 scope: design-review outcomes
 
@@ -699,6 +727,14 @@ Source: the primary user's answers in the in-app review (`/dev/review`, submitte
 - Server-only modules (database, provider adapters, env config) are never bundled for the client. Internal worker endpoints reject non-loopback requests and requests without a valid worker token and lease. A public deployment exposes only intended browser routes; public writes and real-data access require isolation and abuse-control tests before launch.
 - Time windows round-trip correctly across the scenario timezone, including a daylight-saving transition date and a shift that ends after midnight.
 
+### Proposed review verification (v1.10)
+
+- Review and revision fixtures cover unchanged, reordered, reassigned, split, merged, explicitly removed, explicitly created and unmatched shipments. Repeated edit events do not multiply changed-shipment counts; quantities and parent lineage reconcile.
+- Review persistence preserves history and source access controls. An invalid/partial plan marked accepted retains its validity/coverage status and remains excluded from automatic ranking.
+- Same-problem revision comparisons require matching fingerprints and raw matrices. Changed-assumption edits branch. Review, validation and simulated playback never create execution evidence.
+- Rate fixtures cover zero denominators, incomplete review coverage, unmatched lineage, and a case where averaging daily percentages differs from a ratio of summed counts. Exports contain sufficient counts to reproduce every rate.
+- A planner pilot freezes inputs/budgets, records review outcomes and measured effort where available, and reports comparable cases plus missing data. Claim no causal or cost improvement from an uncontrolled before/after observation.
+
 ## 17. Deferred extensions
 
 Minimum shipment quantities and per-product utility for partial fulfillment; joint visit-bundling/bin-packing optimization; route-aware allocation repair (returning stock from unloadable lines to other lines); joint allocation-and-routing optimization; optional VROOM or OR-Tools routing comparisons after a concrete need and semantic-compatibility proof; Timefold/ORS integrations; deck.gl visual layers; MapLibre-Geoman Free drawing tools; validated VRPLIB rich-variant import; organization accounts and sharing beyond the public-access requirements in §14; live traffic; real dispatch integration.
@@ -738,6 +774,12 @@ The attached recommendations predate the current Valhalla/H3 decisions and optim
 Additional checks: [PyVRP 0.14.0 Model source](https://github.com/PyVRP/PyVRP/blob/v0.14.0/pyvrp/Model.py) documents finite missing-edge values; local capability fixtures establish Fillrate's actual behavior. [Valhalla Matrix](https://valhalla.github.io/valhalla/api/matrix/) defines row-ordered matrices and null unreachable pairs; [truck costing](https://valhalla.github.io/valhalla/api/route/api-reference/) and [configuration](https://github.com/valhalla/valhalla/blob/master/scripts/valhalla_build_config) must be checked again against the eventual pinned image. [H3 statistics](https://h3geo.org/docs/core-library/restable/) give average cell sizes, not diameter guarantees. [KMeans](https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html) and [ARI](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.adjusted_rand_score.html) inform the clustering diagnostics. These sources establish library behavior; the policies and derived objective bound in this spec are Fillrate design decisions.
 
 [VROOM's API](https://github.com/VROOM-Project/vroom/blob/master/docs/API.md) is a future comparison candidate, not an accepted dependency. No new solver is needed to finish the primary workflow.
+
+### Planner-adjustment thesis (October 1, 2026; proposed follow-up)
+
+[Moraes, *Route Optimization: Analysis of Operational Adjustments and Improvement Proposals* (FEUP, 2025)](https://repositorio-aberto.up.pt/bitstream/10216/167712/2/732188.pdf) studies suggested, planner-adjusted and dispatched shipments during a logistics transition. It supports investigating operational mismatch and preserving reviews, not changing Fillrate's solver or business defaults. The installation's reported change rates are descriptive evidence; proposed improvements were not tested in a controlled trial. Its reported adherence percentage has denominator/aggregation ambiguity (§4.3, Table 5.1), so do not copy it without explicit counts and definitions.
+
+The full source review, section/page references, comparison with this spec, metric contracts and staged pilot are in `docs/research/2026-10-01-route-planning-adjustments.md`. This draft proposes additions in §5, §10, §13, §15 and §16. Live dispatch, carrier-contract integrations and automatic learned rules remain outside the accepted first-release scope.
 
 ### Implementation references
 
