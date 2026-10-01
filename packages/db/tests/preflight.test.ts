@@ -10,10 +10,10 @@ const scenario: ScenarioDocument = {
     { id: "near", label: "Near", lat: 0, lon: 1, coordinate_source: "zcta" },
   ],
   orders: [
-    { id: "O1", location_id: "missing", order_date: "2026-09-30", lines: [{ id: "L1", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
-    { id: "O2", location_id: "far", order_date: "2026-09-30", lines: [{ id: "L2", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
-    { id: "O3", location_id: "near", order_date: "2026-09-30", lines: [{ id: "L3", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
-    { id: "O4", location_id: "near", order_date: "2026-09-30", lines: [{ id: "L4", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
+    { id: "O1", customer_id: null, location_id: "missing", order_date: "2026-09-30", lines: [{ id: "L1", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
+    { id: "O2", customer_id: null, location_id: "far", order_date: "2026-09-30", lines: [{ id: "L2", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
+    { id: "O3", customer_id: "near-customer", location_id: "near", order_date: "2026-09-30", lines: [{ id: "L3", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
+    { id: "O4", customer_id: "near-customer", location_id: "near", order_date: "2026-09-30", lines: [{ id: "L4", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
   ], inventory: [{ product_id: "P", available_pieces: 4 }],
 };
 test("policy blocks three cases, warns ZIP and aggregates all lines at one stop", () => {
@@ -30,4 +30,10 @@ test("explicit exclusion removes its demand and per-check override warns", () =>
     ["missing_coordinates", "block", ["L1"]], ["far_from_depot", "warn", ["L2"]], ["approximate_coordinates", "warn", ["L4"]],
   ]);
   expect(() => preflightChecks(scenario, { excluded_line_ids: ["nonexistent"] })).toThrow("Unknown excluded line IDs");
+});
+
+test("separate customers at the same location do not trigger oversize", () => {
+  const separate = structuredClone(scenario);
+  separate.orders[3].customer_id = "other-customer";
+  expect(preflightChecks(separate).some(x => x.check === "oversize_stop")).toBe(false);
 });

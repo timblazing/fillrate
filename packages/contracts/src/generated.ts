@@ -320,6 +320,11 @@ export interface components {
         };
         /** Order */
         Order: {
+            /**
+             * Customer Id
+             * @default null
+             */
+            customer_id: string | null;
             /** Id */
             id: string;
             /** Lines */

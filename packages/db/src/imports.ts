@@ -1,12 +1,12 @@
 import { parseContract, type ScenarioDocument } from "@fillrate/contracts";
 
-export const ORDER_COLUMNS = ["order_id", "line_id", "order_date", "location_id", "location_label", "address", "latitude", "longitude", "product", "ordered_pieces", "net_value_per_piece", "linear_feet_per_piece"] as const;
+export const ORDER_COLUMNS = ["order_id", "customer_id", "line_id", "order_date", "location_id", "location_label", "address", "latitude", "longitude", "product", "ordered_pieces", "net_value_per_piece", "linear_feet_per_piece"] as const;
 export const INVENTORY_COLUMNS = ["product", "available_pieces"] as const;
 export type OrderColumn = typeof ORDER_COLUMNS[number];
 export type InventoryColumn = typeof INVENTORY_COLUMNS[number];
 export type ColumnMapping<T extends string> = Partial<Record<T, string>>;
 export const CSV_TEMPLATES = {
-  orders: `${ORDER_COLUMNS.join(",")}\nO-1,L-1,2026-09-30,C-1,Customer 1,,35.1,-90.1,SKU-1,10,12.50,1.25\n`,
+  orders: `${ORDER_COLUMNS.join(",")}\nO-1,customer-1,L-1,2026-09-30,C-1,Customer 1,,35.1,-90.1,SKU-1,10,12.50,1.25\n`,
   inventory: "product,available_pieces\nSKU-1,100\n",
 };
 export type ImportIssue = { file: "orders" | "inventory"; row: number; column: string; code: string; message: string };
@@ -97,6 +97,8 @@ export function previewCsvImport(input: CsvImportInput): CsvImportPreview {
     const before = errors.length;
     const id = (column: OrderColumn) => { const value = get(column); if (!value || value.length > 200) issue("orders", row, column, "id", "An ID of 1–200 characters is required."); return value; };
     const orderId = id("order_id"), product = id("product");
+    const customerId = get("customer_id") || orderId;
+    if (customerId.length > 200) issue("orders", row, "customer_id", "id", "Customer IDs must be at most 200 characters.");
     const lineId = get("line_id") || `csv-line-${row}`;
     if (lineId.length > 200 || lineIds.has(lineId)) issue("orders", row, "line_id", "duplicate_id", "Line IDs must be unique and at most 200 characters.");
     lineIds.add(lineId);
@@ -120,12 +122,12 @@ export function previewCsvImport(input: CsvImportInput): CsvImportPreview {
     const priorLocation = locations.get(locationId);
     if (priorLocation && JSON.stringify(priorLocation) !== JSON.stringify(location)) issue("orders", row, "location_id", "conflicting_location", "Repeated location ID has conflicting coordinates or label.");
     const priorOrder = orders.get(orderId);
-    if (priorOrder && (priorOrder.location_id !== locationId || priorOrder.order_date !== date)) issue("orders", row, "order_id", "conflicting_order", "Repeated order ID must keep the same date and location.");
+    if (priorOrder && (priorOrder.location_id !== locationId || priorOrder.order_date !== date || priorOrder.customer_id !== customerId)) issue("orders", row, "order_id", "conflicting_order", "Repeated order ID must keep the same date, location and customer.");
     if (errors.length !== before) continue;
     if (!suppliedCoordinates) warnings.push({ file: "orders", row, column: "address", code: "unresolved", message: "Address retained; geocoding is not available yet. Resolve coordinates before running." });
     products.set(product, products.get(product) ?? { id: product, label: product, linear_feet_per_piece: feet });
     locations.set(locationId, location);
-    const order = priorOrder ?? { id: orderId, location_id: locationId, order_date: date, lines: [] };
+    const order = priorOrder ?? { id: orderId, customer_id: customerId, location_id: locationId, order_date: date, lines: [] };
     order.lines.push({ id: lineId, product_id: product, ordered_pieces: pieces, net_value_per_piece_cents: value, linear_feet_per_piece: feet });
     orders.set(orderId, order);
   }

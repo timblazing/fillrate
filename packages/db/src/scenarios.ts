@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { parseContract, type ScenarioDocument, type Snapshot } from "@fillrate/contracts";
 import { canonical, type Store } from "./index";
 
@@ -33,13 +33,22 @@ export function scenarioVersion(store: Store, scenarioId: string, versionId?: st
   const source = store.sqlite.prepare("SELECT source, metadata FROM scenario_sources WHERE versionId=?").get(row.id) as { source: string; metadata: string } | undefined;
   return { ...row, document: JSON.parse(row.document).document as ScenarioDocument, source: source ? JSON.parse(source.source) : null, metadata: source ? JSON.parse(source.metadata) as ScenarioMetadata : null };
 }
-export function saveScenario(store: Store, input: { document: unknown; author: string; metadata: ScenarioMetadata; source?: unknown; scenarioId?: string; expectedVersionId?: string; branch?: boolean }) {
+export function saveScenario(store: Store, input: { document: unknown; author: string; metadata: ScenarioMetadata; source?: unknown; scenarioId?: string; expectedVersionId?: string; branch?: boolean; idempotencyKey?: string; requestPayload?: unknown }) {
   const doc = validateScenario(input.document), metadata = validateMetadata(input.metadata);
   if (!input.author?.trim() || input.author.length > 100) throw new Error("invalid_author");
   const source = canonical(input.source ?? null);
   if (Buffer.byteLength(source) > 8 * 1024 * 1024 || Buffer.byteLength(canonical(doc)) > 8 * 1024 * 1024) throw new Error("scenario_too_large");
   const snapshot = { schema_version: 1, document: doc } as unknown as Snapshot;
+  if (input.idempotencyKey !== undefined && (!input.idempotencyKey || input.idempotencyKey.length > 200)) throw new Error("invalid_idempotency_key");
+  const requestHash = createHash("sha256").update(canonical(input.requestPayload === undefined ? { document: doc, author: input.author.trim(), metadata, source: input.source ?? null, scenarioId: input.scenarioId ?? null, expectedVersionId: input.expectedVersionId ?? null, branch: Boolean(input.branch) } : { scenarioId: input.scenarioId ?? null, body: input.requestPayload })).digest("hex");
   return store.sqlite.transaction(() => {
+    if (input.idempotencyKey) {
+      const prior = store.sqlite.prepare("SELECT requestHash,scenarioId,versionId FROM scenario_saves WHERE idempotencyKey=?").get(input.idempotencyKey) as { requestHash: string; scenarioId: string; versionId: string } | undefined;
+      if (prior) {
+        if (prior.requestHash !== requestHash) throw new Error("idempotency_conflict");
+        return { scenarioId: prior.scenarioId, versionId: prior.versionId };
+      }
+    }
     let scenarioId = input.scenarioId, versionId: string;
     if (scenarioId && input.branch) {
       if (!input.expectedVersionId) throw new Error("version_required");
@@ -55,6 +64,7 @@ export function saveScenario(store: Store, input: { document: unknown; author: s
       scenarioId = created.scenarioId; versionId = created.versionId;
     }
     store.sqlite.prepare("INSERT INTO scenario_sources (versionId,source,metadata) VALUES (?,?,?)").run(versionId, source, canonical(metadata));
+    if (input.idempotencyKey) store.sqlite.prepare("INSERT INTO scenario_saves (idempotencyKey,requestHash,scenarioId,versionId,createdAt) VALUES (?,?,?,?,?)").run(input.idempotencyKey, requestHash, scenarioId, versionId, Date.now());
     return { scenarioId, versionId };
   }).immediate();
 }

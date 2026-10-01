@@ -88,6 +88,7 @@ def build() -> ScenarioDocument:
         orders.append(
             {
                 "id": f"O{n:03d}",
+                "customer_id": f"customer-{loc}",
                 "location_id": loc,
                 "order_date": f"2026-09-{day:02d}",
                 "lines": [

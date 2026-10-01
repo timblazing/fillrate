@@ -62,3 +62,8 @@ export const scenarioSources = sqliteTable("scenario_sources", {
   versionId: text().primaryKey().references(() => versions.id),
   source: text().notNull(), metadata: text().notNull(),
 });
+export const scenarioSaves = sqliteTable("scenario_saves", {
+  idempotencyKey: text().primaryKey(), requestHash: text().notNull(),
+  scenarioId: text().notNull().references(() => scenarios.id),
+  versionId: text().notNull().references(() => versions.id), createdAt: integer().notNull(),
+});

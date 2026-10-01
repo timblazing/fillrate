@@ -193,6 +193,25 @@ def test_oversize_piece_is_rejected_before_allocation():
 # ---- aggregation --------------------------------------------------------------------------------
 
 
+def test_aggregation_requires_same_customer_and_location():
+    doc = scenario(
+        [("A", east(50))],
+        [("O1", "A", "2026-09-01", "P", 1, 100),
+         ("O2", "A", "2026-09-01", "P", 1, 100),
+         ("O3", "A", "2026-09-01", "P", 1, 100)],
+        [("P", 3)],
+    )
+    doc.orders[0].customer_id = "C1"
+    doc.orders[1].customer_id = "C1"
+    doc.orders[2].customer_id = "C2"
+    out = run(doc)
+    visits = next(a for a in out.artifacts if a.stage == "aggregation").payload["visits"]
+    assert {v["visit_id"]: [line["line_id"] for line in v["lines"]] for v in visits} == {
+        '["A","C1"]#1': ["O1-1", "O2-1"],
+        '["A","C2"]#1': ["O3-1"],
+    }
+
+
 def test_greedy_split_conserves_whole_pieces():
     doc = scenario(
         [("A", east(50))],
@@ -201,7 +220,7 @@ def test_greedy_split_conserves_whole_pieces():
     )
     out = run(doc)
     visits = next(a for a in out.artifacts if a.stage == "aggregation").payload["visits"]
-    assert [v["visit_id"] for v in visits] == ["A#1", "A#2", "A#3"]
+    assert [v["visit_id"] for v in visits] == ['["A","O1"]#1', '["A","O1"]#2', '["A","O1"]#3']
     assert [v["load"] for v in visits] == [5_200, 5_200, 1_600]
     assert sum(p["pieces"] for v in visits for p in v["lines"]) == 30
     assert out.summary.totals.trucks == 3 and out.summary.coverage == "complete"
@@ -287,7 +306,11 @@ def test_validator_rejects_solver_feasible_missing_edge_candidate():
     visits = {v["visit_id"]: v for v in stage["aggregation"]["visits"]}
     lines = {f"O{i}-1": {"lf": 400, "value": 100} for i in (1, 2)}
     # A candidate the solver called feasible, but with B first: depot → B is 594 mi.
-    solve = {"status": "solved", "solver_feasible": True, "routes": [["B#1"], ["A#1"]]}
+    solve = {
+        "status": "solved",
+        "solver_feasible": True,
+        "routes": [['["B","O2"]#1'], ['["A","O1"]#1']],
+    }
     check = validate_cluster(meta, prob, trav, solve, visits, lines, FAST)
     assert not check["valid"]
     assert any(v.startswith("leg to B") for v in check["violations"])

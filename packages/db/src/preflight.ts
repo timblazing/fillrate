@@ -44,13 +44,15 @@ export function preflightChecks(scenario: ScenarioDocument, settings: PreflightS
       if (!missing && loc.coordinate_source === "zcta") add("approximate_coordinates", loc.id, line.id);
       const product = products.get(line.product_id);
       if (!product) throw new Error(`Unknown product: ${line.product_id}`);
-      const group = grouped.get(loc.id) ?? { ids: [], load: 0 };
+      const groupKey = JSON.stringify([loc.id, order.customer_id ?? order.id]);
+      const group = grouped.get(groupKey) ?? { ids: [], load: 0 };
       group.ids.push(line.id);
       group.load += line.ordered_pieces * (line.linear_feet_per_piece ?? product.linear_feet_per_piece);
-      grouped.set(loc.id, group);
+      grouped.set(groupKey, group);
     }
   }
-  for (const [id, group] of grouped) if (group.load > (settings.trailer_capacity ?? 5300)) {
+  for (const [key, group] of grouped) if (group.load > (settings.trailer_capacity ?? 5300)) {
+    const [id] = JSON.parse(key) as [string, string];
     for (const lineId of group.ids) add("oversize_stop", id, lineId);
   }
   return (["missing_coordinates", "far_from_depot", "oversize_stop", "approximate_coordinates"] as const).flatMap(check => {

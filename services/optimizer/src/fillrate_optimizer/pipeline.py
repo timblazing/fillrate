@@ -9,6 +9,7 @@ from solver output.
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import time
@@ -22,6 +23,7 @@ from typing import Any
 
 import numpy as np
 
+from .artifact_codec import decode_travel, encode_travel
 from .canonical import content_hash
 from .clustering import Clusterer, centroid
 from .loads import (
@@ -141,11 +143,12 @@ class Stages:
         ):
             raise PipelineError("cache_corrupt", "Cached stage failed identity/hash validation.")
         self.hits[stage] = manifest
-        return payload
+        return decode_travel(payload) if stage == "travel" else payload
 
     def add(self, stage: str, payload: dict[str, Any], parents: list[str], keys: list[str]):
         input_hash, parent_hashes, effective = self.identity(stage, parents, keys)
-        output_hash = content_hash(payload)
+        stored_payload = encode_travel(payload) if stage == "travel" else payload
+        output_hash = content_hash(stored_payload)
         hit = self.hits.pop(stage, None)
         if hit and hit["output_hash"] != output_hash:
             raise PipelineError("cache_corrupt", "Reused stage output changed.")
@@ -163,7 +166,7 @@ class Stages:
             "execution_id": self.execution_id,
             "reused_from": hit["execution_id"] if hit else None,
         }
-        artifact = Artifact(stage, manifest, payload)
+        artifact = Artifact(stage, manifest, stored_payload)
         self.artifacts.append(artifact)
         if self.checkpoint:
             self.checkpoint(artifact)
@@ -228,6 +231,7 @@ def run_pipeline(
             lines[line.id] = {
                 "line_id": line.id,
                 "order_id": order.id,
+                "customer_id": order.customer_id or order.id,
                 "product_id": line.product_id,
                 "location_id": order.location_id,
                 "order_date": order.order_date,
@@ -341,21 +345,21 @@ def run_pipeline(
         [],
     )
 
-    # ---- 3. Aggregate into location groups and whole-piece visit bundles (§5) -----------------
+    # ---- 3. Aggregate same-customer, same-location whole-piece visits (§5) --------------------
     report("aggregation", {})
-    by_location: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    by_location: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for line in order:  # allocation order, so splits fill whole pieces in the same order
         if allocated[line["line_id"]] > 0:
-            by_location[line["location_id"]].append(line)
+            by_location[(line["location_id"], line["customer_id"])].append(line)
     aggregation_hit = stages.lookup("aggregation", ["allocation"], ["trailer_capacity"])
     if aggregation_hit:
         visits = {v["visit_id"]: v for v in aggregation_hit["visits"]}
     else:
         visits: dict[str, dict[str, Any]] = {}
-        for loc_id in sorted(by_location):
+        for loc_id, customer_id in sorted(by_location):
             bundles: list[list[tuple[str, int]]] = [[]]
             room = cap
-            for line in by_location[loc_id]:
+            for line in by_location[(loc_id, customer_id)]:
                 pieces = allocated[line["line_id"]]
                 while pieces:
                     fit = min(pieces, room // line["lf"])
@@ -367,7 +371,8 @@ def run_pipeline(
                     room -= fit * line["lf"]
                     pieces -= fit
             for n, bundle in enumerate(bundles, start=1):
-                visit_id = f"{loc_id}#{n}"
+                # JSON escaping makes the pair unambiguous even when IDs contain '#'.
+                visit_id = f"{json.dumps([loc_id, customer_id], separators=(',', ':'))}#{n}"
                 visits[visit_id] = {
                     "visit_id": visit_id,
                     "location_id": loc_id,
@@ -397,7 +402,7 @@ def run_pipeline(
 
     # ---- 4. Cluster and repair (§8a) --------------------------------------------------------
     report("clustering", {})
-    loc_ids = sorted(by_location)
+    loc_ids = sorted({loc_id for loc_id, _customer_id in by_location})
     lat_lon = np.array([[locations[i].lat, locations[i].lon] for i in loc_ids], dtype=float)
     clustering_hit = stages.lookup(
         "clustering",

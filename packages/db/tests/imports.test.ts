@@ -9,6 +9,7 @@ describe("CSV import preview", () => {
     expect(result.document?.orders[0].lines[0]).toMatchObject({ ordered_pieces: 10, net_value_per_piece_cents: 1250, linear_feet_per_piece: 125 });
     expect(result.originals.ordersCsv).toBe(base.ordersCsv);
     expect(result.document?.locations[0].coordinate_source).toBe("imported");
+    expect(result.document?.orders[0].customer_id).toBe("customer-1");
   });
   it("parses exact decimals and refuses precision loss, exponents, negatives and overflow", () => {
     expect(parseExactHundredths("0.29")).toBe(29);
@@ -27,6 +28,13 @@ describe("CSV import preview", () => {
     expect(preview(base.ordersCsv + second + "\n").document?.orders[0].lines).toHaveLength(2);
     expect(preview(base.ordersCsv + base.ordersCsv.split("\n")[1]).errors.some((e) => e.code === "duplicate_id")).toBe(true);
     expect(preview(base.ordersCsv + second.replace("2026-09-30", "2026-09-29")).errors.some((e) => e.code === "conflicting_order")).toBe(true);
+    expect(preview(base.ordersCsv + second.replace("customer-1", "customer-2")).errors.some((e) => e.code === "conflicting_order")).toBe(true);
+  });
+  it("keeps legacy CSV customers distinct by default", () => {
+    const rows = base.ordersCsv.trimEnd().split("\n").map(row => row.replace("customer_id,", "").replace("customer-1,", ""));
+    const second = rows[1].replace("O-1", "O-2").replace("L-1", "L-2");
+    const result = preview(`${rows[0]}\n${rows[1]}\n${second}\n`);
+    expect(result.document?.orders.map(order => order.customer_id)).toEqual(["O-1", "O-2"]);
   });
   it("retains address-only rows with explicit unresolved provenance", () => {
     const result = preview(base.ordersCsv.replace(",,35.1,-90.1,", ",123 Main Street,,,"));

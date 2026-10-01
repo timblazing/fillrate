@@ -18,7 +18,10 @@ def scenario():
         ],
         "orders": [
             {
-                "id": f"O{i}", "location_id": loc, "order_date": "2026-09-30",
+                "id": f"O{i}",
+                "customer_id": "near-customer" if loc == "near" else f"customer-{i}",
+                "location_id": loc,
+                "order_date": "2026-09-30",
                 "lines": [{
                     "id": f"L{i}", "product_id": "P", "ordered_pieces": 1,
                     "net_value_per_piece_cents": 100,
@@ -48,3 +51,9 @@ def test_exclusion_and_override():
     ]
     with pytest.raises(ValueError, match="Unknown excluded line IDs"):
         preflight_checks(scenario(), RunSettings(excluded_line_ids=["absent"]))
+
+
+def test_distinct_customers_at_same_location_do_not_trigger_oversize():
+    doc = scenario()
+    doc.orders[3].customer_id = "another-customer"
+    assert "oversize_stop" not in {f.check for f in preflight_checks(doc, RunSettings())}

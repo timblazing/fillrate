@@ -2,18 +2,18 @@
   "orders": 2000,
   "lines": 2000,
   "locations": 640,
-  "elapsed_s": 5.944,
+  "elapsed_s": 2.733,
   "stage_s": {
-    "preflight": 0.044,
+    "preflight": 0.039,
     "allocation": 0.006,
-    "aggregation": 0.011,
-    "clustering": 0.068,
-    "travel": 0.048,
-    "solve": 5.617,
-    "validation": 0.004,
-    "summary": 0.111
+    "aggregation": 0.024,
+    "clustering": 0.081,
+    "travel": 0.06,
+    "solve": 2.366,
+    "validation": 0.006,
+    "summary": 0.115
   },
   "validity": "valid",
-  "trucks": 204,
+  "trucks": 205,
   "clusters": 8
 }

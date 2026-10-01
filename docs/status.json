@@ -1,7 +1,7 @@
 {
   "updated": "2026-09-30",
-  "focus": "M2",
-  "productBehavior": 14,
+  "focus": "M3",
+  "productBehavior": 27,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -17,9 +17,9 @@
     },
     "M3": {
       "weight": 20,
-      "done": 5,
-      "state": "planned",
-      "notes": "Gallery components and the preflight/cost contracts can be reused. No CSV import, scenario versioning, settings API, or cost objective in the solver yet."
+      "done": 80,
+      "state": "active",
+      "notes": "CSV imports, versioned scenarios, real imported runs, cost solving, preflight, stage reuse and 2,000-order benchmark work locally. Final access, narrow-width and target-hardware checks remain."
     },
     "M4": {
       "weight": 15,
@@ -53,9 +53,8 @@
     }
   },
   "nextUp": [
-    "M2: send the round-two review link (/dev/review?key=…); record answers and apply requested changes.",
-    "M2: open fillrate.fig in OpenPencil; rebuild Components on coss parts and add the missing Foundations tokens.",
-    "M3: CSV import, scenario versioning, cost objective (once rates arrive), preflight at submission and exclusions through the API.",
-    "M3: per-cluster jobs, stage reuse, 2,000-order benchmark with stage timings."
+    "M3: verify production operator-key access and narrow-width scenario flow.",
+    "M3: benchmark on target hardware and close remaining cluster/matrix limits.",
+    "M2: collect round-two review answers and finish OpenPencil Components."
   ]
 }

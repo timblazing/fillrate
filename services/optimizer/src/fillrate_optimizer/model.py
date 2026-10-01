@@ -55,6 +55,7 @@ class OrderLine(Doc):
 
 class Order(Doc):
     id: Id
+    customer_id: Id | None = None
     location_id: Id
     order_date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
     lines: list[OrderLine] = Field(min_length=1)

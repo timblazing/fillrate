@@ -97,7 +97,7 @@ test.skipIf(!hasUv)("blocking preflight checks fail the run permanently with the
   expect(view.attempt).toBe(1);
   const failure = view.events.find(e => e.kind === "failed")!.payload;
   expect(failure.code).toBe("preflight_blocked");
-  expect(String(failure.message)).toMatch(/no coordinates.*farther than 500 mi from the depot/);
+  expect(String(failure.message)).toMatch(/no coordinates.*too far from the depot/);
 }, 120_000);
 
 test.skipIf(!hasUv)("cancelling a running solve kills it and frees the worker", async () => {

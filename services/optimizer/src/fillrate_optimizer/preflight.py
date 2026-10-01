@@ -27,7 +27,7 @@ def preflight_checks(scenario: ScenarioDocument, settings: RunSettings) -> list[
     if excluded - all_ids:
         raise ValueError("Unknown excluded line IDs: " + ", ".join(sorted(excluded - all_ids)))
     found: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
-    grouped: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    grouped: dict[tuple[str, str], list[tuple[str, int]]] = defaultdict(list)
     for order in scenario.orders:
         loc = locations[order.location_id]
         active = [line for line in order.lines if line.ordered_pieces and line.id not in excluded]
@@ -49,10 +49,12 @@ def preflight_checks(scenario: ScenarioDocument, settings: RunSettings) -> list[
             if not missing and loc.coordinate_source == "zcta":
                 found["approximate_coordinates"][loc.id].append(line.id)
             lf = line.linear_feet_per_piece or products[line.product_id].linear_feet_per_piece
-            grouped[loc.id].append((line.id, line.ordered_pieces * lf))
-    for loc_id, lines in grouped.items():
+            grouped[(loc.id, order.customer_id or order.id)].append(
+                (line.id, line.ordered_pieces * lf)
+            )
+    for (loc_id, _customer_id), lines in grouped.items():
         if sum(load for _, load in lines) > settings.trailer_capacity:
-            found["oversize_stop"][loc_id] = [line_id for line_id, _ in lines]
+            found["oversize_stop"][loc_id].extend(line_id for line_id, _ in lines)
     out = []
     for check in (
         "missing_coordinates", "far_from_depot", "oversize_stop", "approximate_coordinates"

@@ -289,7 +289,12 @@ export class Store {
       settings: JSON.parse(run.settings) as Snapshot,
       attempt: job.attempt, maxAttempts: job.maxAttempts, cancelRequested: job.cancelRequested,
       events, attempts, artifacts,
-      clusters: this.db.select().from(s.clusterJobs).where(eq(s.clusterJobs.runId, runId)).all().map(({ result: _result, coordinatorToken: _token, ...task }) => task),
+      clusters: this.db.select({
+        id: s.clusterJobs.id, runId: s.clusterJobs.runId, clusterId: s.clusterJobs.clusterId,
+        inputHash: s.clusterJobs.inputHash, status: s.clusterJobs.status, attempt: s.clusterJobs.attempt,
+        maxAttempts: s.clusterJobs.maxAttempts, startedAt: s.clusterJobs.startedAt,
+        endedAt: s.clusterJobs.endedAt, error: s.clusterJobs.error,
+      }).from(s.clusterJobs).where(eq(s.clusterJobs.runId, runId)).all(),
     };
   }
 

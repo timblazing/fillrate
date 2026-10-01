@@ -41,7 +41,11 @@
   - [x] Round-two review restored at `/dev/review` with new `r2.*` question ids
   - [ ] `fillrate.fig`: Components page on coss parts; Foundations gains `--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`, fill bands (OpenPencil app was not running this session)
   - [ ] Round-two answers recorded and Blocks accepted (or changes applied and re-accepted)
-- [ ] M3 Operational core (CSV/versioned scenarios → real pipeline screens, per-cluster jobs, stage reuse, 2,000-order benchmark)
+- [ ] **M3 Operational core** (implementation largely in place; final checks remain)
+  - [x] CSV preview/commit, scenario editing and versioning, real imported runs and exports
+  - [x] Cost objective, customer-aware stops, blocking preflight, durable cluster checkpoints and deterministic stage reuse
+  - [x] Compressed large travel artifacts and a measured 2,000-order benchmark
+  - [ ] Production access and narrow-width browser checks, target-hardware benchmark
 - [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, partition bounds, H3 layer/baseline, lesson and small Python replay export)
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
@@ -76,6 +80,9 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 3. **Components**: coss ui/mapcn components bound to those variables, compared against the gallery.
 4. **Blocks**: app shell, orders and inventory, run pipeline, k explorer, cluster cards, truck loads, unshipped reasons, iteration comparison, and map (spec v1.3 §8a, §10). Route timeline is secondary.
 5. Record the accepted direction in `docs/decisions.md`. M2 then builds the Blocks as real React screens.
+
+## M3 checkpoint (2026-09-30)
+Imported CSV completed preview → immutable save → real worker → validated shipment in a browser. Local checks passed: 43 Vitest, 72 pytest, Ruff, lint, typecheck and production build. A synthetic 2,000-order / 640-location / 8-cluster run took 2.733 s on this Mac; solve was 2.366 s (`services/optimizer/benchmarks/m3_2000_result.json`). Production imported-data access uses `SCENARIO_KEY`; public multi-user isolation is still a release gate. Cluster tasks are sequential but completed clusters resume after lease expiry. Solver exceptions still fail a run; matrix subpart reuse across changed partitions remains open. Actual cost rates await the primary user.
 
 ## Known gaps
 - The home page (`/`) is a minimal hero: title, one-line description, GitHub and "See my progress" (`/dev`) buttons beside the cobe globe (`components/animated/hero-globe.tsx`). It has no header and does not link the component gallery; the `/dev` header logo links back to `/`.
@@ -121,4 +128,4 @@ Round two is live at `/dev/review` (production needs `REVIEW_KEY`; send the link
 Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts (M2 item 16).
 
 ## Next step
-Send the round-two review link; record the answers in `docs/decisions.md` and apply any requested changes. With OpenPencil open, rebuild the `fillrate.fig` Components page on coss parts and add the missing Foundations tokens (item 16). Then mark M2 done and start M3 (imports, versioning, cost objective once rates exist, preflight at submission, stage reuse, 2,000-order benchmark).
+Finish M3 production access and narrow-width checks; measure on target hardware. Separately, send the round-two review link; record the answers in `docs/decisions.md` and apply any requested changes. With OpenPencil open, rebuild the `fillrate.fig` Components page on coss parts and add the missing Foundations tokens (item 16). Then mark M2 done and start M3 (imports, versioning, cost objective once rates exist, preflight at submission, stage reuse, 2,000-order benchmark).

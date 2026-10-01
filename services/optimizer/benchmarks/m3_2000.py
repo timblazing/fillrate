@@ -44,7 +44,10 @@ def make_scenario() -> ScenarioDocument:
                 "linear_feet_per_piece": 50 + index % 60,
             }],
         })
-    doc["inventory"] = [{"product_id": product_id, "available_pieces": 20_000} for product_id in product_ids]
+    doc["inventory"] = [
+        {"product_id": product_id, "available_pieces": 20_000}
+        for product_id in product_ids
+    ]
     return ScenarioDocument.model_validate(doc)
 
 
@@ -53,12 +56,26 @@ def main():
     settings = RunSettings(k=8, solver_max_iterations=500, solver_time_limit_s=5)
     events: list[tuple[str, float]] = []
     started = time.monotonic()
-    output = run_pipeline(scenario, settings, limits=Limits(run_wall_limit_s=600), progress=lambda name, detail: events.append((name, time.monotonic())))
+    output = run_pipeline(
+        scenario, settings, limits=Limits(run_wall_limit_s=600),
+        progress=lambda name, detail: events.append((name, time.monotonic())),
+    )
     ended = time.monotonic()
     stages: dict[str, float] = defaultdict(float)
-    for (name, at), (_, next_at) in zip(events, events[1:] + [("end", ended)]):
+    for (name, at), (_, next_at) in zip(
+        events, events[1:] + [("end", ended)], strict=True
+    ):
         stages[name] += next_at - at
-    report = {"orders":len(scenario.orders),"lines":sum(len(o.lines) for o in scenario.orders),"locations":len(scenario.locations),"elapsed_s":round(ended-started,3),"stage_s":{k:round(v,3) for k,v in stages.items()},"validity":output.summary.validity,"trucks":output.summary.totals.trucks,"clusters":len(output.summary.clusters)}
+    report = {
+        "orders": len(scenario.orders),
+        "lines": sum(len(o.lines) for o in scenario.orders),
+        "locations": len(scenario.locations),
+        "elapsed_s": round(ended - started, 3),
+        "stage_s": {k: round(v, 3) for k, v in stages.items()},
+        "validity": output.summary.validity,
+        "trucks": output.summary.totals.trucks,
+        "clusters": len(output.summary.clusters),
+    }
     print(json.dumps(report, indent=2))
     Path("benchmarks/m3_2000_result.json").write_text(json.dumps(report, indent=2) + "\n")
 
