@@ -3,7 +3,7 @@
 FROM oven/bun:1.4.2 AS bun
 FROM ghcr.io/astral-sh/uv:0.8.2 AS uv
 
-FROM node:24-bookworm-slim AS web
+FROM node:24.18.1-bookworm-slim AS web
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /repo
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -26,7 +26,7 @@ FROM python AS zcta
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
   && /opt/venv/bin/python -m fillrate_optimizer.zcta /opt/zcta/zcta-gazetteer-2024.tsv
 
-FROM node:24-bookworm-slim
+FROM node:24.18.1-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production \
