@@ -90,7 +90,7 @@
   - [x] `POST /api/v1/runs` accepts `allocation_strategy` and `fulfillment_policy` overrides; the `allocation` example works on `/runs`, `/experiments` and the sweep API
   - [x] Replay checks moved into the tested Python module `fillrate_optimizer.replay` (the bundle's `replay.py` is a thin wrapper); fixed: a CP-SAT allocation stage's measured `runtime_s` made a faithful replay report `allocation DIFFERS`
   - [x] `expected.json` now records allocation strategy/policy/kind and `travel: {provider: "estimated"}`; a bundle declaring another provider is refused (M6 boundary)
-  - [x] Tests: 21 replay-semantics and 11 lesson-observation pytest cases; a real-worker Vitest e2e replays a CP-SAT whole-order run from its bundle; `smoke_experiments.py` covers the new example and bundle fields (not yet run in the image)
+  - [x] Tests: 21 replay-semantics and 11 lesson-observation pytest cases; a real-worker Vitest e2e replays a CP-SAT whole-order run from its bundle; `smoke_experiments.py` covers the new example and bundle fields; passed in `image.yml` 36887302457 on amd64 and arm64
   - [ ] Remaining lessons (spec §13 list), timeline/playback, GeoJSON route geometry export, explorer replay, road-matrix export (needs M6 snapshots)
 - [ ] M8 Verification and handoff
 
