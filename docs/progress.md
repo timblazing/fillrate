@@ -187,7 +187,7 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - No sample order/inventory rows from the primary user yet (unanswered in both review rounds).
 - Chart recipes shared by charts and blocks live in `src/app/dev/components/recipes.tsx` until contracts exist.
 - The gallery fixture's truck loads come from a sweep heuristic, not PyVRP; numbers are illustrative of shape, not solver quality.
-- The project is now targeted for public access. Public scenario writes, real customer data, and solver submissions need identity/data isolation, limits, and abuse controls before launch (spec v1.7 §14).
+- The project is now targeted for public access. Public scenario writes, real customer data, and solver submissions need identity/data isolation, limits, and abuse controls before launch (spec v1.10 §14).
 - Vitest persistence/contract tests and optimizer pytest exist. Playwright end-to-end pipeline coverage remains for the next slice.
 - The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (M2 item 16; needs the OpenPencil app open).
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
@@ -200,9 +200,13 @@ Round two is answered (2026-10-01). Still open from him:
 Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts and the missing Foundations tokens added (M2 item 16, the last M2 item).
 
 ## Next step
-M6 is the focus; M2 and M4 wait only on owner items:
-1. M6: imported-matrix preview, browser selection and the matrix inspector (then enable `directed_road_travel`); then a pinned Valhalla deployment and a job that builds a snapshot from it. See `docs/m6-road-matrices.md`.
-2. Owner (M4 release gate): run the benchmark and a recovery check (kill the container mid-run, restart, the run resumes or fails cleanly) on the VPS and the Pi.
-3. M2: rebuild `fillrate.fig` Components on coss parts (needs the OpenPencil app open).
-4. M7: remaining lessons and exports (see the M7 checklist); a road-matrix lesson can use the M6 snapshot bundle once the matrix inspector exists.
-5. M8: Playwright browser smoke.
+Prioritize the initial hosted release; Linear holds the current task breakdown:
+1. M8: TIM-18 public synthetic lesson → validated result → export browser smoke.
+2. M4: TIM-26 hosted Better Auth and local mode, TIM-27 owner isolation, then TIM-28 compute quotas.
+3. Owner M4: TIM-29 hosted OAuth/deployment setup, TIM-19 live release checks and TIM-6 VPS/Pi hardware and recovery evidence.
+4. M2: TIM-5 OpenPencil design-file work; M6 remaining matrix selection/provider work follows the initial release gates.
+5. M8: TIM-30 verified account-free Bun/npm/Docker local distribution and TIM-14 reproducible handoff.
+
+## 2026-10-01: Hosted/local release scope and execution workflow
+
+Linear spec v1.10 adds free hosted Better Auth accounts, owner isolation, compute quotas and explicit hosted deployment checks. Existing server SQLite/Python architecture remains. Account-free local Bun/npm/Docker distribution is planned; npm compatibility is not yet verified. No auth feature or milestone percentage is marked complete by this planning update. Release gates now include the new hosted controls. Linear owns the issue breakdown; repo snapshots remain backups. Automatic CI skips doc/design-only changes, and image publication is explicit with CI prerequisites.

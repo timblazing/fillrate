@@ -1,6 +1,6 @@
 # Fillrate — Technical Specification
 
-Version: 1.9 · Revised October 1, 2026
+Version: 1.10 · Revised October 1, 2026
 
 Revision notes:
 
@@ -14,7 +14,9 @@ Revision notes:
 - 1.8 applies the primary user's design-review answers (in-app review, submitted September 30, 2026). Confirms the per-piece value tiebreak and same-customer stop combining. **The 500-mile rule is per leg only**: the cluster-diameter limit becomes an optional policy, off by default. **Cost decides between plans**: a monetary objective (cost per truck + cost per mile) moves from M6 to M3, with rates still to be supplied. Rewrites M2 (§15, "M2 scope") around the answers: wording (Cluster / Shipment / Unshipped), an 80% low-fill flag, revenue-first results, blocking preflight checks, a printable shipment sheet, and a second, short review round.
 - 1.9 records the round-two answers (export `fillrate-design-review-2026-10-01.json`). Every revised Block, `/runs/<id>` and the shipment sheet are **accepted**; the flow strip stays; ★ is labeled **Best trade-off**; the 90% "full" band is confirmed. **A far stop reachable through another stop only warns**, and **a stop larger than one trailer splits by default** instead of blocking (§15 M2 item 8). He has no cost rates ("N/A"), so trucks-then-miles stays the default objective. New M4 requirement: rank comparable plans as **Best option, 2nd best, 3rd** (§10, §15). M2 closes except `fillrate.fig` (item 16).
 
-Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. M1–M5 are complete, M6 has Python travel-provider groundwork and immutable directed travel snapshots selected through the operator API and the worker, M7 has started (allocation lesson, tested replay semantics) and M8 remains. M2 still has its OpenPencil design-file item open, and M4 still has owner target-hardware and recovery release gates. Road matrices cannot yet be selected in the browser, and no pinned Valhalla deployment is verified. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
+- 1.10 adds free hosted accounts using Better Auth, owner-scoped server data and abuse limits, preserves an auth-free local distribution, and limits automatic CI to relevant changes with explicit image releases. Hosted release gates remain open.
+
+Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. M1, M3 and M5 are complete; M2 design-file and M4 hosted-release gates remain open. M6 has Python travel-provider groundwork and immutable directed travel snapshots selected through the operator API and the worker, M7 has started (allocation lesson, tested replay semantics) and M8 remains. M2 still has its OpenPencil design-file item open, and M4 still needs hosted identity, owner isolation, quotas, and owner target-hardware/recovery release evidence. Road matrices cannot yet be selected in the browser, and no pinned Valhalla deployment is verified. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
 
 Reading guide: §1 defines the product and terminology; §2–3 define architecture and capability boundaries; §5–8a define the model and pipeline; §9–12 define execution and results; §15–16 define delivery gates and verification. Keep these section numbers stable for code and decision-log references.
 
@@ -179,7 +181,7 @@ Workbench answers the fulfillment questions first: inventory allocation, cluster
 
 ### Map behavior
 
-Use mapcn alone for map setup and components. Do not integrate maps.black, its web component, or its styles. Use mapcn's default basemap tiles for v1; there are no self-hosted tiles. Always show the tile attribution. Record the tile provider and its usage terms in `docs/basemap.md`, separate from the component's MIT license. Review the tile provider's usage terms and capacity before public launch; the private, low-traffic assumption no longer applies. No paid dependency is added by default. A custom MapLibre style URL is an advanced deployment setting for future flexibility, not a required alternate provider.
+Use mapcn alone for map setup and components. Do not integrate [maps.black](http://maps.black), its web component, or its styles. Use mapcn's default basemap tiles for v1; there are no self-hosted tiles. Always show the tile attribution. Record the tile provider and its usage terms in `docs/basemap.md`, separate from the component's MIT license. Review the tile provider's usage terms and capacity before public launch; the private, low-traffic assumption no longer applies. No paid dependency is added by default. A custom MapLibre style URL is an advanced deployment setting for future flexibility, not a required alternate provider.
 
 Add/edit/drag stops and depots, inspect popups, toggle route layers, fit to results, and select stops in a region. Use Turf for point-in-polygon selection and geographic calculations. Region selection is an editor action, not a road closure or solver constraint. GeoJSON layers should render bulk points/lines; reserve rich DOM markers for selected locations when needed.
 
@@ -191,7 +193,7 @@ Route layers clearly distinguish straight-line schematic connections from Valhal
 
 Scenario identity and editable metadata are separate from versioned content. Saving creates a new immutable scenario version; optimistic concurrency prevents one user silently overwriting another. Autosave shows pending/saved/conflict states. On a version conflict, offer exactly two actions: **Save my edits as a new branch**, which creates a branch from the version the user started editing and applies their edits, or **Discard my edits and reload**. Never overwrite silently or merge automatically. Branching creates a new scenario referencing its parent version. Existing runs always reference the original version and settings snapshot.
 
-Authorship: on first visit, the browser asks for a display name and stores it with a random browser identifier. The display name is recorded on saved versions, runs, and experiments. It is a label, not authentication. Before publicly exposing saved scenarios, real customer data, imports, or run submission, implement and test an identity and data-isolation policy; a browser identifier does not protect shared state.
+Authorship: hosted mode uses an authenticated account as owner; display names are presentation only. Local mode may retain browser display-name attribution without accounts. Existing browser identifiers are not authentication. See §14 for the account and authorization requirements.
 
 Time model: each scenario has an IANA timezone (default taken from the browser) and a planning date, and it plans a single-day horizon. Time windows, shifts, and release times are entered as local clock times and normalized to elapsed integer seconds from the instant of local midnight on the planning date. Store the timezone and resolved offsets; reject nonexistent DST clock times and require a choice for ambiguous times. Do not equate clock-hour labels with elapsed seconds across DST changes. Late shifts may extend past midnight up to a scenario horizon end (default 24:00, maximum 48:00). The timeline and exports display local clock times; the solver receives the integer seconds. Multi-day horizons are out of scope for v1.
 
@@ -320,7 +322,7 @@ For diameter repair, compute the largest pairwise **symmetric spatial distance**
 **Cluster stability.** The primary user chooses k by trial and error today, rerunning k-means to reduce run-to-run variance until stop groupings are trustworthy. The workbench supports this directly with a **k explorer**, which runs clustering only (no allocation changes, no PyVRP) for a range of k and a list of seeds (default 0–9), and shows:
 
 - **Per k:** unweighted feature-space squared-error sum as an elbow chart, raw/effective cluster counts, diameter/size-repair counts, and **stability**: the mean adjusted Rand index between every pair of seeds' assignments. Higher means the grouping doesn't depend on the seed.
-- **Per location, at the selected k:** **seed agreement**. Build the co-assignment matrix (for each pair of location groups, the share of seeds that put them in the same cluster). A location's agreement is its mean co-assignment with the other locations in its cluster in the reference assignment (the chosen seed, default 0). Co-assignment ignores cluster labels, so label order across seeds doesn't matter. The map colors locations by agreement, so seed-sensitive assignments stand out. Label this **seed agreement**, not probability of correctness. A singleton reference cluster has no peers: report N/A, not 100%. Expose raw and diameter-repaired statistics separately, using the same location population across seeds. Compute these before visit-level size splits; size repair is a separate diagnostic and must not force one location into several statistical labels. ARI can be negative; do not clip it to [0,1]. Compute co-assignment in bounded blocks or on demand, and do not ship a dense all-pairs array to the browser.
+- **Per location, at the selected k:** **seed agreement**. Build the co-assignment matrix (for each pair of location groups, the share of seeds that put them in the same cluster). A location's agreement is its mean co-assignment with the other locations in its cluster in the reference assignment (the chosen seed, default 0). Co-assignment ignores cluster labels, so label order across seeds doesn't matter. The map colors locations by agreement, so seed-sensitive assignments stand out. Label this **seed agreement**, not probability of correctness. A singleton reference cluster has no peers: report N/A, not 100%. Expose raw and diameter-repaired statistics separately, using the same location population across seeds. Compute these before visit-level size splits; size repair is a separate diagnostic and must not force one location into several statistical labels. ARI can be negative; do not clip it to \[0,1\]. Compute co-assignment in bounded blocks or on demand, and do not ship a dense all-pairs array to the browser.
 
 **H3 baseline.** As an alternative to k-means, the cluster stage can group stops by their H3 cell at a chosen resolution (`strategy: h3`, default resolution 2, average hexagon area about 87,000 km²; k-means stays the default). Cell membership is deterministic for fixed coordinates, resolution, and library version; it serves as a stable baseline. Cell area varies and the grid includes pentagons. H3 cell membership does not guarantee capacity, road connectivity, or a maximum diameter. Each non-empty cell becomes a cluster, and the same diameter/size repair applies with a fixed recorded repair seed. The k explorer shows H3 resolutions 1–3 beside the k range with a consistently computed feature-space squared-error sum and repair counts (seed stability is labeled “deterministic / not applicable,” not presented as evidence of better clustering), and sweeps may vary the method and resolution. The method, resolution, and `h3` library version are recorded like k and the seed.
 
@@ -496,9 +498,9 @@ Python exports run without web application credentials and reproduce the experim
 
 ## 14. Deployment, access, and operations
 
-The target deployment is a publicly accessible website backed by Docker Compose running the single `ghcr.io/timblazing/fillrate` image with a mounted data volume, plus an optional Valhalla service. The application does not yet implement signup, accounts, or public data isolation. Only synthetic, read-only product surfaces may be exposed until public writes and real-data handling have appropriate controls. Initial native development uses Bun for web and uv for Python dependency environments. Provide .env.example; every variable is optional.
+The target deployment is a publicly accessible website backed by Docker Compose running the single `ghcr.io/timblazing/fillrate` image with a mounted data volume, plus an optional Valhalla service. The application does not yet implement signup, accounts, or public data isolation. Only synthetic, read-only product surfaces may be exposed until public writes and real-data handling have appropriate controls. Initial native development uses Bun for web and uv for Python dependency environments. Provide .env.example; local mode needs no auth credentials, while hosted mode requires its auth configuration.
 
-Environment variables, all optional:
+Existing runtime environment variables (hosted auth configuration is additionally required):
 
 - `DATA_DIR` (default `/data`).
 - `WORKER_TOKEN`, generated randomly at startup when unset, since both processes share the container.
@@ -507,7 +509,21 @@ Environment variables, all optional:
 - Hard limits: `MAX_ORDERS`, `MAX_ORDER_LINES`, `MAX_VISITS`, `MAX_STOPS` (per cluster solve), `MAX_SWEEP_RUNS`, `SOLVE_WALL_LIMIT_SECONDS`, `RUN_WALL_LIMIT_SECONDS`, `SOLVE_CONCURRENCY`.
 - `PORT` (default 3000).
 
-The application needs no third-party secrets; the Census geocoder requires no key. Never put server-only values in NEXT_PUBLIC variables.
+Local mode needs no third-party secrets; hosted GitHub OAuth requires credentials and an auth secret. The Census geocoder requires no key. Never put server-only values in NEXT_PUBLIC variables.
+
+### Hosted accounts and local mode (v1.10)
+
+The free hosted service retains server-side SQLite scenarios, immutable versions, jobs and results. Use Better Auth with Next.js and the Drizzle SQLite adapter for account/session handling. Start with GitHub OAuth to avoid an email delivery/password-reset service; retain a provider-neutral user ID. Authentication is required for hosted personal scenario imports, saved data, runs, sweeps, geocoding, matrices and private exports. Synthetic lessons remain publicly readable; anonymous compute, if retained, uses a separate tightly bounded demonstration budget. Account registration is free; no subscriptions or billing are planned.
+
+Authorization belongs in server endpoints and database queries, never in browser IDs or UI visibility. Bind scenarios, versions, jobs, artifacts, experiments, travel snapshots and exports to an authenticated owner. Check ownership on list/read/write/download/cancel, cache reuse, replay and worker job admission; guessed IDs and content hashes must not expose another account's data. Do not automatically claim existing operator data for the first signup. Keep it operator-only pending an explicit migration. Python remains a private worker and never opens SQLite.
+
+Better Auth's auth-route limiter does not limit solver APIs. Add persistent application admission controls per account and trusted-proxy IP, plus global queue/concurrency caps, upload/body/row limits, maximum solve/sweep time and size, cancellation and quota accounting, including geocoder/Valhalla budgets. Initial configurable starting defaults: one active job per account, ten queued jobs globally, twenty solve admissions/account/day, ten MB uploads and existing 2,000-order and solver wall limits; one sweep counts each admitted child run. Validate and tune against TIM-6 hardware evidence before public signup. Return clear 429/quota messages and reset times. Do not trust arbitrary forwarded IP headers. Redact raw customer data/tokens from logs. Expose export/delete controls and document retention, backups and third-party geocoding; deletion and backup expiry have defined semantics.
+
+Provide an explicit deployment mode, proposed `FILLRATE_MODE=hosted|local`. Hosted mode requires auth configuration (server secret, canonical HTTPS URL, OAuth credentials) and must fail startup if incomplete; it must never silently fall back to local. Local mode is single-user, account-free, creates no auth users/sessions, preserves server-side local SQLite, and requires no OAuth secrets. Default developer/local Compose instructions bind only to loopback; public hosted deployment sets hosted mode explicitly. Disabling account auth never disables internal worker authentication, validation or resource bounds.
+
+Local distribution target: supported Bun and npm commands with Node 24 and Python 3.13/uv, plus the published multi-architecture Docker image/Compose. npm compatibility is planned, not currently verified (Bun workspace scripts remain current). No browser-local storage overhaul or browser Python solver is required. The same fulfillment engine and data contracts serve both modes.
+
+Sources: https://better-auth.com/docs/adapters/drizzle and https://better-auth.com/docs/concepts/rate-limit. These are planned requirements, not claims of implemented authentication.
 
 ### Container image and CI
 
@@ -518,7 +534,7 @@ Publish one image, `ghcr.io/timblazing/fillrate`, containing both the web app an
 - Run as a non-root user, expose only the web port (3000), declare `/data` as a volume, and add a `HEALTHCHECK` against the web health route. That route also reports worker connection and database status.
 - The Python service listens only on localhost inside the container.
 
-GitHub Actions workflow `.github/workflows/ci.yml` runs on pull requests and on pushes to `main`:
+GitHub Actions workflow `.github/workflows/ci.yml` runs on relevant code/configuration changes in pull requests and pushes to `main`, on manual dispatch, and as a reusable prerequisite for image releases. Documentation/design-only changes skip automatic CI:
 
 - `bun install --frozen-lockfile`, lint, typecheck, and Vitest (including the real-file SQLite claim-race test).
 - `uv sync --locked` and pytest (capability fixtures, allocation, and validation).
@@ -526,11 +542,11 @@ GitHub Actions workflow `.github/workflows/ci.yml` runs on pull requests and on 
 
 GitHub Actions workflow `.github/workflows/image.yml`:
 
-- Triggers: successful completion of `ci.yml` on `main` (through `workflow_run`), tags matching `v*`, and `workflow_dispatch`. Pull requests build the image without pushing.
-- Uses `docker/setup-qemu-action`, `docker/setup-buildx-action`, `docker/login-action` with `GITHUB_TOKEN` (permissions `contents: read`, `packages: write`), `docker/metadata-action`, and `docker/build-push-action` with GitHub Actions layer cache.
+- Triggers: release tags matching `v*` and explicit `workflow_dispatch`. Do not publish an image after every successful CI run. The release calls reusable CI before native builds/smokes and publication.
+- Uses native amd64/arm64 runners, `docker/setup-buildx-action`, `docker/login-action` with `GITHUB_TOKEN` (permissions `contents: read`, `packages: write`), and `docker/build-push-action` with GitHub Actions layer cache.
 - Tags: `latest` for the default branch, `sha-<short>`, and semver tags (`1.2.3`, `1.2`) for `v*` tags. Add OCI labels for source, revision, and version.
 - Platforms: `linux/amd64` and `linux/arm64`. Both are required (Ubuntu VPS and 64-bit Raspberry Pi). Verify locked wheels for both target architectures in CI; a missing wheel is a release blocker to resolve explicitly, not permission to drop arm64. Historical wheel discovery is not a successful container build.
-- Check out the exact successful CI commit for `workflow_run`; tags/manual releases must pass equivalent checks. Build and test an immutable candidate digest, then promote that same digest, avoiding rebuilds between smoke and publication.
+- Check out the exact tag/manual-dispatch commit; reusable CI must pass for that same revision. Build and test an immutable candidate digest, then promote that same digest, avoiding rebuilds between smoke and publication.
 - A smoke job runs the built image with a temporary volume, waits for health, and completes one bundled lesson solve through the public API before the image is pushed as `latest`. The M1 smoke solve is the small synthetic pipeline; M3 adds an imported scenario.
 
 Reference `deploy/compose.yaml`:
@@ -554,7 +570,7 @@ When the `valhalla` profile is used, set `VALHALLA_URL=http://valhalla:8002` in 
 
 The repository and GHCR image are public, so servers pull without a registry login. Real delivery data, customer addresses, and derived matrices never go into the repository, test fixtures, lesson data, or the image. Lessons use synthetic or public data. Real data exists only in the deployment's `/data` volume and in user-initiated exports.
 
-The reference hostname is `fillrate.blasingame.dev`, with public HTTPS at Caddy and a private backend connection to the application host. The public proxy must expose only intended browser routes; internal worker/FastAPI endpoints and the database remain unreachable from the internet. The current app has no user authentication or per-user data isolation, so a public deployment may serve synthetic read-only material only. Before public scenario writes, imports, solver submissions, or real customer data are enabled, implement and test identity and tenant isolation (or an equivalent explicit policy), request-size and run quotas, rate limits, and abuse monitoring. Do not assume a private Tailscale backend protects a public Caddy listener. Native development binds to localhost. Next.js must honor `X-Forwarded-*` headers from the proxy only for URL generation; access decisions never depend on them.
+The reference hostname is `fillrate.blasingame.dev`, with public HTTPS at Caddy and a private backend connection to the application host. The public proxy must expose only intended browser routes; internal worker/FastAPI endpoints and the database remain unreachable from the internet. Until the hosted account, isolation and abuse-limit work below is implemented, the public deployment remains limited to protected operator workflows and bounded synthetic demonstrations. Before public scenario writes, imports, solver submissions, or real customer data are enabled, implement and test identity and tenant isolation (or an equivalent explicit policy), request-size and run quotas, rate limits, and abuse monitoring. Do not assume a private Tailscale backend protects a public Caddy listener. Native development binds to localhost. Next.js must honor `X-Forwarded-*` headers from the proxy only for URL generation; access decisions never depend on them.
 
 Log job/run IDs, attempts, durations, and error codes. Redact tokens and avoid logging full customer addresses. Health/status views report queue length, worker connection, solver versions, database availability, and road provider configuration. Explicit cleanup can remove old artifacts while preserving referenced saved runs. Migration procedure, backups, and restart recovery are documented.
 
@@ -567,7 +583,7 @@ Milestone numbers remain stable. M1 and the already-started M2 design review can
 | **M1 — Thin durable fulfillment slice** | Preserve the completed foundation/spike. Add minimal Drizzle schema/contracts and a single leased worker task. Run a small bundled scenario through allocation, aggregation, k-means/repair, real PyVRP, validation, and a persisted map/table summary. Integrate §8b and graph preflight. Basic JSON/CSV export, CI and container delivery. | A real synthetic run survives refresh, cancels/restarts safely, reconciles quantities, and exports a validated result. Race/stale-completion tests use a real SQLite file. Both image architectures pass a smoke run. |
 | **M2 — Accepted design** | Apply the recorded review answers (see "M2 scope" below): wording, fill thresholds, revenue-first results, stock and coordinate display, blocking preflight, shipment sheet, sweep emphasis. Update Blocks, lab components and the real `/runs/<id>` page; align tokens and `fillrate.fig` with coss; run a short second review round. | Round-one answers recorded; round-two acceptance recorded; `/runs/<id>` uses the accepted composition with real M1 data; map/table/keyboard/narrow-layout review. Existing mocks remain visibly development-only. |
 | **M3 — Operational core** | CSV preview/commit, scenario editing/versioning, full pipeline screens, settings, lineage and unplanned reasons. Per-cluster scheduling and deterministic stage reuse. Cost objective (§8b) and blocking preflight checks (M2 scope). | Imported coordinates → saved run → validated truck/cluster results → branch/export, using real Python outputs. 2,000-order benchmark with measured stage timings. |
-| **M4 — Trustworthy experiments / first release** | k explorer, bounded sweeps, comparison signatures/Pareto, ranked Best option / 2nd best / 3rd (§10), partition lower bounds, eligible no-clustering baseline, H3 map/baseline, flagship lesson. | Repeated-seed experiments are independent; cache invalidation and comparison fixtures pass. Exports contain replayable small pipeline inputs/artifacts/script. Target-hardware and recovery checks from M8 are release gates here. Public write/data-isolation, rate-limit, and abuse-control checks from §14 are also release gates for an interactive public app. |
+| **M4 — Trustworthy experiments / first release** | k explorer, bounded sweeps, comparison signatures/Pareto, ranked Best option / 2nd best / 3rd (§10), partition lower bounds, eligible no-clustering baseline, H3 map/baseline, flagship lesson. | Repeated-seed experiments are independent; cache invalidation and comparison fixtures pass. Exports contain replayable small pipeline inputs/artifacts/script. Target-hardware and recovery checks from M8 are release gates here. Hosted Better Auth login, per-user ownership, compute quotas and live two-account isolation checks from §14 are release gates for personal real-data use. |
 | **M5 — Allocation and import depth** | Additional greedy strategies, CP-SAT, whole-order allocation, Census/ZCTA, JSON/GeoJSON, data review. | Strategy/stock reconciliation, provenance, exact small allocation oracle tests, and source-independent reproduction. |
 | **M6 — Roads and advanced routing** | Valhalla/imported matrices first; then supported fleet/window/depot/group/shipment/reload features in small capability-gated increments. Manual evaluator and verified warm starts. Optional working Labs surfaces. | Directed-matrix, synthetic-terminal, provider-limit and independent-validator fixtures for each exposed feature. |
 | **M7 — Learning and export depth** | Remaining verified lessons, timeline/playback, complete Python export coverage for implemented adapters. | Each lesson runs and each advertised export reproduces its documented semantics. |
@@ -583,47 +599,31 @@ Source: the primary user's answers in the in-app review (`/dev/review`, submitte
 
 **What M2 builds.** M2 changes presentation and records policy; it adds no new pipeline stage. Apply every item below to (a) the gallery Blocks and `src/components/lab` components, and (b) the real `/runs/<id>` page, which already shows M1 pipeline output. Workbench editing, imports and sweeps remain M3/M4 screens; M2 only fixes how they look in the Blocks. Keep every gallery fixture labeled development-only.
 
-1. **Wording (user-facing labels only).**
-   - A group of nearby stops is a **Cluster** (unchanged).
-   - One truck with its stops and order lines is a **Shipment**: "Shipment 3", "12 shipments", Loads tab → **Shipments**. The vehicle keeps its name where the vehicle is meant: "trailer fill", "53 ft trailer". Metric labels become "Shipments" (count) and "Trailer fill".
-   - Pieces that don't go out are **Unshipped** (unchanged).
-   - Code, contracts, database columns and exports keep `load`/`route`/`truck`/`unplanned`; the mapping lives in one place (a copy module in `src/lib`, not scattered strings). Exports use the internal names with a header note giving the UI label.
-   - PyVRP's pickup-and-delivery "shipments" (§3, M6) must be labeled **pickup-delivery pairs** in the UI to avoid a clash.
-
-2. **Map first.** After a run, the default view is the cluster map (`workbench.first`); the summary strip and side panel stay alongside it. No layout change is needed beyond making the map the initial focus/tab at every width.
-
-3. **Trailer fill.** Fill % becomes the primary per-shipment visual (`workbench.trailer`: "readable, but a plain fill % would do"): a large `FillPercent` with a thin `FillMeter`. The segmented trailer bar (`TrailerFill`) moves to the shipment detail and shipment sheet, not lists or cluster cards.
-
-4. **Low-fill threshold 80%.** `FILL_LOW = 0.80` in `src/lib/units.ts` (was 0.60). Move `FILL_FULL` to 0.90 so the middle band stays meaningful (a provisional default; confirm in round two). Every legend, "Needs attention" list and band color reads these constants. Record both as run-display settings; they never affect the solver.
-
-5. **Coordinate provenance only on problems** (`orders.coords`). Hide the badge for file-provided and Census-matched coordinates, and for manual placement. Show it for ZIP-approximate and missing/unresolved. Add a "Show all sources" toggle to the orders table and a "Coordinate problems" filter. Map popups follow the same rule.
-
-6. **Stock coverage columns** (`orders.stock`): per product show **pieces short**, **fill rate %** (allocated ÷ ordered pieces, N/A when nothing was ordered) and **which orders were shorted** (expandable list or link to the filtered order lines). On-hand vs ordered and dollars short move into a details popover, not the default columns.
-
-7. **Pipeline stages visible** (`run.stages`). Keep the stage list expanded by default during and after a run; rename the heading from "Pipeline detail" to **Steps**. Collapsing is a remembered per-browser preference.
-
-8. **Blocking preflight checks** (`run.block`; amended by round two, see "Round-two outcomes" below). Three checks block a run: **addresses with no coordinates**, **stops farther than 500 mi from the depot**, and **a stop larger than one trailer**. ZIP-only placement warns but runs. The Run pipeline Block shows blocked checks as errors that disable Run pipeline, each with its affected lines and resolutions:
-   - fix the data (M3 editing);
-   - **Exclude these lines and run**: an explicit, recorded exclusion with reason `excluded_by_user`, reconciled like any exclusion (§10);
-   - turn the check into a warning in Constraints; that choice is recorded in the run's settings snapshot.
-   These checks are policy, not physics. Per §7, a far stop can still be reachable through an intermediate stop, and an oversized stop can be split across shipments. The checks stop the run because the user asked for it, not because the plan is impossible. In M2, add the checks to the preflight contract and the Block. Enforcement at submission lands with M3 imports, because the bundled M1 example deliberately contains all three cases; the example must declare them as warnings so it keeps running and keeps testing those paths.
-
-9. **Results lead with revenue** (`results.judge`). The metric groups are ordered Revenue → Trailer fill → Tightness. The run summary headline is planned revenue with shipped/allocated/ordered amounts. The iteration table sorts by planned revenue by default. The default Pareto vector (§8a) already contains revenue; leave it unchanged. Keep the flow strip (Orders → Allocated → Stops → Clusters → Shipments → Shipped) as is until round two says what to change.
-
+ 1. **Wording (user-facing labels only).**
+    - A group of nearby stops is a **Cluster** (unchanged).
+    - One truck with its stops and order lines is a **Shipment**: "Shipment 3", "12 shipments", Loads tab → **Shipments**. The vehicle keeps its name where the vehicle is meant: "trailer fill", "53 ft trailer". Metric labels become "Shipments" (count) and "Trailer fill".
+    - Pieces that don't go out are **Unshipped** (unchanged).
+    - Code, contracts, database columns and exports keep `load`/`route`/`truck`/`unplanned`; the mapping lives in one place (a copy module in `src/lib`, not scattered strings). Exports use the internal names with a header note giving the UI label.
+    - PyVRP's pickup-and-delivery "shipments" (§3, M6) must be labeled **pickup-delivery pairs** in the UI to avoid a clash.
+ 2. **Map first.** After a run, the default view is the cluster map (`workbench.first`); the summary strip and side panel stay alongside it. No layout change is needed beyond making the map the initial focus/tab at every width.
+ 3. **Trailer fill.** Fill % becomes the primary per-shipment visual (`workbench.trailer`: "readable, but a plain fill % would do"): a large `FillPercent` with a thin `FillMeter`. The segmented trailer bar (`TrailerFill`) moves to the shipment detail and shipment sheet, not lists or cluster cards.
+ 4. **Low-fill threshold 80%.** `FILL_LOW = 0.80` in `src/lib/units.ts` (was 0.60). Move `FILL_FULL` to 0.90 so the middle band stays meaningful (a provisional default; confirm in round two). Every legend, "Needs attention" list and band color reads these constants. Record both as run-display settings; they never affect the solver.
+ 5. **Coordinate provenance only on problems** (`orders.coords`). Hide the badge for file-provided and Census-matched coordinates, and for manual placement. Show it for ZIP-approximate and missing/unresolved. Add a "Show all sources" toggle to the orders table and a "Coordinate problems" filter. Map popups follow the same rule.
+ 6. **Stock coverage columns** (`orders.stock`): per product show **pieces short**, **fill rate %** (allocated ÷ ordered pieces, N/A when nothing was ordered) and **which orders were shorted** (expandable list or link to the filtered order lines). On-hand vs ordered and dollars short move into a details popover, not the default columns.
+ 7. **Pipeline stages visible** (`run.stages`). Keep the stage list expanded by default during and after a run; rename the heading from "Pipeline detail" to **Steps**. Collapsing is a remembered per-browser preference.
+ 8. **Blocking preflight checks** (`run.block`; amended by round two, see "Round-two outcomes" below). Three checks block a run: **addresses with no coordinates**, **stops farther than 500 mi from the depot**, and **a stop larger than one trailer**. ZIP-only placement warns but runs. The Run pipeline Block shows blocked checks as errors that disable Run pipeline, each with its affected lines and resolutions:
+    - fix the data (M3 editing);
+    - **Exclude these lines and run**: an explicit, recorded exclusion with reason `excluded_by_user`, reconciled like any exclusion (§10);
+    - turn the check into a warning in Constraints; that choice is recorded in the run's settings snapshot.
+      These checks are policy, not physics. Per §7, a far stop can still be reachable through an intermediate stop, and an oversized stop can be split across shipments. The checks stop the run because the user asked for it, not because the plan is impossible. In M2, add the checks to the preflight contract and the Block. Enforcement at submission lands with M3 imports, because the bundled M1 example deliberately contains all three cases; the example must declare them as warnings so it keeps running and keeps testing those paths.
+ 9. **Results lead with revenue** (`results.judge`). The metric groups are ordered Revenue → Trailer fill → Tightness. The run summary headline is planned revenue with shipped/allocated/ordered amounts. The iteration table sorts by planned revenue by default. The default Pareto vector (§8a) already contains revenue; leave it unchanged. Keep the flow strip (Orders → Allocated → Stops → Clusters → Shipments → Shipped) as is until round two says what to change.
 10. **Unshipped reasons.** All four offered groups occur in his work: no stock, beyond the 500 mi leg limit, did not fit on a truck, bad or missing address data. Keep these four as the top-level groups, mapped from the §10 reason codes (`stock_shortage`; `unreachable_in_partition`/leg; oversize/capacity; excluded input incl. `excluded_by_user`). Other codes (validation failure, budget exhausted) appear in an "Other" group only when present.
-
 11. **Shipment sheet** (`results.load-sheet`). Each shipment gets a printable sheet and CSV with, per stop in visit order: **sequence**, **order numbers**, **linear feet**, **miles from previous stop** (depot for stop 1), and **dollar value**; plus shipment totals (stops, linear feet and fill %, loaded miles, value). Addresses and per-product pieces were not requested: leave them off by default, available as optional columns. Print styles: one shipment per page, black-and-white safe, no map. Implement on `/runs/<id>` (real data) with a Print button and a CSV link using the existing export route.
-
 12. **k explorer confirmed.** Trial-and-error k with seed stability matches his practice. Keep the Block's concepts and wording; add a "Use this k" action that carries k (and seed) into run settings.
-
 13. **Sweep emphasis** (`compare.vary`). He varies **k**, **seed**, **inventory available** and **mileage** (circuity factor or the 500-mile limit). Show those four first in the sweep builder and comparison "changed settings" columns. Order subsets and allocation rule go under "More". Inventory changes stay a changed-assumption cohort (§10), marked as such in the table.
-
 14. **Cost objective UI.** Add **Cost per truck** and **Cost per mile** (dollars) to the Fleet/Constraints inspector design, and an objective selector: Lowest cost (default once rates are set) / Fewest trucks, then miles / Fewest miles with truck penalty. Until both rates exist, show "Using fewest trucks, then miles until truck and mile costs are set." The solver work is M3 (§8b).
-
 15. **500-mile copy.** Everywhere the rule is described (tooltips, Constraints, Block copy, review page), say "no single drive over 500 mi, including depot → first stop." Remove cluster-diameter language from default views. Cluster cards keep "widest pair" as a tightness metric, not a limit. The diameter limit appears only under advanced Constraints as an optional policy, off by default. **Pipeline change in M2:** the M1 pipeline's default cluster-diameter policy becomes disabled (repair, validation and auto-k use it only when enabled). Update fixtures and tests so the bundled example still reconciles, and record the change in `docs/decisions.md`. With diameter off, auto-k only enforces solve size, so the Blocks present **fixed k from the explorer** as the normal path.
-
-16. **Tokens and `fillrate.fig`.** Rebuild the OpenPencil Components page on coss ui parts (it still mirrors shadcn). Add the missing tokens to Foundations (`--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`) and the new fill bands. Token changes still flow .fig → `globals.css`.
-
+16. **Tokens and** `fillrate.fig`**.** Rebuild the OpenPencil Components page on coss ui parts (it still mirrors shadcn). Add the missing tokens to Foundations (`--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`) and the new fill bands. Token changes still flow .fig → `globals.css`.
 17. **Round two review.** Run a short second round (restore `/dev/review` from commit `593f177`, or use another channel). Use new question ids; never reuse round-one ids. Show the revised Blocks and ask:
     - accept / change each revised Block;
     - what to change in the flow strip;
@@ -634,15 +634,15 @@ Source: the primary user's answers in the in-app review (`/dev/review`, submitte
     - the 90% "full" band;
     - example order and inventory rows (fake values);
     - "what should we fix first".
-    Round-one answers stay stored and exported as-is.
+      Round-one answers stay stored and exported as-is.
 
 **Round-two outcomes (October 1, 2026).** Source: export `docs/reviews/fillrate-design-review-2026-10-01.json` (question ids `r2.*`); the `/dev/review` pages were removed afterwards.
 
 - Accepted as built: Workbench, Orders & inventory, Run pipeline, Results, k explorer, Iteration comparison, `/runs/<id>` and the shipment sheet. The flow strip stays as is (`r2.results.flow: keep`). The 90% full band is confirmed (`FILL_FULL = 0.90`).
 - ★ label: **Best trade-off** (UI copy in `src/lib/copy.ts`; internal name stays non-dominated).
 - Cost rates: "N/A" for both. No default rates; trucks-then-miles remains the default objective.
-- **Far stops (`r2.rules.far-via: warn`).** Item 8's far-from-depot check now blocks only a stop that no chain of allowed drives reaches from the depot through other eligible stops (straight-line × travel circuity, each drive within the leg limit, excluded lines removed). A stop over the limit from the depot but reachable through another stop is the separate, always-warning check `far_via_stop`. Preflight cannot know the final clusters, so the warning says the stop may still be unshipped if its intermediate stop lands in another cluster.
-- **Oversize stops (`r2.rules.oversize: split`).** `oversize_stop` defaults to **warn**: the stop splits across shipments. Users can still set it to block. An indivisible piece longer than a trailer remains `oversize_piece` (physics, not policy).
+- **Far stops (**`r2.rules.far-via: warn`**).** Item 8's far-from-depot check now blocks only a stop that no chain of allowed drives reaches from the depot through other eligible stops (straight-line × travel circuity, each drive within the leg limit, excluded lines removed). A stop over the limit from the depot but reachable through another stop is the separate, always-warning check `far_via_stop`. Preflight cannot know the final clusters, so the warning says the stop may still be unshipped if its intermediate stop lands in another cluster.
+- **Oversize stops (**`r2.rules.oversize: split`**).** `oversize_stop` defaults to **warn**: the stop splits across shipments. Users can still set it to block. An indivisible piece longer than a trailer remains `oversize_piece` (physics, not policy).
 - `r2.workbench.change`: "Best option, 2nd best, 3rd" → M4 ranked options (§10).
 - Default blocking checks are now two: no coordinates, and stops no route reaches within the leg limit.
 
@@ -701,13 +701,13 @@ Source: the primary user's answers in the in-app review (`/dev/review`, submitte
 
 ## 17. Deferred extensions
 
-Minimum shipment quantities and per-product utility for partial fulfillment; joint visit-bundling/bin-packing optimization; route-aware allocation repair (returning stock from unloadable lines to other lines); joint allocation-and-routing optimization; optional VROOM or OR-Tools routing comparisons after a concrete need and semantic-compatibility proof; Timefold/ORS integrations; deck.gl visual layers; MapLibre-Geoman Free drawing tools; validated VRPLIB rich-variant import; organization accounts and sharing beyond the public-access requirements in §14; live traffic; real dispatch integration.
+Minimum shipment quantities and per-product utility for partial fulfillment; joint visit-bundling/bin-packing optimization; route-aware allocation repair (returning stock from unloadable lines to other lines); joint allocation-and-routing optimization; optional VROOM or OR-Tools routing comparisons after a concrete need and semantic-compatibility proof; Timefold/ORS integrations; [deck.gl](http://deck.gl) visual layers; MapLibre-Geoman Free drawing tools; validated VRPLIB rich-variant import; organization accounts and sharing beyond the public-access requirements in §14; live traffic; real dispatch integration.
 
 These are extension points, not required dependencies or nonfunctional UI promises. The first release should deliver a correct, explainable fulfillment pipeline (piece-level allocation, clustering, per-cluster loads, iteration comparison) and then deeply cover the pinned open-source PyVRP capabilities.
 
 ## 18. Implementation brief (Codex and Claude Code)
 
-Implement this specification as a real full-stack application. Preserve Next.js + Bun tooling + Node runtime + coss ui (Base UI) + Tailwind + mapcn, Valhalla + Turf + H3, SQLite + Drizzle, and Python FastAPI + PyVRP + OR-Tools + scikit-learn. Do not add maps.black or paid enterprise features. Use whatever frontend, coss ui/Base UI, and React/Next.js guidance the current agent has available for UI concepting, component composition, and server/client boundaries.
+Implement this specification as a real full-stack application. Preserve Next.js + Bun tooling + Node runtime + coss ui (Base UI) + Tailwind + mapcn, Valhalla + Turf + H3, SQLite + Drizzle, and Python FastAPI + PyVRP + OR-Tools + scikit-learn. Do not add [maps.black](http://maps.black) or paid enterprise features. Use whatever frontend, coss ui/Base UI, and React/Next.js guidance the current agent has available for UI concepting, component composition, and server/client boundaries.
 
 The build alternates between Codex and Claude Code sessions. To keep context across sessions:
 
@@ -759,3 +759,7 @@ Additional checks: [PyVRP 0.14.0 Model source](https://github.com/PyVRP/PyVRP/bl
 - [Docker build-push-action](https://github.com/docker/build-push-action) and [GitHub Container Registry docs](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry): image publishing workflow.
 
 Defaults, architecture, limits, settings, and implementation stages in this document are project design decisions, not claims that PyVRP or its companion libraries provide all these workflows out of the box.
+
+## Hosted release scope added in v1.10
+
+M4 first-live-release exit evidence additionally requires Better Auth hosted accounts, cross-user isolation and enforced compute limits. M8 verifies these gates plus auth-free Bun/npm/Docker local startup. This extends remaining work; previously completed engine milestones stay complete. Linear issues hold the implementation breakdown and dependencies.

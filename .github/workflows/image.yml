@@ -4,10 +4,6 @@ name: image
 # a real synthetic pipeline run, export), pushes the tested image by digest, then publishes a
 # multi-arch manifest from exactly those digests (spec §14).
 on:
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
-    branches: [main]
   push:
     tags: ["v*"]
   workflow_dispatch:
@@ -17,15 +13,20 @@ permissions:
   packages: write
 
 concurrency:
-  group: image-${{ github.event.workflow_run.head_sha || github.sha }}
+  group: image-${{ github.sha }}
 
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/fillrate
-  REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
+  REVISION: ${{ github.sha }}
 
 jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   build:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    needs: checks
     strategy:
       fail-fast: true
       matrix:
