@@ -8,7 +8,10 @@
     "./transport": "./src/transport.ts",
     "./scenarios": "./src/scenarios.ts",
     "./imports": "./src/imports.ts",
-    "./preflight": "./src/preflight.ts"
+    "./preflight": "./src/preflight.ts",
+    "./experiments": "./src/experiments.ts",
+    "./canonical": "./src/canonical.ts",
+    "./replay": "./src/replay.ts"
   },
   "dependencies": {
     "@fillrate/contracts": "workspace:*",

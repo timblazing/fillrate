@@ -15,16 +15,8 @@ const DETERMINISTIC = new Set(["preflight", "allocation", "aggregation", "cluste
 const active = new Set(["claimed", "running"]);
 const terminal = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
 
-// Restricted to JSON; sort keys recursively, retain array order, reject lossy values.
-export function canonical(value: unknown): string {
-  if (value === null || typeof value === "boolean" || typeof value === "string") return JSON.stringify(value);
-  if (typeof value === "number" && Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value))) return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (typeof value === "object" && value && Object.getPrototypeOf(value) === Object.prototype) {
-    return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(",")}}`;
-  }
-  throw new Error("invalid_json");
-}
+export { canonical } from "./canonical";
+import { canonical } from "./canonical";
 export const contentHash = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 export type ArtifactInput = { manifest: StageManifest; payload: unknown };
 
@@ -68,20 +60,81 @@ export class Store {
     }, { behavior: "immediate" });
   }
 
-  enqueue(versionId: string, settings: Snapshot, idempotencyKey: string, now = Date.now(), maxAttempts = 3) {
+  enqueue(versionId: string, settings: Snapshot, idempotencyKey: string, now = Date.now(), maxAttempts = 3, kind: RunKind = "pipeline") {
     parseContract("Snapshot", settings);
     if (!idempotencyKey || idempotencyKey.length > 200) throw new Error("invalid_idempotency_key");
-    const requestHash = contentHash(canonical({ versionId, settings }));
+    const requestHash = contentHash(canonical({ versionId, settings, ...(kind === "pipeline" ? {} : { kind }) }));
     return this.db.transaction(tx => {
       const existing = tx.select().from(s.runs).where(eq(s.runs.idempotencyKey, idempotencyKey)).get();
       if (existing) {
         if (existing.requestHash !== requestHash) throw new Error("idempotency_conflict");
         return existing.id;
       }
+      return insertRun(tx, versionId, settings, idempotencyKey, requestHash, now, maxAttempts, kind);
+    }, { behavior: "immediate" });
+  }
+
+  /** One sweep: the experiment and all of its runs commit together, or nothing does (no partial sweep). */
+  createExperiment(input: { versionId: string; name: string; spec: unknown; comparison: unknown; runs: { settings: Snapshot; varied: unknown }[] }, idempotencyKey: string, now = Date.now()) {
+    if (!idempotencyKey || idempotencyKey.length > 180) throw new Error("invalid_idempotency_key");
+    if (!input.runs.length) throw new Error("empty_sweep");
+    for (const run of input.runs) parseContract("Snapshot", run.settings);
+    const requestHash = contentHash(canonical({ versionId: input.versionId, name: input.name, spec: input.spec, runs: input.runs }));
+    return this.db.transaction(tx => {
+      const existing = tx.select().from(s.experiments).where(eq(s.experiments.idempotencyKey, idempotencyKey)).get();
+      if (existing) {
+        if (existing.requestHash !== requestHash) throw new Error("idempotency_conflict");
+        return existing.id;
+      }
       const id = randomUUID();
-      tx.insert(s.runs).values({ id, versionId, settings: canonical(settings), idempotencyKey, requestHash, createdAt: now }).run();
-      tx.insert(s.jobs).values({ id: randomUUID(), runId: id, createdAt: now, maxAttempts }).run();
+      tx.insert(s.experiments).values({ id, versionId: input.versionId, name: input.name, spec: canonical(input.spec), comparison: canonical(input.comparison), idempotencyKey, requestHash, createdAt: now }).run();
+      input.runs.forEach((run, position) => {
+        const key = `${idempotencyKey}#${position}`;
+        const runId = insertRun(tx, input.versionId, run.settings, key, contentHash(canonical({ versionId: input.versionId, settings: run.settings })), now + position, 3, "pipeline");
+        tx.insert(s.experimentRuns).values({ id: randomUUID(), experimentId: id, runId, position, varied: canonical(run.varied) }).run();
+      });
       return id;
+    }, { behavior: "immediate" });
+  }
+
+  experiment(id: string) {
+    const row = this.db.select().from(s.experiments).where(eq(s.experiments.id, id)).get();
+    if (!row) return null;
+    const members = this.db.select({ runId: s.experimentRuns.runId, position: s.experimentRuns.position, varied: s.experimentRuns.varied, status: s.runs.status, settings: s.runs.settings })
+      .from(s.experimentRuns).innerJoin(s.runs, eq(s.runs.id, s.experimentRuns.runId))
+      .where(eq(s.experimentRuns.experimentId, id)).orderBy(asc(s.experimentRuns.position)).all();
+    return {
+      id: row.id, versionId: row.versionId, name: row.name, createdAt: row.createdAt,
+      spec: JSON.parse(row.spec) as unknown, comparison: JSON.parse(row.comparison) as unknown,
+      runs: members.map(m => ({ runId: m.runId, position: m.position, status: m.status, varied: JSON.parse(m.varied) as Record<string, unknown>, settings: (JSON.parse(m.settings) as Snapshot).document })),
+    };
+  }
+
+  saveComparison(id: string, comparison: unknown) {
+    const changed = this.db.update(s.experiments).set({ comparison: canonical(comparison) }).where(eq(s.experiments.id, id)).run();
+    if (!changed.changes) throw new Error("experiment_not_found");
+  }
+
+  listExperiments(limit = 50) {
+    return this.sqlite.prepare(`SELECT e.id, e.name, e.versionId, e.createdAt, count(er.id) AS runs,
+      sum(CASE WHEN r.status IN ('succeeded','failed','cancelled','interrupted') THEN 1 ELSE 0 END) AS finished
+      FROM experiments e LEFT JOIN experiment_runs er ON er.experimentId=e.id LEFT JOIN runs r ON r.id=er.runId
+      GROUP BY e.id ORDER BY e.createdAt DESC, e.id DESC LIMIT ?`).all(limit) as { id: string; name: string; versionId: string; createdAt: number; runs: number; finished: number }[];
+  }
+
+  /** Sliding-window budget shared by every caller of `bucket`; records `cost` only when it fits. */
+  spendRate(bucket: string, cost: number, limit: number, windowMs: number, now = Date.now()) {
+    if (!Number.isSafeInteger(cost) || cost < 1) throw new Error("invalid_rate_cost");
+    return this.db.transaction(tx => {
+      tx.delete(s.rateEvents).where(sql`${s.rateEvents.at} <= ${now - 7 * 24 * 3_600_000}`).run();
+      const used = tx.select({ n: sql<number>`coalesce(sum(${s.rateEvents.cost}), 0)` }).from(s.rateEvents)
+        .where(and(eq(s.rateEvents.bucket, bucket), sql`${s.rateEvents.at} > ${now - windowMs}`)).get()!.n;
+      if (used + cost > limit) {
+        const oldest = tx.select({ at: s.rateEvents.at }).from(s.rateEvents).where(and(eq(s.rateEvents.bucket, bucket), sql`${s.rateEvents.at} > ${now - windowMs}`)).orderBy(asc(s.rateEvents.at)).get();
+        return { ok: false as const, used, retryAfterMs: oldest ? oldest.at + windowMs - now : windowMs };
+      }
+      tx.insert(s.rateEvents).values({ id: randomUUID(), bucket, cost, at: now }).run();
+      return { ok: true as const, used: used + cost, retryAfterMs: 0 };
     }, { behavior: "immediate" });
   }
 
@@ -245,7 +298,7 @@ export class Store {
   }
 
   listRuns(limit = 50) {
-    return this.db.select({ id: s.runs.id, status: s.runs.status, createdAt: s.runs.createdAt, versionId: s.runs.versionId })
+    return this.db.select({ id: s.runs.id, status: s.runs.status, createdAt: s.runs.createdAt, versionId: s.runs.versionId, kind: s.runs.kind })
       .from(s.runs).orderBy(sql`${s.runs.createdAt} desc`, sql`${s.runs.id} desc`).limit(limit).all();
   }
 
@@ -261,7 +314,7 @@ export class Store {
     const artifacts = this.db.select().from(s.runArtifacts).where(eq(s.runArtifacts.runId, runId)).all()
       .map(a => JSON.parse(a.manifest) as StageManifest);
     return {
-      id: run.id, versionId: run.versionId, status: run.status, createdAt: run.createdAt,
+      id: run.id, versionId: run.versionId, status: run.status, createdAt: run.createdAt, kind: run.kind as RunKind,
       settings: JSON.parse(run.settings) as Snapshot,
       attempt: job.attempt, maxAttempts: job.maxAttempts, cancelRequested: job.cancelRequested,
       events, attempts, artifacts,
@@ -286,6 +339,14 @@ export class Store {
     if (bytes.length !== artifact.byteLength || contentHash(bytes) !== hash) throw new Error("artifact_corrupt");
     return JSON.parse(bytes.toString("utf8"));
   }
+}
+export type RunKind = "pipeline" | "explorer";
+type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
+function insertRun(tx: Tx, versionId: string, settings: Snapshot, idempotencyKey: string, requestHash: string, now: number, maxAttempts: number, kind: RunKind) {
+  const id = randomUUID();
+  tx.insert(s.runs).values({ id, versionId, settings: canonical(settings), idempotencyKey, requestHash, createdAt: now, kind }).run();
+  tx.insert(s.jobs).values({ id: randomUUID(), runId: id, createdAt: now, maxAttempts }).run();
+  return id;
 }
 function assertLease(job: typeof s.jobs.$inferSelect | undefined, lease: Lease, now: number) {
   if (!job || !active.has(job.status) || job.leaseToken !== lease.lease_token || job.workerId !== lease.worker_id || job.attempt !== lease.attempt || (job.leaseExpiresAt ?? 0) <= now) throw new Error("stale_lease");

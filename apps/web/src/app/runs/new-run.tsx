@@ -81,3 +81,50 @@ export function NewRun({ open, runKey }: { open: boolean; runKey?: string }) {
     </div>
   )
 }
+
+/** Starts a clustering-only k explorer job on the bundled example: k and k + 1 × seeds 0–9, plus H3 resolutions 1–3. */
+export function NewExplorer({ open, runKey }: { open: boolean; runKey?: string }) {
+  const router = useRouter()
+  const [k, setK] = useState("4")
+  const [pending, setPending] = useState(false)
+  if (!open) return null
+  async function start() {
+    setPending(true)
+    try {
+      const res = await fetch("/api/v1/explorer", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
+        body: JSON.stringify({ settings: { selected_k: Number(k), ks: [Number(k), Number(k) + 1] } }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error?.message ?? "Could not start the explorer.")
+      router.push(`/explore/${body.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
+    } catch (error) {
+      toastManager.add({ type: "error", title: "Explorer not started", description: error instanceof Error ? error.message : undefined })
+      setPending(false)
+    }
+  }
+  const options = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: `k = ${i + 1} and ${i + 2}` }))
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-col gap-1.5">
+        <Label>Around</Label>
+        <Select items={options} value={k} onValueChange={(v) => setK(v as string)}>
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectPopup>
+            {options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      </div>
+      <Button variant="outline" onClick={start} loading={pending}>
+        Explore k (23 clustering tasks)
+      </Button>
+    </div>
+  )
+}

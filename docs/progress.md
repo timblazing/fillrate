@@ -52,9 +52,16 @@
   - [x] 2,000-order benchmark inside the tested image on amd64 and arm64 GitHub runners (`image.yml` job summary and artifacts)
 - [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, ranked Best option / 2nd / 3rd, partition bounds, H3 layer/baseline, lesson and small Python replay export)
   - [x] k explorer statistics engine (`services/optimizer/src/fillrate_optimizer/explorer.py`): inertia per seed, raw/repaired stability (mean pairwise ARI, unclipped), per-location seed agreement (N/A for singletons, no dense all-pairs array), task cap with no silent truncation; 8 pytest cases
-  - [ ] Explorer as a durable job + API + real k explorer screen with "Use this k"
-  - [ ] Bounded sweeps, comparison signatures, Pareto and ranked options
-  - [ ] No-clustering baseline, H3 layer/baseline, flagship lesson, Python replay export, release gates
+  - [x] Explorer as a durable job (`runs.kind = explorer`, worker dispatch, `explorer` artifact) + `POST /api/v1/explorer` + `/explore/<id>` screen (elbow/stability chart, k and H3 tables, seed-agreement map, raw vs repaired, "Use this k" for the example and for imported scenarios via `/scenarios`)
+  - [x] Clustering methods in `RunSettings`: `cluster_strategy` kmeans | h3 | none, `h3_resolution`; no-clustering baseline fails with `baseline_ineligible` over MAX_STOPS or an enabled diameter limit; `inventory_percent` sweep axis
+  - [x] Bounded sweeps (`experiments`, `experiment_runs`; all-or-nothing creation; preview before enqueue; never truncated), comparison signatures/cohorts, strict Pareto with declared rounding, ranked Best option / 2nd best / 3rd with a saved, editable lexicographic order; `/experiments` builder and `/experiments/<id>` view; JSON/CSV export with order and metric directions
+  - [x] Partition lower bounds shown on `/runs/<id>` and in sweep rows; H3 map layer toggle (resolution 5, by stop count)
+  - [x] Python replay bundle (`export?format=python`, zip with scenario, settings, deterministic stage artifacts, pinned optimizer source + lock, `replay.py`); e2e test replays a run with REPLAY OK
+  - [x] Public abuse controls: global hourly/daily run budget (`PUBLIC_SYNTHETIC_RUNS=1`, `rate_events` ledger, no forwarded-header trust), bounded queue (`MAX_QUEUED_RUNS`, default 50)
+  - [x] Flagship lesson scenario `examples/lesson-fulfillment.json` (2,000 orders, 600 locations, scarce stock; valid and complete, 443 shipments, ~2 s)
+  - [ ] Examples registry so `/runs`, explorer and sweeps can use the lesson scenario (the M1 example is always `coverage=partial`, so its sweeps never rank anything)
+  - [ ] Flagship lesson page (`/learn/fulfillment-pipeline`), image smoke for explorer + sweep + replay, Playwright smoke
+  - [ ] Release gates needing the owner: target-hardware timings (VPS, Pi) and recovery checks
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
 - [ ] M7 Learning and exports
@@ -142,4 +149,8 @@ Round two is answered (2026-10-01). Still open from him:
 Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts and the missing Foundations tokens added (M2 item 16, the last M2 item).
 
 ## Next step
-Continue M4: run the k explorer engine as a durable job with an API and a real k explorer screen ("Use this k"), then bounded sweeps with comparison signatures, Pareto and the ranked Best option / 2nd best / 3rd view. With OpenPencil open, finish `fillrate.fig` and mark M2 done.
+Finish M4 (session stopped mid-way on 2026-10-01; everything below "M4" in the checklist marked done is committed and tested):
+1. Examples registry in `apps/web/src/lib/server/runs.ts` (`m1` and `lesson`): `exampleVersion(store, id)`, an `example` field on `POST /api/v1/runs`, `/api/v1/explorer`, `/api/v1/experiments(/preview)`; sweeps and the lesson default to `lesson`; scenario selector on `/runs`.
+2. Lesson page `/learn/fulfillment-pipeline`: allocation → k explorer → per-cluster loads → sweep with ranked options, expected observations, reset.
+3. Extend `deploy/smoke.sh`/`smoke_import.py` with an explorer job, a 2-run sweep and a replay-bundle download; consider a Playwright smoke.
+4. Update `/dev/components` gallery if needed; then the owner-only release gates (target hardware, recovery).

@@ -148,7 +148,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = "==0.142.2" },
-    { name = "h3", specifier = "==4.5.0" },
+    { name = "h3", specifier = ">=4,<5" },
     { name = "numpy", specifier = "==2.5.3" },
     { name = "ortools", specifier = "==9.15.6755" },
     { name = "pydantic", specifier = "==2.13.5" },

@@ -25,6 +25,7 @@ class StageManifest(Contract):
         "solve",
         "validation",
         "summary",
+        "explorer",
     ]
     input_hash: Hash
     output_hash: Hash

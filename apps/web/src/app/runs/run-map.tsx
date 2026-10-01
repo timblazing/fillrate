@@ -2,7 +2,8 @@
 
 import type { RunSummary } from "@fillrate/contracts"
 import convex from "@turf/convex"
-import { featureCollection, point } from "@turf/helpers"
+import { featureCollection, point, polygon } from "@turf/helpers"
+import { cellToBoundary, latLngToCell } from "h3-js"
 import type * as GeoJSON from "geojson"
 import { Warehouse } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -21,11 +22,14 @@ export default function RunMap({
   cluster,
   truck,
   onSelectCluster,
+  h3Resolution = null,
 }: {
   summary: RunSummary
   cluster: string | null
   truck: string | null
   onSelectCluster: (id: string | null) => void
+  /** Optional H3 map layer (spec §11: off by default, resolution 5, shaded by stop count). */
+  h3Resolution?: number | null
 }) {
   const { resolvedTheme } = useTheme()
   const colors = useCssColors(tokens, resolvedTheme)
@@ -68,6 +72,23 @@ export default function RunMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, colors, summary, cluster])
 
+  const cells = useMemo(() => {
+    if (h3Resolution == null) return null
+    const counts = new globalThis.Map<string, number>()
+    for (const l of located) if (l.state !== "no_demand") {
+      const cell = latLngToCell(l.lat!, l.lon!, h3Resolution)
+      counts.set(cell, (counts.get(cell) ?? 0) + 1)
+    }
+    const max = Math.max(1, ...counts.values())
+    return featureCollection([...counts].map(([cell, n]) => {
+      const ring = cellToBoundary(cell, true)
+      return polygon([[...ring, ring[0]]], { stops: n, share: n / max })
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary, h3Resolution])
+  const cellFill = useMemo(() => ({ "fill-color": colors["--muted-foreground"] ?? "#888", "fill-opacity": ["+", 0.08, ["*", 0.4, ["get", "share"]]] }) as never, [colors])
+  const cellLine = useMemo(() => ({ "line-color": colors["--muted-foreground"] ?? "#888", "line-width": 0.5, "line-opacity": 0.5 }) as never, [colors])
+
   const hullFill = useMemo(() => ({ "fill-color": ["get", "color"], "fill-opacity": ["case", ["get", "selected"], 0.16, 0.06] }) as never, [])
   const hullLine = useMemo(() => ({ "line-color": ["get", "color"], "line-width": ["case", ["get", "selected"], 2, 1], "line-opacity": 0.7 }) as never, [])
   const depot: [number, number] = [summary.depot.lon, summary.depot.lat]
@@ -82,6 +103,7 @@ export default function RunMap({
     <div className="relative h-full">
       <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5}>
         <FitBounds points={fit} fitKey={`${cluster}`} />
+        {ready && cells && <MapGeoJSON id="run-h3" data={cells} fillPaint={cellFill} linePaint={cellLine} />}
         {ready && <MapGeoJSON id="run-hulls" data={hulls} fillPaint={hullFill} linePaint={hullLine} />}
         {ready &&
           trucks.map((t) => (

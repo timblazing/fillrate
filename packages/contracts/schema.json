@@ -186,6 +186,18 @@
           "title": "Fits",
           "type": "integer"
         },
+        "h3_resolution": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "H3 Resolution"
+        },
         "raw_cluster_count": {
           "title": "Raw Cluster Count",
           "type": "integer"
@@ -222,6 +234,7 @@
         "strategy": {
           "enum": [
             "kmeans",
+            "h3",
             "none"
           ],
           "title": "Strategy",
@@ -303,6 +316,365 @@
         "message"
       ],
       "title": "Diagnostic",
+      "type": "object"
+    },
+    "ExplorerH3": {
+      "additionalProperties": false,
+      "properties": {
+        "diameter_repairs": {
+          "title": "Diameter Repairs",
+          "type": "integer"
+        },
+        "effective_cluster_count": {
+          "title": "Effective Cluster Count",
+          "type": "integer"
+        },
+        "inertia": {
+          "title": "Inertia",
+          "type": "number"
+        },
+        "raw_cluster_count": {
+          "title": "Raw Cluster Count",
+          "type": "integer"
+        },
+        "resolution": {
+          "title": "Resolution",
+          "type": "integer"
+        },
+        "stability": {
+          "const": "deterministic",
+          "default": "deterministic",
+          "title": "Stability",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resolution",
+        "raw_cluster_count",
+        "effective_cluster_count",
+        "inertia",
+        "diameter_repairs"
+      ],
+      "title": "ExplorerH3",
+      "type": "object"
+    },
+    "ExplorerK": {
+      "additionalProperties": false,
+      "properties": {
+        "diameter_repairs_by_seed": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Diameter Repairs By Seed",
+          "type": "array"
+        },
+        "effective_cluster_count": {
+          "title": "Effective Cluster Count",
+          "type": "integer"
+        },
+        "inertia_by_seed": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Inertia By Seed",
+          "type": "array"
+        },
+        "inertia_mean": {
+          "title": "Inertia Mean",
+          "type": "number"
+        },
+        "k": {
+          "title": "K",
+          "type": "integer"
+        },
+        "raw_cluster_count": {
+          "title": "Raw Cluster Count",
+          "type": "integer"
+        },
+        "stability_raw": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stability Raw"
+        },
+        "stability_repaired": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stability Repaired"
+        }
+      },
+      "required": [
+        "k",
+        "inertia_by_seed",
+        "inertia_mean",
+        "raw_cluster_count",
+        "effective_cluster_count",
+        "diameter_repairs_by_seed",
+        "stability_raw",
+        "stability_repaired"
+      ],
+      "title": "ExplorerK",
+      "type": "object"
+    },
+    "ExplorerLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "agreement_raw": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Agreement Raw"
+        },
+        "agreement_repaired": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Agreement Repaired"
+        },
+        "id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "lat": {
+          "title": "Lat",
+          "type": "number"
+        },
+        "lon": {
+          "title": "Lon",
+          "type": "number"
+        },
+        "reference_cluster": {
+          "title": "Reference Cluster",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "lat",
+        "lon",
+        "reference_cluster",
+        "agreement_raw",
+        "agreement_repaired"
+      ],
+      "title": "ExplorerLocation",
+      "type": "object"
+    },
+    "ExplorerSettings": {
+      "additionalProperties": false,
+      "description": "A clustering-only job: no allocation changes, no PyVRP. `base` supplies the population\n(eligible, allocated locations) and the spatial policy; ks \u00d7 seeds are the k-means tasks and\neach H3 resolution is one deterministic task. All of them count toward the task cap.",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/RunSettings"
+        },
+        "h3_resolutions": {
+          "items": {
+            "maximum": 15,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 16,
+          "title": "H3 Resolutions",
+          "type": "array"
+        },
+        "kind": {
+          "const": "explorer",
+          "default": "explorer",
+          "title": "Kind",
+          "type": "string"
+        },
+        "ks": {
+          "anyOf": [
+            {
+              "items": {
+                "maximum": 1000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ks"
+        },
+        "reference_seed": {
+          "default": 0,
+          "maximum": 2147483647,
+          "minimum": 0,
+          "title": "Reference Seed",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seeds": {
+          "items": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Seeds",
+          "type": "array"
+        },
+        "selected_k": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selected K"
+        }
+      },
+      "title": "ExplorerSettings",
+      "type": "object"
+    },
+    "ExplorerSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "depot": {
+          "$ref": "#/$defs/Depot"
+        },
+        "fits": {
+          "title": "Fits",
+          "type": "integer"
+        },
+        "h3": {
+          "items": {
+            "$ref": "#/$defs/ExplorerH3"
+          },
+          "title": "H3",
+          "type": "array"
+        },
+        "kind": {
+          "const": "explorer",
+          "default": "explorer",
+          "title": "Kind",
+          "type": "string"
+        },
+        "ks": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Ks",
+          "type": "array"
+        },
+        "locations": {
+          "items": {
+            "$ref": "#/$defs/ExplorerLocation"
+          },
+          "title": "Locations",
+          "type": "array"
+        },
+        "locations_clustered": {
+          "title": "Locations Clustered",
+          "type": "integer"
+        },
+        "max_tasks": {
+          "title": "Max Tasks",
+          "type": "integer"
+        },
+        "per_k": {
+          "items": {
+            "$ref": "#/$defs/ExplorerK"
+          },
+          "title": "Per K",
+          "type": "array"
+        },
+        "reference_seed": {
+          "title": "Reference Seed",
+          "type": "integer"
+        },
+        "scenario_name": {
+          "title": "Scenario Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seeds": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Seeds",
+          "type": "array"
+        },
+        "selected_k": {
+          "title": "Selected K",
+          "type": "integer"
+        },
+        "settings": {
+          "$ref": "#/$defs/ExplorerSettings"
+        },
+        "tasks": {
+          "title": "Tasks",
+          "type": "integer"
+        },
+        "versions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Versions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "scenario_name",
+        "settings",
+        "ks",
+        "seeds",
+        "reference_seed",
+        "selected_k",
+        "tasks",
+        "max_tasks",
+        "fits",
+        "locations_clustered",
+        "per_k",
+        "h3",
+        "locations",
+        "depot",
+        "versions"
+      ],
+      "title": "ExplorerSummary",
       "type": "object"
     },
     "InventoryItem": {
@@ -923,6 +1295,16 @@
           "title": "Cluster Circuity",
           "type": "number"
         },
+        "cluster_strategy": {
+          "default": "kmeans",
+          "enum": [
+            "kmeans",
+            "h3",
+            "none"
+          ],
+          "title": "Cluster Strategy",
+          "type": "string"
+        },
         "cost_per_mile_cents": {
           "anyOf": [
             {
@@ -960,6 +1342,20 @@
           "maxItems": 25000,
           "title": "Excluded Line Ids",
           "type": "array"
+        },
+        "h3_resolution": {
+          "default": 2,
+          "maximum": 15,
+          "minimum": 0,
+          "title": "H3 Resolution",
+          "type": "integer"
+        },
+        "inventory_percent": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Inventory Percent",
+          "type": "integer"
         },
         "k": {
           "anyOf": [
@@ -1379,7 +1775,8 @@
             "problem",
             "solve",
             "validation",
-            "summary"
+            "summary",
+            "explorer"
           ],
           "title": "Stage Type",
           "type": "string"

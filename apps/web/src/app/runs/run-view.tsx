@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@/components/ui/menu"
+import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
 import { toastManager } from "@/components/ui/toast"
@@ -32,8 +33,15 @@ const STAGES = ["preflight", "allocation", "aggregation", "clustering", "travel"
 const ACTIVE = new Set(["queued", "claimed", "running"])
 const miles = (m: number) => formatMiles(m / METERS_PER_MILE)
 
+type PipelineDetail = Extract<RunDetail, { kind: "pipeline" }>
+
+const strategyLabel = (summary: RunSummary) =>
+  summary.clustering.strategy === "h3" ? `H3 cells · resolution ${summary.clustering.h3_resolution}`
+  : summary.clustering.strategy === "none" ? "No clustering (baseline)"
+  : summary.clustering.requested_k ? `k = ${summary.clustering.requested_k} (fixed)` : `Auto k = ${summary.clustering.selected_k ?? 0}`
+
 // Polls the run every 2 s while it is active (5 s after the first minute), pausing while the tab is hidden.
-function useRun(initial: RunDetail) {
+function useRun(initial: PipelineDetail) {
   const [run, setRun] = useState(initial)
   useEffect(() => {
     if (!ACTIVE.has(run.status) && !run.cancel_requested) return
@@ -44,7 +52,7 @@ function useRun(initial: RunDetail) {
       if (!document.hidden) {
         const res = await fetch(`/api/v1/runs/${initial.id}`, { cache: "no-store" }).catch(() => null)
         if (res?.ok && !stopped) {
-          const next = (await res.json()) as RunDetail
+          const next = (await res.json()) as PipelineDetail
           setRun(next)
           if (!ACTIVE.has(next.status)) return
         }
@@ -60,7 +68,7 @@ function useRun(initial: RunDetail) {
   return [run, setRun] as const
 }
 
-export function RunView({ initial, canCancel, runKey }: { initial: RunDetail; canCancel: boolean; runKey?: string }) {
+export function RunView({ initial, canCancel, runKey }: { initial: PipelineDetail; canCancel: boolean; runKey?: string }) {
   const [run, setRun] = useRun(initial)
   const [cancelling, setCancelling] = useState(false)
   const active = ACTIVE.has(run.status)
@@ -86,7 +94,8 @@ export function RunView({ initial, canCancel, runKey }: { initial: RunDetail; ca
         <JobStatusBadge state={run.status as JobState} />
         {run.cancel_requested && active && <Badge variant="warning">Cancelling…</Badge>}
         <span className="text-muted-foreground text-xs tabular-nums">
-          Attempt {run.attempt} of {run.max_attempts} · k {run.settings.k ?? "auto"} · solver seed {run.settings.solver_seed}
+          Attempt {run.attempt} of {run.max_attempts} · {run.settings.cluster_strategy === "kmeans" ? `k ${run.settings.k ?? "auto"}` : run.settings.cluster_strategy === "h3" ? `H3 r${run.settings.h3_resolution}` : "no clustering"} · solver seed {run.settings.solver_seed}
+          {run.settings.inventory_percent !== 100 && ` · inventory ${run.settings.inventory_percent}%`}
         </span>
         <div className="ml-auto flex items-center gap-2">
           {active && canCancel && !run.cancel_requested && (
@@ -148,6 +157,7 @@ function ExportMenu({ id }: { id: string }) {
           ["format=csv&table=unplanned", "Unshipped lines CSV (unplanned)"],
           ["format=csv&table=clusters", "Clusters CSV"],
           ["format=csv&table=products", "Stock reconciliation CSV"],
+          ["format=python", "Python replay bundle (.zip)"],
         ].map(([q, label]) => (
           <MenuItem key={q} render={<a href={href(q)} download />}>
             {label}
@@ -158,7 +168,7 @@ function ExportMenu({ id }: { id: string }) {
   )
 }
 
-function Progress({ run }: { run: RunDetail }) {
+function Progress({ run }: { run: PipelineDetail }) {
   const stage = String(run.progress?.stage ?? "")
   const current = STAGES.indexOf(stage as (typeof STAGES)[number])
   return (
@@ -189,7 +199,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
     ["Preflight", flagged ? `${flagged} ${flagged === 1 ? "check" : "checks"} flagged` : "no issues", "data and policy checks"],
     ["Allocation", `${formatCount(allocated)} of ${formatCount(ordered)}`, "pieces allocated"],
     ["Aggregation", formatCount(t.visits), t.visits === 1 ? "stop" : "stops"],
-    ["Clustering", formatCount(summary.clustering.effective_cluster_count), summary.clustering.requested_k ? `clusters · k = ${summary.clustering.requested_k}` : "clusters · auto k"],
+    ["Clustering", formatCount(summary.clustering.effective_cluster_count), `clusters · ${strategyLabel(summary)}`],
     ["Travel", `× ${summary.settings.travel_circuity}`, "haversine miles"],
     ["Solve", formatCount(t.trucks), t.trucks === 1 ? "shipment" : "shipments"],
     ["Validation", summary.validity === "valid" ? "valid" : "invalid", `coverage ${summary.coverage}`],
@@ -211,8 +221,9 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   )
 }
 
-function Results({ summary, run }: { summary: RunSummary; run: RunDetail }) {
+function Results({ summary, run }: { summary: RunSummary; run: PipelineDetail }) {
   const [cluster, setCluster] = useState<string | null>(null)
+  const [hexes, setHexes] = useState(false)
   const [truck, setTruck] = useState<string | null>(null)
   const [tab, setTab] = useState("map")
   const t = summary.totals
@@ -242,14 +253,14 @@ function Results({ summary, run }: { summary: RunSummary; run: RunDetail }) {
             {formatMoney(t.allocated_cents, { compact: true })} allocated · {formatMoney(t.ordered_cents, { compact: true })} ordered
           </span>
         </div>
-        <StatTile label="Shipments" value={formatCount(t.trucks)} footnote={`At least ${t.capacity_lower_bound} by trailer capacity`} />
+        <StatTile label="Shipments" value={formatCount(t.trucks)} footnote={<BoundsNote total={t.capacity_lower_bound} perCluster={t.sum_cluster_lower_bounds} trucks={t.trucks} />} />
         <StatTile
           label="Trailer fill"
           value={t.avg_fill == null ? "n/a" : formatPercent(t.avg_fill)}
           footnote={t.min_fill == null ? undefined : `Lowest ${formatPercent(t.min_fill)} · ${lowCount} under ${formatPercent(FILL_LOW)}`}
         />
         <StatTile label="Loaded miles" value={miles(t.loaded_distance_m)} footnote={`Estimated: haversine × ${summary.settings.travel_circuity}, open routes`} />
-        <StatTile label="Clusters" value={formatCount(summary.clustering.effective_cluster_count)} footnote={summary.clustering.requested_k ? `k = ${summary.clustering.requested_k} (fixed)` : `Auto k = ${summary.clustering.selected_k ?? 0}`} />
+        <StatTile label="Clusters" value={formatCount(summary.clustering.effective_cluster_count)} footnote={strategyLabel(summary)} />
       </div>
 
       <PreflightNotes summary={summary} />
@@ -273,8 +284,14 @@ function Results({ summary, run }: { summary: RunSummary; run: RunDetail }) {
         </div>
         <TabsPanel value="map" className="pt-3">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="h-[360px] overflow-hidden rounded-xl border sm:h-[440px] xl:h-auto xl:min-h-[480px]">
-              <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} />
+            <div className="flex flex-col gap-2">
+              <div className="h-[360px] overflow-hidden rounded-xl border sm:h-[440px] xl:h-auto xl:min-h-[480px] xl:flex-1">
+                <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} h3Resolution={hexes ? 5 : null} />
+              </div>
+              <label className="text-muted-foreground flex items-center gap-2 text-xs">
+                <Switch checked={hexes} onCheckedChange={setHexes} />
+                H3 cells (resolution 5, shaded by stop count). A map layer only; it does not change clusters.
+              </label>
             </div>
             <ClusterTable summary={summary} cluster={cluster} onSelect={setCluster} onShowShipments={() => setTab("shipments")} />
           </div>
@@ -293,6 +310,18 @@ function Results({ summary, run }: { summary: RunSummary; run: RunDetail }) {
         </TabsPanel>
       </Tabs>
     </>
+  )
+}
+
+/** Capacity lower bounds (spec §8a): their difference is the increase in the bound from partitioning, not proof of extra trucks. */
+function BoundsNote({ total, perCluster, trucks }: { total: number; perCluster: number; trucks: number }) {
+  const extra = perCluster - total
+  return (
+    <span title="ceil(total load ÷ trailer) and the sum of the same bound per cluster. Equality with the shipment count certifies the count, not the miles.">
+      At least {total} by trailer capacity
+      {extra > 0 ? `; ${perCluster} summed per cluster (+${extra} from partitioning)` : ""}
+      {trucks === perCluster ? " · count at the bound" : ""}
+    </span>
   )
 }
 
@@ -679,7 +708,7 @@ function StockCoverage({ summary }: { summary: RunSummary }) {
   )
 }
 
-function Provenance({ summary, run }: { summary: RunSummary; run: RunDetail }) {
+function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail }) {
   const s = summary.settings
   const policy = s.preflight
   const rows: [string, string][] = [

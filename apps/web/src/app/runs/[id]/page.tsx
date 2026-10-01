@@ -1,5 +1,5 @@
 import { headers } from "next/headers"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 import { DevHeader } from "@/components/brand/dev-header"
 import { initializeDatabase } from "@/lib/server/database"
@@ -24,6 +24,7 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
     if (error instanceof ApiError && [403, 404, 503].includes(error.status)) notFound()
     throw error
   }
+  if (detail.kind === "explorer") redirect(`/explore/${id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`)
   return (
     <div className="flex min-h-dvh flex-col">
       <DevHeader />

@@ -115,6 +115,7 @@ def child_main(
     lease: dict | None = None,
 ) -> None:
     """Runs in a separate process; reports progress, result, or a permanent error."""
+    from .explorer import ExplorerError
     from .model import RunSettings, ScenarioDocument
     from .pipeline import Limits, PipelineError, run_pipeline
 
@@ -126,6 +127,9 @@ def child_main(
         return transport.post("/internal/worker/" + path, {"lease": lease, **body})
 
     try:
+        if settings.get("kind") == "explorer":
+            out.put(("result", explorer_result(scenario, settings, execution_id, out)))
+            return
         output = run_pipeline(
             ScenarioDocument.model_validate(scenario),
             RunSettings.model_validate(settings),
@@ -166,10 +170,49 @@ def child_main(
                 },
             )
         )
-    except PipelineError as error:
+    except (PipelineError, ExplorerError) as error:
         out.put(("error", {"code": error.code, "message": str(error)}))
     except Exception as error:  # pydantic validation and anything unexpected
         out.put(("error", {"code": type(error).__name__, "message": str(error)[:2000]}))
+
+
+def explorer_result(scenario: dict, settings: dict, execution_id: str, out: mp.Queue) -> dict:
+    """Clustering-only explorer job: one `explorer` artifact (spec §8a, §9)."""
+    from .canonical import content_hash
+    from .explorer import run_explorer
+    from .model import ExplorerSettings, ScenarioDocument
+
+    parsed = ExplorerSettings.model_validate(settings)
+    summary = run_explorer(
+        ScenarioDocument.model_validate(scenario),
+        parsed,
+        max_tasks=int(os.environ.get("MAX_SWEEP_RUNS", 25)),
+        progress=lambda stage, detail: out.put(("progress", {"stage": stage, **detail})),
+    )
+    payload = summary.model_dump(mode="json")
+    manifest = {
+        "schema_version": 1,
+        "stage_type": "explorer",
+        "input_hash": content_hash(
+            {
+                "scenario": scenario,
+                "settings": parsed.model_dump(mode="json"),
+                "versions": summary.versions,
+            }
+        ),
+        "output_hash": content_hash(payload),
+        "producer_version": "fillrate-explorer/1",
+        "adapter_version": "none",
+        "parent_hashes": [],
+        "effective_settings": parsed.model_dump(mode="json"),
+        "created_at_ms": int(time.time() * 1000),
+        "execution_id": execution_id,
+        "reused_from": None,
+    }
+    return {
+        "artifacts": [{"manifest": manifest, "payload": payload}],
+        "summary": {"kind": "explorer", "tasks": summary.tasks, "selected_k": summary.selected_k},
+    }
 
 
 class Supervisor:

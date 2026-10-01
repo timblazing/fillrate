@@ -19,7 +19,7 @@ export function StatTile({
   unit?: string
   delta?: number
   goodWhen?: "up" | "down"
-  footnote?: string
+  footnote?: React.ReactNode
   badge?: React.ReactNode
   trend?: number[]
   className?: string

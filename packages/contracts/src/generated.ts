@@ -153,6 +153,11 @@ export interface components {
             effective_cluster_count: number;
             /** Fits */
             fits: number;
+            /**
+             * H3 Resolution
+             * @default null
+             */
+            h3_resolution: number | null;
             /** Raw Cluster Count */
             raw_cluster_count: number;
             /** Repairs */
@@ -165,7 +170,7 @@ export interface components {
              * Strategy
              * @enum {string}
              */
-            strategy: "kmeans" | "none";
+            strategy: "kmeans" | "h3" | "none";
         };
         /** ContractBundle */
         ContractBundle: {
@@ -215,6 +220,144 @@ export interface components {
              * @enum {string}
              */
             severity: "info" | "warning" | "error";
+        };
+        /** ExplorerH3 */
+        ExplorerH3: {
+            /** Diameter Repairs */
+            diameter_repairs: number;
+            /** Effective Cluster Count */
+            effective_cluster_count: number;
+            /** Inertia */
+            inertia: number;
+            /** Raw Cluster Count */
+            raw_cluster_count: number;
+            /** Resolution */
+            resolution: number;
+            /**
+             * Stability
+             * @default deterministic
+             * @constant
+             */
+            stability: "deterministic";
+        };
+        /** ExplorerK */
+        ExplorerK: {
+            /** Diameter Repairs By Seed */
+            diameter_repairs_by_seed: number[];
+            /** Effective Cluster Count */
+            effective_cluster_count: number;
+            /** Inertia By Seed */
+            inertia_by_seed: number[];
+            /** Inertia Mean */
+            inertia_mean: number;
+            /** K */
+            k: number;
+            /** Raw Cluster Count */
+            raw_cluster_count: number;
+            /** Stability Raw */
+            stability_raw: number | null;
+            /** Stability Repaired */
+            stability_repaired: number | null;
+        };
+        /** ExplorerLocation */
+        ExplorerLocation: {
+            /** Agreement Raw */
+            agreement_raw: number | null;
+            /** Agreement Repaired */
+            agreement_repaired: number | null;
+            /** Id */
+            id: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Reference Cluster */
+            reference_cluster: number;
+        };
+        /**
+         * ExplorerSettings
+         * @description A clustering-only job: no allocation changes, no PyVRP. `base` supplies the population
+         *     (eligible, allocated locations) and the spatial policy; ks × seeds are the k-means tasks and
+         *     each H3 resolution is one deterministic task. All of them count toward the task cap.
+         */
+        ExplorerSettings: {
+            base?: components["schemas"]["RunSettings"];
+            /** H3 Resolutions */
+            h3_resolutions?: number[];
+            /**
+             * Kind
+             * @default explorer
+             * @constant
+             */
+            kind: "explorer";
+            /**
+             * Ks
+             * @default null
+             */
+            ks: number[] | null;
+            /**
+             * Reference Seed
+             * @default 0
+             */
+            reference_seed: number;
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Seeds */
+            seeds?: number[];
+            /**
+             * Selected K
+             * @default null
+             */
+            selected_k: number | null;
+        };
+        /** ExplorerSummary */
+        ExplorerSummary: {
+            depot: components["schemas"]["Depot"];
+            /** Fits */
+            fits: number;
+            /** H3 */
+            h3: components["schemas"]["ExplorerH3"][];
+            /**
+             * Kind
+             * @default explorer
+             * @constant
+             */
+            kind: "explorer";
+            /** Ks */
+            ks: number[];
+            /** Locations */
+            locations: components["schemas"]["ExplorerLocation"][];
+            /** Locations Clustered */
+            locations_clustered: number;
+            /** Max Tasks */
+            max_tasks: number;
+            /** Per K */
+            per_k: components["schemas"]["ExplorerK"][];
+            /** Reference Seed */
+            reference_seed: number;
+            /** Scenario Name */
+            scenario_name: string;
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Seeds */
+            seeds: number[];
+            /** Selected K */
+            selected_k: number;
+            settings: components["schemas"]["ExplorerSettings"];
+            /** Tasks */
+            tasks: number;
+            /** Versions */
+            versions: {
+                [key: string]: string;
+            };
         };
         /** InventoryItem */
         InventoryItem: {
@@ -463,6 +606,12 @@ export interface components {
              */
             cluster_circuity: number;
             /**
+             * Cluster Strategy
+             * @default kmeans
+             * @enum {string}
+             */
+            cluster_strategy: "kmeans" | "h3" | "none";
+            /**
              * Cost Per Mile Cents
              * @default null
              */
@@ -474,6 +623,16 @@ export interface components {
             cost_per_truck_cents: number | null;
             /** Excluded Line Ids */
             excluded_line_ids?: string[];
+            /**
+             * H3 Resolution
+             * @default 2
+             */
+            h3_resolution: number;
+            /**
+             * Inventory Percent
+             * @default 100
+             */
+            inventory_percent: number;
             /**
              * K
              * @default null
@@ -668,7 +827,7 @@ export interface components {
              * Stage Type
              * @enum {string}
              */
-            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "solve" | "validation" | "summary";
+            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "solve" | "validation" | "summary" | "explorer";
         };
         /** Totals */
         Totals: {

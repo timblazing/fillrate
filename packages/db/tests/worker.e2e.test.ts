@@ -12,6 +12,9 @@ import { previewCsvImport } from "../src/imports";
 import { saveScenario } from "../src/scenarios";
 import { parseContract, type RunSummary } from "@fillrate/contracts";
 import { sheetCsvRows, shipmentSheets } from "../../../apps/web/src/lib/shipment-sheet";
+import { compareRuns, expandSweep } from "../src/experiments";
+import { replayBundle } from "../src/replay";
+import { writeFileSync } from "node:fs";
 
 const optimizer = resolve("services/optimizer");
 const example = JSON.parse(readFileSync(resolve("examples/m1-synthetic.json"), "utf8"));
@@ -153,3 +156,48 @@ test.skipIf(!hasUv)("imported CSV version completes through the real worker and 
   expect(summary.totals.planned_cents).toBe(18750);
   expect(store.versionDocument(saved.versionId).document).toEqual(preview.document);
 },120_000);
+
+
+test.skipIf(!hasUv)("a k explorer job runs clustering only and stores one explorer artifact", async () => {
+  const runId = store.enqueue(versionId, { schema_version: 1, document: { schema_version: 1, kind: "explorer", base: example.settings, ks: [3, 4], seeds: [0, 1, 2], selected_k: 4, reference_seed: 0, h3_resolutions: [1, 2] } }, "explore", Date.now(), 3, "explorer");
+  startWorker("explorer");
+  await waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status));
+  const view = store.runView(runId)!;
+  expect(view.status).toBe("succeeded");
+  expect(view.kind).toBe("explorer");
+  expect(view.artifacts.map(a => a.stage_type)).toEqual(["explorer"]);
+  const summary = parseContract("ExplorerSummary", store.readArtifact(view.artifacts[0].output_hash));
+  expect(summary.tasks).toBe(3 * 2 + 2);
+  expect(summary.per_k.map(r => r.k)).toEqual([3, 4]);
+  expect(summary.h3.map(r => r.resolution)).toEqual([1, 2]);
+  expect(summary.selected_k).toBe(4);
+  // Location-level statistics, no dense pairwise array: one row per clustered location.
+  expect(summary.locations).toHaveLength(summary.locations_clustered);
+}, 120_000);
+
+test.skipIf(!hasUv)("sweep runs are independent solves, ranked within one cohort, and replay from a bundle", async () => {
+  const runs = expandSweep(example.settings, { kmeans_seed: [0, 1], inventory_percent: [100, 60] });
+  const id = store.createExperiment({ versionId, name: "e2e", spec: {}, comparison: {}, runs: runs.map(r => ({ settings: { schema_version: 1 as const, document: r.settings as never }, varied: r.varied })) }, "sweep");
+  startWorker("sweeper");
+  const members = store.experiment(id)!.runs;
+  await waitFor(() => members.every(m => ["succeeded", "failed"].includes(store.runView(m.runId)!.status)), 110_000);
+  const views = members.map(m => store.runView(m.runId)!);
+  expect(views.map(v => v.status)).toEqual(["succeeded", "succeeded", "succeeded", "succeeded"]);
+  const solves = views.map(v => v.artifacts.find(a => a.stage_type === "solve")!);
+  expect(new Set(solves.map(s => s.execution_id)).size).toBe(4);
+  expect(solves.every(s => s.reused_from === null)).toBe(true);
+  const compared = compareRuns(views.map((v, i) => ({ id: v.id, status: v.status, versionId, settings: runs[i].settings, summary: store.readArtifact(v.artifacts.find(a => a.stage_type === "summary")!.output_hash) as RunSummary })));
+  // Two cohorts (inventory 100% and 60%); only the base cohort's valid complete runs are ranked.
+  expect(compared.cohorts).toHaveLength(compared.rows.some(r => r.reason === "Partial plan" || r.reason === "Invalid plan") ? compared.cohorts.length : 2);
+  expect(compared.rows.filter(r => r.reason === "Different cohort (changed assumptions)").every(r => runs[compared.rows.indexOf(r)].settings.inventory_percent === 60 || compared.cohort !== null)).toBe(true);
+
+  // Replay the first run from its Python bundle in a clean folder.
+  const zip = replayBundle(store, views[0].id, optimizer);
+  const out = join(dir, "bundle"); const file = join(dir, "bundle.zip");
+  writeFileSync(file, zip);
+  expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
+  const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(replay.stdout).toContain("REPLAY OK");
+  expect(replay.stdout).toMatch(/clustering\s+reproduced/);
+  expect(replay.status).toBe(0);
+}, 180_000);

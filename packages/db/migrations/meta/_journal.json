@@ -36,6 +36,13 @@
       "when": 1790817042397,
       "tag": "0004_fluffy_mastermind",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790824585163,
+      "tag": "0005_small_hex",
+      "breakpoints": true
     }
   ]
 }

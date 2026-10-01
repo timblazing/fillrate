@@ -31,13 +31,17 @@ ENV NODE_ENV=production \
     DB_MIGRATIONS_DIR=/app/packages/db/migrations \
     INTERNAL_PORT=3100 \
     FILLRATE_INTERNAL_URL=http://127.0.0.1:3100 \
-    OPTIMIZER_PORT=8000
+    OPTIMIZER_PORT=8000 \
+    OPTIMIZER_SOURCE_DIR=/app/optimizer
 COPY --from=python /opt/python /opt/python
 COPY --from=python /opt/venv /opt/venv
 COPY --from=web --chown=node:node /repo/apps/web/.next/standalone ./
 COPY --from=web --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=web --chown=node:node /repo/apps/web/public ./apps/web/public
 COPY --from=web /repo/packages/db/migrations ./packages/db/migrations
+# Pinned optimizer source and lock for the Python replay bundle export (spec §13).
+COPY services/optimizer/pyproject.toml services/optimizer/uv.lock services/optimizer/.python-version ./optimizer/
+COPY services/optimizer/src/fillrate_optimizer/*.py ./optimizer/src/fillrate_optimizer/
 COPY deploy/entrypoint.sh /usr/local/bin/fillrate-entrypoint
 RUN mkdir -p /app/data && chown node:node /app/data && /opt/venv/bin/python -c "import pyvrp, sklearn, ortools"
 USER node

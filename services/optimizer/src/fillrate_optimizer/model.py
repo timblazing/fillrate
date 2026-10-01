@@ -100,6 +100,10 @@ class RunSettings(Doc):
     max_leg_m: Annotated[int, Field(strict=True, ge=1, le=20_000_000)] = 804_672
     # Optional policy, off by default (spec v1.8 §1): the 500-mile rule is per leg only.
     max_cluster_diameter_m: Annotated[int, Field(strict=True, ge=1, le=20_000_000)] | None = None
+    # Clustering method (spec §8a): k-means (default), the deterministic H3 baseline, or the M4
+    # no-clustering baseline ("none": one partition, eligible only when it fits MAX_STOPS).
+    cluster_strategy: Literal["kmeans", "h3", "none"] = "kmeans"
+    h3_resolution: Annotated[int, Field(strict=True, ge=0, le=15)] = 2
     k: Annotated[int, Field(strict=True, ge=1, le=1000)] | None = None
     auto_k_cap: Annotated[int, Field(strict=True, ge=1, le=100)] = 25
     kmeans_seed: Annotated[int, Field(strict=True, ge=0, le=2**31 - 1)] = 0
@@ -111,6 +115,9 @@ class RunSettings(Doc):
     objective: Literal["trucks_then_distance", "weighted_distance", "cost"] = "trucks_then_distance"
     weighted_truck_penalty_m: Annotated[int, Field(strict=True, ge=0)] | None = None
     preflight: PreflightPolicy = Field(default_factory=PreflightPolicy)
+    # Sweep axis "inventory available" (spec §8a): every product's stock scaled to this percent,
+    # rounded down to whole pieces. A changed assumption: it forms its own comparison cohort.
+    inventory_percent: Annotated[int, Field(strict=True, ge=0, le=1000)] = 100
     # "Exclude these lines and run": recorded, reconciled exclusions (reason excluded_by_user).
     excluded_line_ids: Annotated[list[Id], Field(max_length=25_000)] = Field(default_factory=list)
     cost_per_truck_cents: Count | None = None
@@ -237,7 +244,7 @@ class Repair(Doc):
 
 
 class ClusteringSummary(Doc):
-    strategy: Literal["kmeans", "none"]
+    strategy: Literal["kmeans", "h3", "none"]
     requested_k: int | None
     selected_k: int | None
     raw_cluster_count: int
@@ -245,6 +252,7 @@ class ClusteringSummary(Doc):
     fits: int
     auto_limit_reached: bool
     repairs: list[Repair]
+    h3_resolution: int | None = None
 
 
 PreflightCheckId = Literal[
@@ -306,4 +314,79 @@ class RunSummary(Doc):
     unplanned: list[UnplannedLine]
     preflight: list[PreflightFinding] = Field(default_factory=list)
     diagnostics: list[Diagnostic]
+    versions: dict[str, str]
+
+
+# ---- k explorer (spec §8a "Cluster stability", §9) ----------------------------------------------
+
+
+class ExplorerSettings(Doc):
+    """A clustering-only job: no allocation changes, no PyVRP. `base` supplies the population
+    (eligible, allocated locations) and the spatial policy; ks × seeds are the k-means tasks and
+    each H3 resolution is one deterministic task. All of them count toward the task cap."""
+
+    schema_version: Literal[1] = 1
+    kind: Literal["explorer"] = "explorer"
+    base: RunSettings = Field(default_factory=RunSettings)
+    ks: (
+        Annotated[list[Annotated[int, Field(strict=True, ge=1, le=1000)]], Field(max_length=100)]
+        | None
+    ) = None
+    seeds: Annotated[
+        list[Annotated[int, Field(strict=True, ge=0, le=2**31 - 1)]],
+        Field(min_length=1, max_length=100),
+    ] = Field(default_factory=lambda: list(range(10)))
+    selected_k: Annotated[int, Field(strict=True, ge=1, le=1000)] | None = None
+    reference_seed: Annotated[int, Field(strict=True, ge=0, le=2**31 - 1)] = 0
+    h3_resolutions: Annotated[
+        list[Annotated[int, Field(strict=True, ge=0, le=15)]], Field(max_length=16)
+    ] = Field(default_factory=lambda: [1, 2, 3])
+
+
+class ExplorerK(Doc):
+    k: int
+    inertia_by_seed: list[float]
+    inertia_mean: float
+    raw_cluster_count: int
+    effective_cluster_count: int
+    diameter_repairs_by_seed: list[int]
+    stability_raw: float | None
+    stability_repaired: float | None
+
+
+class ExplorerH3(Doc):
+    resolution: int
+    raw_cluster_count: int
+    effective_cluster_count: int
+    inertia: float
+    diameter_repairs: int
+    stability: Literal["deterministic"] = "deterministic"
+
+
+class ExplorerLocation(Doc):
+    id: Id
+    lat: float
+    lon: float
+    reference_cluster: int
+    agreement_raw: float | None
+    agreement_repaired: float | None
+
+
+class ExplorerSummary(Doc):
+    schema_version: Literal[1] = 1
+    kind: Literal["explorer"] = "explorer"
+    scenario_name: str
+    settings: ExplorerSettings
+    ks: list[int]
+    seeds: list[int]
+    reference_seed: int
+    selected_k: int
+    tasks: int
+    max_tasks: int
+    fits: int
+    locations_clustered: int
+    per_k: list[ExplorerK]
+    h3: list[ExplorerH3]
+    locations: list[ExplorerLocation]
+    depot: Depot
     versions: dict[str, str]

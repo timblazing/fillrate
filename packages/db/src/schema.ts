@@ -13,6 +13,8 @@ export const runs = sqliteTable("runs", {
   id: text().primaryKey(), versionId: text().notNull().references(() => versions.id),
   settings: text().notNull(), status: text().notNull().default("queued"),
   idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(),
+  // "pipeline" runs the fulfillment pipeline; "explorer" is a clustering-only k explorer job (M4).
+  kind: text().notNull().default("pipeline"),
 }, t => [index("run_status_date").on(t.status, t.createdAt)]);
 export const jobs = sqliteTable("jobs", {
   id: text().primaryKey(), runId: text().notNull().unique().references(() => runs.id),
@@ -67,3 +69,19 @@ export const scenarioSaves = sqliteTable("scenario_saves", {
   scenarioId: text().notNull().references(() => scenarios.id),
   versionId: text().notNull().references(() => versions.id), createdAt: integer().notNull(),
 });
+
+// M4 bounded sweeps: one experiment expands into at most MAX_SWEEP_RUNS ordinary runs. The comparison
+// vector and ranking order are saved with it and included in exports.
+export const experiments = sqliteTable("experiments", {
+  id: text().primaryKey(), versionId: text().notNull().references(() => versions.id),
+  name: text().notNull(), spec: text().notNull(), comparison: text().notNull(),
+  idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(),
+}, t => [index("experiments_by_date").on(t.createdAt)]);
+export const experimentRuns = sqliteTable("experiment_runs", {
+  id: text().primaryKey(), experimentId: text().notNull().references(() => experiments.id),
+  runId: text().notNull().unique().references(() => runs.id), position: integer().notNull(), varied: text().notNull(),
+}, t => [uniqueIndex("experiment_position").on(t.experimentId, t.position)]);
+// Global (not per-client) submission ledger for public rate limits; access never depends on forwarded headers.
+export const rateEvents = sqliteTable("rate_events", {
+  id: text().primaryKey(), bucket: text().notNull(), cost: integer().notNull(), at: integer().notNull(),
+}, t => [index("rate_bucket_time").on(t.bucket, t.at)]);

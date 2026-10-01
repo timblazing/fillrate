@@ -28,6 +28,7 @@
     "cobe": "^2.0.1",
     "d3-shape": "^3.2.0",
     "date-fns": "^4.4.0",
+    "h3-js": "^4.5.0",
     "lucide-react": "^1.49.0",
     "maplibre-gl": "^6",
     "motion": "^13.4.6",

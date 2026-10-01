@@ -8,7 +8,7 @@ dependencies = [
   "ortools==9.15.6755",
   "scikit-learn==1.9.1",
   "numpy==2.5.3",
-  "h3==4.5.0",
+  "h3>=4,<5",
   "fastapi==0.142.2",
   "pydantic==2.13.5",
   "uvicorn==0.54.0",

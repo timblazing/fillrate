@@ -4,7 +4,7 @@ import { parseContract, type Snapshot } from "@fillrate/contracts";
 import type { Store } from "@fillrate/db";
 import { validateScenario } from "@fillrate/db/scenarios";
 import { preflightChecks } from "@fillrate/db/preflight";
-import { ApiError } from "./runs";
+import { ApiError, assertQueueRoom } from "./runs";
 
 // One explicitly trusted operator workspace. No anonymous imported-data access.
 export function assertScenarioAccess(request: Request) {
@@ -42,9 +42,7 @@ export function createScenarioRun(store: Store, versionId: string, rawSettings: 
   if (!source) throw new ApiError(404, "version_not_found", "No saved imported scenario version.");
   const document = validateScenario(store.versionDocument(versionId).document);
   const settings = parseContract("RunSettings", rawSettings);
-  if (Object.values(store.queueStats()).reduce((n, x) => n + x, 0) > 100000) throw new ApiError(429, "run_limit", "Run retention limit reached.");
-  const active = store.queueStats();
-  if ((active.queued ?? 0) + (active.claimed ?? 0) + (active.running ?? 0) >= 20) throw new ApiError(429, "queue_full", "The solve queue is full.");
+  assertQueueRoom(store, 1);
   const findings = preflightChecks(document, settings);
   const blockers = findings.filter(x => x.action === "block");
   if (blockers.length) throw new ApiError(422, "preflight_blocked", "Resolve blocking checks, exclude affected lines, or change the check to a warning.", blockers.flatMap(x => x.line_ids));

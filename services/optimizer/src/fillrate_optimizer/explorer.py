@@ -124,6 +124,7 @@ def explore(
     reference_seed: int = 0,
     n_init: int = 10,
     max_tasks: int = DEFAULT_MAX_TASKS,
+    extra_tasks: int = 0,
 ) -> ExplorerResult:
     seeds = list(DEFAULT_SEEDS if seeds is None else seeds)
     if not ids:
@@ -148,12 +149,14 @@ def explore(
     selected = selected_k if selected_k is not None else ks[0]
     if selected not in ks:
         raise ExplorerError("bad_k", f"Selected k={selected} is not in the explored range {ks}.")
-    tasks = len(ks) * len(seeds)
+    tasks = len(ks) * len(seeds) + extra_tasks
     if tasks > max_tasks:
+        extra = f" plus {extra_tasks} H3 resolution(s)" if extra_tasks else ""
         raise ExplorerError(
             "too_many_tasks",
-            f"{len(ks)} k values × {len(seeds)} seeds is {tasks} clustering tasks; the limit is "
-            f"{max_tasks}. Choose fewer k values or seeds, or raise the deployment allowance.",
+            f"{len(ks)} k values × {len(seeds)} seeds{extra} is {tasks} clustering tasks; the "
+            f"limit is {max_tasks}. Choose fewer k values, seeds or resolutions, or raise the "
+            "deployment allowance.",
         )
 
     # Size repair is a separate, visit-level diagnostic: disable it here (max_stops unbounded).
@@ -210,3 +213,120 @@ def explore(
                 for i, id_ in enumerate(ids)
             ]
     return ExplorerResult(ks, seeds, reference_seed, selected, tasks, fits, per_k, locations)
+
+
+def h3_rows(
+    ids: list[str],
+    lat_lon: np.ndarray,
+    resolutions: list[int],
+    *,
+    circuity: float,
+    max_diameter_m: int | None,
+    seed: int,
+) -> list[dict]:
+    """H3 resolutions beside the k range: the same feature-space squared-error sum and repair
+    counts. Seed stability is not applicable (membership is deterministic)."""
+    rows = []
+    for resolution in sorted(set(resolutions)):
+        clusterer = Clusterer(
+            ids,
+            lat_lon,
+            {id_: 1 for id_ in ids},
+            circuity=circuity,
+            max_diameter_m=max_diameter_m,
+            max_stops=len(ids) + 1,
+            seed=seed,
+            n_init=1,
+        )
+        result = clusterer.run_h3(resolution)
+        rows.append(
+            {
+                "resolution": resolution,
+                "raw_cluster_count": len(result.raw),
+                "effective_cluster_count": len(result.partitions),
+                "inertia": inertia(clusterer.features, labels_for(ids, result.raw)),
+                "diameter_repairs": sum(1 for s in result.repairs if s.reason == "diameter"),
+            }
+        )
+    return rows
+
+
+def run_explorer(scenario, settings, *, max_tasks: int = DEFAULT_MAX_TASKS, progress=None):
+    """The durable explorer job (spec §8a, §9): clustering only, over the locations a pipeline
+    run with `settings.base` would cluster."""
+    from .model import (
+        ExplorerH3,
+        ExplorerK,
+        ExplorerLocation,
+        ExplorerSummary,
+    )
+    from .pipeline import allocated_locations, versions
+
+    report = progress or (lambda stage, detail: None)
+    base = settings.base
+    report("population", {})
+    locations = {loc.id: loc for loc in scenario.locations}
+    ids = allocated_locations(scenario, base)
+    lat_lon = np.array([[locations[i].lat, locations[i].lon] for i in ids], dtype=float)
+    report("explore", {"tasks": None})
+    result = explore(
+        ids,
+        lat_lon,
+        circuity=base.cluster_circuity,
+        max_diameter_m=base.max_cluster_diameter_m,
+        ks=settings.ks,
+        seeds=settings.seeds,
+        selected_k=settings.selected_k,
+        reference_seed=settings.reference_seed,
+        n_init=base.kmeans_n_init,
+        max_tasks=max_tasks,
+        extra_tasks=len(set(settings.h3_resolutions)),
+    )
+    h3 = h3_rows(
+        ids,
+        lat_lon,
+        settings.h3_resolutions,
+        circuity=base.cluster_circuity,
+        max_diameter_m=base.max_cluster_diameter_m,
+        seed=base.kmeans_seed,
+    )
+    position = {id_: i for i, id_ in enumerate(ids)}
+    return ExplorerSummary(
+        scenario_name=scenario.name,
+        settings=settings,
+        ks=result.ks,
+        seeds=result.seeds,
+        reference_seed=result.reference_seed,
+        selected_k=result.selected_k,
+        tasks=result.tasks,
+        max_tasks=max_tasks,
+        fits=result.fits,
+        locations_clustered=len(ids),
+        per_k=[
+            ExplorerK(
+                k=row.k,
+                inertia_by_seed=row.inertia_by_seed,
+                inertia_mean=float(np.mean(row.inertia_by_seed)),
+                raw_cluster_count=row.raw_cluster_count,
+                effective_cluster_count=row.effective_cluster_count,
+                diameter_repairs_by_seed=row.diameter_repairs_by_seed,
+                stability_raw=row.stability_raw,
+                stability_repaired=row.stability_repaired,
+            )
+            for row in result.per_k
+        ],
+        h3=[ExplorerH3(**row) for row in h3],
+        locations=[
+            ExplorerLocation(
+                id=loc.location_id,
+                lat=float(lat_lon[position[loc.location_id]][0]),
+                lon=float(lat_lon[position[loc.location_id]][1]),
+                reference_cluster=loc.reference_cluster,
+                agreement_raw=loc.agreement_raw,
+                agreement_repaired=loc.agreement_repaired,
+            )
+            for loc in result.locations
+        ],
+        depot=scenario.depot,
+        versions=versions(),
+    )

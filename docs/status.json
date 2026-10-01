@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-01",
   "focus": "M4",
-  "productBehavior": 32,
+  "productBehavior": 40,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -13,7 +13,7 @@
       "weight": 10,
       "done": 95,
       "state": "waiting",
-      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
+      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: \u2605 = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
     },
     "M3": {
       "weight": 20,
@@ -23,9 +23,9 @@
     },
     "M4": {
       "weight": 15,
-      "done": 8,
+      "done": 60,
       "state": "active",
-      "notes": "k explorer statistics engine in Python (inertia, ARI stability, seed agreement, task cap). Not yet a job, API or screen. No sweeps, ranking, H3 or lesson."
+      "notes": "Explorer jobs + screen with Use this k, H3 and no-clustering baselines, inventory sweeps, bounded sweeps with cohorts, Pareto and ranked Best option / 2nd / 3rd, partition bounds, H3 map layer, Python replay bundle, global public run budget. Left: examples registry (lesson scenario for sweeps), lesson page, smoke coverage, owner hardware/recovery gates."
     },
     "M5": {
       "weight": 10,
@@ -53,9 +53,9 @@
     }
   },
   "nextUp": [
-    "M4: k explorer as a durable job with API and screen (\"Use this k\").",
-    "M4: bounded sweeps, comparison signatures, Pareto and ranked Best option / 2nd best / 3rd.",
+    "M4: examples registry so sweeps and the explorer use the 2,000-order lesson scenario.",
+    "M4: flagship lesson page and image smoke for explorer, sweep and replay.",
     "M2: rebuild fillrate.fig Components on coss parts (needs OpenPencil open).",
-    "M4: H3 baseline, flagship lesson, and target-hardware/public-access release gates."
+    "M4: target-hardware and recovery release gates (owner)."
   ]
 }

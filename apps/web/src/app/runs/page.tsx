@@ -8,7 +8,7 @@ import { exampleScenario, runsOpen } from "@/lib/server/runs"
 
 import { publicRuns } from "@/lib/server/scenarios"
 
-import { NewRun } from "./new-run"
+import { NewExplorer, NewRun } from "./new-run"
 
 export const dynamic = "force-dynamic"
 export const metadata = { title: "Runs · Fillrate" }
@@ -24,7 +24,10 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
       <DevHeader />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
         <section className="flex flex-col gap-3">
-          <Link href="/scenarios" className="text-sm underline underline-offset-4">Import and edit scenarios</Link>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <Link href="/scenarios" className="underline underline-offset-4">Import and edit scenarios</Link>
+            <Link href={`/experiments${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`} className="underline underline-offset-4">Sweeps and ranked options</Link>
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight">Pipeline runs</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each run allocates stock, groups stops into clusters with k-means, builds 53 ft shipments with PyVRP and validates every
@@ -32,6 +35,15 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
             ({orders} orders, {lines} lines, {exampleScenario.locations.length} locations). No real customer data.
           </p>
           <NewRun open={runsOpen()} runKey={typeof key === "string" ? key : undefined} />
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold tracking-tight">k explorer</h2>
+          <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
+            Clusters the same stops for two k values near your choice with seeds 0–9, plus H3 cells at resolutions 1–3, without solving any
+            shipments. Use it to pick a k whose groupings do not depend on the seed.
+          </p>
+          <NewExplorer open={runsOpen()} runKey={typeof key === "string" ? key : undefined} />
         </section>
 
         <section className="flex flex-col gap-3">
@@ -44,6 +56,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Run</TableHead>
+                    <TableHead>Kind</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Created</TableHead>
                   </TableRow>
@@ -52,10 +65,11 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
                   {runs.map((run) => (
                     <TableRow key={run.id}>
                       <TableCell>
-                        <Link href={`/runs/${run.id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`} className="font-mono text-xs underline-offset-4 hover:underline">
+                        <Link href={`/${run.kind === "explorer" ? "explore" : "runs"}/${run.id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`} className="font-mono text-xs underline-offset-4 hover:underline">
                           {run.id.slice(0, 8)}
                         </Link>
                       </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{run.kind === "explorer" ? "k explorer" : "Pipeline"}</TableCell>
                       <TableCell>
                         <JobStatusBadge state={run.status as JobState} />
                       </TableCell>

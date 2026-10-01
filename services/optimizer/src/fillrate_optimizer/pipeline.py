@@ -173,7 +173,7 @@ class Stages:
 
 
 def versions() -> dict[str, str]:
-    return {name: version(name) for name in ("pyvrp", "scikit-learn", "numpy")} | {
+    return {name: version(name) for name in ("pyvrp", "scikit-learn", "numpy", "h3")} | {
         "pipeline": PRODUCER_VERSION,
         "adapter": ADAPTER_VERSION,
     }
@@ -268,18 +268,13 @@ def run_pipeline(
             raise PipelineError(
                 "unknown_product", f"Inventory for unknown product {item.product_id}."
             )
-        stock_start[item.product_id] += item.available_pieces
+        stock_start[item.product_id] += item.available_pieces * settings.inventory_percent // 100
 
     user_excluded = set(settings.excluded_line_ids)
     excluded: dict[str, str] = {}
     for line in lines.values():
-        loc = locations[line["location_id"]]
-        if line["line_id"] in user_excluded:
-            excluded[line["line_id"]] = "excluded_by_user"
-        elif loc.lat is None or loc.lon is None or loc.coordinate_source == "unresolved":
-            excluded[line["line_id"]] = "excluded_unresolved_coordinates"
-        elif line["lf"] > cap:
-            excluded[line["line_id"]] = "oversize_piece"
+        if reason := exclusion_reason(line, locations[line["location_id"]], cap, user_excluded):
+            excluded[line["line_id"]] = reason
     for line_id, reason in sorted(excluded.items()):
         line = lines[line_id]
         if line["ordered"] == 0:
@@ -301,7 +296,14 @@ def run_pipeline(
             "stock": dict(sorted(stock_start.items())),
         },
         [],
-        ["trailer_capacity", "max_leg_m", "travel_circuity", "preflight", "excluded_line_ids"],
+        [
+            "trailer_capacity",
+            "max_leg_m",
+            "travel_circuity",
+            "preflight",
+            "excluded_line_ids",
+            "inventory_percent",
+        ],
     )
 
     # ---- 2. Allocate: order date, then net value per piece, then stable ID (§8) ----------------
@@ -310,7 +312,7 @@ def run_pipeline(
     allocated: dict[str, int] = {}
     order = sorted(
         (ln for ln in lines.values() if ln["line_id"] not in excluded),
-        key=lambda ln: (ln["order_date"], -ln["value"], ln["line_id"]),
+        key=allocation_key,
     )
     allocation_hit = stages.lookup("allocation", ["preflight"], [])
     for line in order:
@@ -415,6 +417,8 @@ def run_pipeline(
             "cluster_circuity",
             "max_cluster_diameter_m",
             "max_stops",
+            "cluster_strategy",
+            "h3_resolution",
         ],
     )
     if clustering_hit:
@@ -440,10 +444,17 @@ def run_pipeline(
             seed=settings.kmeans_seed,
             n_init=settings.kmeans_n_init,
         )
-        try:
-            clustered = clusterer.run(settings.k, settings.auto_k_cap)
-        except ValueError as error:
-            raise PipelineError("invalid_k", str(error)) from error
+        if settings.cluster_strategy == "h3":
+            clustered = clusterer.run_h3(settings.h3_resolution)
+        elif settings.cluster_strategy == "none":
+            clustered = clusterer.run_none()
+            if loc_ids:
+                baseline_ineligible(clusterer, loc_ids, settings)
+        else:
+            try:
+                clustered = clusterer.run(settings.k, settings.auto_k_cap)
+            except ValueError as error:
+                raise PipelineError("invalid_k", str(error)) from error
         # Visit partitions: all visits of a location stay together unless one location alone
         # exceeds MAX_STOPS, which is chunked by stable visit order (recorded as size repair).
         repairs = [Repair(reason=s.reason, detail=s.detail) for s in clustered.repairs]  # type: ignore[arg-type]
@@ -492,7 +503,7 @@ def run_pipeline(
     stages.add(
         "clustering",
         {
-            "strategy": "kmeans",
+            "strategy": settings.cluster_strategy,
             "raw": clustered.raw,
             "fits": clustered.fits,
             "auto_limit_reached": clustered.auto_limit_reached,
@@ -510,6 +521,8 @@ def run_pipeline(
             "cluster_circuity",
             "max_cluster_diameter_m",
             "max_stops",
+            "cluster_strategy",
+            "h3_resolution",
         ],
     )
 
@@ -948,7 +961,8 @@ def run_pipeline(
             sum_cluster_lower_bounds=sum(c.capacity_lower_bound for c in cluster_out),
         ),
         clustering=ClusteringSummary(
-            strategy="kmeans" if loc_ids else "none",
+            strategy=settings.cluster_strategy if loc_ids else "none",
+            h3_resolution=settings.h3_resolution if settings.cluster_strategy == "h3" else None,
             requested_k=clustered.requested_k,
             selected_k=clustered.selected_k,
             raw_cluster_count=len(clustered.raw),
@@ -988,6 +1002,73 @@ def run_pipeline(
 
 
 # ---- helpers ------------------------------------------------------------------------------------
+
+
+def exclusion_reason(line, loc, cap: int, user_excluded: set[str]) -> str | None:
+    if line["line_id"] in user_excluded:
+        return "excluded_by_user"
+    if loc.lat is None or loc.lon is None or loc.coordinate_source == "unresolved":
+        return "excluded_unresolved_coordinates"
+    if line["lf"] > cap:
+        return "oversize_piece"
+    return None
+
+
+def allocation_key(line: dict[str, Any]) -> tuple:
+    """Order date, then net value per piece (descending), then stable ID (§8)."""
+    return (line["order_date"], -line["value"], line["line_id"])
+
+
+def allocated_locations(scenario: ScenarioDocument, settings: RunSettings) -> list[str]:
+    """The location population the cluster stage sees: locations with allocated pieces after
+    exclusions and the default allocation. Shared with the k explorer so both cluster the same
+    locations."""
+    products = {p.id: p for p in scenario.products}
+    locations = {loc.id: loc for loc in scenario.locations}
+    stock: dict[str, int] = defaultdict(int)
+    for item in scenario.inventory:
+        stock[item.product_id] += item.available_pieces * settings.inventory_percent // 100
+    user_excluded = set(settings.excluded_line_ids)
+    eligible = []
+    for order in scenario.orders:
+        for ln in order.lines:
+            line = {
+                "line_id": ln.id,
+                "order_date": order.order_date,
+                "value": ln.net_value_per_piece_cents,
+                "product_id": ln.product_id,
+                "location_id": order.location_id,
+                "ordered": ln.ordered_pieces,
+                "lf": ln.linear_feet_per_piece or products[ln.product_id].linear_feet_per_piece,
+            }
+            loc = locations[order.location_id]
+            if not exclusion_reason(line, loc, settings.trailer_capacity, user_excluded):
+                eligible.append(line)
+    out = set()
+    for line in sorted(eligible, key=allocation_key):
+        take = min(line["ordered"], stock[line["product_id"]])
+        stock[line["product_id"]] -= take
+        if take:
+            out.add(line["location_id"])
+    return sorted(out)
+
+
+def baseline_ineligible(clusterer: Clusterer, loc_ids: list[str], settings: RunSettings) -> None:
+    """The no-clustering baseline exists only when every visit fits one solve (spec §8a, M4)."""
+    size = clusterer.size(loc_ids)
+    if size > settings.max_stops:
+        raise PipelineError(
+            "baseline_ineligible",
+            f"No-clustering baseline needs all {size} visits in one solve; MAX_STOPS is "
+            f"{settings.max_stops}. Compare the capacity lower bounds instead.",
+        )
+    diameter = clusterer.diameter(loc_ids)
+    if clusterer.too_wide(diameter):
+        raise PipelineError(
+            "baseline_ineligible",
+            f"No-clustering baseline is {diameter / 1609.344:.0f} mi wide, over the enabled "
+            "cluster-diameter limit.",
+        )
 
 
 def unplanned_line(line, pieces, reason, stage, evidence) -> UnplannedLine:

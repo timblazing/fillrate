@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import h3
 import numpy as np
 from sklearn.cluster import KMeans
 
@@ -181,3 +182,20 @@ class Clusterer:
                 )
         final, steps = self.repair(raw)
         return ClusterResult(final, canonical_groups(raw), None, cap, self.fits, True, steps)
+
+    def run_h3(self, resolution: int) -> ClusterResult:
+        """H3 baseline (spec §8a): each non-empty cell is a cluster, then the same repair with this
+        clusterer's seed as the recorded repair seed. Membership is deterministic for fixed
+        coordinates, resolution and library version; it guarantees no capacity, connectivity or
+        diameter."""
+        cells: dict[str, list[str]] = {}
+        for id_, (lat, lon) in zip(self.ids, self.lat_lon, strict=True):
+            cells.setdefault(h3.latlng_to_cell(float(lat), float(lon), resolution), []).append(id_)
+        raw = canonical_groups(list(cells.values()))
+        final, steps = self.repair(raw)
+        return ClusterResult(final, raw, None, None, self.fits, False, steps)
+
+    def run_none(self) -> ClusterResult:
+        """No-clustering baseline: one partition, no repair. The caller checks eligibility."""
+        groups = [sorted(self.ids)] if self.ids else []
+        return ClusterResult(groups, groups, None, None, 0, False)

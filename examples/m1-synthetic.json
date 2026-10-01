@@ -1290,6 +1290,8 @@
   "cluster_circuity": 1.2,
   "max_leg_m": 804672,
   "max_cluster_diameter_m": null,
+  "cluster_strategy": "kmeans",
+  "h3_resolution": 2,
   "k": 4,
   "auto_k_cap": 25,
   "kmeans_seed": 0,
@@ -1305,6 +1307,7 @@
    "far_from_depot": "warn",
    "oversize_stop": "warn"
   },
+  "inventory_percent": 100,
   "excluded_line_ids": [],
   "cost_per_truck_cents": null,
   "cost_per_mile_cents": null

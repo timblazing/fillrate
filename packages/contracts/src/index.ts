@@ -10,7 +10,9 @@ export type Snapshot = components["schemas"]["Snapshot"];
 export type ScenarioDocument = components["schemas"]["ScenarioDocument"];
 export type RunSettings = components["schemas"]["RunSettings"];
 export type RunSummary = components["schemas"]["RunSummary"];
-export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary";
+export type ExplorerSettings = components["schemas"]["ExplorerSettings"];
+export type ExplorerSummary = components["schemas"]["ExplorerSummary"];
+export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary" | "ExplorerSettings" | "ExplorerSummary";
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
