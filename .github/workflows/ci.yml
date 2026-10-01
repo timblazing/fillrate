@@ -15,6 +15,7 @@ on:
       - 'package.json'
       - 'bun.lock'
       - 'package-lock.json'
+      - 'playwright.config.ts'
       - 'tsconfig*.json'
       - 'vitest.config.*'
       - 'eslint.config.*'
@@ -74,3 +75,7 @@ jobs:
         run: bun run test
       - name: Build
         run: bun run build
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Browser smoke
+        run: bun run test:browser

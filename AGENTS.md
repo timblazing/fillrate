@@ -45,7 +45,7 @@ The canonical specification is the **Technical Specification** document in Linea
 - `bun install`: install workspace deps (commit `bun.lock`)
 - `bun run dev`: Next.js dev server (http://localhost:3000); it also serves the loopback worker transport on 127.0.0.1:3100
 - `bun run worker`: Python worker supervisor that claims and runs pipeline jobs (run it next to `bun run dev`, then use `/runs`)
-- `bun run lint` / `bun run typecheck` / `bun run build`
+- `bun run lint` / `bun run typecheck` / `bun run build`; `bun run test:browser` runs the production browser smoke (see `docs/browser-smoke.md`)
 - `bun run test`: Node Vitest persistence/contract/transport tests plus end-to-end tests that spawn the real Python worker (needs `uv`; `FILLRATE_SKIP_PYTHON=1` skips them); `bun run contracts:generate`: regenerate shared contracts from Python
 - `bun run db:generate`: generate migrations after schema changes; migrations apply automatically at web startup
 - `bun run zcta:build`: download the pinned Census Gazetteer ZCTA file and write the ZIP fallback lookup to `data/zcta-gazetteer-2024.tsv` (the image builds its own). Geocoding env: `FILLRATE_GEOCODER=off`, `CENSUS_GEOCODER_URL`, `GEOCODE_BATCH_SIZE`, `ZCTA_LOOKUP_PATH`

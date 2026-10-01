@@ -47,13 +47,12 @@
     },
     "M8": {
       "weight": 7,
-      "done": 8,
-      "state": "planned",
-      "notes": "Vitest persistence races, worker cancel/crash-recovery e2e, optimizer pytest and a container smoke script exist; no browser suite or measured hardware yet."
+      "done": 18,
+      "state": "active",
+      "notes": "Added a production Playwright smoke for the public synthetic lesson, real worker, persisted valid/complete result, revenue and shipment metrics, JSON export, and 1440/390 px overflow. Remaining: target-hardware timings, recovery checks, hosted access gates, local distribution and reproducible handoff."
     }
   },
   "nextUp": [
-    "M8: TIM-18 bounded public lesson browser smoke.",
     "M4: hosted Better Auth/local mode, owner isolation and compute quotas; then live release and target-hardware verification.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil.",
     "M6: browser matrix selection, durable snapshots and pinned Valhalla deployment."

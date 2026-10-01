@@ -63,7 +63,7 @@
   - [x] Flagship lesson page `/learn/fulfillment-pipeline` (header link now "Lessons", the `/learn` index): stock against demand, four steps that start real runs (pipeline with k and inventory %, explorer, per-cluster loads, ranked sweep), measured expected observations, per-browser parameters and a reset
   - [x] Image smoke covers the lesson explorer (23 tasks), a two-run ranked sweep with CSV and a replay-bundle download (`deploy/smoke_experiments.py`); verified locally against dev
   - [ ] Release gates needing the owner: target-hardware timings (VPS, Pi) and recovery checks
-  - [ ] Playwright browser smoke (spec §16; consolidated in M8). The lesson, `/runs` and `/experiments` were checked by hand at 1440 and 390 px
+  - [x] Playwright smoke (spec §16; consolidated in M8): production lesson → persisted valid and complete result → non-zero revenue and shipment metrics → downloaded JSON export; no page-level overflow at 1440 and 390 px
 - [x] **M5 Allocation depth and imports** (CP-SAT, other strategies, whole-order mode, geocoding; done 2026-10-01)
   - [x] Allocation strategies in the pipeline (`allocation.py`): order date then value (default), first come, priority, proportional fair share (heuristic), optimized CP-SAT (revenue or priority then revenue, optional "respect order date", per-stage status)
   - [x] Whole-order fulfillment policy for every strategy; an order with an excluded line is excluded as a whole (`excluded_with_order`)
@@ -95,12 +95,14 @@
   - [x] Tests: 21 replay-semantics and 11 lesson-observation pytest cases; a real-worker Vitest e2e replays a CP-SAT whole-order run from its bundle; `smoke_experiments.py` covers the new example and bundle fields; passed in `image.yml` 36887302457 on amd64 and arm64
   - [ ] Remaining lessons (spec §13 list), timeline/playback, GeoJSON route geometry export, explorer replay, road-matrix export (needs M6 snapshots)
 - [ ] M8 Verification and handoff
+  - [x] Production Playwright browser smoke for the public synthetic fulfillment lesson, using the real Python worker and an isolated temporary database; validates result, revenue, shipments and JSON export at desktop and 390 px
+  - [ ] Target-hardware timings, recovery checks, hosted access gates and account-free local distribution; complete the reproducible handoff
 
 ## Current state
 
 **Project management moved to Linear (2026-10-01).** The Fillrate Linear project is now the canonical home for the technical specification, roadmap, decisions, and active work. The complete source files remain in this repository as backup snapshots; `/dev` continues to render these snapshots and may lag Linear until they are refreshed.
 
-Spec **v1.9** is the implementation target. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
+Spec **v1.10** is the implementation target. Fillrate is a public GitHub project; public writes and real-data use still need access, isolation and abuse controls before launch (spec §14).
 
 **M1 is complete.** A real synthetic run now goes end to end: `POST /api/v1/runs` (idempotency key; production requires `RUN_KEY`) → SQLite job → the Python supervisor claims it over the loopback transport → a child process runs the pipeline (`services/optimizer/src/fillrate_optimizer/pipeline.py`) → nine stage artifacts and the run summary commit atomically → `/runs/<id>` shows the map, clusters, truck loads, unplanned lines with evidence, per-product reconciliation and provenance, with JSON/CSV export. The bundled scenario is `examples/m1-synthetic.json` (Memphis DC, 69 orders; regenerate with `uv run python -m fillrate_optimizer.synthetic`). It exercises stock shortage, a split oversize stop, a 396 + 198 mi chain to a stop 594 mi from the depot (planned), an isolated unreachable stop, an unresolved coordinate and an oversize piece.
 
@@ -171,7 +173,7 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - The pipeline still selects and stores integer-meter matrices from haversine × circuity only; no service-radius policy is enabled (per spec). M6 has typed estimated/imported/Valhalla provider groundwork, but road matrices are not yet selected by browser or worker jobs.
 - A capacity-forced prohibited leg (B reachable only via A, but A + B exceed a trailer) ends as "no valid candidate": PyVRP prefers an overloaded infeasible route over a MAX_VALUE edge. Correctly reported, never counted as planned.
 - `ghcr.io/timblazing/fillrate:latest` is now the combined web + optimizer image. Deployments keep `/app/data`; starting runs in production needs `RUN_KEY`.
-- No Playwright browser smoke yet (spec §14 CI item); the image smoke covers the public API only.
+- The Playwright browser smoke installs Chromium from Playwright's browser CDN on a cold CI runner; source dependencies are locked, and the app build itself no longer fetches fonts.
 - The legacy `solve_loads` spike in `loads.py` keeps its zero default truck penalty for its capability fixtures; the pipeline uses `solve_partition` with the derived penalty and shared location nodes. The gallery still uses its v1.3 TypeScript stand-in.
 - The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.
 - The cluster-diameter limit is off by default (M2). With it off, auto-k only enforces `MAX_STOPS`, so auto k is usually 1; runs default to a fixed k. Trucks-then-miles stays the default objective; the cost objective works in the solver but needs his real rates.
@@ -188,7 +190,7 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - Chart recipes shared by charts and blocks live in `src/app/dev/components/recipes.tsx` until contracts exist.
 - The gallery fixture's truck loads come from a sweep heuristic, not PyVRP; numbers are illustrative of shape, not solver quality.
 - The project is now targeted for public access. Public scenario writes, real customer data, and solver submissions need identity/data isolation, limits, and abuse controls before launch (spec v1.10 §14).
-- Vitest persistence/contract tests and optimizer pytest exist. Playwright end-to-end pipeline coverage remains for the next slice.
+- Vitest persistence/contract tests and optimizer pytest exist. The Playwright production smoke now covers one public synthetic lesson run and JSON export; deployment, target-hardware, recovery and other flows remain outside its scope.
 - The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (M2 item 16; needs the OpenPencil app open).
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
@@ -201,12 +203,17 @@ Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be r
 
 ## Next step
 Prioritize the initial hosted release; Linear holds the current task breakdown:
-1. M8: TIM-18 public synthetic lesson → validated result → export browser smoke.
-2. M4: TIM-26 hosted Better Auth and local mode, TIM-27 owner isolation, then TIM-28 compute quotas.
-3. Owner M4: TIM-29 hosted OAuth/deployment setup, TIM-19 live release checks and TIM-6 VPS/Pi hardware and recovery evidence.
-4. M2: TIM-5 OpenPencil design-file work; M6 remaining matrix selection/provider work follows the initial release gates.
-5. M8: TIM-30 verified account-free Bun/npm/Docker local distribution and TIM-14 reproducible handoff.
+1. M4: TIM-26 hosted Better Auth and local mode, TIM-27 owner isolation, then TIM-28 compute quotas.
+2. Owner M4: TIM-29 hosted OAuth/deployment setup, TIM-19 live release checks and TIM-6 VPS/Pi hardware and recovery evidence.
+3. M2: TIM-5 OpenPencil design-file work; M6 remaining matrix selection/provider work follows the initial release gates.
+4. M8: TIM-30 verified account-free Bun/npm/Docker local distribution and TIM-14 reproducible handoff.
 
 ## 2026-10-01: Hosted/local release scope and execution workflow
 
 Linear spec v1.10 adds free hosted Better Auth accounts, owner isolation, compute quotas and explicit hosted deployment checks. Existing server SQLite/Python architecture remains. Account-free local Bun/npm/Docker distribution is planned; npm compatibility is not yet verified. No auth feature or milestone percentage is marked complete by this planning update. Release gates now include the new hosted controls. Linear owns the issue breakdown; repo snapshots remain backups. Automatic CI skips doc/design-only changes, and image publication is explicit with CI prerequisites.
+
+## 2026-10-01: Browser smoke and self-hosted Geist fonts (Codex)
+
+TIM-18's cloud commit `47c32ab` was not available from the local clone, GitHub issue or shared task link. Recreated the acceptance flow on local `main`: a production standalone server and real Python worker use a temporary database and run key; Playwright waits for a persisted valid, complete result, checks non-zero planned revenue and shipment counts, downloads and parses the JSON export, and checks the result page at 1440 px and 390 px. `bun run test:browser` passed. Full Vitest passed (100/100), lint and typecheck passed, and `bun run build` passed.
+
+The cloud build's Geist download failure is avoided by bundling the Latin WOFF2 subsets under the SIL Open Font License and using `next/font/local`; no outbound Google Fonts request is needed at build time. A cold CI run still needs the locked packages and Playwright's Chromium download. No network policy was loosened.

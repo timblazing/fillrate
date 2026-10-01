@@ -12,3 +12,5 @@ __pycache__/
 .playwright-mcp/
 .pytest_cache/
 .ruff_cache/
+test-results/
+playwright-report/

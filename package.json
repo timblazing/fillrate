@@ -13,6 +13,7 @@
     "lint": "bun run --filter web lint && bun run lint:packages",
     "typecheck": "bun run typecheck:packages && bun run --filter web typecheck",
     "test": "node node_modules/vitest/vitest.mjs run",
+    "test:browser": "node scripts/test-browser.mjs",
     "db:generate": "node node_modules/drizzle-kit/bin.cjs generate --config packages/db/drizzle.config.ts",
     "contracts:generate": "cd services/optimizer && UV_PYTHON=python3.13 uv run python -m fillrate_optimizer.export_contracts && cd ../.. && node node_modules/openapi-typescript/bin/cli.js packages/contracts/openapi.json -o packages/contracts/src/generated.ts",
     "typecheck:packages": "tsc -p tsconfig.packages.json",
@@ -24,6 +25,7 @@
     "unrs-resolver"
   ],
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "24",
     "drizzle-kit": "^0.31.11",
