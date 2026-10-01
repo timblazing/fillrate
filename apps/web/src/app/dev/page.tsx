@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { DevHeader } from "@/components/brand/dev-header"
 import { loadProjectDocs } from "@/lib/server/project-docs"
 
-import { toc } from "./components/toc"
 import { ProgressView } from "./progress-view"
 
 export const metadata: Metadata = { title: "Progress · Fillrate" }
@@ -13,11 +12,10 @@ export const metadata: Metadata = { title: "Progress · Fillrate" }
 export const dynamic = "force-static"
 
 export default function ProgressPage() {
-  const blocks = toc.find((g) => g.id === "blocks")?.items ?? []
   return (
     <div className="min-h-svh">
       <DevHeader />
-      <ProgressView initial={loadProjectDocs()} blocks={blocks} />
+      <ProgressView initial={loadProjectDocs()} />
     </div>
   )
 }

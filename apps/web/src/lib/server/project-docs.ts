@@ -9,9 +9,9 @@ import { DOC_PATHS, parseProjectDocs, type DocSources } from "@/lib/project-docs
 
 function repoRoot(): string {
   let dir = /*turbopackIgnore: true*/ process.cwd()
-  while (!existsSync(join(/*turbopackIgnore: true*/ dir, "fillrate-technical-spec.md"))) {
+  while (!existsSync(join(/*turbopackIgnore: true*/ dir, DOC_PATHS.spec))) {
     const parent = dirname(dir)
-    if (parent === dir) throw new Error("fillrate-technical-spec.md not found above " + process.cwd())
+    if (parent === dir) throw new Error(`${DOC_PATHS.spec} not found above ${process.cwd()}`)
     dir = parent
   }
   return dir

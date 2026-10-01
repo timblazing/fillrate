@@ -264,3 +264,9 @@ These local increments retain the remaining specification scope and acceptance c
 Confirmed historical GitHub baseline for `3541a01`: [CI 36898437597](https://github.com/timblazing/fillrate/actions/runs/36898437597) and [image 36898827930](https://github.com/timblazing/fillrate/actions/runs/36898827930) both completed successfully. The earlier project audit reported homepage HTTP 200, but did not verify the live worker or immutable deployed digest; that observation does not close the live-release gate and has not been refreshed in this documentation session.
 
 Repository workflow restoration: `bun run lint`, `bun run typecheck` and `bun run build` pass; lint retains the existing vendored `globe.tsx` hook warning. The shared `/dev` parser reads spec v1.10, all eight specification/progress milestones, the new decision, hardware/browser gaps and valid dashboard weights totaling 100. Product-behavior and milestone completion estimates are unchanged; no product implementation was added by this documentation reconciliation.
+
+## 2026-10-01: Minimal /dev progress page (Claude Code)
+- Redesigned `/dev`: hero, stat strip, milestone pipeline rings, commit graph (Kibo UI `contribution-graph`, GitHub API in the browser), borderless Milestones/Known gaps, scroll-loaded Decision log with blue Codex / orange Claude badges. Removed "Next up", "Waiting on the primary user" and "Surfaces" from the page.
+- `/dev` now reads the canonical `docs/fillrate-technical-spec.md`.
+- Evidence: lint, typecheck, build pass; checked at 1440/390 px on the dev server. Needs an image release to reach the deployment (parser/layout change).
+- Gap: the commit graph uses the unauthenticated GitHub API (60 requests/hour per IP, cached per browser session); over the limit it shows a notice instead of data.

@@ -4,7 +4,7 @@ import type { MilestoneState, MilestoneStatus, Status } from "@/app/dev/status"
 // browser re-parses the latest copies fetched from GitHub `main` (see progress-view.tsx).
 
 export const DOC_PATHS = {
-  spec: "fillrate-technical-spec.md",
+  spec: "docs/fillrate-technical-spec.md",
   progress: "docs/progress.md",
   decisions: "docs/decisions.md",
   status: "docs/status.json",
