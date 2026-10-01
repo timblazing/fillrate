@@ -5,6 +5,7 @@ import { useMemo, useState } from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
+import { BEST_TRADEOFF, BEST_TRADEOFF_HINT } from "@/lib/copy"
 import type { RunMetrics } from "@/lib/fulfillment"
 import { formatCount, formatMiles, formatMoney } from "@/lib/units"
 import { cn } from "@/lib/utils"
@@ -96,7 +97,7 @@ export function IterationTable({
         <thead>
           <tr className="text-muted-foreground border-b text-xs">
             <th className="w-9 py-2 pl-3" />
-            <th className="w-6" aria-label="Non-dominated" />
+            <th className="w-6" aria-label={BEST_TRADEOFF} />
             <th className="px-2 py-2 text-left font-medium">Run</th>
             {cols.map((c, i) => (
               <th key={c.key} title={c.group ? groupLabel[c.group] : undefined} className={cn("px-3 py-2 text-right font-medium whitespace-nowrap", i > 0 && cols[i - 1].group !== c.group && "border-l")}>
@@ -132,9 +133,9 @@ export function IterationTable({
                   {r.nonDominated && (
                     <Tooltip>
                       <TooltipTrigger render={<span />} className="text-success-foreground inline-flex">
-                        <Star className="size-3.5 fill-current" aria-label="Non-dominated" />
+                        <Star className="size-3.5 fill-current" aria-label={BEST_TRADEOFF} />
                       </TooltipTrigger>
-                      <TooltipPopup>Non-dominated: no other run is as good on all three groups and better on one</TooltipPopup>
+                      <TooltipPopup>{BEST_TRADEOFF_HINT}</TooltipPopup>
                     </Tooltip>
                   )}
                 </td>

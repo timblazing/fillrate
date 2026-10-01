@@ -141,7 +141,7 @@ export function TradeoffChart({ runs, highlight, className }: { runs: Iteration[
   return (
     <div className={cn("relative", className)}>
     <span className="text-muted-foreground pointer-events-none absolute top-1 right-6 z-10 text-[10px]">better ↗</span>
-    <ChartContainer config={{ nd: { label: "Non-dominated", color: "var(--success)" } }} className="h-72 w-full">
+    <ChartContainer config={{ nd: { label: "Best trade-off", color: "var(--success)" } }} className="h-72 w-full">
       <ComposedChart margin={{ top: 16, right: 24, left: 16, bottom: 12 }}>
         <CartesianGrid />
         <XAxis

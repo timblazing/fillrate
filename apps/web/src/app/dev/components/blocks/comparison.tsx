@@ -47,7 +47,7 @@ export function ComparisonBlock() {
               More: allocation rule, n_init
             </Badge>
             <span className="text-muted-foreground ml-auto text-xs">
-              ★ {sweep.filter((r) => r.nonDominated).length} non-dominated · sorted by planned revenue · tick two runs to compare
+              ★ {sweep.filter((r) => r.nonDominated).length} best trade-off · sorted by planned revenue · tick two runs to compare
             </span>
           </div>
 

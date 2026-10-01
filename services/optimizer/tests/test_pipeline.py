@@ -398,6 +398,11 @@ def blocking_doc():
 def test_preflight_blocks_by_default_and_names_each_check():
     with pytest.raises(PipelineError) as error:
         run(blocking_doc(), preflight=PreflightPolicy())
+    message = str(error.value)
+    assert "no coordinates" in message and "from the depot" in message
+    assert "trailer" not in message  # oversize stops split by default (round two)
+    with pytest.raises(PipelineError) as error:
+        run(blocking_doc(), preflight=PreflightPolicy(oversize_stop="block"))
     assert error.value.code == "preflight_blocked"
     message = str(error.value)
     assert "no coordinates" in message and "from the depot" in message
@@ -500,6 +505,7 @@ def test_bundled_example_reconciles_and_chains_manifests():
     assert {f.check for f in s.preflight} == {
         "missing_coordinates",
         "far_from_depot",
+        "far_via_stop",
         "oversize_stop",
     }
     assert all(f.action == "warn" for f in s.preflight)

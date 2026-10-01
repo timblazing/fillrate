@@ -695,7 +695,7 @@ function Provenance({ summary, run }: { summary: RunSummary; run: RunDetail }) {
     [
       "Preflight",
       policy
-        ? `No coordinates: ${policy.missing_coordinates} · over 500 mi from depot: ${policy.far_from_depot} · stop over one trailer: ${policy.oversize_stop}`
+        ? `No coordinates: ${policy.missing_coordinates} · no route within 500 mi per drive: ${policy.far_from_depot} · stop over one trailer: ${policy.oversize_stop} · reached through another stop: warn`
         : "Not recorded",
     ],
     ["Excluded by user", s.excluded_line_ids?.length ? plural(s.excluded_line_ids.length, "line") : "none"],

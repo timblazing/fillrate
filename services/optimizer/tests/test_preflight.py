@@ -48,9 +48,13 @@ def test_preflight_policy_and_aggregate_stop():
     assert [(f.check, f.action, f.line_ids) for f in findings] == [
         ("missing_coordinates", "block", ["L1"]),
         ("far_from_depot", "block", ["L2"]),
-        ("oversize_stop", "block", ["L3", "L4"]),
+        ("oversize_stop", "warn", ["L3", "L4"]),
         ("approximate_coordinates", "warn", ["L3", "L4"]),
     ]
+    blocking = RunSettings(preflight={"oversize_stop": "block"})
+    assert ("oversize_stop", "block") in {
+        (f.check, f.action) for f in preflight_checks(scenario(), blocking)
+    }
 
 
 def test_exclusion_and_override():
@@ -68,3 +72,25 @@ def test_distinct_customers_at_same_location_do_not_trigger_oversize():
     doc = scenario()
     doc.orders[3].customer_id = "another-customer"
     assert "oversize_stop" not in {f.check for f in preflight_checks(doc, RunSettings())}
+
+
+def test_far_stop_reachable_through_another_stop_only_warns():
+    doc = scenario()
+    # A stop halfway out makes "far" reachable in two drives under 500 mi each (round two).
+    doc.locations.append(doc.locations[2].model_copy(update={"id": "mid", "lon": 4.0}))
+    doc.orders.append(
+        doc.orders[0].model_copy(
+            update={
+                "id": "O5",
+                "location_id": "mid",
+                "lines": [doc.orders[0].lines[0].model_copy(update={"id": "L5"})],
+            }
+        )
+    )
+    hits = {f.check: (f.action, f.line_ids) for f in preflight_checks(doc, RunSettings())}
+    assert "far_from_depot" not in hits
+    assert hits["far_via_stop"] == ("warn", ["L2"])
+    # Excluding the intermediate stop's demand removes the chain, so the rule blocks again.
+    excluded = RunSettings(excluded_line_ids=["L5"])
+    hits = {f.check: f.action for f in preflight_checks(doc, excluded)}
+    assert hits["far_from_depot"] == "block" and "far_via_stop" not in hits

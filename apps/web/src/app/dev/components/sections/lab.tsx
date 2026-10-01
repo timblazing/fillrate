@@ -340,7 +340,7 @@ export function Lab() {
       <Specimen
         id="iterations"
         title="Iteration table"
-        description="One row per run, grouped by the three metrics, with the varied settings as chips. ★ = non-dominated; underline = best in column. Tick two runs to compare."
+        description="One row per run, grouped by the three metrics, with the varied settings as chips. ★ = best trade-off (non-dominated); underline = best in column. Tick two runs to compare."
       >
         <IterationTable rows={sweep} baselineId="run-0212" selected={compare} onSelectedChange={setCompare} />
       </Specimen>
@@ -582,8 +582,9 @@ function PreflightDemo() {
   const [resolved, setResolved] = useState<Record<string, PreflightResolution | null>>({})
   const items: PreflightCheckItem[] = [
     { id: "missing_coordinates", title: "Addresses with no coordinates", action: "block", lines: 14, locations: 6, refs: ["L-01182", "L-01407"] },
-    { id: "far_from_depot", title: "Stops farther than 500 mi from the depot", action: "block", lines: 9, locations: 4, detail: "May still be reachable through another stop" },
-    { id: "oversize_stop", title: "A stop larger than one trailer", action: "block", lines: 21, locations: 3, detail: "As a warning, it is split across shipments" },
+    { id: "far_from_depot", title: "Stops no route reaches within 500 mi per drive", action: "block", lines: 9, locations: 4 },
+    { id: "far_via_stop", title: "Over 500 mi from the depot, reached through another stop", action: "warn", lines: 5, locations: 2, detail: "Runs; the stop is reached through a nearer one" },
+    { id: "oversize_stop", title: "A stop larger than one trailer", action: "warn", lines: 21, locations: 3, detail: "Split across shipments" },
     { id: "approximate_coordinates", title: "Placed by ZIP code only", action: "warn", lines: 38, locations: 17 },
   ].map((c) => ({ ...c, resolution: resolved[c.id] ?? null }) as PreflightCheckItem)
   return <PreflightChecks items={items} onResolve={(id, r) => setResolved((x) => ({ ...x, [id]: r }))} className="mb-4" />

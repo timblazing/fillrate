@@ -56,7 +56,7 @@ export function Foundations() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             ["info", "Running, claimed, excluded lines"],
-            ["success", "Succeeded, full trailers (≥ 90%), non-dominated runs"],
+            ["success", "Succeeded, full trailers (≥ 90%), best trade-off runs"],
             ["warning", "Low trailer fill (< 80%), no stock, approximate coordinates"],
             ["destructive", "Failed, beyond leg limit, over a hard limit"],
           ].map(([t, use]) => (

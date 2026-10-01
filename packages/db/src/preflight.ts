@@ -1,14 +1,16 @@
 import type { ScenarioDocument } from "@fillrate/contracts";
 
 /** Submission policy, mirrored in fillrate_optimizer/preflight.py. */
-export type PreflightCheck = "missing_coordinates" | "far_from_depot" | "oversize_stop" | "approximate_coordinates";
+export type PreflightCheck = "missing_coordinates" | "far_from_depot" | "oversize_stop" | "far_via_stop" | "approximate_coordinates";
+/** Never block (round two: a far stop reachable through another stop warns). */
+const WARN_ONLY = new Set<PreflightCheck>(["far_via_stop", "approximate_coordinates"]);
 export type PreflightFinding = { check: PreflightCheck; action: "block" | "warn"; location_ids: string[]; line_ids: string[]; message: string };
 export type PreflightSettings = {
   trailer_capacity?: number;
   travel_circuity?: number;
   max_leg_m?: number;
   excluded_line_ids?: string[];
-  preflight?: Partial<Record<Exclude<PreflightCheck, "approximate_coordinates">, "block" | "warn">>;
+  preflight?: Partial<Record<Exclude<PreflightCheck, "far_via_stop" | "approximate_coordinates">, "block" | "warn">>;
 };
 const EARTH_RADIUS_M = 6_371_008.8;
 const FIVE_HUNDRED_MILES_M = 804_672;
@@ -16,6 +18,17 @@ const rad = (degrees: number) => degrees * Math.PI / 180;
 function distanceM(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
   const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(Math.min(1, Math.max(0, h))));
+}
+const DEFAULT_POLICY = { missing_coordinates: "block", far_from_depot: "block", oversize_stop: "warn" } as const;
+/** Locations reachable from the depot through a chain of drives each within the leg limit. */
+function reachableViaStops(depot: { lat: number; lon: number }, points: Map<string, { lat: number; lon: number }>, maxLeg: number, circuity: number) {
+  const seen = new Set<string>();
+  const frontier = [depot];
+  while (frontier.length) {
+    const from = frontier.pop()!;
+    for (const [id, to] of points) if (!seen.has(id) && Math.round(distanceM(from, to) * circuity) <= maxLeg) { seen.add(id); frontier.push(to); }
+  }
+  return seen;
 }
 export function preflightChecks(scenario: ScenarioDocument, settings: PreflightSettings = {}): PreflightFinding[] {
   const locations = new Map(scenario.locations.map(x => [x.id, x]));
@@ -26,6 +39,10 @@ export function preflightChecks(scenario: ScenarioDocument, settings: PreflightS
   if (unknown.length) throw new Error(`Unknown excluded line IDs: ${unknown.join(", ")}`);
   const found = new Map<PreflightCheck, Map<string, string[]>>();
   const grouped = new Map<string, { ids: string[]; load: number }>();
+  const farLines = new Map<string, string[]>();
+  const points = new Map<string, { lat: number; lon: number }>();
+  const circuity = settings.travel_circuity ?? 1.2;
+  const maxLeg = settings.max_leg_m ?? FIVE_HUNDRED_MILES_M;
   const add = (check: PreflightCheck, location: string, line: string) => {
     if (!found.has(check)) found.set(check, new Map());
     const at = found.get(check)!;
@@ -37,10 +54,11 @@ export function preflightChecks(scenario: ScenarioDocument, settings: PreflightS
     const active = order.lines.filter(x => x.ordered_pieces > 0 && !excluded.has(x.id));
     if (!active.length) continue;
     const missing = loc.lat === null || loc.lon === null || loc.coordinate_source === "unresolved";
-    const far = !missing && Math.round(distanceM(scenario.depot, { lat: loc.lat!, lon: loc.lon! }) * (settings.travel_circuity ?? 1.2)) > (settings.max_leg_m ?? FIVE_HUNDRED_MILES_M);
+    if (!missing) points.set(loc.id, { lat: loc.lat!, lon: loc.lon! });
+    const far = !missing && Math.round(distanceM(scenario.depot, { lat: loc.lat!, lon: loc.lon! }) * circuity) > maxLeg;
     for (const line of active) {
       if (missing) add("missing_coordinates", loc.id, line.id);
-      if (far) add("far_from_depot", loc.id, line.id);
+      if (far) farLines.set(loc.id, [...(farLines.get(loc.id) ?? []), line.id]);
       if (!missing && loc.coordinate_source === "zcta") add("approximate_coordinates", loc.id, line.id);
       const product = products.get(line.product_id);
       if (!product) throw new Error(`Unknown product: ${line.product_id}`);
@@ -51,15 +69,19 @@ export function preflightChecks(scenario: ScenarioDocument, settings: PreflightS
       grouped.set(groupKey, group);
     }
   }
+  if (farLines.size) {
+    const chained = reachableViaStops(scenario.depot, points, maxLeg, circuity);
+    for (const [id, lineIds] of farLines) for (const lineId of lineIds) add(chained.has(id) ? "far_via_stop" : "far_from_depot", id, lineId);
+  }
   for (const [key, group] of grouped) if (group.load > (settings.trailer_capacity ?? 5300)) {
     const [id] = JSON.parse(key) as [string, string];
     for (const lineId of group.ids) add("oversize_stop", id, lineId);
   }
-  return (["missing_coordinates", "far_from_depot", "oversize_stop", "approximate_coordinates"] as const).flatMap(check => {
+  return (["missing_coordinates", "far_from_depot", "oversize_stop", "far_via_stop", "approximate_coordinates"] as const).flatMap(check => {
     const hits = found.get(check);
     if (!hits?.size) return [];
     const line_ids = [...hits.values()].flat().sort();
     const location_ids = [...hits.keys()].sort();
-    return [{ check, action: check === "approximate_coordinates" ? "warn" as const : (settings.preflight?.[check] ?? "block"), location_ids, line_ids, message: `${check}: ${line_ids.length} line(s) at ${location_ids.length} location(s).` }];
+    return [{ check, action: WARN_ONLY.has(check) ? "warn" as const : (settings.preflight?.[check as keyof typeof DEFAULT_POLICY] ?? DEFAULT_POLICY[check as keyof typeof DEFAULT_POLICY]), location_ids, line_ids, message: `${check}: ${line_ids.length} line(s) at ${location_ids.length} location(s).` }];
   });
 }

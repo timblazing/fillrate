@@ -676,6 +676,7 @@
             "missing_coordinates",
             "far_from_depot",
             "oversize_stop",
+            "far_via_stop",
             "approximate_coordinates"
           ],
           "title": "Check",
@@ -716,7 +717,7 @@
     },
     "PreflightPolicy": {
       "additionalProperties": false,
-      "description": "M2 scope item 8: which preflight checks stop a run. Policy, not physics (\u00a77).",
+      "description": "M2 scope item 8: which preflight checks stop a run. Policy, not physics (\u00a77).\n\nRound two (spec v1.9): `far_from_depot` covers only stops no chain of allowed drives\nreaches; a far stop reachable through another stop is the warning `far_via_stop`. A stop\nlarger than one trailer splits across shipments by default.",
       "properties": {
         "far_from_depot": {
           "default": "block",
@@ -737,7 +738,7 @@
           "type": "string"
         },
         "oversize_stop": {
-          "default": "block",
+          "default": "warn",
           "enum": [
             "block",
             "warn"

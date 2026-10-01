@@ -202,7 +202,7 @@ export function Charts() {
         <Specimen
           id="tradeoff"
           title="Iteration trade-off"
-          description="Each run: average fill against shipped revenue; bubble size is mean distance to centroid (smaller is tighter). ★ runs are non-dominated, joined as the front."
+          description="Each run: average fill against shipped revenue; bubble size is mean distance to centroid (smaller is tighter). ★ runs are the best trade-offs (non-dominated), joined as the front."
         >
           <ChartCard>
             <TradeoffChart runs={sweep} />

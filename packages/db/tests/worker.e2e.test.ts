@@ -71,8 +71,8 @@ test.skipIf(!hasUv)("a synthetic run completes, validates and reconciles", async
     expect(p.starting_inventory).toBe(p.allocated + p.residual);
   }
   expect(view.events.filter(e => e.kind === "progress").map(e => e.payload.stage)).toContain("solve");
-  // The example declares its three blocking preflight cases as warnings (spec v1.8 §15 M2 item 8).
-  expect(summary.preflight?.map(f => [f.check, f.action])).toEqual([["missing_coordinates", "warn"], ["far_from_depot", "warn"], ["oversize_stop", "warn"]]);
+  // The example declares its policy checks as warnings (spec §15 M2 item 8); the 594 mi chained stop only warns.
+  expect(summary.preflight?.map(f => [f.check, f.action])).toEqual([["missing_coordinates", "warn"], ["far_from_depot", "warn"], ["oversize_stop", "warn"], ["far_via_stop", "warn"]]);
   // Shipment sheets (M2 item 11) agree with the validated trucks: per-stop feet, legs and value sum to the totals.
   const sheets = shipmentSheets(summary);
   expect(sheets).toHaveLength(summary.trucks.length);

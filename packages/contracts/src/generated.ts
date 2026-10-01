@@ -364,7 +364,7 @@ export interface components {
              * Check
              * @enum {string}
              */
-            check: "missing_coordinates" | "far_from_depot" | "oversize_stop" | "approximate_coordinates";
+            check: "missing_coordinates" | "far_from_depot" | "oversize_stop" | "far_via_stop" | "approximate_coordinates";
             /** Line Ids */
             line_ids: string[];
             /** Location Ids */
@@ -375,6 +375,10 @@ export interface components {
         /**
          * PreflightPolicy
          * @description M2 scope item 8: which preflight checks stop a run. Policy, not physics (§7).
+         *
+         *     Round two (spec v1.9): `far_from_depot` covers only stops no chain of allowed drives
+         *     reaches; a far stop reachable through another stop is the warning `far_via_stop`. A stop
+         *     larger than one trailer splits across shipments by default.
          */
         PreflightPolicy: {
             /**
@@ -391,7 +395,7 @@ export interface components {
             missing_coordinates: "block" | "warn";
             /**
              * Oversize Stop
-             * @default block
+             * @default warn
              * @enum {string}
              */
             oversize_stop: "block" | "warn";

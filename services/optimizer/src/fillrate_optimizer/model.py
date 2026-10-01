@@ -80,11 +80,16 @@ PreflightAction = Literal["block", "warn"]
 
 
 class PreflightPolicy(Doc):
-    """M2 scope item 8: which preflight checks stop a run. Policy, not physics (§7)."""
+    """M2 scope item 8: which preflight checks stop a run. Policy, not physics (§7).
+
+    Round two (spec v1.9): `far_from_depot` covers only stops no chain of allowed drives
+    reaches; a far stop reachable through another stop is the warning `far_via_stop`. A stop
+    larger than one trailer splits across shipments by default.
+    """
 
     missing_coordinates: PreflightAction = "block"
     far_from_depot: PreflightAction = "block"
-    oversize_stop: PreflightAction = "block"
+    oversize_stop: PreflightAction = "warn"
 
 
 class RunSettings(Doc):
@@ -243,7 +248,11 @@ class ClusteringSummary(Doc):
 
 
 PreflightCheckId = Literal[
-    "missing_coordinates", "far_from_depot", "oversize_stop", "approximate_coordinates"
+    "missing_coordinates",
+    "far_from_depot",
+    "oversize_stop",
+    "far_via_stop",
+    "approximate_coordinates",
 ]
 
 

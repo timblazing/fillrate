@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-01",
   "focus": "M4",
-  "productBehavior": 31,
+  "productBehavior": 32,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -11,9 +11,9 @@
     },
     "M2": {
       "weight": 10,
-      "done": 85,
+      "done": 95,
       "state": "waiting",
-      "notes": "Round-one answers applied to the Blocks, lab components and the real /runs/<id> page: Shipment wording, map first, fill % with an 80% line, problem-only coordinate badges, stock coverage, Steps, blocking preflight (contract + pipeline), revenue first, printable shipment sheets and CSV, diameter policy off by default. Round two is live at /dev/review. Waiting on his answers and on fillrate.fig (needs the OpenPencil app)."
+      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
     },
     "M3": {
       "weight": 20,
@@ -23,9 +23,9 @@
     },
     "M4": {
       "weight": 15,
-      "done": 3,
-      "state": "planned",
-      "notes": "The k explorer and comparison UI exist only as fixtures. No sweeps, H3, or lesson."
+      "done": 8,
+      "state": "active",
+      "notes": "k explorer statistics engine in Python (inertia, ARI stability, seed agreement, task cap). Not yet a job, API or screen. No sweeps, ranking, H3 or lesson."
     },
     "M5": {
       "weight": 10,
@@ -53,8 +53,9 @@
     }
   },
   "nextUp": [
-    "M4: k explorer and bounded sweeps on real runs, with comparison signatures and partition bounds.",
-    "M4: H3 baseline, flagship lesson, and target-hardware/public-access release gates.",
-    "M2: collect round-two review answers (including cost rates) and finish OpenPencil Components."
+    "M4: k explorer as a durable job with API and screen (\"Use this k\").",
+    "M4: bounded sweeps, comparison signatures, Pareto and ranked Best option / 2nd best / 3rd.",
+    "M2: rebuild fillrate.fig Components on coss parts (needs OpenPencil open).",
+    "M4: H3 baseline, flagship lesson, and target-hardware/public-access release gates."
   ]
 }

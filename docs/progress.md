@@ -21,7 +21,7 @@
   - [x] Single image with web + optimizer + worker (tini, `deploy/entrypoint.sh`), `HEALTHCHECK`, `deploy/smoke.sh`; arm64 image built and smoke-tested locally once (2026-09-30)
   - [x] `ci.yml` (lint, typecheck, Vitest incl. Python worker e2e, pytest, Ruff, contract drift, build) and `image.yml` (after CI on `main`, tags, manual; native amd64 + arm64 runners, smoke before push, multi-arch manifest from tested digests)
   - [x] First green `ci.yml` (run 36776415077) and `image.yml` (run 36776618684): amd64 and arm64 each built natively and passed the smoke run; `latest` and `sha-953cb1c` published as a multi-arch manifest
-- [ ] **M2 Accepted design** (spec v1.8 §15 "M2 scope"; implementation done 2026-09-30, waiting on round-two answers and `fillrate.fig`)
+- [ ] **M2 Accepted design** (spec v1.9 §15 "M2 scope"; round two accepted 2026-10-01; only `fillrate.fig` remains)
   - [x] Round-one answers recorded (`docs/reviews/fillrate-design-review-2026-09-30.json`, spec v1.8, `docs/decisions.md`)
   - [x] Wording in one copy module (`src/lib/copy.ts`): Cluster / Shipment / Unshipped; internal names unchanged; CSV exports carry a header note
   - [x] Map first on `/runs/<id>`, the Results Block and the Workbench
@@ -38,9 +38,10 @@
   - [x] Cost per truck / per mile and objective selector design (`ObjectiveSettings`), with the fallback notice
   - [x] 500-mile copy is per drive; cluster-diameter policy **off by default** in the pipeline (`max_cluster_diameter_m: null`), example uses fixed k = 4
   - [x] Revised Blocks and `/runs/<id>` checked at 1440 px and 390 px (no page-level horizontal scroll); map selections have keyboard-reachable table equivalents
-  - [x] Round-two review restored at `/dev/review` with new `r2.*` question ids
+  - [x] Round-two review run at `/dev/review` with new `r2.*` question ids, then removed (2026-10-01)
+  - [x] Round-two answers recorded (`docs/reviews/fillrate-design-review-2026-10-01.json`, spec v1.9): every Block, `/runs/<id>` and the shipment sheet accepted; ★ = "Best trade-off"; 90% full confirmed; flow strip kept; no cost rates
+  - [x] Round-two policy applied: a far stop reachable through another stop only warns (`far_via_stop`, Python and TS preflight); a stop larger than one trailer splits by default (`oversize_stop: warn`)
   - [ ] `fillrate.fig`: Components page on coss parts; Foundations gains `--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`, fill bands (OpenPencil app was not running this session)
-  - [ ] Round-two answers recorded and Blocks accepted (or changes applied and re-accepted)
 - [x] **M3 Operational core** (done 2026-10-01)
   - [x] CSV preview/commit, scenario editing and versioning, real imported runs and exports
   - [x] Cost objective, customer-aware stops, blocking preflight, durable cluster checkpoints and deterministic stage reuse
@@ -49,7 +50,11 @@
   - [x] Production operator-key access checked against `next start` and in the image smoke (`deploy/smoke_import.py`): refusal without the key, preview → save → preflight block → excluded-line run → validated result → private export → branch → conflict
   - [x] Narrow-width (390 px) browser check: `/scenarios` and an imported `/runs/<id>` have no page-level horizontal scroll; imported run pages without access return 404
   - [x] 2,000-order benchmark inside the tested image on amd64 and arm64 GitHub runners (`image.yml` job summary and artifacts)
-- [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, partition bounds, H3 layer/baseline, lesson and small Python replay export)
+- [ ] M4 Experiments / first release (k explorer, bounded sweeps, comparison signatures, ranked Best option / 2nd / 3rd, partition bounds, H3 layer/baseline, lesson and small Python replay export)
+  - [x] k explorer statistics engine (`services/optimizer/src/fillrate_optimizer/explorer.py`): inertia per seed, raw/repaired stability (mean pairwise ARI, unclipped), per-location seed agreement (N/A for singletons, no dense all-pairs array), task cap with no silent truncation; 8 pytest cases
+  - [ ] Explorer as a durable job + API + real k explorer screen with "Use this k"
+  - [ ] Bounded sweeps, comparison signatures, Pareto and ranked options
+  - [ ] No-clustering baseline, H3 layer/baseline, flagship lesson, Python replay export, release gates
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
 - [ ] M7 Learning and exports
@@ -75,7 +80,7 @@ Communication pass (2026-09-30, from the premium-planner research): new `PlanFlo
 
 Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillStrip`, `TrailerFill`/`FillMeter`/`FillPercent`, `TruckLoad`, `UnshippedLines`, `PipelineStages`, `RunMetricGroups`, `IterationTable`, `StockTable`, `LineStateBadge`, `StopPointsLayer`/`FitBounds` (map), `ClusterSwatch`/`ClusterLegend`/`TruckTag`; `DataTable` gained pagination; `CoordinateSourceBadge` gained `unresolved`; status colors moved to the coss `--info/--success/--warning/--destructive-foreground` tokens. Shared units/formatting in `src/lib/units.ts`, provisional pipeline types in `src/lib/fulfillment.ts` (to be replaced by generated contracts).
 
-**M2 implementation is in (2026-09-30); acceptance is open.** Spec v1.8 §15 "M2 scope" items 1–15 and 17 are built (checklist above). Exit evidence still missing: round-two answers with explicit acceptance, and item 16 (`fillrate.fig` Components on coss, missing Foundations tokens), which needs the OpenPencil desktop app. Verification: optimizer pytest 54 passed (new: diameter off by default, preflight block/warn, `excluded_by_user` reconciliation, unknown exclusions rejected); Vitest 24 passed (new: shipment sheets agree with validated trucks, a blocking preflight fails permanently on attempt 1, review store upsert/delete); Ruff, lint (one pre-existing `globe.tsx` warning), typecheck, contract regeneration and build pass. A dev run of the example (k = 4) gave 19 shipments, valid, partial coverage, all three checks recorded as warnings.
+**M2 round two is accepted (2026-10-01).** The primary user accepted every revised Block, `/runs/<id>` and the shipment sheet; the only open M2 item is `fillrate.fig` (item 16, needs the OpenPencil app). Round two also changed two policies (spec v1.9): far stops reachable through another stop warn (`far_via_stop`), and oversize stops split by default. Verification: pytest 82 passed, Vitest 43 passed, Ruff, lint, typecheck pass. **Earlier (2026-09-30):** Spec v1.8 §15 "M2 scope" items 1–15 and 17 are built (checklist above). Exit evidence still missing: round-two answers with explicit acceptance, and item 16 (`fillrate.fig` Components on coss, missing Foundations tokens), which needs the OpenPencil desktop app. Verification: optimizer pytest 54 passed (new: diameter off by default, preflight block/warn, `excluded_by_user` reconciliation, unknown exclusions rejected); Vitest 24 passed (new: shipment sheets agree with validated trucks, a blocking preflight fails permanently on attempt 1, review store upsert/delete); Ruff, lint (one pre-existing `globe.tsx` warning), typecheck, contract regeneration and build pass. A dev run of the example (k = 4) gave 19 shipments, valid, partial coverage, all three checks recorded as warnings.
 
 **M3 is complete (2026-10-01).** `/scenarios` imports order and inventory CSVs (column mapping, row errors, samples, templates), saves immutable versions with authorship, optimistic conflicts and branches, edits lines/stock/coordinates, reviews preflight checks (block, exclude lines, or warn) and starts real worker runs with the full settings, including the cost objective. Runs reuse deterministic stages and checkpoint each cluster. Imported data needs `SCENARIO_KEY` in production. Evidence and benchmarks are under "M3 done" below.
 
@@ -121,25 +126,20 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - New tokens `--chart-background/-foreground/-foreground-muted/-label/-grid` (aliases for bklit) and the coss status tokens `--info/--success/--warning(-foreground)`, `--destructive-foreground` are not on the OpenPencil Foundations page yet.
 - bklit radar logs harmless motion "undefined is not animatable" warnings in dev (vendored code).
 - `MatrixHeatmap` renders every cell; 500-stop matrices will need virtualization.
-- No sample order/inventory rows from the primary user yet (round two asks again).
+- No sample order/inventory rows from the primary user yet (unanswered in both review rounds).
 - Chart recipes shared by charts and blocks live in `src/app/dev/components/recipes.tsx` until contracts exist.
 - The gallery fixture's truck loads come from a sweep heuristic, not PyVRP; numbers are illustrative of shape, not solver quality.
-- The Blocks are revised per round one and still need the user's round-two acceptance (spec §15).
 - The project is now targeted for public access. Public scenario writes, real customer data, and solver submissions need identity/data isolation, limits, and abuse controls before launch (spec v1.7 §14).
 - Vitest persistence/contract tests and optimizer pytest exist. Playwright end-to-end pipeline coverage remains for the next slice.
 - The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (M2 item 16; needs the OpenPencil app open).
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
 ## Waiting on the primary user (come back to this)
-Round two is live at `/dev/review` (production needs `REVIEW_KEY`; send the link with `?key=`). It asks him to:
-- Accept or change each revised Block, `/runs/<id>` and the shipment sheet.
-- Give cost per truck and cost per mile (needed for the "lowest cost" objective in M3).
-- Say what to change in the Results flow strip, and pick the ★ label.
-- Decide whether a stop >500 mi from the depot but reachable through another stop should still block, and whether a stop larger than one trailer should block or just split.
-- Confirm the 90% "full" band.
-- Paste example order and inventory rows (fake values), and say what to fix first.
+Round two is answered (2026-10-01). Still open from him:
+- Example order and inventory rows (fake values) and "what should we fix first" (unanswered in both rounds).
+- Cost per truck and per mile, only if he ever wants the "Lowest cost" objective (he answered N/A).
 
-Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts (M2 item 16).
+Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts and the missing Foundations tokens added (M2 item 16, the last M2 item).
 
 ## Next step
-Start M4 (k explorer on real runs, bounded sweeps, comparison signatures, partition bounds, H3 baseline, flagship lesson). In parallel: send the round-two review link and record the answers (including cost per truck and per mile); with OpenPencil open, rebuild the `fillrate.fig` Components page on coss parts and add the missing Foundations tokens, then mark M2 done.
+Continue M4: run the k explorer engine as a durable job with an API and a real k explorer screen ("Use this k"), then bounded sweeps with comparison signatures, Pareto and the ranked Best option / 2nd best / 3rd view. With OpenPencil open, finish `fillrate.fig` and mark M2 done.

@@ -1,0 +1,83 @@
+[
+  {
+    "id": "04905be8-bad7-47a4-8aaf-13060e902e8a",
+    "reviewer": "primary user",
+    "answers": {
+      "r2.compare.accept": "accept",
+      "r2.compare.star": "best-tradeoff",
+      "r2.cost.mile": "Na",
+      "r2.cost.truck": "Na",
+      "r2.fill.full": "90",
+      "r2.k.accept": "accept",
+      "r2.orders.accept": "accept",
+      "r2.results.accept": "accept",
+      "r2.results.flow": "keep",
+      "r2.rules.far-via": "warn",
+      "r2.rules.oversize": "split",
+      "r2.run.accept": "accept",
+      "r2.sheet.accept": "accept",
+      "r2.workbench.accept": "accept",
+      "r2.workbench.change": "Best option, 2nd best, 3rd. ",
+      "r2.you.name": "primary user (name redacted)"
+    },
+    "submittedAt": 1790818390751,
+    "createdAt": 1790816446050,
+    "updatedAt": 1790818390751
+  },
+  {
+    "id": "0675bbd9-1527-4043-bc34-cfa0f4284a8c",
+    "reviewer": "",
+    "answers": {
+      "compare.vary": [
+        "k",
+        "seed",
+        "inventory",
+        "miles"
+      ],
+      "k.stability": "yes",
+      "k.today": "trial",
+      "orders.coords": "problems",
+      "orders.stock": [
+        "short",
+        "orders",
+        "pct"
+      ],
+      "results.flow": "mostly",
+      "results.judge": "revenue",
+      "results.load-sheet": [
+        "value",
+        "lf",
+        "miles",
+        "orders",
+        "sequence"
+      ],
+      "results.reasons": [
+        "no-stock",
+        "leg",
+        "fit",
+        "data"
+      ],
+      "rules.500": [
+        "leg"
+      ],
+      "rules.combine": "same-customer",
+      "rules.objective": "cost",
+      "rules.tiebreak": "piece",
+      "run.block": [
+        "missing",
+        "far",
+        "oversize"
+      ],
+      "run.stages": "show",
+      "words.cluster": "cluster",
+      "words.truck": "shipment",
+      "words.unshipped": "unshipped",
+      "workbench.first": "map",
+      "workbench.low": "80",
+      "workbench.trailer": "ok"
+    },
+    "submittedAt": 1790802758552,
+    "createdAt": 1790801760758,
+    "updatedAt": 1790802758552
+  }
+]

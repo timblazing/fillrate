@@ -13,7 +13,7 @@ export type PreflightResolution = "excluded" | "warning"
 export type PreflightCheckItem = {
   id: string
   title: string
-  /** "block" checks stop the run until resolved; "warn" checks only inform (ZIP-only placement). */
+  /** "block" checks stop the run until resolved; "warn" checks only inform (ZIP-only placement, oversize splits). */
   action: "block" | "warn"
   detail?: string
   lines: number
@@ -26,9 +26,9 @@ export type PreflightCheckItem = {
 /** True while any blocking check is unresolved; Run pipeline stays disabled. */
 export const preflightBlocked = (items: PreflightCheckItem[]) => items.some((c) => c.action === "block" && !c.resolution)
 
-// Blocking preflight checks (spec v1.8 §15 M2 item 8). Three checks stop a run by default: addresses with no
-// coordinates, stops farther than 500 mi from the depot, and a stop larger than one trailer. They are policy, not
-// physics: a far stop can be reachable through another stop, and an oversized stop can be split. Each offers the
+// Blocking preflight checks (spec v1.9 §15 M2 item 8, round two). Two checks stop a run by default: addresses with
+// no coordinates, and stops no chain of ≤ 500 mi drives reaches. A far stop reached through another stop and a stop
+// larger than one trailer (split across shipments) only warn. They are policy, not physics. Each blocking one offers the
 // three resolutions: fix the data (M3 editing), exclude the lines (recorded as `excluded_by_user`), or turn the
 // check into a warning (recorded in the run's settings snapshot).
 export function PreflightChecks({

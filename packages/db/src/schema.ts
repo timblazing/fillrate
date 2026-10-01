@@ -38,8 +38,8 @@ export const runArtifacts = sqliteTable("run_artifacts", {
   id: text().primaryKey(), runId: text().notNull().references(() => runs.id),
   artifactHash: text().notNull().references(() => artifacts.hash), manifest: text().notNull(),
 }, t => [index("artifacts_by_run").on(t.runId)]);
-// M2 design review answers from /dev/review, one row per reviewer browser and round (round one exported to
-// docs/reviews; round-two ids start with "r2."). Not part of the product model.
+// M2 design review answers (both rounds exported to docs/reviews). The /dev/review pages were removed after round
+// two; the table is kept so deployed answers are not dropped. Not part of the product model.
 export const designReviews = sqliteTable("design_reviews", {
   id: text().primaryKey(), reviewer: text().notNull(), answers: text().notNull(),
   submittedAt: integer(), createdAt: integer().notNull(), updatedAt: integer().notNull(),

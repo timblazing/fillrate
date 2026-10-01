@@ -58,9 +58,9 @@ export function RunPipelineBlock() {
     },
     {
       id: "far_from_depot",
-      title: "Stops farther than 500 mi from the depot",
+      title: "Stops no route reaches within 500 mi per drive",
       action: "block",
-      detail: "One may still be reachable through another stop; this check is your rule, not a physical limit",
+      detail: "Far stops reached through a nearer stop only warn; this check is your rule, not a physical limit",
       lines: beyond.reduce((n, s) => n + s.lineIds.length, 0),
       locations: beyond.length,
       refs: beyond.slice(0, 4).map((s) => s.id),
@@ -68,8 +68,8 @@ export function RunPipelineBlock() {
     {
       id: "oversize_stop",
       title: "A stop larger than one trailer",
-      action: "block",
-      detail: "Turned into a warning, the stop is split across shipments",
+      action: "warn",
+      detail: "Split across shipments",
       lines: new Set(oversize.flatMap((s) => s.lineIds)).size,
       locations: run.splits.length,
       refs: run.splits.slice(0, 4).map((s) => s.stop),
