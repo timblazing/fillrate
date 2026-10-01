@@ -35,7 +35,10 @@ def test_pipeline_stage_hashes_encoded_travel_and_reuses_decoded_matrix():
     assert artifact.payload["encoding"] == "zlib-json-v1"
     assert artifact.manifest["output_hash"] == content_hash(artifact.payload)
     reused = Stages(
-        RunSettings(), str(uuid.uuid4()), lambda: int(time.time() * 1000), "a" * 64,
+        RunSettings(),
+        str(uuid.uuid4()),
+        lambda: int(time.time() * 1000),
+        "a" * 64,
         cache=lambda _hash: {"manifest": artifact.manifest, "payload": artifact.payload},
     )
     assert reused.lookup("travel", [], []) == payload

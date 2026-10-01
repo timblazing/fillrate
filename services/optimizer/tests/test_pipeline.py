@@ -71,10 +71,13 @@ def test_stage_cache_reuses_preprocessing_but_not_a_new_solver_replicate():
     cache = {}
 
     def checkpoint(artifact):
-        cache.setdefault(artifact.manifest["input_hash"], {
-            "manifest": artifact.manifest,
-            "payload": artifact.payload,
-        })
+        cache.setdefault(
+            artifact.manifest["input_hash"],
+            {
+                "manifest": artifact.manifest,
+                "payload": artifact.payload,
+            },
+        )
 
     first = run_pipeline(doc, FAST, execution_id="attempt-1", checkpoint=checkpoint)
     second = run_pipeline(
@@ -196,9 +199,11 @@ def test_oversize_piece_is_rejected_before_allocation():
 def test_aggregation_requires_same_customer_and_location():
     doc = scenario(
         [("A", east(50))],
-        [("O1", "A", "2026-09-01", "P", 1, 100),
-         ("O2", "A", "2026-09-01", "P", 1, 100),
-         ("O3", "A", "2026-09-01", "P", 1, 100)],
+        [
+            ("O1", "A", "2026-09-01", "P", 1, 100),
+            ("O2", "A", "2026-09-01", "P", 1, 100),
+            ("O3", "A", "2026-09-01", "P", 1, 100),
+        ],
         [("P", 3)],
     )
     doc.orders[0].customer_id = "C1"

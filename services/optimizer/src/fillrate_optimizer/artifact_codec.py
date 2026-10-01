@@ -3,6 +3,7 @@
 The stage manifest hashes the encoded payload, so Node verifies the exact
 bytes it persists. Decoding happens only after the manifest hash is checked.
 """
+
 from __future__ import annotations
 
 import base64

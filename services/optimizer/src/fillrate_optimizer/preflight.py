@@ -3,6 +3,7 @@
 These checks are user policy, not routing feasibility. Excluded lines do not
 contribute to a stop's demand or its policy findings.
 """
+
 from collections import defaultdict
 from math import asin, cos, radians, sin, sqrt
 
@@ -13,8 +14,7 @@ from .travel import EARTH_RADIUS_M
 def _straight_distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     a = (
         sin(radians(lat2 - lat1) / 2) ** 2
-        + cos(radians(lat1)) * cos(radians(lat2))
-        * sin(radians(lon2 - lon1) / 2) ** 2
+        + cos(radians(lat1)) * cos(radians(lat2)) * sin(radians(lon2 - lon1) / 2) ** 2
     )
     return 2 * EARTH_RADIUS_M * asin(sqrt(min(1, max(0, a))))
 
@@ -39,7 +39,8 @@ def preflight_checks(scenario: ScenarioDocument, settings: RunSettings) -> list[
             and round(
                 _straight_distance_m(scenario.depot.lat, scenario.depot.lon, loc.lat, loc.lon)
                 * settings.travel_circuity
-            ) > settings.max_leg_m
+            )
+            > settings.max_leg_m
         )
         for line in active:
             if missing:
@@ -57,18 +58,25 @@ def preflight_checks(scenario: ScenarioDocument, settings: RunSettings) -> list[
             found["oversize_stop"][loc_id].extend(line_id for line_id, _ in lines)
     out = []
     for check in (
-        "missing_coordinates", "far_from_depot", "oversize_stop", "approximate_coordinates"
+        "missing_coordinates",
+        "far_from_depot",
+        "oversize_stop",
+        "approximate_coordinates",
     ):
         hits = found.get(check)
         if hits:
             line_ids = sorted(line_id for ids in hits.values() for line_id in ids)
-            out.append(PreflightFinding(
-                check=check,
-                action=(
-                    "warn" if check == "approximate_coordinates"
-                    else getattr(settings.preflight, check)
-                ),
-                location_ids=sorted(hits), line_ids=line_ids,
-                message=f"{check}: {len(line_ids)} line(s) at {len(hits)} location(s).",
-            ))
+            out.append(
+                PreflightFinding(
+                    check=check,
+                    action=(
+                        "warn"
+                        if check == "approximate_coordinates"
+                        else getattr(settings.preflight, check)
+                    ),
+                    location_ids=sorted(hits),
+                    line_ids=line_ids,
+                    message=f"{check}: {len(line_ids)} line(s) at {len(hits)} location(s).",
+                )
+            )
     return out
