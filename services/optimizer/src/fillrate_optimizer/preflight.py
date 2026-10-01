@@ -19,7 +19,7 @@ def _straight_distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> 
     return 2 * EARTH_RADIUS_M * asin(sqrt(min(1, max(0, a))))
 
 
-WARN_ONLY = {"far_via_stop", "approximate_coordinates"}
+WARN_ONLY = {"far_via_stop"}
 
 
 def _reachable_via_stops(depot, points: dict[str, tuple[float, float]], max_leg_m, circuity):

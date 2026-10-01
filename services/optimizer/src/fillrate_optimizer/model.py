@@ -37,12 +37,44 @@ class Product(Doc):
     linear_feet_per_piece: Annotated[int, Field(strict=True, ge=1)]
 
 
+class GeocodeMatch(Doc):
+    """How an address became a coordinate (spec §6). Records the match, never a confidence score.
+
+    Census matches are interpolated along address ranges, not rooftop points. ZCTA matches are
+    the Gazetteer internal point of the ZIP Code Tabulation Area with the same code as the ZIP.
+    """
+
+    provider: Literal["census", "zcta"]
+    # Census benchmark (e.g. Public_AR_Current) or "zcta-gazetteer-<vintage>".
+    dataset: Annotated[str, Field(min_length=1, max_length=100)]
+    match_type: Literal["exact", "non_exact"] | None = None
+    matched_address: Annotated[str, Field(max_length=500)] | None = None
+    zcta: Annotated[str, Field(pattern=r"^\d{5}$")] | None = None
+    # Content hash of the stored raw provider response (Census batch chunk or one-line reply).
+    response_ref: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")] | None = None
+    resolved_at: Annotated[str, Field(min_length=1, max_length=40)]
+
+
+class CoordinateOrigin(Doc):
+    """A location's first coordinate, kept with its provenance when a manual correction or an
+    explicit re-geocode replaces it (spec §6: keep original and corrected provenance)."""
+
+    lat: Lat | None
+    lon: Lon | None
+    coordinate_source: CoordinateSource
+    geocode: GeocodeMatch | None = None
+
+
 class Location(Doc):
     id: Id
     label: str
     lat: Lat | None
     lon: Lon | None
     coordinate_source: CoordinateSource
+    # Original address text as imported (spec §6: keep original input beside normalized values).
+    address: Annotated[str, Field(max_length=500)] | None = None
+    geocode: GeocodeMatch | None = None
+    original: CoordinateOrigin | None = None
 
 
 class OrderLine(Doc):
@@ -92,6 +124,9 @@ class PreflightPolicy(Doc):
     missing_coordinates: PreflightAction = "block"
     far_from_depot: PreflightAction = "block"
     oversize_stop: PreflightAction = "warn"
+    # ZIP/ZCTA approximate coordinates (spec §6): warn by default; "block" asks the user to exclude
+    # those stops or correct them before running.
+    approximate_coordinates: PreflightAction = "warn"
 
 
 class RunSettings(Doc):

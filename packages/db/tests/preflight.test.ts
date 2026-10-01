@@ -5,9 +5,9 @@ const scenario: ScenarioDocument = {
   schema_version: 1, name: "Preflight", depot: { id: "D", label: "Depot", lat: 0, lon: 0 },
   products: [{ id: "P", label: "Product", linear_feet_per_piece: 3000 }],
   locations: [
-    { id: "missing", label: "Missing", lat: null, lon: null, coordinate_source: "unresolved" },
-    { id: "far", label: "Far", lat: 0, lon: 8, coordinate_source: "imported" },
-    { id: "near", label: "Near", lat: 0, lon: 1, coordinate_source: "zcta" },
+    { id: "missing", label: "Missing", lat: null, lon: null, coordinate_source: "unresolved", address: null, geocode: null, original: null },
+    { id: "far", label: "Far", lat: 0, lon: 8, coordinate_source: "imported", address: null, geocode: null, original: null },
+    { id: "near", label: "Near", lat: 0, lon: 1, coordinate_source: "zcta", address: null, geocode: null, original: null },
   ],
   orders: [
     { id: "O1", customer_id: null, location_id: "missing", order_date: "2026-09-30", priority: 1, lines: [{ id: "L1", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] },
@@ -40,7 +40,7 @@ test("separate customers at the same location do not trigger oversize", () => {
 
 test("a far stop reachable through another stop only warns (round two)", () => {
   const chained = structuredClone(scenario);
-  chained.locations.push({ id: "mid", label: "Mid", lat: 0, lon: 4, coordinate_source: "imported" });
+  chained.locations.push({ id: "mid", label: "Mid", lat: 0, lon: 4, coordinate_source: "imported", address: null, geocode: null, original: null });
   chained.orders.push({ id: "O5", customer_id: null, location_id: "mid", order_date: "2026-09-30", priority: 1, lines: [{ id: "L5", product_id: "P", linear_feet_per_piece: null, ordered_pieces: 1, net_value_per_piece_cents: 100 }] });
   const hits = preflightChecks(chained);
   expect(hits.find(x => x.check === "far_from_depot")).toBeUndefined();

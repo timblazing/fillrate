@@ -3,14 +3,14 @@ import type { ScenarioDocument } from "@fillrate/contracts";
 /** Submission policy, mirrored in fillrate_optimizer/preflight.py. */
 export type PreflightCheck = "missing_coordinates" | "far_from_depot" | "oversize_stop" | "far_via_stop" | "approximate_coordinates";
 /** Never block (round two: a far stop reachable through another stop warns). */
-const WARN_ONLY = new Set<PreflightCheck>(["far_via_stop", "approximate_coordinates"]);
+const WARN_ONLY = new Set<PreflightCheck>(["far_via_stop"]);
 export type PreflightFinding = { check: PreflightCheck; action: "block" | "warn"; location_ids: string[]; line_ids: string[]; message: string };
 export type PreflightSettings = {
   trailer_capacity?: number;
   travel_circuity?: number;
   max_leg_m?: number;
   excluded_line_ids?: string[];
-  preflight?: Partial<Record<Exclude<PreflightCheck, "far_via_stop" | "approximate_coordinates">, "block" | "warn">>;
+  preflight?: Partial<Record<Exclude<PreflightCheck, "far_via_stop">, "block" | "warn">>;
 };
 const EARTH_RADIUS_M = 6_371_008.8;
 const FIVE_HUNDRED_MILES_M = 804_672;
@@ -19,7 +19,7 @@ function distanceM(a: { lat: number; lon: number }, b: { lat: number; lon: numbe
   const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(Math.min(1, Math.max(0, h))));
 }
-const DEFAULT_POLICY = { missing_coordinates: "block", far_from_depot: "block", oversize_stop: "warn" } as const;
+const DEFAULT_POLICY = { missing_coordinates: "block", far_from_depot: "block", oversize_stop: "warn", approximate_coordinates: "warn" } as const;
 /** Locations reachable from the depot through a chain of drives each within the leg limit. */
 function reachableViaStops(depot: { lat: number; lon: number }, points: Map<string, { lat: number; lon: number }>, maxLeg: number, circuity: number) {
   const seen = new Set<string>();

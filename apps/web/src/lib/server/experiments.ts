@@ -38,7 +38,7 @@ function parseSettings(input: unknown): RunSettings {
 /** Pydantic owns defaults; the JSON Schema does not apply them, so start from the example's. */
 function withDefaults(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new ApiError(400, "invalid_settings", "Settings must be an object.", ["settings"]);
-  return { ...exampleSettings, k: null, solver_max_iterations: null, preflight: { missing_coordinates: "block", far_from_depot: "block", oversize_stop: "warn" }, ...(input as object) };
+  return { ...exampleSettings, k: null, solver_max_iterations: null, preflight: { missing_coordinates: "block", far_from_depot: "block", oversize_stop: "warn", approximate_coordinates: "warn" }, ...(input as object) };
 }
 
 // Synthetic runs keep the example's fixed budget and scenario; only the sweep axes may change.

@@ -16,7 +16,8 @@
     "db:generate": "node node_modules/drizzle-kit/bin.cjs generate --config packages/db/drizzle.config.ts",
     "contracts:generate": "cd services/optimizer && UV_PYTHON=python3.13 uv run python -m fillrate_optimizer.export_contracts && cd ../.. && node node_modules/openapi-typescript/bin/cli.js packages/contracts/openapi.json -o packages/contracts/src/generated.ts",
     "typecheck:packages": "tsc -p tsconfig.packages.json",
-    "lint:packages": "node node_modules/eslint/bin/eslint.js packages vitest.config.mts"
+    "lint:packages": "node node_modules/eslint/bin/eslint.js packages vitest.config.mts",
+    "zcta:build": "cd services/optimizer && UV_PYTHON=python3.13 uv run python -m fillrate_optimizer.zcta"
   },
   "trustedDependencies": [
     "sharp",

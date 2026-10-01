@@ -64,15 +64,21 @@
   - [x] Image smoke covers the lesson explorer (23 tasks), a two-run ranked sweep with CSV and a replay-bundle download (`deploy/smoke_experiments.py`); verified locally against dev
   - [ ] Release gates needing the owner: target-hardware timings (VPS, Pi) and recovery checks
   - [ ] Playwright browser smoke (spec §16; consolidated in M8). The lesson, `/runs` and `/experiments` were checked by hand at 1440 and 390 px
-- [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
+- [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding): product work done, image evidence pending
   - [x] Allocation strategies in the pipeline (`allocation.py`): order date then value (default), first come, priority, proportional fair share (heuristic), optimized CP-SAT (revenue or priority then revenue, optional "respect order date", per-stage status)
   - [x] Whole-order fulfillment policy for every strategy; an order with an excluded line is excluded as a whole (`excluded_with_order`)
   - [x] Order `priority` (1–100, default 1) in the model and an optional `priority` CSV column
   - [x] Allocation provenance in the run summary (`summary.allocation`) and the stage artifact (residual, shortages, CP-SAT stages)
   - [x] Exact small-case oracle tests (CP-SAT vs exhaustive search, piece and whole-order, date rule, lexicographic priority); stock/reconciliation tests for every strategy × policy
   - [x] `/scenarios` run settings: Allocation, Order fulfillment and Optimized allocation selects
-  - [ ] Show `summary.allocation` (strategy, CP-SAT status) on `/runs/<id>`; allocation strategy / policy as sweep axes
-  - [ ] Census/ZCTA geocoding, JSON/GeoJSON import, data review; source-independent reproduction evidence
+  - [x] Allocation provenance on `/runs/<id>` (Steps and Provenance: strategy, policy, heuristic or CP-SAT, each stage's status, best value and bound when not proven optimal)
+  - [x] Allocation strategy and fulfillment policy as sweep axes (strategy compares within a cohort; whole-order is a changed-assumption cohort)
+  - [x] Census batch geocoding (≤10,000 per request, chunked by a durable geocoding job, saved as a new version or a branch) and the one-line endpoint for single addresses; cache by normalized address, provider, benchmark and mode; raw responses stored as artifacts
+  - [x] ZIP/ZCTA fallback from the pinned 2024 Gazetteer (`fillrate_optimizer.zcta`, SHA-256 checked; `bun run zcta:build` for dev, a Dockerfile stage for the image); `approximate_coordinates` policy (warn by default, can block)
+  - [x] Location provenance: original address, geocode match record, and the original coordinate kept when a correction or re-geocode replaces it
+  - [x] GeoJSON point and canonical scenario JSON imports beside CSV; data review in the import preview and on the loaded scenario; coordinate review with problem filter, map placement/drag, address lookup and undo
+  - [x] Source-independent reproduction: CSV, GeoJSON and JSON give one canonical document (Vitest); coordinate provenance never changes the plan (pytest)
+  - [ ] Image evidence: `image.yml` builds the ZCTA stage and passes `smoke_geocode.py` on amd64 and arm64 (needs a push)
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
 - [ ] M7 Learning and exports
 - [ ] M8 Verification and handoff
@@ -126,6 +132,10 @@ Both stay far below `RUN_WALL_LIMIT_SECONDS` (600). GitHub runners stand in for 
 Imported CSV completed preview → immutable save → real worker → validated shipment in a browser. Local checks passed: 43 Vitest, 72 pytest, Ruff, lint, typecheck and production build. A synthetic 2,000-order / 640-location / 8-cluster run took 2.733 s on this Mac; solve was 2.366 s (`services/optimizer/benchmarks/m3_2000_result.json`). Production imported-data access uses `SCENARIO_KEY`; public multi-user isolation is still a release gate. Cluster tasks are sequential but completed clusters resume after lease expiry. Solver exceptions still fail a run; matrix subpart reuse across changed partitions remains open. Actual cost rates await the primary user.
 
 ## Known gaps
+- Geocoding jobs run inside the web process, one at a time. A restart marks queued or running jobs failed (start again; Census answers already received are cached). Census errors fail the whole job rather than silently falling back to ZIP centroids.
+- The ZIP fallback reads only a trailing 5-digit ZIP (or ZIP+4) of the one-line address. Census one-line lookups do not report exact vs non-exact, so those matches carry no match type.
+- Imports before M5 defaulted missing line and location IDs to `csv-line-<row>` / `csv-location-<order>`; new imports use `line-<n>` / `location-<order>` for every format. Saved versions keep their IDs.
+- Adding the location provenance fields changed scenario content hashes, so stage reuse does not carry over from runs made before M5.
 - `/learn/fulfillment-pipeline` remembers its parameters and started jobs per browser (localStorage). The starter scenario's data itself is not editable there (only k, inventory % and sweep axes); editing rows needs `/scenarios` and the operator key.
 - The M1 example stays the default for `POST /api/v1/runs` without `example`, so existing clients and the image smoke keep their results; the UI defaults to the lesson.
 - The home page (`/`) is a minimal hero: title, one-line description, GitHub and "See my progress" (`/dev`) buttons beside the cobe globe (`components/animated/hero-globe.tsx`). It has no header and does not link the component gallery; the `/dev` header logo links back to `/`.
@@ -157,6 +167,8 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (M2 item 16; needs the OpenPencil app open).
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
+**M5 product work is done (2026-10-01); image evidence waits on CI.** `/scenarios` imports CSV, GeoJSON points or scenario JSON, shows a data review, resolves addresses through the Census batch geocoder with the ZIP/ZCTA fallback as a background job (saved as a new version), and has a coordinate review with map placement, address lookup and undo. Runs show allocation provenance; sweeps vary allocation strategy and fulfillment policy. Verification: pytest 120 (3 new), Vitest 67 (10 geocoding, 3 import-format), Ruff, lint (the existing `globe.tsx` warning), typecheck and build pass. A browser run against the dev server imported GeoJSON, geocoded live (Census: 1 exact; ZIP fallback: 1; unresolved: 1 without a ZIP), reused the cache on a second job (3 cached, 0 sent), placed the last stop on the map, saved, and ran it (valid, 2 shipments, preflight warned about the ZIP stop). Not yet run: the Docker ZCTA stage and `smoke_geocode.py` in `image.yml`.
+
 ## Waiting on the primary user (come back to this)
 Round two is answered (2026-10-01). Still open from him:
 - Example order and inventory rows (fake values) and "what should we fix first" (unanswered in both rounds).
@@ -168,4 +180,5 @@ Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be r
 M4 product work is done (2026-10-01); what is left are owner release gates:
 1. Owner: run the benchmark and a recovery check (kill the container mid-run, restart, the run resumes or fails cleanly) on the VPS and the Pi.
 2. M2: rebuild `fillrate.fig` Components on coss parts (needs the OpenPencil app open).
-3. M5: show `summary.allocation` on `/runs/<id>`, add allocation strategy and fulfillment policy as sweep axes, then Census/ZCTA geocoding and JSON/GeoJSON import.
+3. M5: push, then record `ci.yml` and `image.yml` evidence (the ZCTA build stage and `smoke_geocode.py`, which calls the live Census geocoder, on amd64 and arm64).
+4. M6: Valhalla and imported matrices.

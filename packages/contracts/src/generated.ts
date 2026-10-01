@@ -224,6 +224,24 @@ export interface components {
             manifest: components["schemas"]["StageManifest"];
             snapshot: components["schemas"]["Snapshot"];
         };
+        /**
+         * CoordinateOrigin
+         * @description A location's first coordinate, kept with its provenance when a manual correction or an
+         *     explicit re-geocode replaces it (spec §6: keep original and corrected provenance).
+         */
+        CoordinateOrigin: {
+            /**
+             * Coordinate Source
+             * @enum {string}
+             */
+            coordinate_source: "imported" | "manual" | "census" | "zcta" | "unresolved";
+            /** @default null */
+            geocode: components["schemas"]["GeocodeMatch"] | null;
+            /** Lat */
+            lat: number | null;
+            /** Lon */
+            lon: number | null;
+        };
         /** Defaults */
         Defaults: {
             /**
@@ -405,6 +423,44 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * GeocodeMatch
+         * @description How an address became a coordinate (spec §6). Records the match, never a confidence score.
+         *
+         *     Census matches are interpolated along address ranges, not rooftop points. ZCTA matches are
+         *     the Gazetteer internal point of the ZIP Code Tabulation Area with the same code as the ZIP.
+         */
+        GeocodeMatch: {
+            /** Dataset */
+            dataset: string;
+            /**
+             * Match Type
+             * @default null
+             */
+            match_type: ("exact" | "non_exact") | null;
+            /**
+             * Matched Address
+             * @default null
+             */
+            matched_address: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "census" | "zcta";
+            /** Resolved At */
+            resolved_at: string;
+            /**
+             * Response Ref
+             * @default null
+             */
+            response_ref: string | null;
+            /**
+             * Zcta
+             * @default null
+             */
+            zcta: string | null;
+        };
         /** InventoryItem */
         InventoryItem: {
             /** Available Pieces */
@@ -471,10 +527,17 @@ export interface components {
         /** Location */
         Location: {
             /**
+             * Address
+             * @default null
+             */
+            address: string | null;
+            /**
              * Coordinate Source
              * @enum {string}
              */
             coordinate_source: "imported" | "manual" | "census" | "zcta" | "unresolved";
+            /** @default null */
+            geocode: components["schemas"]["GeocodeMatch"] | null;
             /** Id */
             id: string;
             /** Label */
@@ -483,6 +546,8 @@ export interface components {
             lat: number | null;
             /** Lon */
             lon: number | null;
+            /** @default null */
+            original: components["schemas"]["CoordinateOrigin"] | null;
         };
         /** MapLocation */
         MapLocation: {
@@ -575,6 +640,12 @@ export interface components {
          *     larger than one trailer splits across shipments by default.
          */
         PreflightPolicy: {
+            /**
+             * Approximate Coordinates
+             * @default warn
+             * @enum {string}
+             */
+            approximate_coordinates: "block" | "warn";
             /**
              * Far From Depot
              * @default block

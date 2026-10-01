@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
 import { toastManager } from "@/components/ui/toast"
-import { COST_FALLBACK, legRule, preflightChecks, reasonGroup, reasonLabel, shipmentLabel, shipments, type UnshippedGroup, unshippedGroups } from "@/lib/copy"
+import { allocationObjectiveLabel, allocationSettingsLabel, COST_FALLBACK, cpSatStatusLabel, legRule, preflightChecks, reasonGroup, reasonLabel, shipmentLabel, shipments, type UnshippedGroup, unshippedGroups } from "@/lib/copy"
 import type { RunDetail } from "@/lib/server/runs"
 import { METERS_PER_MILE } from "@/lib/shipment-sheet"
 import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, formatPercent, plural } from "@/lib/units"
@@ -197,7 +197,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   const flagged = (summary.preflight ?? []).length
   const steps: [string, string, string][] = [
     ["Preflight", flagged ? `${flagged} ${flagged === 1 ? "check" : "checks"} flagged` : "no issues", "data and policy checks"],
-    ["Allocation", `${formatCount(allocated)} of ${formatCount(ordered)}`, "pieces allocated"],
+    ["Allocation", `${formatCount(allocated)} of ${formatCount(ordered)}`, `pieces · ${allocationSettingsLabel(summary.settings)}`],
     ["Aggregation", formatCount(t.visits), t.visits === 1 ? "stop" : "stops"],
     ["Clustering", formatCount(summary.clustering.effective_cluster_count), `clusters · ${strategyLabel(summary)}`],
     ["Travel", `× ${summary.settings.travel_circuity}`, "haversine miles"],
@@ -708,6 +708,16 @@ function StockCoverage({ summary }: { summary: RunSummary }) {
   )
 }
 
+/** Strategy, policy and, for CP-SAT, each stage's own status (spec §8). Runs before M5 have no record. */
+function allocationProvenance(summary: RunSummary) {
+  const a = summary.allocation
+  if (!a) return `${allocationSettingsLabel(summary.settings)} (run predates allocation provenance)`
+  const head = `${allocationSettingsLabel(summary.settings)}; ${a.kind === "cp_sat" ? "OR-Tools CP-SAT" : "deterministic heuristic"}, ${a.runtime_s.toFixed(2)} s`
+  const value = (st: (typeof a.stages)[number], n: number) => (st.objective === "revenue_cents" ? formatMoney(n) : formatCount(n))
+  const stages = a.stages.map((st, i) => `stage ${i + 1} ${allocationObjectiveLabel[st.objective].toLowerCase()}: ${cpSatStatusLabel[st.status]}${st.bound != null && st.status !== "optimal" ? ` (best ${value(st, st.value)}, bound ${value(st, st.bound)})` : ""}, ${st.runtime_s.toFixed(2)} s`)
+  return [head, ...stages, ...a.notes].join(". ")
+}
+
 function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail }) {
   const s = summary.settings
   const policy = s.preflight
@@ -716,15 +726,18 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
       "Objective",
       s.objective === "trucks_then_distance"
         ? `Fewest trucks, then fewest miles (derived penalty F = n·L + 1 per cluster). ${COST_FALLBACK}`
-        : `Weighted distance (${s.weighted_truck_penalty_m} m per truck)`,
+        : s.objective === "cost"
+          ? `Lowest cost: ${formatMoney(s.cost_per_truck_cents ?? 0)} per truck, ${formatMoney(s.cost_per_mile_cents ?? 0)} per mile`
+          : `Weighted distance (${s.weighted_truck_penalty_m} m per truck)`,
     ],
+    ["Allocation", allocationProvenance(summary)],
     ["Trailer", `${formatFeet(s.trailer_capacity, 0)}, linear feet only, open routes`],
     ["Max single drive", `${miles(s.max_leg_m)}, including depot → first stop (not the return)`],
     ["Cluster diameter", s.max_cluster_diameter_m ? `Optional policy on: ${miles(s.max_cluster_diameter_m)} widest pair (haversine × ${s.cluster_circuity})` : "Off (optional policy)"],
     [
       "Preflight",
       policy
-        ? `No coordinates: ${policy.missing_coordinates} · no route within 500 mi per drive: ${policy.far_from_depot} · stop over one trailer: ${policy.oversize_stop} · reached through another stop: warn`
+        ? `No coordinates: ${policy.missing_coordinates} · no route within 500 mi per drive: ${policy.far_from_depot} · stop over one trailer: ${policy.oversize_stop} · placed by ZIP only: ${policy.approximate_coordinates ?? "warn"} · reached through another stop: warn`
         : "Not recorded",
     ],
     ["Excluded by user", s.excluded_line_ids?.length ? plural(s.excluded_line_ids.length, "line") : "none"],

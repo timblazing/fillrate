@@ -11,8 +11,12 @@ import { Label } from "@/components/ui/label"
 import { toastManager } from "@/components/ui/toast"
 
 const METERS_PER_MILE = 1609.344
-type Base = { k?: number | null; kmeans_seed?: number; inventory_percent?: number; travel_circuity?: number; max_leg_m?: number; solver_seed?: number; cluster_strategy?: string; h3_resolution?: number }
+type Base = { k?: number | null; kmeans_seed?: number; inventory_percent?: number; travel_circuity?: number; max_leg_m?: number; solver_seed?: number; cluster_strategy?: string; h3_resolution?: number; allocation_strategy?: string; fulfillment_policy?: string }
 type Preview = { count: number; limit: number; runs: { varied: Record<string, unknown>; changed: string[] }[]; solver_seconds_per_cluster: number; iterations_per_cluster: number | null }
+
+const METHODS: [string, string][] = [["kmeans", "k-means"], ["h3", "H3 cells"], ["none", "No clustering (baseline)"]]
+const ALLOCATIONS: [string, string][] = [["order_date_then_value", "Order date, then value"], ["first_come", "First come"], ["priority", "Priority, then order date"], ["proportional", "Fair share (heuristic)"], ["optimized", "Optimized (CP-SAT)"]]
+const POLICIES: [string, string][] = [["piece", "Partial lines allowed"], ["whole_order", "Whole orders only"]]
 
 function numbers(raw: string, integer: boolean) {
   const parts = raw.split(/[\s,]+/).filter(Boolean)
@@ -59,6 +63,8 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, example, base
     solver_seed: String(base.solver_seed ?? 0),
     methods: [base.cluster_strategy ?? "kmeans"],
     h3_resolution: String(base.h3_resolution ?? 2),
+    allocations: [base.allocation_strategy ?? "order_date_then_value"],
+    policies: [base.fulfillment_policy ?? "piece"],
   })
   const [preview, setPreview] = useState<Preview | null>(null)
   const [error, setError] = useState("")
@@ -78,6 +84,8 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, example, base
     add("travel_circuity", numbers(fields.travel_circuity, false), base.travel_circuity ?? 1.2)
     add("max_leg_m", numbers(fields.leg_miles, false).map((mi) => Math.round(mi * METERS_PER_MILE)), base.max_leg_m ?? 804_672)
     add("solver_seed", numbers(fields.solver_seed, true), base.solver_seed ?? 0)
+    add("allocation_strategy", fields.allocations, base.allocation_strategy ?? "order_date_then_value")
+    add("fulfillment_policy", fields.policies, base.fulfillment_policy ?? "piece")
     if (!Object.keys(out).length) throw new Error("Vary at least one setting.")
     return out
   }
@@ -119,6 +127,18 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, example, base
     </div>
   )
 
+  const checks = (key: "allocations" | "policies", legend: string, options: [string, string][]) => (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className="mb-1.5 text-sm font-medium">{legend}</legend>
+      {options.map(([value, label]) => (
+        <label key={value} className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={fields[key].includes(value)} onChange={(e) => set({ [key]: e.target.checked ? [...fields[key], value] : fields[key].filter((m) => m !== value) })} />
+          {label}
+        </label>
+      ))}
+    </fieldset>
+  )
+
   return (
     <div className="bg-card flex flex-col gap-4 rounded-xl border p-4">
       <div className="flex min-w-0 flex-col gap-1.5 sm:max-w-sm">
@@ -140,7 +160,7 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, example, base
           {text("solver_seed", "Solver seeds", "Each seed is a new solve")}
           <fieldset className="flex flex-col gap-1.5">
             <legend className="mb-1.5 text-sm font-medium">Clustering method</legend>
-            {[["kmeans", "k-means"], ["h3", "H3 cells"], ["none", "No clustering (baseline)"]].map(([value, label]) => (
+            {METHODS.map(([value, label]) => (
               <label key={value} className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={fields.methods.includes(value)} onChange={(e) => set({ methods: e.target.checked ? [...fields.methods, value] : fields.methods.filter((m) => m !== value) })} />
                 {label}
@@ -148,7 +168,10 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, example, base
             ))}
           </fieldset>
           {fields.methods.includes("h3") && text("h3_resolution", "H3 resolutions", "1–3 are regional; 2 is the default")}
+          {checks("allocations", "Allocation", ALLOCATIONS)}
+          {checks("policies", "Order fulfillment", POLICIES)}
         </div>
+        <p className="text-muted-foreground mt-2 text-xs">Allocation strategies are ranked against each other. Whole orders only is a business rule, so those runs form their own cohort. Optimized allocation uses the CP-SAT objective from run settings.</p>
         <p className="text-muted-foreground mt-2 text-xs">The no-clustering baseline runs only when every stop fits one solve; otherwise that run fails and the capacity lower bounds still compare.</p>
       </details>
       <div className="flex flex-wrap items-center gap-2">

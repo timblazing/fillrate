@@ -9,8 +9,8 @@ export const DEFAULT_MAX_SWEEP_RUNS = 25;
 
 // ---- Sweeps ----------------------------------------------------------------------------------------
 
-/** Sweep axes, the four the primary user varies first (k, seed, inventory, mileage), then "More". */
-export const SWEEP_AXES = ["k", "kmeans_seed", "inventory_percent", "travel_circuity", "max_leg_m", "solver_seed", "cluster_strategy", "h3_resolution"] as const;
+/** Sweep axes, the four the primary user varies first (k, seed, inventory, mileage), then "More" (spec §8a). */
+export const SWEEP_AXES = ["k", "kmeans_seed", "inventory_percent", "travel_circuity", "max_leg_m", "solver_seed", "cluster_strategy", "h3_resolution", "allocation_strategy", "fulfillment_policy"] as const;
 export type SweepAxis = (typeof SWEEP_AXES)[number];
 export type SweepAxes = Partial<{ [A in SweepAxis]: RunSettings[A][] }>;
 export type SweepRun = { settings: RunSettings; varied: Partial<RunSettings> };
@@ -62,6 +62,8 @@ function normalize(settings: RunSettings): RunSettings {
   if (out.cluster_strategy !== "kmeans") out.k = null;
   if (out.cluster_strategy !== "h3") out.h3_resolution = 2;
   if (out.cluster_strategy === "none") out.kmeans_seed = 0;
+  // CP-SAT options mean nothing to the greedy strategies; reset them so equivalent runs merge.
+  if (out.allocation_strategy !== "optimized") { out.allocation_objective = "revenue"; out.respect_order_date = false; out.allocation_time_limit_s = 10; }
   return out;
 }
 
@@ -70,18 +72,29 @@ function normalize(settings: RunSettings): RunSettings {
 /**
  * Runs compare automatically only within one cohort: same scenario version (demand), inventory
  * assumption, eligibility policy, units and metric definitions, and validation rules (leg limit,
- * capacity, circuity used to measure miles and tightness). k, seeds and clustering method may vary.
+ * capacity, circuity used to measure miles and tightness) and fulfillment policy. k, seeds, clustering
+ * method and allocation strategy may vary.
  */
 export function comparisonSignature(versionId: string, settings: RunSettings, versions: Record<string, string>) {
   const definition = {
     demand: versionId,
     inventory_percent: settings.inventory_percent,
-    eligibility: { preflight: settings.preflight, excluded_line_ids: [...(settings.excluded_line_ids ?? [])].sort() },
+    eligibility: { preflight: eligibilityPolicy(settings.preflight), excluded_line_ids: [...(settings.excluded_line_ids ?? [])].sort() },
+    // Whole-order fulfillment is a business rule, so it forms its own cohort; the allocation strategy is
+    // a decision method compared within one (like k). Added only when set, so piece-level signatures
+    // from before M5 are unchanged.
+    ...(settings.fulfillment_policy === "whole_order" ? { fulfillment: "whole_order" } : {}),
     units: { capacity: settings.trailer_capacity, distance: "m", money: "cents" },
     metrics: { version: METRICS_VERSION, travel_circuity: settings.travel_circuity, cluster_circuity: settings.cluster_circuity },
     validation: { max_leg_m: settings.max_leg_m, max_cluster_diameter_m: settings.max_cluster_diameter_m, pipeline: versions.pipeline ?? null },
   };
   return { signature: createHash("sha256").update(canonical(definition)).digest("hex"), definition };
+}
+
+/** The approximate-coordinates policy (M5) appears only when it blocks, so earlier signatures are unchanged. */
+function eligibilityPolicy(preflight: RunSettings["preflight"]) {
+  const { approximate_coordinates, ...rest } = preflight ?? ({} as NonNullable<RunSettings["preflight"]>);
+  return approximate_coordinates === "block" ? { ...rest, approximate_coordinates } : rest;
 }
 
 /** Which cohort-defining assumptions differ from `base` (shown as changed-assumption chips). */
@@ -93,7 +106,8 @@ export function changedAssumptions(base: RunSettings, settings: RunSettings) {
   if (settings.max_leg_m !== base.max_leg_m) out.push(`Leg limit ${Math.round(settings.max_leg_m / 1609.344)} mi`);
   if (settings.max_cluster_diameter_m !== base.max_cluster_diameter_m) out.push("Diameter policy");
   if (settings.trailer_capacity !== base.trailer_capacity) out.push("Trailer capacity");
-  if (canonical(settings.preflight) !== canonical(base.preflight) || canonical(settings.excluded_line_ids ?? []) !== canonical(base.excluded_line_ids ?? [])) out.push("Eligibility");
+  if ((settings.fulfillment_policy ?? "piece") !== (base.fulfillment_policy ?? "piece")) out.push(settings.fulfillment_policy === "whole_order" ? "Whole orders only" : "Partial lines allowed");
+  if (canonical(eligibilityPolicy(settings.preflight)) !== canonical(eligibilityPolicy(base.preflight)) || canonical(settings.excluded_line_ids ?? []) !== canonical(base.excluded_line_ids ?? [])) out.push("Eligibility");
   return out;
 }
 

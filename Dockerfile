@@ -20,6 +20,12 @@ RUN uv python install 3.13 && uv sync --locked --no-dev --no-install-project
 COPY services/optimizer/ ./
 RUN uv sync --locked --no-dev --no-editable
 
+# Pinned Census Gazetteer ZCTA file → the compact ZIP fallback lookup (spec §6, §14). The build
+# fails if the download does not match the pinned SHA-256.
+FROM python AS zcta
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+  && /opt/venv/bin/python -m fillrate_optimizer.zcta /opt/zcta/zcta-gazetteer-2024.tsv
+
 FROM node:24-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -32,13 +38,15 @@ ENV NODE_ENV=production \
     INTERNAL_PORT=3100 \
     FILLRATE_INTERNAL_URL=http://127.0.0.1:3100 \
     OPTIMIZER_PORT=8000 \
-    OPTIMIZER_SOURCE_DIR=/app/optimizer
+    OPTIMIZER_SOURCE_DIR=/app/optimizer \
+    ZCTA_LOOKUP_PATH=/app/zcta/zcta-gazetteer-2024.tsv
 COPY --from=python /opt/python /opt/python
 COPY --from=python /opt/venv /opt/venv
 COPY --from=web --chown=node:node /repo/apps/web/.next/standalone ./
 COPY --from=web --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=web --chown=node:node /repo/apps/web/public ./apps/web/public
 COPY --from=web /repo/packages/db/migrations ./packages/db/migrations
+COPY --from=zcta /opt/zcta ./zcta
 # Pinned optimizer source and lock for the Python replay bundle export (spec §13).
 COPY services/optimizer/pyproject.toml services/optimizer/uv.lock services/optimizer/.python-version ./optimizer/
 COPY services/optimizer/src/fillrate_optimizer/*.py ./optimizer/src/fillrate_optimizer/

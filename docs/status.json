@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-01",
   "focus": "M5",
-  "productBehavior": 47,
+  "productBehavior": 53,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -13,7 +13,7 @@
       "weight": 10,
       "done": 95,
       "state": "waiting",
-      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: \u2605 = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
+      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
     },
     "M3": {
       "weight": 20,
@@ -29,9 +29,9 @@
     },
     "M5": {
       "weight": 10,
-      "done": 30,
+      "done": 95,
       "state": "active",
-      "notes": "Done: all five spec \u00a78 allocation strategies in the pipeline (order date then value, first come, priority, fair share, CP-SAT with revenue or priority-then-revenue and the optional order-date rule), whole-order mode with whole-order exclusion, order priority, allocation provenance in the summary, exhaustive oracle tests, /scenarios selects. Not yet: provenance on /runs/<id>, sweep axes, Census/ZCTA geocoding, JSON/GeoJSON import, data review."
+      "notes": "Done: all five allocation strategies, whole-order mode, CP-SAT with per-stage status, provenance on /runs/<id>, allocation sweep axes, Census batch and one-line geocoding with cache and background jobs, pinned ZIP/ZCTA fallback, GeoJSON and scenario JSON imports, data review, coordinate review with map placement and undo, source-independent reproduction tests. Left: image.yml evidence for the ZCTA stage and the geocode smoke."
     },
     "M6": {
       "weight": 12,
@@ -53,9 +53,9 @@
     }
   },
   "nextUp": [
-    "M5: show allocation provenance on /runs/<id>; allocation strategy and policy as sweep axes.",
-    "M5: Census/ZCTA geocoding and JSON/GeoJSON import.",
+    "M5: push and record image.yml evidence (ZCTA stage, smoke_geocode.py on amd64 and arm64).",
     "M4 (owner): target-hardware timings and recovery checks on the VPS and Pi.",
+    "M6: Valhalla and imported matrices.",
     "M2: rebuild fillrate.fig Components on coss parts (needs OpenPencil open).",
     "M8: Playwright browser smoke."
   ]

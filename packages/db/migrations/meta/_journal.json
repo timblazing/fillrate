@@ -43,6 +43,13 @@
       "when": 1790824585163,
       "tag": "0005_small_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790835252043,
+      "tag": "0006_lonely_domino",
+      "breakpoints": true
     }
   ]
 }

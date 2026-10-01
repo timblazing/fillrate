@@ -1,4 +1,6 @@
 import { parseContract, type ScenarioDocument } from "@fillrate/contracts";
+import { reviewScenario, type DataReview } from "./review";
+import { validateScenario } from "./scenarios";
 
 export const ORDER_COLUMNS = ["order_id", "customer_id", "line_id", "order_date", "location_id", "location_label", "address", "latitude", "longitude", "product", "ordered_pieces", "net_value_per_piece", "linear_feet_per_piece", "priority"] as const;
 export const INVENTORY_COLUMNS = ["product", "available_pieces"] as const;
@@ -9,17 +11,32 @@ export const CSV_TEMPLATES = {
   orders: `${ORDER_COLUMNS.join(",")}\nO-1,customer-1,L-1,2026-09-30,C-1,Customer 1,,35.1,-90.1,SKU-1,10,12.50,1.25,1\n`,
   inventory: "product,available_pieces\nSKU-1,100\n",
 };
-export type ImportIssue = { file: "orders" | "inventory"; row: number; column: string; code: string; message: string };
+/**
+ * Import formats (spec §6): CSV order lines, GeoJSON points carrying the same order-line properties
+ * (inventory stays CSV), and the canonical scenario JSON that "Export JSON" writes.
+ */
+export const IMPORT_FORMATS = ["csv", "geojson", "json"] as const;
+export type ImportFormat = typeof IMPORT_FORMATS[number];
+export type ImportIssue = { file: "orders" | "inventory" | "scenario"; row: number; column: string; code: string; message: string };
 export type CsvImportInput = {
-  ordersCsv: string; inventoryCsv: string; name: string; depot: ScenarioDocument["depot"];
+  format?: ImportFormat;
+  ordersCsv?: string; inventoryCsv?: string; ordersGeojson?: string; scenarioJson?: string;
+  name: string; depot: ScenarioDocument["depot"];
   orderMapping?: ColumnMapping<OrderColumn>; inventoryMapping?: ColumnMapping<InventoryColumn>;
 };
+export type ImportInput = CsvImportInput;
 export type CsvImportPreview = {
+  format: ImportFormat;
   valid: boolean; document: ScenarioDocument | null; errors: ImportIssue[]; warnings: ImportIssue[];
-  originals: { ordersCsv: string; inventoryCsv: string };
+  /** The submitted text, kept beside the normalized document. */
+  originals: { ordersCsv?: string; inventoryCsv?: string; ordersGeojson?: string; scenarioJson?: string };
   mappings: { orders: ColumnMapping<OrderColumn>; inventory: ColumnMapping<InventoryColumn> };
   samples: { orders: Record<string, string>[]; inventory: Record<string, string>[] };
+  review: DataReview | null;
 };
+export type ImportPreview = CsvImportPreview;
+const MAX_IMPORT_BYTES = 5_000_000, MAX_IMPORT_ROWS = 10_000;
+type Parsed = { headers: string[]; rows: { row: number; cells: string[] }[] };
 
 /** Decimal strings are converted without floating point rounding or exponent coercion. */
 export function parseExactHundredths(value: string): number {
@@ -30,9 +47,9 @@ export function parseExactHundredths(value: string): number {
   return Number(integer);
 }
 
-/** RFC 4180 quoting, including escaped quotes and embedded newlines. */
-function csv(text: string): { headers: string[]; rows: { row: number; cells: string[] }[] } {
-  if (Buffer.byteLength(text, "utf8") > 5_000_000) throw new Error("CSV exceeds the 5 MB limit.");
+/** RFC 4180 records, including escaped quotes and embedded newlines; blank records are skipped. */
+export function csvRecords(text: string, maxRecords = MAX_IMPORT_ROWS + 1): { row: number; cells: string[] }[] {
+  if (Buffer.byteLength(text, "utf8") > MAX_IMPORT_BYTES) throw new Error("CSV exceeds the 5 MB limit.");
   const records: { row: number; cells: string[] }[] = [];
   let cells: string[] = [], field = "", quoted = false, closed = false, line = 1, start = 1;
   const cell = () => { cells.push(field); field = ""; closed = false; };
@@ -52,27 +69,107 @@ function csv(text: string): { headers: string[]; rows: { row: number; cells: str
   }
   if (quoted) throw new Error(`Unclosed quoted field on row ${start}.`);
   if (field || cells.length || closed) record();
+  if (records.length > maxRecords) throw new Error("CSV exceeds the 10,000 row limit.");
+  return records;
+}
+
+function csv(text: string): Parsed {
+  const records = csvRecords(text);
   if (!records.length) throw new Error("CSV is empty.");
-  if (records.length > 10_001) throw new Error("CSV exceeds the 10,000 row limit.");
   const headers = records.shift()!.cells.map((h) => h.trim());
   if (headers.some((h) => !h) || new Set(headers).size !== headers.length) throw new Error("Headers must be nonempty and unique.");
   return { headers, rows: records };
 }
 
+/**
+ * GeoJSON points → the same records as an order-line CSV. Each Feature's properties use the CSV
+ * column names; a Point geometry supplies latitude and longitude (GeoJSON order is [lon, lat]), and
+ * a null geometry leaves the row to its address. Row numbers are 1-based feature numbers.
+ */
+function geojson(text: string): Parsed {
+  if (Buffer.byteLength(text, "utf8") > MAX_IMPORT_BYTES) throw new Error("GeoJSON exceeds the 5 MB limit.");
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { throw new Error("GeoJSON is not valid JSON."); }
+  const collection = value as { type?: unknown; features?: unknown };
+  if (collection?.type !== "FeatureCollection" || !Array.isArray(collection.features)) throw new Error("Expected a GeoJSON FeatureCollection.");
+  const features = collection.features as { type?: unknown; geometry?: { type?: unknown; coordinates?: unknown } | null; properties?: unknown }[];
+  if (!features.length) throw new Error("The FeatureCollection has no features.");
+  if (features.length > MAX_IMPORT_ROWS) throw new Error("GeoJSON exceeds the 10,000 feature limit.");
+  const headers: string[] = [];
+  const props = features.map((feature, i) => {
+    if (feature?.type !== "Feature") throw new Error(`Feature ${i + 1} is not a GeoJSON Feature.`);
+    const p = feature.properties ?? {};
+    if (typeof p !== "object" || Array.isArray(p)) throw new Error(`Feature ${i + 1} properties must be an object.`);
+    for (const key of Object.keys(p)) if (!headers.includes(key)) headers.push(key);
+    return p as Record<string, unknown>;
+  });
+  for (const column of ["latitude", "longitude"]) if (!headers.includes(column)) headers.push(column);
+  const rows = features.map((feature, i) => {
+    const cell = (key: string) => {
+      const v = props[i][key];
+      if (v === null || v === undefined) return "";
+      if (typeof v === "string") return v;
+      if (typeof v === "number" && Number.isFinite(v)) return String(v);
+      throw new Error(`Feature ${i + 1} property ${key} must be a string, a finite number or null.`);
+    };
+    const cells = headers.map(cell);
+    const g = feature.geometry;
+    if (g !== null && g !== undefined) {
+      const c = g.coordinates as unknown[];
+      if (g.type !== "Point" || !Array.isArray(c) || c.length < 2 || c.length > 3 || !c.every(n => typeof n === "number" && Number.isFinite(n))) throw new Error(`Feature ${i + 1} must have a Point geometry with finite [longitude, latitude] or a null geometry.`);
+      const [lon, lat] = c as number[];
+      const li = headers.indexOf("latitude"), oi = headers.indexOf("longitude");
+      if ((cells[li] && Number(cells[li]) !== lat) || (cells[oi] && Number(cells[oi]) !== lon)) throw new Error(`Feature ${i + 1} latitude/longitude properties differ from its geometry.`);
+      cells[li] = String(lat); cells[oi] = String(lon);
+    }
+    return { row: i + 1, cells };
+  });
+  return { headers, rows };
+}
+
+/** Preview any supported format. Nothing is saved; the result carries the normalized document. */
+export function previewImport(input: ImportInput): ImportPreview {
+  return (input.format ?? "csv") === "json" ? previewScenarioJson(input) : previewCsvImport(input);
+}
+
+/** Canonical scenario JSON: a ScenarioDocument, or the `{ document, … }` file that Export JSON writes. */
+function previewScenarioJson(input: ImportInput): ImportPreview {
+  const text = input.scenarioJson ?? "";
+  const result: ImportPreview = { format: "json", valid: false, document: null, errors: [], warnings: [], originals: { scenarioJson: text }, mappings: { orders: {}, inventory: {} }, samples: { orders: [], inventory: [] }, review: null };
+  const fail = (code: string, message: string) => { result.errors.push({ file: "scenario", row: 1, column: "", code, message }); return result; };
+  if (Buffer.byteLength(text, "utf8") > MAX_IMPORT_BYTES * 2) return fail("size", "Scenario JSON exceeds the 10 MB limit.");
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return fail("json", "Scenario JSON is not valid JSON."); }
+  const candidate = value && typeof value === "object" && "document" in value ? (value as { document: unknown }).document : value;
+  let doc: ScenarioDocument;
+  try { doc = validateScenario(candidate); } catch (e) { return fail("contract", (e as Error).message); }
+  const missing = doc.products.filter(p => !doc.inventory.some(i => i.product_id === p.id));
+  for (const p of missing) result.errors.push({ file: "scenario", row: 1, column: "inventory", code: "missing_inventory", message: `Missing inventory for ${p.id}; enter zero explicitly if unavailable.` });
+  if (result.errors.length) return result;
+  for (const loc of doc.locations) if (loc.coordinate_source === "unresolved") result.warnings.push({ file: "scenario", row: 1, column: loc.id, code: "unresolved", message: `${loc.label}: no coordinates yet. Resolve addresses after saving, or enter coordinates.` });
+  result.samples.orders = doc.orders.slice(0, 5).flatMap(o => o.lines.slice(0, 1).map(l => ({ order_id: o.id, order_date: o.order_date, location_id: o.location_id, product: l.product_id, ordered_pieces: String(l.ordered_pieces), net_value_per_piece: (l.net_value_per_piece_cents / 100).toFixed(2) })));
+  result.samples.inventory = doc.inventory.slice(0, 5).map(i => ({ product: i.product_id, available_pieces: String(i.available_pieces) }));
+  result.document = doc; result.review = reviewScenario(doc); result.valid = true;
+  return result;
+}
+
 export function previewCsvImport(input: CsvImportInput): CsvImportPreview {
+  const format = input.format === "geojson" ? "geojson" : "csv";
+  const ordersText = (format === "geojson" ? input.ordersGeojson : input.ordersCsv) ?? "", inventoryText = input.inventoryCsv ?? "";
   const errors: ImportIssue[] = [], warnings: ImportIssue[] = [];
-  const result: CsvImportPreview = { valid: false, document: null, errors, warnings, originals: { ordersCsv: input.ordersCsv, inventoryCsv: input.inventoryCsv }, mappings: { orders: {}, inventory: {} }, samples: { orders: [], inventory: [] } };
+  const originals = format === "geojson" ? { ordersGeojson: ordersText, inventoryCsv: inventoryText } : { ordersCsv: ordersText, inventoryCsv: inventoryText };
+  const result: CsvImportPreview = { format, valid: false, document: null, errors, warnings, originals, mappings: { orders: {}, inventory: {} }, samples: { orders: [], inventory: [] }, review: null };
   const issue = (file: ImportIssue["file"], row: number, column: string, code: string, message: string) => errors.push({ file, row, column, code, message });
-  const read = <T extends string>(file: ImportIssue["file"], text: string, columns: readonly T[], supplied: ColumnMapping<T> | undefined, required: T[]) => {
-    let parsed: ReturnType<typeof csv>;
-    try { parsed = csv(text); } catch (e) { issue(file, 1, "", "csv", String((e as Error).message)); return []; }
+  const read = <T extends string>(file: "orders" | "inventory", parse: () => Parsed, columns: readonly T[], supplied: ColumnMapping<T> | undefined, required: T[]) => {
+    let parsed: Parsed;
+    try { parsed = parse(); } catch (e) { issue(file, 1, "", format === "geojson" && file === "orders" ? "geojson" : "csv", String((e as Error).message)); return []; }
     const mapping: ColumnMapping<T> = {};
     for (const column of columns) { const header = supplied?.[column] ?? column; if (parsed.headers.includes(header)) mapping[column] = header; else if (supplied?.[column] || required.includes(column)) issue(file, 1, column, "missing_column", `Missing column: ${header}.`); }
     const selected = Object.values(mapping);
     if (new Set(selected).size !== selected.length) issue(file, 1, "", "mapping", "Each source column may map to only one field.");
     result.mappings[file] = mapping;
     result.samples[file] = parsed.rows.slice(0, 5).map(({ cells }) => Object.fromEntries(parsed.headers.map((h, i) => [h, cells[i] ?? ""])));
-    return parsed.rows.map(({ row, cells }) => {
+    return parsed.rows.map(({ row, cells }, ordinal) => {
       // The current canonical model has no windows/groups or alternate units. Do not
       // silently drop constraints that would change fulfillment semantics.
       for (let i = 0; i < parsed.headers.length; i++) {
@@ -85,21 +182,22 @@ export function previewCsvImport(input: CsvImportInput): CsvImportPreview {
         if (header === "currency" && value.toUpperCase() !== "USD") issue(file, row, parsed.headers[i], "units", "Monetary values must be USD.");
       }
       if (cells.length !== parsed.headers.length) issue(file, row, "", "column_count", `Expected ${parsed.headers.length} cells, received ${cells.length}.`);
-      return { row, get: (column: T) => { const header = mapping[column]; return header ? (cells[parsed.headers.indexOf(header)] ?? "").trim() : ""; } };
+      return { row, ordinal: ordinal + 1, get: (column: T) => { const header = mapping[column]; return header ? (cells[parsed.headers.indexOf(header)] ?? "").trim() : ""; } };
     });
   };
-  const orderRows = read("orders", input.ordersCsv, ORDER_COLUMNS, input.orderMapping, ["order_id", "order_date", "product", "ordered_pieces", "net_value_per_piece", "linear_feet_per_piece"]);
-  const inventoryRows = read("inventory", input.inventoryCsv, INVENTORY_COLUMNS, input.inventoryMapping, ["product", "available_pieces"]);
+  const orderRows = read("orders", () => (format === "geojson" ? geojson(ordersText) : csv(ordersText)), ORDER_COLUMNS, input.orderMapping, ["order_id", "order_date", "product", "ordered_pieces", "net_value_per_piece", "linear_feet_per_piece"]);
+  const inventoryRows = read("inventory", () => csv(inventoryText), INVENTORY_COLUMNS, input.inventoryMapping, ["product", "available_pieces"]);
   const products = new Map<string, ScenarioDocument["products"][number]>(), locations = new Map<string, ScenarioDocument["locations"][number]>(), orders = new Map<string, ScenarioDocument["orders"][number]>();
   const lineIds = new Set<string>(), inventoryIds = new Set<string>();
   const inventory: ScenarioDocument["inventory"] = [];
-  for (const { row, get } of orderRows) {
+  for (const { row, ordinal, get } of orderRows) {
     const before = errors.length;
     const id = (column: OrderColumn) => { const value = get(column); if (!value || value.length > 200) issue("orders", row, column, "id", "An ID of 1–200 characters is required."); return value; };
     const orderId = id("order_id"), product = id("product");
     const customerId = get("customer_id") || orderId;
     if (customerId.length > 200) issue("orders", row, "customer_id", "id", "Customer IDs must be at most 200 characters.");
-    const lineId = get("line_id") || `csv-line-${row}`;
+    // Defaults depend only on record order and order ID, so CSV and GeoJSON give identical documents.
+    const lineId = get("line_id") || `line-${ordinal}`;
     if (lineId.length > 200 || lineIds.has(lineId)) issue("orders", row, "line_id", "duplicate_id", "Line IDs must be unique and at most 200 characters.");
     lineIds.add(lineId);
     const date = get("order_date");
@@ -118,15 +216,16 @@ export function previewCsvImport(input: CsvImportInput): CsvImportPreview {
     const suppliedCoordinates = !!latText || !!lonText;
     if (suppliedCoordinates && (!coordinate(latText, 90) || !coordinate(lonText, 180))) issue("orders", row, "latitude", "coordinates", "Supply both finite latitude (-90 to 90) and longitude (-180 to 180).");
     if (!suppliedCoordinates && !address) issue("orders", row, "address", "location", "Coordinates or an original address are required.");
-    const locationId = get("location_id") || `csv-location-${orderId}`;
+    const locationId = get("location_id") || `location-${orderId}`;
     if (locationId.length > 200) issue("orders", row, "location_id", "id", "Location IDs must be at most 200 characters.");
-    const location: ScenarioDocument["locations"][number] = { id: locationId, label: get("location_label") || address || locationId, lat: suppliedCoordinates ? Number(latText) : null, lon: suppliedCoordinates ? Number(lonText) : null, coordinate_source: suppliedCoordinates ? "imported" : "unresolved" };
+    if (address.length > 500) issue("orders", row, "address", "address", "Addresses must be at most 500 characters.");
+    const location: ScenarioDocument["locations"][number] = { id: locationId, label: get("location_label") || address || locationId, lat: suppliedCoordinates ? Number(latText) : null, lon: suppliedCoordinates ? Number(lonText) : null, coordinate_source: suppliedCoordinates ? "imported" : "unresolved", address: address || null, geocode: null, original: null };
     const priorLocation = locations.get(locationId);
     if (priorLocation && JSON.stringify(priorLocation) !== JSON.stringify(location)) issue("orders", row, "location_id", "conflicting_location", "Repeated location ID has conflicting coordinates or label.");
     const priorOrder = orders.get(orderId);
     if (priorOrder && (priorOrder.location_id !== locationId || priorOrder.order_date !== date || priorOrder.customer_id !== customerId || priorOrder.priority !== priority)) issue("orders", row, "order_id", "conflicting_order", "Repeated order ID must keep the same date, location, customer and priority.");
     if (errors.length !== before) continue;
-    if (!suppliedCoordinates) warnings.push({ file: "orders", row, column: "address", code: "unresolved", message: "Address retained; geocoding is not available yet. Resolve coordinates before running." });
+    if (!suppliedCoordinates && !priorLocation) warnings.push({ file: "orders", row, column: "address", code: "unresolved", message: "Address kept without coordinates. After saving, resolve addresses (Census, with the ZIP fallback) or enter coordinates." });
     products.set(product, products.get(product) ?? { id: product, label: product, linear_feet_per_piece: feet });
     locations.set(locationId, location);
     const order = priorOrder ?? { id: orderId, customer_id: customerId, location_id: locationId, order_date: date, priority, lines: [] };
@@ -154,6 +253,7 @@ export function previewCsvImport(input: CsvImportInput): CsvImportPreview {
     try { result.document = parseContract("ScenarioDocument", { schema_version: 1, name: input.name.trim(), depot: input.depot, products: [...products.values()], locations: [...locations.values()], orders: [...orders.values()], inventory }); }
     catch (e) { issue("orders", 1, "", "contract", (e as Error).message); }
   }
+  if (result.document && !errors.length) result.review = reviewScenario(result.document);
   result.valid = errors.length === 0;
   return result;
 }

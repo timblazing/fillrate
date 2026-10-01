@@ -367,6 +367,67 @@
       "title": "ClusteringSummary",
       "type": "object"
     },
+    "CoordinateOrigin": {
+      "additionalProperties": false,
+      "description": "A location's first coordinate, kept with its provenance when a manual correction or an\nexplicit re-geocode replaces it (spec \u00a76: keep original and corrected provenance).",
+      "properties": {
+        "coordinate_source": {
+          "enum": [
+            "imported",
+            "manual",
+            "census",
+            "zcta",
+            "unresolved"
+          ],
+          "title": "Coordinate Source",
+          "type": "string"
+        },
+        "geocode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeocodeMatch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lat": {
+          "anyOf": [
+            {
+              "maximum": 90,
+              "minimum": -90,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lat"
+        },
+        "lon": {
+          "anyOf": [
+            {
+              "maximum": 180,
+              "minimum": -180,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lon"
+        }
+      },
+      "required": [
+        "lat",
+        "lon",
+        "coordinate_source"
+      ],
+      "title": "CoordinateOrigin",
+      "type": "object"
+    },
     "Depot": {
       "additionalProperties": false,
       "properties": {
@@ -790,6 +851,94 @@
       "title": "ExplorerSummary",
       "type": "object"
     },
+    "GeocodeMatch": {
+      "additionalProperties": false,
+      "description": "How an address became a coordinate (spec \u00a76). Records the match, never a confidence score.\n\nCensus matches are interpolated along address ranges, not rooftop points. ZCTA matches are\nthe Gazetteer internal point of the ZIP Code Tabulation Area with the same code as the ZIP.",
+      "properties": {
+        "dataset": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Dataset",
+          "type": "string"
+        },
+        "match_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "exact",
+                "non_exact"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match Type"
+        },
+        "matched_address": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matched Address"
+        },
+        "provider": {
+          "enum": [
+            "census",
+            "zcta"
+          ],
+          "title": "Provider",
+          "type": "string"
+        },
+        "resolved_at": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Resolved At",
+          "type": "string"
+        },
+        "response_ref": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Response Ref"
+        },
+        "zcta": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{5}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zcta"
+        }
+      },
+      "required": [
+        "provider",
+        "dataset",
+        "resolved_at"
+      ],
+      "title": "GeocodeMatch",
+      "type": "object"
+    },
     "InventoryItem": {
       "additionalProperties": false,
       "properties": {
@@ -903,6 +1052,19 @@
     "Location": {
       "additionalProperties": false,
       "properties": {
+        "address": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address"
+        },
         "coordinate_source": {
           "enum": [
             "imported",
@@ -913,6 +1075,17 @@
           ],
           "title": "Coordinate Source",
           "type": "string"
+        },
+        "geocode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeocodeMatch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "id": {
           "maxLength": 200,
@@ -949,6 +1122,17 @@
             }
           ],
           "title": "Lon"
+        },
+        "original": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoordinateOrigin"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1211,6 +1395,15 @@
       "additionalProperties": false,
       "description": "M2 scope item 8: which preflight checks stop a run. Policy, not physics (\u00a77).\n\nRound two (spec v1.9): `far_from_depot` covers only stops no chain of allowed drives\nreaches; a far stop reachable through another stop is the warning `far_via_stop`. A stop\nlarger than one trailer splits across shipments by default.",
       "properties": {
+        "approximate_coordinates": {
+          "default": "warn",
+          "enum": [
+            "block",
+            "warn"
+          ],
+          "title": "Approximate Coordinates",
+          "type": "string"
+        },
         "far_from_depot": {
           "default": "block",
           "enum": [

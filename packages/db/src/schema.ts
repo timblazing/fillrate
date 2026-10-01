@@ -85,3 +85,18 @@ export const experimentRuns = sqliteTable("experiment_runs", {
 export const rateEvents = sqliteTable("rate_events", {
   id: text().primaryKey(), bucket: text().notNull(), cost: integer().notNull(), at: integer().notNull(),
 }, t => [index("rate_bucket_time").on(t.bucket, t.at)]);
+
+// M5 geocoding (spec §6). Census results are cached by normalized address, provider, benchmark and
+// request options; `responseRef` points at the raw provider response stored in `artifacts`.
+export const geocodeCache = sqliteTable("geocode_cache", {
+  key: text().primaryKey(), provider: text().notNull(), dataset: text().notNull(), address: text().notNull(),
+  result: text().notNull(), responseRef: text().references(() => artifacts.hash), createdAt: integer().notNull(),
+});
+// A geocoding job resolves one saved version's addresses off the request path and saves the result
+// as a new version (a branch if the scenario moved on meanwhile).
+export const geocodeJobs = sqliteTable("geocode_jobs", {
+  id: text().primaryKey(), versionId: text().notNull().references(() => versions.id),
+  status: text().notNull().default("queued"), options: text().notNull(), author: text().notNull(), metadata: text().notNull(),
+  progress: text(), report: text(), resultVersionId: text().references(() => versions.id), branched: integer({mode: "boolean"}).notNull().default(false),
+  error: text(), idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
+}, t => [index("geocode_jobs_by_date").on(t.createdAt)]);

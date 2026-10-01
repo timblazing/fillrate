@@ -11,7 +11,9 @@
     "./preflight": "./src/preflight.ts",
     "./experiments": "./src/experiments.ts",
     "./canonical": "./src/canonical.ts",
-    "./replay": "./src/replay.ts"
+    "./replay": "./src/replay.ts",
+    "./geocode": "./src/geocode.ts",
+    "./review": "./src/review.ts"
   },
   "dependencies": {
     "@fillrate/contracts": "workspace:*",

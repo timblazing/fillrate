@@ -36,231 +36,330 @@
     "label": "Customer 01",
     "lat": 36.10565,
     "lon": -92.09521,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L02",
     "label": "Customer 02",
     "lat": 36.82158,
     "lon": -90.75645,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L03",
     "label": "Customer 03",
     "lat": 36.83288,
     "lon": -88.69217,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L04",
     "label": "Customer 04",
     "lat": 31.829,
     "lon": -91.59673,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L05",
     "label": "Customer 05",
     "lat": 32.48025,
     "lon": -88.68313,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L06",
     "label": "Customer 06",
     "lat": 39.61431,
     "lon": -90.08885,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L07",
     "label": "Customer 07",
     "lat": 34.43069,
     "lon": -88.84497,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L08",
     "label": "Customer 08",
     "lat": 34.21086,
     "lon": -90.40883,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L09",
     "label": "Customer 09",
     "lat": 37.4264,
     "lon": -89.03878,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L10",
     "label": "Customer 10",
     "lat": 35.19272,
     "lon": -88.69368,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L11",
     "label": "Customer 11",
     "lat": 33.01218,
     "lon": -89.61312,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L12",
     "label": "Customer 12",
     "lat": 34.55522,
     "lon": -92.91013,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L13",
     "label": "Customer 13",
     "lat": 34.11588,
     "lon": -89.27,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L14",
     "label": "Customer 14",
     "lat": 36.34694,
     "lon": -94.89898,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L15",
     "label": "Customer 15",
     "lat": 32.80543,
     "lon": -89.31592,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L16",
     "label": "Customer 16",
     "lat": 33.71273,
     "lon": -88.50107,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L17",
     "label": "Customer 17",
     "lat": 38.31727,
     "lon": -91.31664,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L18",
     "label": "Customer 18",
     "lat": 33.59503,
     "lon": -89.39535,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L19",
     "label": "Customer 19",
     "lat": 34.47196,
     "lon": -87.66627,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L20",
     "label": "Customer 20",
     "lat": 32.41626,
     "lon": -89.80708,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L21",
     "label": "Customer 21",
     "lat": 37.40316,
     "lon": -88.96924,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L22",
     "label": "Customer 22",
     "lat": 39.34659,
     "lon": -89.66225,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L23",
     "label": "Customer 23",
     "lat": 32.18729,
     "lon": -90.11591,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L24",
     "label": "Customer 24",
     "lat": 37.13982,
     "lon": -88.95114,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L25",
     "label": "Customer 25",
     "lat": 35.81651,
     "lon": -90.61244,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L26",
     "label": "Customer 26",
     "lat": 34.5007,
     "lon": -89.40009,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L27",
     "label": "Customer 27",
     "lat": 32.3948,
     "lon": -94.33904,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L28",
     "label": "Customer 28",
     "lat": 32.50693,
     "lon": -88.85337,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L-CHAIN-A",
     "label": "Chain A (\u2248396 mi)",
     "lat": 35.1495,
     "lon": -84.20771,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L-CHAIN-B",
     "label": "Chain B (\u2248594 mi, via A)",
     "lat": 35.1495,
     "lon": -81.28707,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L-FAR",
     "label": "Isolated (Denver)",
     "lat": 39.7392,
     "lon": -104.9903,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L-BIG",
     "label": "Big box store",
     "lat": 36.01789,
     "lon": -90.75703,
-    "coordinate_source": "imported"
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null
    },
    {
     "id": "L-NOCOORD",
     "label": "Unresolved address",
     "lat": null,
     "lon": null,
-    "coordinate_source": "unresolved"
+    "coordinate_source": "unresolved",
+    "address": null,
+    "geocode": null,
+    "original": null
    }
   ],
   "orders": [
@@ -1359,7 +1458,8 @@
   "preflight": {
    "missing_coordinates": "warn",
    "far_from_depot": "warn",
-   "oversize_stop": "warn"
+   "oversize_stop": "warn",
+   "approximate_coordinates": "warn"
   },
   "inventory_percent": 100,
   "excluded_line_ids": [],
