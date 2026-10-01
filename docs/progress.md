@@ -79,7 +79,7 @@
   - [x] GeoJSON point and canonical scenario JSON imports beside CSV; data review in the import preview and on the loaded scenario; coordinate review with problem filter, map placement/drag, address lookup and undo
   - [x] Source-independent reproduction: CSV, GeoJSON and JSON give one canonical document (Vitest); coordinate provenance never changes the plan (pytest)
   - [x] Image evidence: `image.yml` run 36828389128 (commit `126422b`, after `ci.yml` 36828119214) built the ZCTA stage (33,791 ZCTAs) and passed `smoke_geocode.py` on amd64 and arm64 (Census: 1 exact; ZCTA fallback: 1)
-- [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
+- [ ] M6 Roads and advanced routing (Valhalla, `truck` costing)
   - [x] Python travel-provider groundwork: validated raw directed snapshots, estimated/imported providers, and bounded Valhalla truck matrix assembly (`travel_provider.py`, `valhalla.py`); no browser or worker selection yet
   - [x] Directed-matrix, missing-edge, unit/order, provider-limit, retry/cancellation and real PyVRP synthetic-terminal fixtures; independent validators reject missing physical edges
   - [ ] Durable matrix snapshots, run selection, preflight, cache/comparison identities and offline replay integration
@@ -149,7 +149,7 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - SQLite lives in `/app/data` (not the spec's `/data`, kept for the existing review deployment) and is ephemeral unless a volume is mounted there.
 - Cluster solves run sequentially inside one leased job (default solve concurrency is one); each cluster is a durable checkpoint that resumes after lease expiry. Matrix subpart reuse across changed partitions (spec §9 "may") is not implemented; travel takes about 0.06 s at 2,000 orders, so it waits for M4 sweeps.
 - Imported runs are visible only with the operator key; the `fillrate_operator` cookie (set when a run is started from `/scenarios`) is what lets `/runs/<id>` open them, so opening an imported run link in a fresh browser shows 404 until a run is started there.
-- The pipeline stores integer-meter matrices from haversine × circuity only; no service-radius policy (disabled by default per spec) and no Valhalla.
+- The pipeline still selects and stores integer-meter matrices from haversine × circuity only; no service-radius policy is enabled (per spec). M6 has typed estimated/imported/Valhalla provider groundwork, but road matrices are not yet selected by browser or worker jobs.
 - A capacity-forced prohibited leg (B reachable only via A, but A + B exceed a trailer) ends as "no valid candidate": PyVRP prefers an overloaded infeasible route over a MAX_VALUE edge. Correctly reported, never counted as planned.
 - `ghcr.io/timblazing/fillrate:latest` is now the combined web + optimizer image. Deployments keep `/app/data`; starting runs in production needs `RUN_KEY`.
 - Several workflow actions still target Node 20 (GitHub forces Node 24 and warns); bump their major versions when available.
