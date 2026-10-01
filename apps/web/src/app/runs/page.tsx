@@ -1,10 +1,11 @@
 import Link from "next/link"
 
 import { DevHeader } from "@/components/brand/dev-header"
+import { ExampleSwitch } from "@/components/lab/example-switch"
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { initializeDatabase } from "@/lib/server/database"
-import { exampleScenario, runsOpen } from "@/lib/server/runs"
+import { EXAMPLES, exampleInfo, runsOpen } from "@/lib/server/runs"
 
 import { publicRuns } from "@/lib/server/scenarios"
 
@@ -14,10 +15,10 @@ export const dynamic = "force-dynamic"
 export const metadata = { title: "Runs · Fillrate" }
 
 export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
-  const { key } = await searchParams
+  const { key, example: exampleParam } = await searchParams
   const runs = publicRuns(initializeDatabase())
-  const orders = exampleScenario.orders.length
-  const lines = exampleScenario.orders.reduce((n, o) => n + o.lines.length, 0)
+  const example = exampleInfo(EXAMPLES[exampleParam === "m1" ? "m1" : "lesson"])
+  const keyQuery = typeof key === "string" ? `&key=${encodeURIComponent(key)}` : ""
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -26,15 +27,15 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
         <section className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-4 text-sm">
             <Link href="/scenarios" className="underline underline-offset-4">Import and edit scenarios</Link>
-            <Link href={`/experiments${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`} className="underline underline-offset-4">Sweeps and ranked options</Link>
+            <Link href={`/experiments?example=${example.id}${keyQuery}`} className="underline underline-offset-4">Sweeps and ranked options</Link>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Pipeline runs</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each run allocates stock, groups stops into clusters with k-means, builds 53 ft shipments with PyVRP and validates every
-            shipment independently. Runs use the bundled synthetic scenario <span className="text-foreground font-medium">{exampleScenario.name}</span>{" "}
-            ({orders} orders, {lines} lines, {exampleScenario.locations.length} locations). No real customer data.
+            shipment independently. Runs here use a bundled synthetic scenario; imported data lives under scenarios.
           </p>
-          <NewRun open={runsOpen()} runKey={typeof key === "string" ? key : undefined} />
+          <ExampleSwitch examples={Object.values(EXAMPLES).map(exampleInfo)} current={example.id} href={(id) => `/runs?example=${id}${keyQuery}`} />
+          <NewRun key={example.id} open={runsOpen()} example={example.id} defaultK={example.k ?? 4} runKey={typeof key === "string" ? key : undefined} />
         </section>
 
         <section className="flex flex-col gap-3">
@@ -43,7 +44,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
             Clusters the same stops for two k values near your choice with seeds 0–9, plus H3 cells at resolutions 1–3, without solving any
             shipments. Use it to pick a k whose groupings do not depend on the seed.
           </p>
-          <NewExplorer open={runsOpen()} runKey={typeof key === "string" ? key : undefined} />
+          <NewExplorer key={example.id} open={runsOpen()} example={example.id} defaultK={example.k ?? 4} runKey={typeof key === "string" ? key : undefined} />
         </section>
 
         <section className="flex flex-col gap-3">

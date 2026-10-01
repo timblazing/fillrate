@@ -7,6 +7,7 @@ import { ClusterCard } from "@/components/lab/cluster-card"
 import { CodeBlock } from "@/components/lab/code-block"
 import { DataTable } from "@/components/lab/data-table"
 import { DiagnosticList } from "@/components/lab/diagnostic-list"
+import { ExampleSwitch } from "@/components/lab/example-switch"
 import { Explainer } from "@/components/lab/explainer"
 import { ImportDropzone } from "@/components/lab/import-dropzone"
 import { IterationTable } from "@/components/lab/iteration-table"
@@ -244,6 +245,21 @@ export function Lab() {
           <PipelineStages stages={live.stages} />
         </div>
         </StepsPanel>
+      </Specimen>
+
+      <Specimen
+        id="example-switch"
+        title="Example switch"
+        description="Picks the bundled synthetic scenario on /runs and /experiments. The choice lives in ?example= so the page stays server-rendered; sweeps default to the lesson because the small example never ranks."
+      >
+        <ExampleSwitch
+          current="lesson"
+          href={(id) => `#example-${id}`}
+          examples={[
+            { id: "m1", name: "M1 synthetic: Memphis DC", blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop", orders: 54, lines: 81, locations: 33 },
+            { id: "lesson", name: "Fulfillment pipeline lesson — 2,000 synthetic orders", blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete", orders: 2000, lines: 3017, locations: 600 },
+          ]}
+        />
       </Specimen>
 
       <Specimen

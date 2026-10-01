@@ -59,9 +59,11 @@
   - [x] Python replay bundle (`export?format=python`, zip with scenario, settings, deterministic stage artifacts, pinned optimizer source + lock, `replay.py`); e2e test replays a run with REPLAY OK
   - [x] Public abuse controls: global hourly/daily run budget (`PUBLIC_SYNTHETIC_RUNS=1`, `rate_events` ledger, no forwarded-header trust), bounded queue (`MAX_QUEUED_RUNS`, default 50)
   - [x] Flagship lesson scenario `examples/lesson-fulfillment.json` (2,000 orders, 600 locations, scarce stock; valid and complete, 443 shipments, ~2 s)
-  - [ ] Examples registry so `/runs`, explorer and sweeps can use the lesson scenario (the M1 example is always `coverage=partial`, so its sweeps never rank anything)
-  - [ ] Flagship lesson page (`/learn/fulfillment-pipeline`), image smoke for explorer + sweep + replay, Playwright smoke
+  - [x] Examples registry (`EXAMPLES` in `lib/server/runs.ts`: `m1`, `lesson`): `example` on `POST /api/v1/runs` (default `m1`), `/api/v1/explorer` and `/api/v1/experiments(/preview)` (default `lesson`); `GET /api/v1/examples`; scenario switch (`?example=`) on `/runs` and `/experiments`; explorer "Use this k" and re-runs keep the example
+  - [x] Flagship lesson page `/learn/fulfillment-pipeline` (header link "Lesson"): stock against demand, four steps that start real runs (pipeline with k and inventory %, explorer, per-cluster loads, ranked sweep), measured expected observations, per-browser parameters and a reset
+  - [x] Image smoke covers the lesson explorer (23 tasks), a two-run ranked sweep with CSV and a replay-bundle download (`deploy/smoke_experiments.py`); verified locally against dev
   - [ ] Release gates needing the owner: target-hardware timings (VPS, Pi) and recovery checks
+  - [ ] Playwright browser smoke (spec §16; consolidated in M8). The lesson, `/runs` and `/experiments` were checked by hand at 1440 and 390 px
 - [ ] M5 Allocation depth and imports (CP-SAT, other strategies, whole-order mode, geocoding)
 - [ ] M6 Remaining PyVRP features and roads (Valhalla, `truck` costing)
 - [ ] M7 Learning and exports
@@ -91,6 +93,8 @@ Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillSt
 
 **M3 is complete (2026-10-01).** `/scenarios` imports order and inventory CSVs (column mapping, row errors, samples, templates), saves immutable versions with authorship, optimistic conflicts and branches, edits lines/stock/coordinates, reviews preflight checks (block, exclude lines, or warn) and starts real worker runs with the full settings, including the cost objective. Runs reuse deterministic stages and checkpoint each cluster. Imported data needs `SCENARIO_KEY` in production. Evidence and benchmarks are under "M3 done" below.
 
+**M4 product work is done (2026-10-01); release gates wait on the owner.** Runs, the k explorer and sweeps take a bundled `example` (`lesson` is the 2,000-order flagship scenario and the UI default). `/learn/fulfillment-pipeline` walks through allocation, k, per-cluster loads and a ranked sweep with real runs. The image smoke now covers explorer, sweep and replay. Verification: Vitest 53, pytest 96, Ruff, lint (the existing `globe.tsx` warning), typecheck and build pass; `smoke_experiments.py` passed against dev.
+
 ## Design workflow (M2 prep)
 1. **Foundations** page in `fillrate.fig`: variables named exactly like the CSS tokens in `apps/web/src/app/globals.css` (light + dark modes), plus type scale, radius, spacing, and `route-1..8`.
 2. Export tokens → `globals.css`; check them in `/dev/components`.
@@ -112,6 +116,8 @@ Both stay far below `RUN_WALL_LIMIT_SECONDS` (600). GitHub runners stand in for 
 Imported CSV completed preview → immutable save → real worker → validated shipment in a browser. Local checks passed: 43 Vitest, 72 pytest, Ruff, lint, typecheck and production build. A synthetic 2,000-order / 640-location / 8-cluster run took 2.733 s on this Mac; solve was 2.366 s (`services/optimizer/benchmarks/m3_2000_result.json`). Production imported-data access uses `SCENARIO_KEY`; public multi-user isolation is still a release gate. Cluster tasks are sequential but completed clusters resume after lease expiry. Solver exceptions still fail a run; matrix subpart reuse across changed partitions remains open. Actual cost rates await the primary user.
 
 ## Known gaps
+- `/learn/fulfillment-pipeline` remembers its parameters and started jobs per browser (localStorage). The starter scenario's data itself is not editable there (only k, inventory % and sweep axes); editing rows needs `/scenarios` and the operator key.
+- The M1 example stays the default for `POST /api/v1/runs` without `example`, so existing clients and the image smoke keep their results; the UI defaults to the lesson.
 - The home page (`/`) is a minimal hero: title, one-line description, GitHub and "See my progress" (`/dev`) buttons beside the cobe globe (`components/animated/hero-globe.tsx`). It has no header and does not link the component gallery; the `/dev` header logo links back to `/`.
 - SQLite lives in `/app/data` (not the spec's `/data`, kept for the existing review deployment) and is ephemeral unless a volume is mounted there.
 - Cluster solves run sequentially inside one leased job (default solve concurrency is one); each cluster is a durable checkpoint that resumes after lease expiry. Matrix subpart reuse across changed partitions (spec §9 "may") is not implemented; travel takes about 0.06 s at 2,000 orders, so it waits for M4 sweeps.
@@ -149,8 +155,8 @@ Round two is answered (2026-10-01). Still open from him:
 Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts and the missing Foundations tokens added (M2 item 16, the last M2 item).
 
 ## Next step
-Finish M4 (session stopped mid-way on 2026-10-01; everything below "M4" in the checklist marked done is committed and tested):
-1. Examples registry in `apps/web/src/lib/server/runs.ts` (`m1` and `lesson`): `exampleVersion(store, id)`, an `example` field on `POST /api/v1/runs`, `/api/v1/explorer`, `/api/v1/experiments(/preview)`; sweeps and the lesson default to `lesson`; scenario selector on `/runs`.
-2. Lesson page `/learn/fulfillment-pipeline`: allocation → k explorer → per-cluster loads → sweep with ranked options, expected observations, reset.
-3. Extend `deploy/smoke.sh`/`smoke_import.py` with an explorer job, a 2-run sweep and a replay-bundle download; consider a Playwright smoke.
-4. Update `/dev/components` gallery if needed; then the owner-only release gates (target hardware, recovery).
+M4 product work is done (2026-10-01); what is left are owner release gates:
+1. Push and confirm `image.yml` runs `smoke_experiments.py` green on amd64 and arm64.
+2. Owner: run the benchmark and a recovery check (kill the container mid-run, restart, the run resumes or fails cleanly) on the VPS and the Pi.
+3. M2: rebuild `fillrate.fig` Components on coss parts (needs the OpenPencil app open).
+4. Then M5 (allocation strategies, CP-SAT, whole-order mode).

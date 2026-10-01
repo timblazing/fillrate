@@ -11,7 +11,7 @@ export function GET(request: Request) {
   return Response.json({ experiments: publicExperiments(initializeDatabase(), operator) }, { headers: { "Cache-Control": "private, no-store" } })
 }
 
-// Bounded sweep (spec §8a, §10). Body: { versionId?, name, base?, axes: { k: [...], kmeans_seed: [...], ... }, comparison? }
+// Bounded sweep (spec §8a, §10). Body: { versionId? or example? ("lesson" default, "m1"), name, base?, axes: { k: [...], kmeans_seed: [...], ... }, comparison? }
 export async function POST(request: Request) {
   try {
     const body = await boundedJson(request)

@@ -2,7 +2,7 @@
 # Container smoke test (spec §14): start the image with a fresh volume, wait for the web app
 # and worker, run the bundled synthetic pipeline through the public API, and check that the
 # result is validated and exportable; then run an imported CSV scenario behind the operator key
-# (smoke_import.py). Usage: deploy/smoke.sh <image> [platform]
+# (smoke_import.py) and the lesson explorer, sweep and replay bundle (smoke_experiments.py). Usage: deploy/smoke.sh <image> [platform]
 set -euo pipefail
 image="$1"
 platform="${2:-}"
@@ -47,3 +47,4 @@ rows=$(curl -fsS "$base/api/v1/runs/$id/export?format=csv&table=loads" | wc -l)
 curl -fsS "$base/api/v1/runs/$id/export?format=json" | json 'd["summary"]["totals"]["planned_cents"]' >/dev/null
 echo "smoke ok: $rows loads CSV rows"
 python3 "$(dirname "$0")/smoke_import.py" "$base" smoke-scenario
+python3 "$(dirname "$0")/smoke_experiments.py" "$base" smoke "$id"

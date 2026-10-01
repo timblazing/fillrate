@@ -36,8 +36,10 @@ function numbers(raw: string, integer: boolean) {
  * Sweep builder (spec §8a, design review `compare.vary`): k, seed, inventory and mileage first; the
  * rest under "More". Preview shows the expanded run count before anything is enqueued.
  */
-export function SweepBuilder({ initialK, runKey, limit, versionId, base = {}, scenarioKey, onCreated }: {
+export function SweepBuilder({ initialK, runKey, limit, versionId, example, base = {}, scenarioKey, onCreated }: {
   initialK: number
+  /** Bundled example id when sweeping a synthetic scenario. */
+  example?: string
   runKey?: string
   limit: number
   /** Imported scenario version (operator key); omitted for the bundled synthetic example. */
@@ -81,7 +83,7 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, base = {}, sc
   }
 
   async function call(path: string, idempotent: boolean) {
-    const body = { name, axes: axes(), ...(versionId ? { versionId, base } : {}) }
+    const body = { name, axes: axes(), ...(versionId ? { versionId, base } : example ? { example } : {}) }
     const res = await fetch(path, {
       method: "POST",
       headers: { "content-type": "application/json", ...(idempotent ? { "idempotency-key": crypto.randomUUID() } : {}), ...(runKey ? { "x-run-key": runKey } : {}), ...(scenarioKey ? { "x-scenario-key": scenarioKey } : {}) },

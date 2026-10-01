@@ -11,15 +11,15 @@ import { toastManager } from "@/components/ui/toast"
 
 const kOptions = [
   { value: "auto", label: "Auto (smallest k within the solve-size limit)" },
-  ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: `k = ${i + 1}` })),
+  ...Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: `k = ${i + 1}` })),
 ]
 
-// Starts a run of the bundled synthetic scenario. One idempotency key per click, so a retried
+// Starts a run of a bundled synthetic scenario. One idempotency key per click, so a retried
 // request never creates a second run.
-export function NewRun({ open, runKey }: { open: boolean; runKey?: string }) {
+export function NewRun({ open, example, defaultK, runKey }: { open: boolean; example: string; defaultK: number; runKey?: string }) {
   const router = useRouter()
-  // Fixed k is the normal path now that the diameter policy is off (spec v1.8); 4 is the bundled example's k.
-  const [k, setK] = useState("4")
+  // Fixed k is the normal path now that the diameter policy is off (spec v1.8); start from the example's k.
+  const [k, setK] = useState(String(defaultK))
   const [seed, setSeed] = useState("0")
   const [pending, setPending] = useState(false)
 
@@ -29,7 +29,7 @@ export function NewRun({ open, runKey }: { open: boolean; runKey?: string }) {
       const res = await fetch("/api/v1/runs", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
-        body: JSON.stringify({ settings: { k: k === "auto" ? null : Number(k), solver_seed: Number(seed) } }),
+        body: JSON.stringify({ example, settings: { k: k === "auto" ? null : Number(k), solver_seed: Number(seed) } }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error?.message ?? "Could not start the run.")
@@ -82,10 +82,10 @@ export function NewRun({ open, runKey }: { open: boolean; runKey?: string }) {
   )
 }
 
-/** Starts a clustering-only k explorer job on the bundled example: k and k + 1 × seeds 0–9, plus H3 resolutions 1–3. */
-export function NewExplorer({ open, runKey }: { open: boolean; runKey?: string }) {
+/** Starts a clustering-only k explorer job on a bundled example: k and k + 1 × seeds 0–9, plus H3 resolutions 1–3. */
+export function NewExplorer({ open, example, defaultK, runKey }: { open: boolean; example: string; defaultK: number; runKey?: string }) {
   const router = useRouter()
-  const [k, setK] = useState("4")
+  const [k, setK] = useState(String(defaultK))
   const [pending, setPending] = useState(false)
   if (!open) return null
   async function start() {
@@ -94,7 +94,7 @@ export function NewExplorer({ open, runKey }: { open: boolean; runKey?: string }
       const res = await fetch("/api/v1/explorer", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
-        body: JSON.stringify({ settings: { selected_k: Number(k), ks: [Number(k), Number(k) + 1] } }),
+        body: JSON.stringify({ example, settings: { selected_k: Number(k), ks: [Number(k), Number(k) + 1] } }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error?.message ?? "Could not start the explorer.")

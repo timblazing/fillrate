@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-01",
   "focus": "M4",
-  "productBehavior": 40,
+  "productBehavior": 44,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -23,9 +23,9 @@
     },
     "M4": {
       "weight": 15,
-      "done": 60,
-      "state": "active",
-      "notes": "Explorer jobs + screen with Use this k, H3 and no-clustering baselines, inventory sweeps, bounded sweeps with cohorts, Pareto and ranked Best option / 2nd / 3rd, partition bounds, H3 map layer, Python replay bundle, global public run budget. Left: examples registry (lesson scenario for sweeps), lesson page, smoke coverage, owner hardware/recovery gates."
+      "done": 90,
+      "state": "waiting",
+      "notes": "Done: explorer jobs and screen, H3 and no-clustering baselines, bounded sweeps with cohorts, Pareto and ranked Best option / 2nd / 3rd, partition bounds, H3 layer, Python replay bundle, public run budget, examples registry (lesson scenario for runs, explorer and sweeps), flagship lesson page /learn/fulfillment-pipeline, image smoke for explorer, sweep and replay. Waiting on the owner's target-hardware and recovery release gates."
     },
     "M5": {
       "weight": 10,
@@ -41,9 +41,9 @@
     },
     "M7": {
       "weight": 6,
-      "done": 0,
+      "done": 10,
       "state": "planned",
-      "notes": "No lessons or Python export yet."
+      "notes": "The flagship Fulfillment pipeline lesson and the Python replay bundle exist (M4); the other lessons are not built."
     },
     "M8": {
       "weight": 7,
@@ -53,9 +53,9 @@
     }
   },
   "nextUp": [
-    "M4: examples registry so sweeps and the explorer use the 2,000-order lesson scenario.",
-    "M4: flagship lesson page and image smoke for explorer, sweep and replay.",
+    "M4 (owner): target-hardware timings and recovery checks on the VPS and Pi.",
     "M2: rebuild fillrate.fig Components on coss parts (needs OpenPencil open).",
-    "M4: target-hardware and recovery release gates (owner)."
+    "M5: allocation strategies, CP-SAT and whole-order mode.",
+    "M8: Playwright browser smoke."
   ]
 }

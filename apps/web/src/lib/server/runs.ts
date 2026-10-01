@@ -4,11 +4,32 @@ import { timingSafeEqual } from "node:crypto";
 import { parseContract, type ExplorerSummary, type RunSettings, type RunSummary, type ScenarioDocument, type Snapshot } from "@fillrate/contracts";
 import type { Store } from "@fillrate/db";
 
-import example from "../../../../../examples/m1-synthetic.json";
+import lesson from "../../../../../examples/lesson-fulfillment.json";
+import m1 from "../../../../../examples/m1-synthetic.json";
 
-// M1 runs execute the bundled synthetic scenario only (spec §14: public surfaces stay synthetic).
-export const exampleScenario = example.scenario as ScenarioDocument;
-export const exampleSettings = example.settings as RunSettings;
+// Keyless and run-key submissions execute bundled synthetic scenarios only (spec §14: public
+// surfaces stay synthetic). `m1` is the small edge-case example (always partial coverage, so its
+// sweeps never rank); `lesson` is the 2,000-order flagship lesson scenario (spec §13).
+export const EXAMPLES = {
+  m1: { id: "m1", scenario: m1.scenario as ScenarioDocument, settings: m1.settings as RunSettings, blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop" },
+  lesson: { id: "lesson", scenario: lesson.scenario as ScenarioDocument, settings: lesson.settings as RunSettings, blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete" },
+} as const;
+export type ExampleId = keyof typeof EXAMPLES;
+export type Example = (typeof EXAMPLES)[ExampleId];
+export const exampleScenario = EXAMPLES.m1.scenario;
+export const exampleSettings = EXAMPLES.m1.settings;
+
+export function parseExample(input: unknown, fallback: ExampleId): Example {
+  if (input === undefined || input === null) return EXAMPLES[fallback];
+  if (typeof input === "string" && Object.hasOwn(EXAMPLES, input)) return EXAMPLES[input as ExampleId];
+  throw new ApiError(400, "unknown_example", `Unknown example; use one of ${Object.keys(EXAMPLES).join(", ")}.`, ["example"]);
+}
+
+/** Small listing for pages and `GET /api/v1/examples`. */
+export function exampleInfo(example: Example) {
+  const { scenario, settings } = example;
+  return { id: example.id, name: scenario.name, blurb: example.blurb, orders: scenario.orders.length, lines: scenario.orders.reduce((n, o) => n + o.lines.length, 0), locations: scenario.locations.length, k: settings.k ?? null };
+}
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly fields: string[] = [], readonly retryAfterS = 0) {
@@ -81,12 +102,28 @@ export function assertQueueRoom(store: Store, adding: number) {
 
 export const runsOpen = () => process.env.NODE_ENV !== "production" || Boolean(process.env.RUN_KEY) || publicSyntheticRuns();
 
-export function exampleVersion(store: Store) {
-  const snapshot: Snapshot = { schema_version: 1, document: exampleScenario as unknown as Snapshot["document"] };
-  return store.findVersion(snapshot)?.id ?? store.createScenario(exampleScenario.name, snapshot, "Fillrate examples").versionId;
+const exampleSnapshot = (example: Example): Snapshot => ({ schema_version: 1, document: example.scenario as unknown as Snapshot["document"] });
+const versionCache = new WeakMap<Store, Map<ExampleId, string>>();
+
+export function exampleVersion(store: Store, example: Example = EXAMPLES.m1) {
+  const cache = versionCache.get(store) ?? new Map<ExampleId, string>();
+  versionCache.set(store, cache);
+  let id = cache.get(example.id);
+  if (!id || !store.sqlite.prepare("SELECT 1 FROM scenario_versions WHERE id=?").get(id)) {
+    const snapshot = exampleSnapshot(example);
+    id = store.findVersion(snapshot)?.id ?? store.createScenario(example.scenario.name, snapshot, "Fillrate examples").versionId;
+    cache.set(example.id, id);
+  }
+  return id;
 }
 
-/** Only these settings are overridable in M1; the rest come from the bundled example. */
+/** Which bundled example a saved version is, if any (synthetic jobs carry no example field). */
+export function exampleForVersion(store: Store, versionId: string): ExampleId | null {
+  for (const example of Object.values(EXAMPLES)) if (exampleVersion(store, example) === versionId) return example.id;
+  return null;
+}
+
+/** Only these settings are overridable on `/api/v1/runs`; the rest come from the bundled example. */
 export function parseOverrides(input: unknown): Partial<RunSettings> {
   if (input === undefined || input === null) return {};
   if (typeof input !== "object" || Array.isArray(input)) throw new ApiError(400, "invalid_settings", "Settings must be an object.");
@@ -100,6 +137,10 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
       if (!Number.isInteger(value) || (value as number) < 0 || (value as number) > 1_000_000)
         throw new ApiError(400, "invalid_settings", `${key} must be an integer from 0 to 1,000,000.`, [`settings.${key}`]);
       out[key] = value as number;
+    } else if (key === "inventory_percent") {
+      if (!Number.isInteger(value) || (value as number) < 0 || (value as number) > 100)
+        throw new ApiError(400, "invalid_settings", "inventory_percent must be an integer from 0 to 100.", ["settings.inventory_percent"]);
+      out.inventory_percent = value as number;
     } else {
       throw new ApiError(400, "invalid_settings", `Setting ${key} cannot be changed in this version.`, [`settings.${key}`]);
     }
@@ -107,13 +148,13 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
   return out;
 }
 
-export function createRun(store: Store, idempotencyKey: string, overrides: Partial<RunSettings>) {
+export function createRun(store: Store, idempotencyKey: string, overrides: Partial<RunSettings>, example: Example = EXAMPLES.m1) {
   if (!idempotencyKey || idempotencyKey.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
-  const settings = parseContract("RunSettings", { ...exampleSettings, ...overrides });
+  const settings = parseContract("RunSettings", { ...example.settings, ...overrides });
   const snapshot: Snapshot = { schema_version: 1, document: settings as unknown as Snapshot["document"] };
   try {
     assertQueueRoom(store, 1);
-    return store.enqueue(exampleVersion(store), snapshot, idempotencyKey);
+    return store.enqueue(exampleVersion(store, example), snapshot, idempotencyKey);
   } catch (error) {
     if (error instanceof Error && error.message === "idempotency_conflict")
       throw new ApiError(409, "idempotency_conflict", "This Idempotency-Key was already used with different settings.");

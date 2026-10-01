@@ -32,6 +32,7 @@ export const toc = [
       ["fill", "Trailer fill"],
       ["plan-flow", "Plan flow"],
       ["stages", "Steps"],
+      ["example-switch", "Example switch"],
       ["run-metrics", "Run metrics"],
       ["cluster-cards", "Cluster cards"],
       ["truck-loads", "Shipment detail"],

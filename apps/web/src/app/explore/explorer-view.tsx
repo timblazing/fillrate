@@ -53,7 +53,7 @@ function usePolled(initial: ExplorerDetail) {
   return run
 }
 
-export function ExplorerView({ initial, imported, canRun, runKey }: { initial: ExplorerDetail; imported: boolean; canRun: boolean; runKey?: string }) {
+export function ExplorerView({ initial, imported, example, canRun, runKey }: { initial: ExplorerDetail; imported: boolean; example: string | null; canRun: boolean; runKey?: string }) {
   const run = usePolled(initial)
   const settings = run.explorer_settings as unknown as ExplorerSettings
   return (
@@ -79,12 +79,12 @@ export function ExplorerView({ initial, imported, canRun, runKey }: { initial: E
           <AlertDescription>{String(run.failure?.message ?? "The worker reported a failure.")}</AlertDescription>
         </Alert>
       )}
-      {run.explorer && <Results summary={run.explorer} imported={imported} canRun={canRun} runKey={runKey} />}
+      {run.explorer && <Results summary={run.explorer} imported={imported} example={example} canRun={canRun} runKey={runKey} />}
     </>
   )
 }
 
-function Results({ summary, imported, canRun, runKey }: { summary: ExplorerSummary; imported: boolean; canRun: boolean; runKey?: string }) {
+function Results({ summary, imported, example, canRun, runKey }: { summary: ExplorerSummary; imported: boolean; example: string | null; canRun: boolean; runKey?: string }) {
   const router = useRouter()
   const [repaired, setRepaired] = useState(false)
   const [k, setK] = useState(summary.selected_k)
@@ -105,7 +105,7 @@ function Results({ summary, imported, canRun, runKey }: { summary: ExplorerSumma
       return
     }
     setPending("use")
-    const res = await fetch("/api/v1/runs", { method: "POST", headers, body: JSON.stringify({ settings: { k, kmeans_seed: seed } }) })
+    const res = await fetch("/api/v1/runs", { method: "POST", headers, body: JSON.stringify({ ...(example ? { example } : {}), settings: { k, kmeans_seed: seed } }) })
     const body = await res.json()
     if (!res.ok) {
       toastManager.add({ type: "error", title: "Run not started", description: body.error?.message })
@@ -118,7 +118,7 @@ function Results({ summary, imported, canRun, runKey }: { summary: ExplorerSumma
   async function agreementAt() {
     setPending("agreement")
     const { base, ...rest } = summary.settings
-    const res = await fetch("/api/v1/explorer", { method: "POST", headers, body: JSON.stringify({ ...(imported ? { base } : {}), settings: { ...rest, kind: undefined, schema_version: undefined, ks: summary.ks, selected_k: k } }) })
+    const res = await fetch("/api/v1/explorer", { method: "POST", headers, body: JSON.stringify({ ...(imported ? { base } : example ? { example } : {}), settings: { ...rest, kind: undefined, schema_version: undefined, ks: summary.ks, selected_k: k } }) })
     const body = await res.json()
     if (!res.ok) {
       toastManager.add({ type: "error", title: "Explorer not started", description: body.error?.message })
@@ -231,7 +231,7 @@ function Results({ summary, imported, canRun, runKey }: { summary: ExplorerSumma
               </Button>
             )}
             {!imported && canRun && (
-              <Button variant="outline" size="sm" render={<Link href={`/experiments?k=${k}${runKey ? `&key=${encodeURIComponent(runKey)}` : ""}`} />}>
+              <Button variant="outline" size="sm" render={<Link href={`/experiments?k=${k}${example ? `&example=${example}` : ""}${runKey ? `&key=${encodeURIComponent(runKey)}` : ""}`} />}>
                 <FlaskConical aria-hidden /> Sweep around k = {k}
               </Button>
             )}

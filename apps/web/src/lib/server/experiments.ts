@@ -5,21 +5,27 @@ import { canonical } from "@fillrate/db/canonical";
 import { changedAssumptions, compareRuns, DEFAULT_COMPARISON, expandSweep, METRICS, parseComparison, SWEEP_AXES, SweepError, type SweepAxes } from "@fillrate/db/experiments";
 import { preflightChecks } from "@fillrate/db/preflight";
 import { validateScenario } from "@fillrate/db/scenarios";
-import { ApiError, assertQueueRoom, authorizeSyntheticRun, exampleSettings, exampleVersion, maxSweepRuns, runSummary } from "./runs";
+import { ApiError, assertQueueRoom, authorizeSyntheticRun, exampleForVersion, exampleSettings, exampleVersion, maxSweepRuns, parseExample, runSummary, type Example } from "./runs";
 import { assertScenarioAccess } from "./scenarios";
 
 export const isImportedVersion = (store: Store, versionId: string) =>
   Boolean(store.sqlite.prepare("SELECT 1 FROM scenario_sources WHERE versionId=?").get(versionId));
 
+/** Explorer jobs and sweeps on a bundled example default to the lesson scenario (the M1 example never ranks). */
+const DEFAULT_EXAMPLE = "lesson";
+
 /**
- * Imported versions need the operator key; the bundled synthetic example goes through the run
- * key or the public budget. Returns the version and the base settings the request starts from.
+ * Imported versions need the operator key; bundled synthetic examples go through the run key or
+ * the public budget. Returns the version and the base settings the request starts from.
  */
-function resolveTarget(store: Store, request: Request, versionId: unknown, base: unknown, cost: number) {
+function resolveTarget(store: Store, request: Request, versionId: unknown, base: unknown, cost: number, exampleId: unknown) {
   if (versionId === undefined || versionId === null) {
+    const example = parseExample(exampleId, DEFAULT_EXAMPLE);
+    const settings = syntheticBase(base, example);
     authorizeSyntheticRun(request, store, cost);
-    return { versionId: exampleVersion(store), base: syntheticBase(base), imported: false };
+    return { versionId: exampleVersion(store, example), base: settings, imported: false };
   }
+  if (exampleId !== undefined && exampleId !== null) throw new ApiError(400, "invalid_request", "Send either versionId or example, not both.", ["example"]);
   if (typeof versionId !== "string" || !isImportedVersion(store, versionId)) throw new ApiError(404, "version_not_found", "No saved imported scenario version.");
   assertScenarioAccess(request);
   return { versionId, base: parseSettings(base ?? {}), imported: true };
@@ -37,11 +43,11 @@ function withDefaults(input: unknown) {
 
 // Synthetic runs keep the example's fixed budget and scenario; only the sweep axes may change.
 const SYNTHETIC_OVERRIDES = new Set<string>([...SWEEP_AXES]);
-function syntheticBase(input: unknown): RunSettings {
-  if (input === undefined || input === null) return exampleSettings;
+function syntheticBase(input: unknown, example: Example): RunSettings {
+  if (input === undefined || input === null) return example.settings;
   if (typeof input !== "object" || Array.isArray(input)) throw new ApiError(400, "invalid_settings", "Settings must be an object.", ["settings"]);
   for (const key of Object.keys(input)) if (!SYNTHETIC_OVERRIDES.has(key)) throw new ApiError(400, "invalid_settings", `Setting ${key} cannot be changed for the bundled example.`, [`settings.${key}`]);
-  return parseSettings({ ...exampleSettings, ...(input as object) });
+  return parseSettings({ ...example.settings, ...(input as object) });
 }
 
 function checkSynthetic(settings: RunSettings) {
@@ -56,14 +62,14 @@ export function explorerTasks(settings: { ks?: number[] | null; seeds?: number[]
 }
 const DEFAULT_SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-export function createExplorer(store: Store, request: Request, body: { versionId?: unknown; settings?: unknown; base?: unknown }, idempotencyKey: string) {
+export function createExplorer(store: Store, request: Request, body: { versionId?: unknown; example?: unknown; settings?: unknown; base?: unknown }, idempotencyKey: string) {
   if (!idempotencyKey || idempotencyKey.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
   const raw = (body.settings ?? {}) as Record<string, unknown>;
   if (typeof raw !== "object" || Array.isArray(raw) || "base" in raw) throw new ApiError(400, "invalid_settings", "Explorer settings must be an object; send base settings as `base`.", ["settings"]);
   const tasks = explorerTasks(raw as never);
   const limit = maxSweepRuns();
   if (tasks > limit) throw new ApiError(422, "too_many_tasks", `This explorer request is ${tasks} clustering tasks; the limit is ${limit}. Choose fewer k values, seeds or H3 resolutions.`, ["settings"]);
-  const target = resolveTarget(store, request, body.versionId, body.base, 1);
+  const target = resolveTarget(store, request, body.versionId, body.base, 1, body.example);
   if (!target.imported) checkSynthetic(target.base);
   let settings: ExplorerSettings;
   try { settings = parseContract("ExplorerSettings", { seeds: DEFAULT_SEEDS, h3_resolutions: [1, 2, 3], reference_seed: 0, ks: null, selected_k: target.base.k ?? null, ...raw, schema_version: 1, kind: "explorer", base: target.base }); }
@@ -75,7 +81,7 @@ export function createExplorer(store: Store, request: Request, body: { versionId
 
 // ---- Sweeps ----------------------------------------------------------------------------------------
 
-type SweepBody = { versionId?: unknown; name?: unknown; base?: unknown; axes?: unknown; comparison?: unknown };
+type SweepBody = { versionId?: unknown; example?: unknown; name?: unknown; base?: unknown; axes?: unknown; comparison?: unknown };
 
 function expand(base: RunSettings, axes: unknown) {
   if (!axes || typeof axes !== "object" || Array.isArray(axes)) throw new ApiError(400, "invalid_axes", "Send axes as an object of setting → values.", ["axes"]);
@@ -91,7 +97,7 @@ function expand(base: RunSettings, axes: unknown) {
 export function previewSweep(store: Store, request: Request, body: SweepBody) {
   const imported = typeof body.versionId === "string";
   if (imported) { if (!isImportedVersion(store, body.versionId as string)) throw new ApiError(404, "version_not_found", "No saved imported scenario version."); assertScenarioAccess(request); }
-  const base = imported ? parseSettings(body.base ?? {}) : syntheticBase(body.base);
+  const base = imported ? parseSettings(body.base ?? {}) : syntheticBase(body.base, parseExample(body.example, DEFAULT_EXAMPLE));
   const runs = expand(base, body.axes);
   const perCluster = base.solver_time_limit_s;
   return { runs: runs.map(r => ({ varied: r.varied, changed: changedAssumptions(base, r.settings) })), count: runs.length, limit: maxSweepRuns(), solver_seconds_per_cluster: perCluster, iterations_per_cluster: base.solver_max_iterations ?? null };
@@ -102,8 +108,8 @@ export function createSweep(store: Store, request: Request, body: SweepBody, ide
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : "Sweep";
   // Expand first so an oversized sweep spends no rate budget.
   const imported = typeof body.versionId === "string";
-  const preliminary = expand(imported ? parseSettings(body.base ?? {}) : syntheticBase(body.base), body.axes);
-  const target = resolveTarget(store, request, body.versionId, body.base, preliminary.length);
+  const preliminary = expand(imported ? parseSettings(body.base ?? {}) : syntheticBase(body.base, parseExample(body.example, DEFAULT_EXAMPLE)), body.axes);
+  const target = resolveTarget(store, request, body.versionId, body.base, preliminary.length, body.example);
   const runs = expand(target.base, body.axes);
   if (!target.imported) runs.forEach(r => checkSynthetic(r.settings));
   else {
@@ -159,6 +165,7 @@ export function experimentDetail(store: Store, id: string) {
   return {
     schema_version: 1,
     id: experiment.id, name: experiment.name, version_id: experiment.versionId, created_at: experiment.createdAt,
+    example: exampleForVersion(store, experiment.versionId),
     spec: experiment.spec,
     comparison: compared.comparison,
     metrics: METRICS,

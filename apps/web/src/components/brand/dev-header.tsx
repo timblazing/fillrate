@@ -1,6 +1,6 @@
 "use client"
 
-import { Activity, Play, Shapes } from "lucide-react"
+import { Activity, GraduationCap, Play, Shapes } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 const links = [
   { href: "/dev", label: "Progress", icon: Activity },
   { href: "/runs", label: "Runs", icon: Play },
+  { href: "/learn/fulfillment-pipeline", label: "Lesson", icon: GraduationCap },
   { href: "/dev/components", label: "Design system", icon: Shapes },
 ] as const
 
