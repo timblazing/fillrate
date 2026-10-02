@@ -1,6 +1,6 @@
 # Hosted and local operation
 
-How the deployment modes work and how the owner configures, migrates and verifies a hosted release (spec §14, M4). What is implemented and verified is recorded in `progress.md`; the remaining owner evidence is in `release-verification.md`.
+How the deployment modes work and how the owner configures, migrates and verifies a hosted release (spec §14, M4). What is implemented, accepted and verified is recorded in `progress.md` and `release-verification.md`; the latter also records known limits.
 
 ## Modes
 
@@ -39,11 +39,11 @@ Each admission is checked and charged in the same SQLite write transaction that 
 - 10 geocoding jobs, 200 address lookups, 100 scenario saves and 20 travel snapshot uploads per account per day.
 - 10 MB request bodies for imports and uploads. The order, visit and solver wall limits still apply.
 
-Refusals are HTTP 429 with `Retry-After`, an error code (`active_limit`, `queue_full`, `quota_exceeded`) and the time the window frees up. The account page shows usage. The Better Auth limiter protects only the auth routes. Tune these values against the target-hardware timings before opening signup.
+Refusals are HTTP 429 with `Retry-After`, an error code (`active_limit`, `queue_full`, `quota_exceeded`) and the time the window frees up. The account page shows usage. The Better Auth limiter protects only the auth routes. These starting values were checked against target-hardware timings; review them against live queue behavior as approved usage grows.
 
 ## Configure a hosted deployment (owner)
 
-The reference VPS was switched to hosted/request mode on 2026-10-02 with image digest `sha256:7def261e143c118409c827ed78d2daef2befc093eb770168d025bcd37b81c510`, migration 0009 and the numeric admin setting. Public health, Better Auth's session endpoint and anonymous admin refusal passed; the real OAuth and two-account check is still pending (`release-verification.md`). The existing Compose file contains the OAuth settings and is mode 600; moving them into a separate `.env` is optional operational cleanup.
+The reference VPS runs hosted/request mode on image digest `sha256:7def261e143c118409c827ed78d2daef2befc093eb770168d025bcd37b81c510`, with migration 0009 and the numeric admin setting. Public health, Better Auth's session endpoint and anonymous admin refusal passed. The owner signed in successfully and the configured GitHub ID is linked to an approved account. The owner waived a second live GitHub account check; local automated tests cover two-user isolation (`release-verification.md`). The existing Compose file contains the OAuth settings and is mode 600; moving them into a separate `.env` is optional operational cleanup.
 
 1. **GitHub OAuth app:** set the homepage to the canonical origin and the callback to `<BETTER_AUTH_URL>/api/auth/callback/github`.
 2. **Server `.env`** (never in Git): set `FILLRATE_MODE=hosted`, `BETTER_AUTH_SECRET=$(openssl rand -base64 32)`, `BETTER_AUTH_URL=https://<host>`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `ADMIN_GITHUB_ID=119372400` and `SIGNUP_MODE=request`. Keep `SCENARIO_KEY` if the operator dataset should stay reachable. Set `TRUSTED_CLIENT_IP_HEADER=x-forwarded-for` only if the app port is reachable solely from Caddy.
@@ -65,7 +65,7 @@ The reference VPS was switched to hosted/request mode on 2026-10-02 with image d
 ## Verify
 
 - `bun run test`: store-level isolation, scoped caches, admission (including a six-process race and a restart), deletion, and migration of pre-account data (`packages/db/tests/isolation.test.ts`, `hosted.test.ts`).
-- `bun run build && bun run test:hosted`: production server checks. Hosted mode refuses incomplete settings, and local mode works with no keys. Open-mode two-account isolation plus request-mode pending/approval/revoke/restore checks run against a production build with database-written sessions. Real GitHub sign-in remains a live owner check.
+- `bun run build && bun run test:hosted`: production server checks. Hosted mode refuses incomplete settings, and local mode works with no keys. Open-mode two-account isolation plus request-mode pending/approval/revoke/restore checks run against a production build with database-written sessions. The owner’s live GitHub sign-in is confirmed. A second live account check was waived; cross-user behavior remains covered by automated production-build tests.
 - `deploy/smoke.sh` (image workflow) also checks hosted refusal and keyless local startup in the built image.
-- **Live, after OAuth is configured:** sign in with two different GitHub accounts and approve both at `/admin`, then use their session cookies with `scripts/live-two-account.mjs --sign-out-b`. The script refuses to start its checks unless both accounts are approved. Cookies are secrets; the script never prints them.
+- **Live owner check (complete):** the configured admin GitHub account signs in and is approved automatically. The owner accepted the release without a second live account. `scripts/live-two-account.mjs` remains available as an optional diagnostic; do not request its cookies as a release step.
 - `deploy/target_check.py <image> <out>` collects benchmark timings and the persistence, worker-loss, cancellation and backup/restore checks on disposable containers (`release-verification.md`).

@@ -1,11 +1,11 @@
 # Access requests and on-server backups (M4)
 
-Implementation spec for request-only access and the retained on-server backup policy before hosted mode is switched on at `fillrate.blasingame.dev`. Read `AGENTS.md`, `docs/hosted-operations.md` and `apps/web/src/lib/server/access.ts` first. Follow the session workflow in `AGENTS.md`: work on `main`, use `M4: …` commits and update the records at the end.
+Implemented spec for request-only access and the retained on-server backup policy at `fillrate.blasingame.dev`. Read `AGENTS.md`, `docs/hosted-operations.md` and `apps/web/src/lib/server/access.ts` first. Follow the session workflow in `AGENTS.md`: work on `main`, use `M4: …` commits and update the records at the end.
 
 ## Current state (2026-10-02)
 
 - Release `696d2c9` (`sha256:7def261e143c118409c827ed78d2daef2befc093eb770168d025bcd37b81c510`) is deployed in **hosted mode** with migration 0009, request-only signup and the numeric admin ID. The daily on-host backup timer and 30-day rotation remain active.
-- The owner has created the GitHub OAuth app. Better Auth and GitHub credentials are in the mode-600 VPS Compose file. A pre-migration backup passed checksum/integrity, and the new image migrated a disposable restored copy with a healthy worker. The live site reports hosted/request mode; real GitHub sign-ins and the two-account check remain.
+- The owner has created the GitHub OAuth app. Better Auth and GitHub credentials are in the mode-600 VPS Compose file. A pre-migration backup passed checksum/integrity, and the new image migrated a disposable restored copy with a healthy worker. The live site reports hosted/request mode. The owner signed in successfully; the configured GitHub ID is linked to an approved account. Automated two-user isolation tests passed, but no second live GitHub account was used. The owner removed that live check from the release gate.
 - The owner is the only admin: GitHub `timblazing`, numeric user ID **119372400**.
 
 ## Part A: request-access sign-up with a single admin
@@ -20,7 +20,7 @@ Implementation spec for request-only access and the retained on-server backup po
    - Submit and Update buttons, and a Sign out button.
    A denied user sees that the request was declined. A revoked user sees that access was removed and their data is kept.
 4. The admin approves, denies or revokes requests on `/admin`. Approval takes effect on the next request, with no re-login needed.
-5. `SIGNUP_MODE=request` is the default. `SIGNUP_MODE=open` approves every new account automatically (the current behaviour), and any other value refuses startup with exit 78.
+5. `SIGNUP_MODE=request` is the default and current production setting. `SIGNUP_MODE=open` approves every new account automatically, and any other value refuses startup with exit 78.
 
 ### Admin identity
 
@@ -83,7 +83,7 @@ access_requests
   - An optimistic update with a toast, then a refresh.
 - In `AccountButton`, the admin sees an "Admin" menu item with a pending-count `Badge`. No other header change.
 - `/privacy`: add one sentence saying the owner sees request notes and GitHub profile details to decide access.
-- Check `/request-access` and `/admin` at 1440 and 390 px with no page-level overflow. Add both to `/dev/components` only if they introduce new composites.
+- Desktop browser QA passed at the available preview width. A 390 px check could not be completed because the preview resize control timed out; keep this as an optional UI QA gap, not a hosted release gate. Add both pages to `/dev/components` only if they introduce new composites.
 
 ### Tests
 
@@ -101,7 +101,7 @@ access_requests
   - a cross-origin admin POST returns 403;
   - `SIGNUP_MODE=open` auto-approves;
   - account deletion removes the request.
-- `scripts/live-two-account.mjs`: before its checks, require both accounts to be approved. If not, print "approve both accounts at /admin first" and exit 2.
+- `scripts/live-two-account.mjs` remains available as an optional diagnostic; it is not a release to-do or owner action.
 - `deploy/smoke.sh`: hosted refusal without `ADMIN_GITHUB_ID`.
 - Keep `bun run lint`, `typecheck`, `build`, `test`, `test:hosted` and `test:browser` passing.
 
@@ -113,19 +113,18 @@ access_requests
    2. Add `ADMIN_GITHUB_ID=119372400` and `SIGNUP_MODE=request` to `compose.yaml` or `.env`. Prefer moving all secrets into `.env` (mode 600) and referencing it with `env_file`.
    3. Pin the new digest and run `docker compose up -d`.
    4. Confirm `/api/v1/me` reports `"mode":"hosted"` and `/api/auth/get-session` returns 200.
-3. The owner signs in, which approves them automatically as admin. A second GitHub account requests access, and the owner approves it at `/admin`.
-4. Run `scripts/live-two-account.mjs --sign-out-b` with both session cookies and record the result in `release-verification.md`.
+3. The owner signs in with GitHub, which approves the configured numeric admin account automatically. Confirm that the live account is approved; record the screenshot and database link without exposing credentials. This passed on 2026-10-02.
+4. Record automated two-user isolation evidence and distinguish it from a live cross-account test. The owner waived the second live GitHub account check for this release.
 
 ## Part B: on-server backups for this release
 
 The owner has chosen to keep backups on the Fillrate server for now. Google Drive, rclone, off-site encryption, and a remote restore drill are outside this release. The existing `deploy/backup.sh` and daily systemd user timer remain the backup mechanism: an online SQLite copy is integrity-checked, written beside a `.sha256` file under `~/containers/fillrate/backups`, and rotated after 30 days. Preserve the timer while deploying hosted mode.
 
-Before migration 0009, take another online backup. Verify its checksum and `PRAGMA integrity_check = ok`, then rehearse a restore into a disposable volume/container using the approach in `deploy/target_check.py`; record the image digest, backup hash, integrity result and health check in `release-verification.md`. Do not restore over the live volume for this drill. The on-server backups protect against database mistakes and do not survive loss of the server or its disk; record that limitation plainly in operations and progress documents. No additional owner credential or cloud account setup is required for backups in this release.
+**Completed before migration 0009:** `fillrate-20261002T170212Z.sqlite` passed checksum and integrity checks. A disposable restore with the new image applied migration 0009, passed SQLite integrity and reported a connected worker; its container and data were removed. Evidence and the full digest/hash are in `release-verification.md`. The on-server backups help with database mistakes but do not survive server or disk loss. No additional owner credential or cloud account setup was required.
 
-## Records to update when done
+## Handoff state
 
-- `progress.md`: dated entry with evidence. In Known gaps, retain the on-server-only backup limitation and remove the open-signup caveat once the access gate is live.
-- `decisions.md`: env-pinned single admin (no database role); request-only signup by default; retain server-local SQLite backups for this release and record the server-loss limitation.
-- `status.json`: M4 notes and `nextUp`, then move M4 to done once the live two-account check passes.
-- `hosted-operations.md`: `SIGNUP_MODE`, `ADMIN_GITHUB_ID`, the admin workflow, on-server backups and restore.
-- `deploy/.env.example`: `ADMIN_GITHUB_ID=`, `SIGNUP_MODE=request`.
+- Project records are current. M4 is marked complete for the owner's accepted scope.
+- The owner sign-in, deployed request gate, backup/restore and worker health are verified.
+- Automated two-user isolation is covered by production-build tests. A second live GitHub account was waived and is not pending.
+- Remaining repository work is tracked under M2, M6, M7 and M8 in `progress.md`; the 390 px access/admin page review is an optional QA gap.

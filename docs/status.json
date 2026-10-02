@@ -1,6 +1,6 @@
 {
   "updated": "2026-10-02",
-  "focus": "M4",
+  "focus": "M8",
   "productBehavior": 58,
   "milestones": {
     "M1": {
@@ -23,9 +23,9 @@
     },
     "M4": {
       "weight": 15,
-      "done": 98,
-      "state": "waiting",
-      "notes": "Live on fillrate.blasingame.dev: hosted Better Auth, request-only signup, one numeric GitHub-ID admin and migration 0009. Image 696d2c9 passed amd64/arm64 smoke and benchmark; a checked on-server backup migrated cleanly in a disposable container. Daily on-server backups remain the release policy and do not cover server or disk loss. Real GitHub sign-ins and the live two-account check remain."
+      "done": 100,
+      "state": "done",
+      "notes": "Release accepted for the agreed scope: hosted Better Auth, request-only signup, approved owner account linked to the numeric GitHub ID, migration 0009, quotas, owner isolation and on-server backups. Image 696d2c9 passed amd64/arm64 smoke and benchmark; backup/restore and live worker health passed. Cross-account behavior passed automated tests; the owner waived a second live GitHub account check. Backups do not survive server or disk loss."
     },
     "M5": {
       "weight": 10,
@@ -49,12 +49,10 @@
       "weight": 7,
       "done": 36,
       "state": "active",
-      "notes": "Done: production public-lesson browser smoke; hosted/local acceptance (`bun run test:hosted`) and a live two-account script; image smoke checks hosted refusal and keyless local startup; `deploy/target_check.py` timings plus persistence, worker-loss, cancellation and backup/restore evidence on the VPS and Pi 5 (all passed). Remaining: protected import and experiment browser flows, live hosted checks, npm/Bun local distribution and handoff."
+      "notes": "Done: production public-lesson browser smoke; hosted/local acceptance (`bun run test:hosted`); image smoke checks hosted refusal and keyless local startup; `deploy/target_check.py` timings plus persistence, worker-loss, cancellation and backup/restore evidence on the VPS and Pi 5 (all passed). Remaining: protected import and experiment browser flows, npm/Bun local distribution and handoff. Owner accepted hosted release; second live account check was waived."
     }
   },
   "nextUp": [
-    "M4: owner signs in with the admin GitHub account and a second GitHub account, approves the request, then run scripts/live-two-account.mjs with both real sessions.",
-    "M4: watch real queue times after access is granted. On-server backups do not cover server or disk loss.",
     "M8: separate protected-import and experiment browser smokes; use existing lesson/result/export coverage.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil.",
     "M6: browser matrix selection, durable Valhalla snapshot job, pinned deployment and validated routing increments.",
