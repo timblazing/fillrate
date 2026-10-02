@@ -6,12 +6,14 @@
 # Usage: deploy/backup.sh [container] [dest-dir]   (defaults: fillrate, ./backups)
 # Env: BACKUP_RETENTION_DAYS (default 30)
 set -euo pipefail
+umask 077  # backups may contain hosted customer data; host copies and their directory are private
 container="${1:-fillrate}"
 dest="${2:-./backups}"
 days="${BACKUP_RETENTION_DAYS:-30}"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 name="fillrate-$stamp.sqlite"
 mkdir -p "$dest"
+chmod 700 "$dest"
 
 docker exec -i "$container" /opt/venv/bin/python - "$name" <<'PY'
 import os, sqlite3, sys
@@ -34,4 +36,5 @@ PY
 docker cp "$container:/app/data/backups/$name" "$dest/$name"
 docker exec "$container" rm -f "/app/data/backups/$name"
 (cd "$dest" && sha256sum "$name" > "$name.sha256" && cat "$name.sha256")
+chmod 600 "$dest/$name" "$dest/$name.sha256"
 find "$dest" -maxdepth 1 -name 'fillrate-*.sqlite*' -mtime "+$days" -print -delete
