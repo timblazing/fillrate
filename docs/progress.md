@@ -229,6 +229,7 @@ Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be r
 
 ## Next step
 Prioritize the initial hosted release using the remaining work and dependencies below:
+0. M4: implement `docs/access-requests-and-offsite-backups.md` (request-only signup with a single env-pinned admin, encrypted Drive backups) before recreating the container in hosted mode.
 1. Owner M4: create the GitHub OAuth app and add the hosted settings to `~/containers/fillrate/.env` (`docs/hosted-operations.md`), restart, then sign in with two GitHub accounts and run `scripts/live-two-account.mjs`. The image, migration, backups and VPS/Pi evidence are done.
 2. M4/M8: watch real queue times after signup opens; the starting quotas fit the measured timings (`release-verification.md`).
 3. M8: add protected scenario/import and experiment browser coverage as separate local increments, using the existing public-lesson smoke.
