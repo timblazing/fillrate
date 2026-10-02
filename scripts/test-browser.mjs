@@ -60,11 +60,17 @@ async function waitForWeb(url, child) {
 }
 
 function browser(...args) {
-  const result = spawnSync(agentBrowser, ["--session", session, "--download-path", downloadDir, ...args], {
+  const browserArgs = process.env.AGENT_BROWSER_ARGS ? ["--args", process.env.AGENT_BROWSER_ARGS] : [];
+  const result = spawnSync(agentBrowser, ["--session", session, "--download-path", downloadDir, ...browserArgs, ...args], {
     cwd: root,
     encoding: "utf8",
     timeout: 35_000,
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR, AGENT_BROWSER_NO_WEBMCP: "1" },
+    env: {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      TMPDIR: process.env.TMPDIR,
+      AGENT_BROWSER_NO_WEBMCP: "1",
+    },
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`agent-browser ${args[0]} failed (${result.status}): ${result.stderr || result.stdout}`);

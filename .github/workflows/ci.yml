@@ -79,4 +79,9 @@ jobs:
       - name: Install agent-browser Chromium
         run: bunx --no-install agent-browser install --with-deps
       - name: Browser smoke
+        env:
+          # GitHub-hosted Ubuntu runners disable unprivileged user namespaces,
+          # so Chromium cannot start its sandbox there. This job only exercises
+          # the isolated synthetic smoke environment.
+          AGENT_BROWSER_ARGS: --no-sandbox
         run: bun run test:browser

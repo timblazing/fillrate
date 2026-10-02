@@ -1,0 +1,44 @@
+name: Blocked session handoff
+description: Leave a durable next step when a task cannot be completed in this session.
+title: "[Handoff] "
+labels:
+  - action-needed
+body:
+  - type: markdown
+    attributes:
+      value: Open this only when follow-up remains. Commit useful partial work to its task branch when possible; do not leave uncommitted changes as the only handoff.
+  - type: textarea
+    id: task
+    attributes:
+      label: Task and relevant spec section
+    validations:
+      required: true
+  - type: textarea
+    id: completed
+    attributes:
+      label: What was completed
+    validations:
+      required: true
+  - type: textarea
+    id: blocker
+    attributes:
+      label: Exact blocker
+      description: Include the command, error, dependency, or decision needed. Redact secrets and user data.
+    validations:
+      required: true
+  - type: textarea
+    id: next
+    attributes:
+      label: Next concrete action
+      description: Write this so another session can continue without repeating the investigation.
+    validations:
+      required: true
+  - type: input
+    id: branch_pr
+    attributes:
+      label: Task branch or pull request
+      description: Include the branch and PR link if one exists.
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification and remaining gaps

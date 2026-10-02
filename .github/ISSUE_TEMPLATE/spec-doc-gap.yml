@@ -1,0 +1,48 @@
+name: Spec or documentation gap
+description: Track a mismatch, ambiguity, missing acceptance criterion, or documentation correction.
+title: "[Spec/docs] "
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: Keep the specification and repository docs as the canonical record. Use this issue to track the concrete follow-up.
+  - type: dropdown
+    id: gap_kind
+    attributes:
+      label: Gap type
+      options:
+        - Specification is ambiguous
+        - Acceptance criteria are missing
+        - Implementation differs from the spec
+        - Documentation is stale or incorrect
+        - Decision needed from the owner
+    validations:
+      required: true
+  - type: textarea
+    id: location
+    attributes:
+      label: Relevant document and section
+      description: Link the canonical spec or docs section. Include implementation paths when there is a mismatch.
+      placeholder: "docs/fillrate-technical-spec.md §..."
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current statement or behavior
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: What is unclear, missing, or inconsistent?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Proposed resolution or acceptance criteria
+      description: State what evidence will show this issue is resolved. Mark assumptions that need owner input.
+    validations:
+      required: true

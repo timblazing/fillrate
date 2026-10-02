@@ -10,7 +10,7 @@ All browser automation uses the local headless `agent-browser` CLI, pinned to 0.
 4. Install the browser runtime with `bunx --no-install agent-browser install`.
 5. Run `bun run test:browser` from the repository root.
 
-CI installs the same pinned CLI and its browser runtime with `bunx --no-install agent-browser install --with-deps`, then runs the same acceptance command. The launcher binds the web server and worker transport to separate loopback ports and removes temporary data/downloads and closes its browser session when it ends. Images are built only in GitHub Actions.
+CI installs the same pinned CLI and its browser runtime with `bunx --no-install agent-browser install --with-deps`, then runs the same acceptance command. GitHub-hosted Ubuntu CI sets `AGENT_BROWSER_ARGS=--no-sandbox` because its unprivileged user namespaces are unavailable to Chromium; the flag is limited to that ephemeral synthetic-data CI job. The launcher binds the web server and worker transport to separate loopback ports and removes temporary data/downloads and closes its browser session when it ends. Images are built only in GitHub Actions.
 
 ## Independent flows
 

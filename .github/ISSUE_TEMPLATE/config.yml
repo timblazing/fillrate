@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How Fillrate tracks project work
+    url: https://github.com/timblazing/fillrate/blob/main/docs/issues-and-work.md
+    about: Learn when to open an issue and which project records stay in docs.
