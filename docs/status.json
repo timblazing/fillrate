@@ -13,7 +13,7 @@
       "weight": 10,
       "done": 95,
       "state": "waiting",
-      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: \u2605 = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
+      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
     },
     "M3": {
       "weight": 20,
@@ -23,9 +23,9 @@
     },
     "M4": {
       "weight": 15,
-      "done": 96,
+      "done": 97,
       "state": "waiting",
-      "notes": "Done: explorer, H3/no-clustering baselines, bounded ranked sweeps, partition bounds, replay bundle, examples and flagship lesson; hosted Better Auth (GitHub) with explicit hosted/local mode, per-user ownership on every path, persistent in-transaction quotas, export/delete and privacy disclosure (114 Vitest, 51 production hosted checks). Waiting on the owner: GitHub OAuth app and hosted .env, live two-account/quota/backup checks, and target-hardware and recovery release gates."
+      "notes": "Done: explorer, H3/no-clustering baselines, bounded ranked sweeps, partition bounds, replay bundle, examples and flagship lesson; hosted Better Auth (GitHub) with explicit hosted/local mode, per-user ownership on every path, persistent in-transaction quotas, export/delete and privacy disclosure. Release fa9c0b8 is deployed (migration 0008, daily 30-day backups) in operator mode. Waiting on the owner: GitHub OAuth app, hosted .env and the live two-account script."
     },
     "M5": {
       "weight": 10,
@@ -47,14 +47,14 @@
     },
     "M8": {
       "weight": 7,
-      "done": 24,
+      "done": 36,
       "state": "active",
-      "notes": "Done: production public-lesson browser smoke; production hosted/local acceptance script (`bun run test:hosted`: mode refusal, keyless local mode, two-account denials, quotas, sign-out/expiry, deletion); image smoke checks hosted refusal and keyless local startup. Remaining: protected import and experiment browser flows, target-hardware harness and VPS/Pi recovery evidence, live hosted checks, npm/Bun local distribution and handoff."
+      "notes": "Done: production public-lesson browser smoke; hosted/local acceptance (`bun run test:hosted`) and a live two-account script; image smoke checks hosted refusal and keyless local startup; `deploy/target_check.py` timings plus persistence, worker-loss, cancellation and backup/restore evidence on the VPS and Pi 5 (all passed). Remaining: protected import and experiment browser flows, live hosted checks, npm/Bun local distribution and handoff."
     }
   },
   "nextUp": [
-    "Owner: dispatch image.yml for the hosted/local release; create the GitHub OAuth app and hosted .env, back up, deploy and run the live two-account/quota/backup checks (docs/hosted-operations.md).",
-    "Owner M4/M8: VPS/Pi timings and recovery; then tune hosted quotas before opening signup.",
+    "Owner: create the GitHub OAuth app, add the hosted settings to the server .env, restart, sign in with two GitHub accounts and run scripts/live-two-account.mjs (docs/hosted-operations.md).",
+    "Owner: copy backups off the VPS; watch queue times after signup opens (quotas fit the measured 81 s default-budget run).",
     "M8: separate protected-import and experiment browser smokes; use existing lesson/result/export coverage.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil.",
     "M6: browser matrix selection, durable Valhalla snapshot job, pinned deployment and validated routing increments.",
