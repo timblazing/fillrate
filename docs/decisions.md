@@ -387,3 +387,6 @@ Branch `m6-directed-snapshots`, rebased on `778f7ba`; not merged or pushed (need
 - Hosted defaults: global queue 10, sweeps of at most 10 runs. Per-address limits and Better Auth's IP tracking use only an operator-named proxy header (`TRUSTED_CLIENT_IP_HEADER`).
 - Deleting a scenario deletes branches made from it. Deletion is refused while work is unfinished. Backups keep deleted data until they expire, at most 30 days (published on `/privacy`).
 **Reason:** Authorization in server queries and the store, not the UI. In-transaction admission is the only way to keep quotas correct under concurrent requests and restarts. Keeping the unset mode unchanged avoids breaking the deployed operator workflow before the owner configures OAuth.
+
+## 2026-10-01: Simplify the progress dashboard hierarchy (Codex)
+Keep the weighted spec completion as the first of five stat cards on `/dev`. Remove the hero and its metadata line, show three months of commit activity, and start all milestone details closed. The milestone estimates and project records are unchanged.

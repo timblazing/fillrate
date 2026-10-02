@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-10-01: Simplify /dev progress layout (Codex)
+- Removed the live/spec/date line and the entire hero. The weighted spec completion now leads a five-stat strip; product behavior, milestones, tasks and decisions follow.
+- Activity covers the rolling last three months, including its GitHub query, graph and caption. Milestone details all start collapsed.
+- Verification: lint, typecheck and production build pass (existing vendored `globe.tsx` warning). Desktop browser inspection confirmed five ordered stats, 93 graph days, no expanded milestones and no page-level horizontal overflow. Mobile visual review was unavailable because the collaborative preview's resize and snapshot controls timed out.
+
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
   - [x] Monorepo skeleton, root Bun workspace, git

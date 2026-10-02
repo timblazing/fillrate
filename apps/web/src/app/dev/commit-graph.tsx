@@ -1,6 +1,6 @@
 "use client"
 
-import { addDays, formatISO, subDays } from "date-fns"
+import { addDays, formatISO, subMonths } from "date-fns"
 import { useEffect, useMemo, useState } from "react"
 
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/components/kibo-ui/contribution-graph"
 
 const COMMITS_API = "https://api.github.com/repos/timblazing/fillrate/commits"
-const CACHE_KEY = "fillrate:dev:commit-dates"
+const CACHE_KEY = "fillrate:dev:commit-dates:3-months"
 const MAX_PAGES = 10
 
 // GitHub-style levels on the success token instead of Kibo's grey defaults.
@@ -28,7 +28,7 @@ const levelClass = [
 
 const dayKey = (d: Date) => formatISO(d, { representation: "date" })
 
-/** Commit dates on `main` for the last year (local time). Unauthenticated, so cached per browser session. */
+/** Commit dates on `main` for the last three months (local time). Unauthenticated, so cached per browser session. */
 async function fetchCommitDates(since: Date, signal: AbortSignal): Promise<string[]> {
   const cached = sessionStorage.getItem(CACHE_KEY)
   if (cached) return JSON.parse(cached) as string[]
@@ -44,12 +44,12 @@ async function fetchCommitDates(since: Date, signal: AbortSignal): Promise<strin
   return dates
 }
 
-// The last 52 weeks of commits to `main`, fetched from the GitHub API in the browser (the image has no .git).
+// The last three months of commits to `main`, fetched from the GitHub API in the browser (the image has no .git).
 export function CommitGraph() {
   const [dates, setDates] = useState<string[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [today] = useState(() => new Date())
-  const start = useMemo(() => subDays(today, 52 * 7), [today])
+  const start = useMemo(() => subMonths(today, 3), [today])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -92,7 +92,7 @@ export function CommitGraph() {
                 ? "Commit history unavailable (GitHub API limit). Try again later."
                 : dates === null
                   ? "Loading commits from GitHub…"
-                  : `${totalCount} commits to main in the last year`}
+                  : `${totalCount} commits to main in the last three months`}
             </span>
           )}
         </ContributionGraphTotalCount>

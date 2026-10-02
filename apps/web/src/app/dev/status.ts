@@ -18,7 +18,7 @@ export type MilestoneStatus = {
 export type Status = {
   /** ISO date the estimates were last revised. */
   updated: string
-  /** Milestone the work is currently on; its accordion opens by default. */
+  /** Milestone the work is currently on; highlighted in the pipeline. */
   focus: MilestoneId
   /** Percent of the spec that is working product behavior, counting only real runs (no foundation, no fixtures). */
   productBehavior: number

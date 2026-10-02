@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowUpRight, Check, Circle } from "lucide-react"
+import { Check, Circle } from "lucide-react"
 import dynamic from "next/dynamic"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
@@ -18,7 +18,6 @@ const CommitGraph = dynamic(() => import("./commit-graph").then((m) => m.CommitG
   loading: () => <div className="bg-muted/50 h-[176px] animate-pulse rounded-lg" />,
 })
 
-const REPO_URL = "https://github.com/timblazing/fillrate"
 const GAPS_PREVIEW = 5
 const DECISIONS_PAGE = 12
 
@@ -51,14 +50,12 @@ type Milestone = ProjectDocs["specMilestones"][number] &
 // changes show up without an image rebuild. Any fetch or parse failure keeps the snapshot.
 export function ProgressView({ initial }: { initial: ProjectDocs }) {
   const [docs, setDocs] = useState(initial)
-  const [live, setLive] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
     fetchLatest(controller.signal)
       .then((latest) => {
         setDocs(latest)
-        setLive(true)
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) console.warn("[dev] keeping build snapshot:", error)
@@ -73,62 +70,16 @@ export function ProgressView({ initial }: { initial: ProjectDocs }) {
     return estimate ? [{ ...m, ...estimate, checklist: docs.progressMilestones.find((p) => p.id === m.id)?.items ?? [] }] : []
   })
   const overall = milestones.reduce((sum, m) => sum + (m.weight * m.done) / 100, 0)
-  const focus = milestones.find((m) => m.id === status.focus)
   const doneCount = milestones.filter((m) => m.state === "done").length
   const tasks = milestones.flatMap((m) => m.checklist)
   const tasksDone = tasks.filter((t) => t.done).length
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-14 pb-32 sm:px-6 sm:pt-20">
-      {/* Hero */}
-      <section aria-labelledby="overview" className="space-y-8">
-        <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs">
-          <span className="flex items-center gap-1.5">
-            <span className={cn("size-1.5 rounded-full", live ? "bg-success" : "bg-muted-foreground/50")} aria-hidden />
-            {live ? "Live from main" : "Build snapshot"}
-          </span>
-          <span aria-hidden>·</span>
-          <span>Spec v{docs.spec.version}</span>
-          <span aria-hidden>·</span>
-          <span>Estimates {formatDate(status.updated)}</span>
-        </div>
-        <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-xl space-y-4">
-            <h1 id="overview" className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-              Building Fillrate
-            </h1>
-            <p className="text-muted-foreground text-pretty sm:text-lg">
-              A fulfillment planner, built in the open against its technical spec. Progress counts real behavior only; gallery
-              fixtures don&apos;t count.
-            </p>
-            {focus && (
-              <p className="text-sm">
-                <span className="text-muted-foreground">Now working on </span>
-                <span className="font-medium">
-                  {focus.id} · {focus.name}
-                </span>
-              </p>
-            )}
-            <nav aria-label="Project links" className="flex flex-wrap gap-x-5 gap-y-2 pt-1 text-sm">
-              <HeroLink href={`${REPO_URL}/blob/main/${DOC_PATHS.spec}`}>Technical spec</HeroLink>
-              <HeroLink href={REPO_URL}>Repository</HeroLink>
-              <HeroLink href="/dev/components" internal>
-                Design system
-              </HeroLink>
-            </nav>
-          </div>
-          <div className="shrink-0 sm:text-right">
-            <div className="font-mono text-7xl font-semibold tracking-tighter tabular-nums sm:text-8xl">
-              {Math.round(overall)}
-              <span className="text-muted-foreground/60 text-5xl sm:text-6xl">%</span>
-            </div>
-            <p className="text-muted-foreground mt-1 text-sm">of the spec, by milestone weight</p>
-          </div>
-        </div>
-      </section>
-
+    <main className="mx-auto max-w-5xl px-4 pt-10 pb-32 sm:px-6 sm:pt-14">
+      <h1 className="sr-only">Fillrate progress</h1>
       {/* Stats */}
-      <dl className="mt-14 grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border lg:grid-cols-4">
+      <dl aria-label="Build progress" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-3 lg:grid-cols-5">
+        <Stat label="Spec by milestone weight" value={`${Math.round(overall)}%`} hint="weighted completion" className="col-span-2 sm:col-span-1" />
         <Stat label="Product behavior" value={`${status.productBehavior}%`} hint="working, non-fixture" />
         <Stat label="Milestones done" value={`${doneCount}/${milestones.length}`} hint={`${milestones.filter((m) => m.state === "active").length} in progress`} />
         <Stat label="Tasks checked" value={`${tasksDone}/${tasks.length}`} hint="from docs/progress.md" />
@@ -141,7 +92,7 @@ export function ProgressView({ initial }: { initial: ProjectDocs }) {
       </Section>
 
       {/* Activity */}
-      <Section id="activity" title="Activity" description="Commits to main over the last year, from GitHub.">
+      <Section id="activity" title="Activity" description="Commits to main over the last three months, from GitHub.">
         <CommitGraph />
       </Section>
 
@@ -151,7 +102,7 @@ export function ProgressView({ initial }: { initial: ProjectDocs }) {
         title="Milestones"
         description="From spec §15. Weight is each milestone's share of the spec. Checklists come from docs/progress.md."
       >
-        <Accordion multiple defaultValue={[status.focus]} className="border-t">
+        <Accordion multiple className="border-t">
           {milestones.map((m) => (
             <MilestoneRow key={m.id} m={m} />
           ))}
@@ -171,22 +122,9 @@ export function ProgressView({ initial }: { initial: ProjectDocs }) {
   )
 }
 
-function HeroLink({ href, internal, children }: { href: string; internal?: boolean; children: ReactNode }) {
+function Stat({ label, value, hint, className }: { label: string; value: string; hint: string; className?: string }) {
   return (
-    <a
-      href={href}
-      {...(internal ? {} : { target: "_blank", rel: "noreferrer" })}
-      className="text-muted-foreground hover:text-foreground group inline-flex items-center gap-1 transition-colors duration-150"
-    >
-      {children}
-      <ArrowUpRight className="size-3.5 opacity-60 transition-transform duration-150 group-hover:translate-x-px group-hover:-translate-y-px" aria-hidden />
-    </a>
-  )
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="bg-background space-y-1 p-5">
+    <div className={cn("bg-background space-y-1 p-5", className)}>
       <dt className="text-muted-foreground text-xs">{label}</dt>
       <dd className="font-mono text-2xl font-semibold tracking-tight tabular-nums">{value}</dd>
       <dd className="text-muted-foreground/80 text-xs">{hint}</dd>
