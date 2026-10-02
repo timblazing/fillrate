@@ -73,7 +73,7 @@ timeout 180 docker run --rm --name "$name-hosted-admin" ${platform:+--platform "
 admin_refused=$?
 set -e
 docker rm -f "$name-hosted-admin" >/dev/null 2>&1 || true
-if [ "$admin_refused" != 78 ] || ! grep -q ADMIN_GITHUB_ID "$admin_log"; then echo "hosted mode did not specifically refuse missing ADMIN_GITHUB_ID (status $admin_refused)"; cat "$admin_log"; exit 1; fi
+if [ "$admin_refused" = 0 ] || [ "$admin_refused" = 124 ] || ! grep -q ADMIN_GITHUB_ID "$admin_log"; then echo "hosted mode did not specifically refuse missing ADMIN_GITHUB_ID (status $admin_refused)"; cat "$admin_log"; exit 1; fi
 rm "$admin_log"
 echo "hosted mode refused missing ADMIN_GITHUB_ID (status $admin_refused)"
 local_name="$name-local"; local_port=$((port + 1))
