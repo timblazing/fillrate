@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-10-02: Refine /dev progress hierarchy (Codex)
+- Removed the stat strip and GitHub activity graph. The page now opens with a `Progress` title and the milestone pipeline, followed by the Milestones, Known gaps and Decision log sections without section descriptions.
+- Known gaps now uses dividers only between entries. Decision log starts with five decisions and expands with `Show all`; entries use a continuous vertical timeline.
+- Visual review passed at desktop 1440×900 and iPhone 16 393×852 (`.ui-shots/progress-full-desktop.png`, `.ui-shots/progress-full-phone.png`); the decision log expands from five entries with `Show all`.
+
 ## 2026-10-02: Local agent-browser acceptance and M8 private workflows (Codex)
 - Replaced the previous browser test runner with the pinned local `agent-browser` 0.37.1 CLI. Removed its old test/config and direct dependencies; CI installs the agent-browser runtime. `AGENTS.md`, the spec and browser documentation now use only this local headless automation workflow. Historical checks keep their original scope and are not presented as new evidence.
 - `bun run test:browser` runs three independent flows against a production standalone build and real Python worker. Each gets a fresh named headless browser session; the web/worker share an isolated temporary database, random test-only keys and loopback ports. Ambient hosted/auth/data settings are excluded, downloads and test data are removed, and failures redact test keys. Individual flows use `--flow=lesson|import|experiment`.

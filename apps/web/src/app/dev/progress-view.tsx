@@ -1,8 +1,7 @@
 "use client"
 
 import { Check, Circle } from "lucide-react"
-import dynamic from "next/dynamic"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
@@ -12,14 +11,8 @@ import { cn } from "@/lib/utils"
 import { Md } from "./md"
 import type { MilestoneState } from "./status"
 
-// Client-only: the graph is dated from the viewer's clock, so it must not render in the static build.
-const CommitGraph = dynamic(() => import("./commit-graph").then((m) => m.CommitGraph), {
-  ssr: false,
-  loading: () => <div className="bg-muted/50 h-[176px] animate-pulse rounded-lg" />,
-})
-
 const GAPS_PREVIEW = 5
-const DECISIONS_PAGE = 12
+const DECISIONS_PREVIEW = 5
 
 const stateStyle: Record<MilestoneState, { label: string; dot: string; stroke: string; text: string }> = {
   done: { label: "Done", dot: "bg-success", stroke: "stroke-success", text: "text-success-foreground" },
@@ -69,39 +62,15 @@ export function ProgressView({ initial }: { initial: ProjectDocs }) {
     const estimate = status.milestones[m.id]
     return estimate ? [{ ...m, ...estimate, checklist: docs.progressMilestones.find((p) => p.id === m.id)?.items ?? [] }] : []
   })
-  const overall = milestones.reduce((sum, m) => sum + (m.weight * m.done) / 100, 0)
-  const doneCount = milestones.filter((m) => m.state === "done").length
-  const tasks = milestones.flatMap((m) => m.checklist)
-  const tasksDone = tasks.filter((t) => t.done).length
-
   return (
     <main className="mx-auto max-w-5xl px-4 pt-10 pb-32 sm:px-6 sm:pt-14">
-      <h1 className="sr-only">Fillrate progress</h1>
-      {/* Stats */}
-      <dl aria-label="Build progress" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-3 lg:grid-cols-5">
-        <Stat label="Spec by milestone weight" value={`${Math.round(overall)}%`} hint="weighted completion" className="col-span-2 sm:col-span-1" />
-        <Stat label="Product behavior" value={`${status.productBehavior}%`} hint="working, non-fixture" />
-        <Stat label="Milestones done" value={`${doneCount}/${milestones.length}`} hint={`${milestones.filter((m) => m.state === "active").length} in progress`} />
-        <Stat label="Tasks checked" value={`${tasksDone}/${tasks.length}`} hint="from docs/progress.md" />
-        <Stat label="Decisions logged" value={String(docs.decisions.length)} hint={`latest ${formatDate(docs.decisions[0]?.date ?? status.updated)}`} />
-      </dl>
-
-      {/* Pipeline */}
-      <Section id="pipeline" title="Pipeline" description="Each milestone in spec order. The ring fills with how much of it is done.">
+      <h1 className="mb-8 text-2xl font-semibold tracking-tight">Progress</h1>
+      <div aria-label="Milestone progress">
         <Pipeline milestones={milestones} focus={status.focus} />
-      </Section>
-
-      {/* Activity */}
-      <Section id="activity" title="Activity" description="Commits to main over the last three months, from GitHub.">
-        <CommitGraph />
-      </Section>
+      </div>
 
       {/* Milestones */}
-      <Section
-        id="milestones"
-        title="Milestones"
-        description="From spec §15. Weight is each milestone's share of the spec. Checklists come from docs/progress.md."
-      >
+      <Section id="milestones" title="Milestones">
         <Accordion multiple className="border-t">
           {milestones.map((m) => (
             <MilestoneRow key={m.id} m={m} />
@@ -110,25 +79,15 @@ export function ProgressView({ initial }: { initial: ProjectDocs }) {
       </Section>
 
       {/* Known gaps */}
-      <Section id="gaps" title="Known gaps" description="From docs/progress.md. Limits and loose ends that aren't milestone tasks.">
+      <Section id="gaps" title="Known gaps">
         <KnownGaps gaps={docs.knownGaps} />
       </Section>
 
       {/* Decision log */}
-      <Section id="decisions" title="Decision log" description={`${docs.decisions.length} entries from docs/decisions.md, newest first.`}>
+      <Section id="decisions" title="Decision log">
         <DecisionLog decisions={docs.decisions} />
       </Section>
     </main>
-  )
-}
-
-function Stat({ label, value, hint, className }: { label: string; value: string; hint: string; className?: string }) {
-  return (
-    <div className={cn("bg-background space-y-1 p-5", className)}>
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="font-mono text-2xl font-semibold tracking-tight tabular-nums">{value}</dd>
-      <dd className="text-muted-foreground/80 text-xs">{hint}</dd>
-    </div>
   )
 }
 
@@ -262,7 +221,7 @@ function KnownGaps({ gaps }: { gaps: string[] }) {
   const shown = all ? gaps : gaps.slice(0, GAPS_PREVIEW)
   return (
     <div>
-      <ol className="divide-y border-t border-b text-sm">
+      <ol className="divide-y text-sm">
         {shown.map((gap, i) => (
           <li key={gap} className="flex gap-4 py-3.5">
             <span className="text-muted-foreground/70 w-6 shrink-0 font-mono text-xs tabular-nums leading-5">{String(i + 1).padStart(2, "0")}</span>
@@ -274,7 +233,7 @@ function KnownGaps({ gaps }: { gaps: string[] }) {
       </ol>
       {gaps.length > GAPS_PREVIEW && (
         <Button variant="ghost" size="sm" className="text-muted-foreground mt-3 -ml-2" onClick={() => setAll((v) => !v)}>
-          {all ? "Show fewer" : `Show all ${gaps.length}`}
+          {all ? "Show fewer" : "Show all"}
         </Button>
       )}
     </div>
@@ -296,72 +255,48 @@ function AuthorBadge({ author }: { author: string }) {
   )
 }
 
-// Loads another page of entries as the sentinel scrolls into view; the button is the keyboard/no-IO fallback.
 function DecisionLog({ decisions }: { decisions: ProjectDocs["decisions"] }) {
-  const [count, setCount] = useState(DECISIONS_PAGE)
-  const sentinel = useRef<HTMLDivElement>(null)
-  const more = count < decisions.length
-
-  useEffect(() => {
-    const el = sentinel.current
-    if (!el || !more) return
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) setCount((c) => c + DECISIONS_PAGE)
-    }, { rootMargin: "200px" })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [more])
-
-  const days = Object.entries(Object.groupBy(decisions.slice(0, count), (d) => d.date))
+  const [all, setAll] = useState(false)
+  const shown = all ? decisions : decisions.slice(0, DECISIONS_PREVIEW)
 
   return (
-    <div className="space-y-10">
-      {days.map(([date, entries]) => (
-        <div key={date} className="grid grid-cols-1 gap-4 md:grid-cols-[9rem_minmax(0,1fr)]">
-          <div className="md:pt-0.5">
-            <div className="font-medium">{formatDate(date)}</div>
-            <div className="text-muted-foreground font-mono text-xs tabular-nums">
-              {decisions.filter((d) => d.date === date).length} decisions
+    <div>
+      <ol className="border-border relative border-l pl-6 sm:pl-8">
+        {shown.map((d, index) => (
+          <li key={d.title} className={cn("relative min-w-0 pb-8 [overflow-wrap:anywhere]", index === shown.length - 1 && "pb-0")}>
+            <span
+              className={cn(
+                "bg-background absolute top-1 -left-[1.95rem] size-3.5 rounded-full border-2",
+                index === 0 ? "border-foreground" : "border-muted-foreground/60"
+              )}
+              aria-hidden
+            />
+            <p className="text-muted-foreground mb-1 font-mono text-xs tabular-nums">{formatDate(d.date)}</p>
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+              <span className="font-medium text-pretty">{d.title}</span>
+              {d.author && <AuthorBadge author={d.author} />}
             </div>
-          </div>
-          <ol className="border-border relative space-y-6 border-l pl-6">
-            {entries!.map((d) => (
-              <li key={d.title} className="relative min-w-0 [overflow-wrap:anywhere]">
-                <span className="bg-background border-muted-foreground/60 absolute top-1.5 -left-[1.8rem] size-2.5 rounded-full border-2" aria-hidden />
-                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-                  <span className="font-medium text-pretty">{d.title}</span>
-                  {d.author && <AuthorBadge author={d.author} />}
-                </div>
-                {d.summary && (
-                  <p className="text-muted-foreground mt-1.5 line-clamp-2 max-w-3xl text-sm text-pretty">
-                    <Md>{d.summary}</Md>
-                  </p>
-                )}
-              </li>
-            ))}
-          </ol>
-        </div>
-      ))}
-      {more && (
-        <div ref={sentinel} className="flex justify-center">
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setCount((c) => c + DECISIONS_PAGE)}>
-            Load more · {decisions.length - count} left
-          </Button>
-        </div>
+            {d.summary && (
+              <p className="text-muted-foreground mt-1.5 max-w-3xl text-sm leading-relaxed text-pretty">
+                <Md>{d.summary}</Md>
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
+      {decisions.length > DECISIONS_PREVIEW && (
+        <Button variant="ghost" size="sm" className="text-muted-foreground -ml-2" onClick={() => setAll((value) => !value)}>
+          {all ? "Show fewer" : "Show all"}
+        </Button>
       )}
     </div>
   )
 }
 
-function Section({ id, title, description, children }: { id: string; title: string; description: string; children: ReactNode }) {
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="mt-20 scroll-mt-20 space-y-6">
-      <div className="space-y-1">
-        <h2 id={id} className="text-xl font-semibold tracking-tight">
-          {title}
-        </h2>
-        <p className="text-muted-foreground max-w-2xl text-sm text-pretty">{description}</p>
-      </div>
+    <section aria-labelledby={id} className="mt-14 scroll-mt-20 space-y-5 sm:mt-16">
+      <h2 id={id} className="text-xl font-semibold tracking-tight">{title}</h2>
       {children}
     </section>
   )
