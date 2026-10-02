@@ -3,7 +3,7 @@
 ## 2026-10-02: GitHub issue queue and browser CI recovery (Codex)
 - GitHub Issues now have templates for spec/documentation gaps and blocked-session handoffs. The linked [Fillrate work project](https://github.com/users/timblazing/projects/2) is the visual triage board; repository docs remain the source of truth for spec, decisions, milestone evidence and estimates. See `docs/issues-and-work.md`.
 - CI runs #41 (`04c2879`) and #42 (`41cd980`) failed at the same step: Chromium could not start its sandbox on the GitHub-hosted Ubuntu runner because unprivileged user namespaces are unavailable. The failure was in browser startup, before page assertions; it was unrelated to the `/dev` change.
-- The browser smoke launcher now forwards `AGENT_BROWSER_ARGS`, and the CI browser step supplies `--no-sandbox` only for its ephemeral synthetic-data job. Local browser sessions keep their normal sandbox defaults. The next CI run is the confirmation gate.
+- The browser smoke launcher now forwards `AGENT_BROWSER_ARGS`, and the CI browser step supplies `--no-sandbox` only for its ephemeral synthetic-data job. Local browser sessions keep their normal sandbox defaults. CI run [#43](https://github.com/timblazing/fillrate/actions/runs/37072464587) passed all checks, including the production browser smoke; the three flows also passed locally with the same flag.
 
 ## 2026-10-02: Refine /dev progress hierarchy (Codex)
 - Removed the stat strip and GitHub activity graph. The page now opens with a `Progress` title and the milestone pipeline, followed by the Milestones, Known gaps and Decision log sections without section descriptions.
