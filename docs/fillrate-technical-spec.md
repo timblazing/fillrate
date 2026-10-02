@@ -1,6 +1,6 @@
 # Fillrate — Technical Specification
 
-Version: 1.11 · Revised October 2, 2026
+Version: 1.12 · Revised October 2, 2026
 
 Revision notes:
 
@@ -17,7 +17,9 @@ Revision notes:
 - 1.10 adds free hosted accounts using Better Auth, owner-scoped server data and abuse limits, preserves an auth-free local distribution, and limits automatic CI to relevant changes with explicit image releases. Hosted release gates remain open.
 - 1.11 records the owner's accepted release scope: Better Auth is live with request-only signup, a verified owner GitHub sign-in and on-server backups. Cross-user denial remains required and is covered by automated two-user tests. The owner removed a second real GitHub account/live two-account run from the release gate. Do not present that unperformed check as live evidence.
 
-Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. M1, M3, M4 and M5 are complete for the accepted scope; M2 still has its OpenPencil design-file item open. M4 has a live Better Auth deployment, request-only signup, owner-scoped data, quotas, target-hardware/recovery evidence, on-server backup/restore evidence and a verified owner GitHub sign-in. Automated two-user tests cover cross-account behavior; it was not tested with a second live GitHub account. M6 has Python travel-provider groundwork and immutable directed travel snapshots selected through the operator API and the worker, M7 has started (allocation lesson, tested replay semantics) and M8 remains. Road matrices cannot yet be selected in the browser, and no pinned Valhalla deployment is verified. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
+- 1.12 standardizes all browser automation on the local headless `agent-browser` CLI, including repeatable production-build acceptance. Desktop checks use 1440×900; phone checks use the iPhone 16 profile at 393×852. M8 verification remains incremental and uses isolated synthetic data.
+
+Status: target specification for alternating Codex and Claude Code sessions. `docs/progress.md` describes what actually exists; this document describes required behavior by milestone. M1, M3, M4 and M5 are complete for the accepted scope; M2 still has its OpenPencil design-file item open. M4 has a live Better Auth deployment, request-only signup, owner-scoped data, quotas, target-hardware/recovery evidence, on-server backup/restore evidence and a verified owner GitHub sign-in. Automated two-user tests cover cross-account behavior; it was not tested with a second live GitHub account. M6 has Python travel-provider groundwork and immutable directed travel snapshots selected through the operator API and the worker, M7 has started (allocation lesson, tested replay semantics) and M8 has local agent-browser coverage for the public lesson/export, protected import/result/export and bounded ranked experiments. Native distribution, broader browser coverage and handoff remain. Road matrices cannot yet be selected in the browser, and no pinned Valhalla deployment is verified. Existing pins remain authoritative in the lockfiles. Pending business assumptions are explicit in §1; changes to them require a recorded decision, not silent reinterpretation.
 
 Reading guide: §1 defines the product and terminology; §2–3 define architecture and capability boundaries; §5–8a define the model and pipeline; §9–12 define execution and results; §15–16 define delivery gates and verification. Keep these section numbers stable for code and decision-log references.
 
@@ -103,7 +105,7 @@ The product is a research workbench, not a dispatching, live tracking, navigatio
 | Server data state | TanStack Query |
 | Editor state | Small Zustand store; immutable scenario snapshots |
 | Charts/tables | shadcn Chart/Recharts and TanStack Table |
-| Testing | Vitest (Node) for web/database code, pytest for the optimizer, Playwright for browser flows |
+| Testing | Vitest (Node) for web/database code, pytest for the optimizer, local headless `agent-browser` CLI for browser flows |
 | Distribution | Single container image on GHCR built by GitHub Actions; Docker Compose; documented native development workflow |
 
 Use a monorepo with apps/web, services/optimizer, packages/db, packages/contracts, examples, docs, and deployment directories. Do not add Redis, Kubernetes, a GIS server, or a second routing engine as baseline dependencies.
@@ -539,7 +541,7 @@ GitHub Actions workflow `.github/workflows/ci.yml` runs on relevant code/configu
 
 - `bun install --frozen-lockfile`, lint, typecheck, and Vitest (including the real-file SQLite claim-race test).
 - `uv sync --locked` and pytest (capability fixtures, allocation, and validation).
-- Contract round-trip fixtures, and a Playwright smoke run against a production build.
+- Contract round-trip fixtures, and local headless `agent-browser` smoke flows against a production build (`bun run test:browser`), with isolated temporary data and desktop/iPhone 16 checks.
 
 GitHub Actions workflow `.github/workflows/image.yml`:
 
@@ -696,7 +698,7 @@ Source: the primary user's answers in the in-app review (`/dev/review`, submitte
 - Imports have previews and actionable row errors; invalid manual routes show violations.
 - At the 2,000-order target, table/map interactions remain usable, matrix data is not repeatedly downloaded, and one solver does not stall application endpoints. A pipeline run at that size completes within the run wall-clock limit on the deployment machine. Record hardware and measured timings per stage.
 - Learning mode works with bundled data without Census/Valhalla connectivity; an unavailable online basemap shows an explicit empty-background state without disabling tables or bundled geometry. A writable data volume is required for persisted app state.
-- Browser tests cover real scenario creation, save, solve, cancellation, branch, comparison, and export. Visual QA checks desktop and narrow layouts against the accepted design.
+- All browser tests and visual QA use the local headless `agent-browser` CLI in named sessions. Browser tests cover real scenario creation, save, solve, cancellation, branch, comparison, and export. Visual QA checks 1440×900 desktop and iPhone 16 (393×852) layouts against the accepted design. Automated fixtures use temporary databases and synthetic inputs; live OAuth and deployment evidence are recorded separately.
 - Server-only modules (database, provider adapters, env config) are never bundled for the client. Internal worker endpoints reject non-loopback requests and requests without a valid worker token and lease. A public deployment exposes only intended browser routes; public writes and real-data access require isolation and abuse-control tests before launch.
 - Time windows round-trip correctly across the scenario timezone, including a daylight-saving transition date and a shift that ends after midnight.
 

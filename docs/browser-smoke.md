@@ -1,17 +1,28 @@
 # Production browser smoke
 
-The Chromium smoke drives the bundled fulfillment lesson through a real Python worker, waits for a persisted valid and complete run, checks the revenue/shipment output, downloads the existing JSON export, and checks the result page at 1440 px and 390 px.
+All browser automation uses the local headless `agent-browser` CLI, pinned to 0.37.1 in the workspace. `bun run test:browser` starts a production standalone web server and real Python worker against an isolated temporary database. Browser sessions have unique names; test-only run and operator keys are generated for each invocation. Ambient hosted credentials, data paths and worker URLs are excluded. No production data or live OAuth is used.
 
 ## Local prerequisites
 
-1. Install workspace dependencies with `bun install`.
-2. Install and sync the optimizer with `cd services/optimizer && UV_PYTHON=python3.13 uv sync --locked`.
+1. Install workspace dependencies with `bun install --frozen-lockfile`.
+2. Sync the optimizer with `cd services/optimizer && UV_PYTHON=python3.13 uv sync --locked`.
 3. Build the production web app with `bun run build`.
-4. Install Chromium once with `bunx playwright install chromium`.
-5. From the repository root, run `bun run test:browser`.
+4. Install the browser runtime with `bunx --no-install agent-browser install`.
+5. Run `bun run test:browser` from the repository root.
 
-The launcher starts `next start` on a loopback-only ephemeral port, starts the real worker against a separate loopback transport port, and creates a temporary database directory and run key. It removes the temporary database when the run ends. It does not use Docker or production data. CI installs Chromium with `bunx playwright install --with-deps chromium` before running the same command.
+CI installs the same pinned CLI and its browser runtime with `bunx --no-install agent-browser install --with-deps`, then runs the same acceptance command. The launcher binds the web server and worker transport to separate loopback ports and removes temporary data/downloads and closes its browser session when it ends. Images are built only in GitHub Actions.
 
-## Remaining coverage
+## Independent flows
 
-The existing smoke covers the public lesson, core result page and JSON export. Add two separate flows using this production launcher: a minimal protected CSV import through preview/commit to a validated result, and a bounded deterministic experiment through combination preview to a ranked comparison. Both need meaningful persisted-outcome assertions and desktop/390 px overflow checks. Preserve operator protections for imports. Detailed acceptance and dependencies are in `progress.md`; target hardware and release evidence are in `release-verification.md`.
+| Command | Acceptance scope |
+| --- | --- |
+| `bun run test:browser` | All three flows in sequence. |
+| `bun run test:browser --flow=lesson` | Public fulfillment lesson → persisted valid, complete result with positive revenue/shipments → downloaded and parsed JSON export. |
+| `bun run test:browser --flow=import` | Protected synthetic CSV preview → save → preflight → real worker result → browser reload and JSON export matching the saved scenario. Keyless listing, run and export reads are refused. |
+| `bun run test:browser --flow=experiment` | Small allocation-example sweep → preview of two combinations → both completed valid plans → ranked Best option with meaningful comparison metrics. |
+
+Browser actions go through agent-browser; direct HTTP reads are used only for persisted-outcome polling and access assertions. Layout checks cover desktop 1440×900 and the iPhone 16 profile at 393×852, including the scenario workbench, experiment builder and their result screens. A scrollable table is allowed; page-level horizontal overflow fails acceptance.
+
+## Verification boundaries
+
+These local flows do not replace `bun run test:hosted` for two-account isolation, pending/admin access and quota regression checks. They do not test live GitHub OAuth, deployed-site cross-account behavior, native npm support or target hardware. Browser cancellation, scenario editing/branching and the optional request-access/admin responsive checks remain separate follow-up coverage. Target hardware/release evidence is in `release-verification.md`; current results and remaining work are in `progress.md`.

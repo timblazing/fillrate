@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-10-02: Local agent-browser acceptance and M8 private workflows (Codex)
+- Replaced the previous browser test runner with the pinned local `agent-browser` 0.37.1 CLI. Removed its old test/config and direct dependencies; CI installs the agent-browser runtime. `AGENTS.md`, the spec and browser documentation now use only this local headless automation workflow. Historical checks keep their original scope and are not presented as new evidence.
+- `bun run test:browser` runs three independent flows against a production standalone build and real Python worker. Each gets a fresh named headless browser session; the web/worker share an isolated temporary database, random test-only keys and loopback ports. Ambient hosted/auth/data settings are excluded, downloads and test data are removed, and failures redact test keys. Individual flows use `--flow=lesson|import|experiment`.
+- Protected CSV acceptance covers preview/save/preflight, persisted valid complete execution, browser reload, and downloaded JSON exactly matching the saved scenario. The fixture ships ten pieces worth $250 on one shipment. Keyless scenario listing, run reads and export reads are denied. The allocation experiment previews exactly two k combinations (2 and 3), completes both valid plans, checks one comparable cohort and renders Best option ($65,291, 14 shipments). Existing public lesson/result/export coverage remains (443 shipments, $2,242,946 planned revenue in this run).
+- Desktop 1440×900 and iPhone 16 393×852 bounds checks pass for the workbench, sweep builder and result/comparison screens, with no page-level horizontal overflow or console/page errors. These are local operator/synthetic browser tests, not live OAuth or deployed-site two-account evidence.
+- GPT-6-Luna with medium reasoning implemented the runner and new flows. Parent review tightened export filename/run identity, exact scenario equality and fixture totals, diagnostic parsing, test-key redaction and exact comparable sweep membership. Parent verification: frozen dependency install, lint (existing vendored `globe.tsx` warning), typecheck, production build, 116 Vitest tests, 82 hosted/local production checks, all three browser flows and actionlint passed. No application/solver code, deployed image or production data changed. The reviewed changes remain uncommitted for owner review; Linux CI/image publication has not been run for this diff.
+- Next product increment: M6 imported-matrix browser preview/upload/selection and inspector. Native Bun/npm distribution and handoff, broader cancellation/edit/branch browser coverage, the optional access/admin phone review, and the M2 design file remain open. M8 is estimated at 60%; product behavior stays at 58% because this increment verifies existing behavior.
+
 ## 2026-10-02: Request-only access gate, hosted release and on-server backups (Codex)
 - Migration 0009 adds constrained access requests, a status/date index, an admin-action audit log and approval backfill for earlier users. Hosted startup now requires the numeric admin GitHub ID and validates `SIGNUP_MODE`; request mode is the default. Pending, denied and revoked sessions lose owner access on their next request without re-login or quota use. A pending account cannot borrow an operator key. New `/request-access` and `/admin` pages and APIs cover notes, admin decisions, revocation cancellation, restore, and account deletion.
 - The owner chose to keep the existing daily on-server online backups with checksum and 30-day rotation for this release. Google Drive, rclone and an off-server restore are out of scope. The pre-migration backup and disposable restore were verified before deployment; live release evidence follows.
@@ -79,7 +87,7 @@
   - [x] Persistent compute quotas: one unfinished job per account, daily solve/geocode/lookup/save/upload budgets, trusted-proxy IP budget, global queue; checked and charged in the queuing transaction; 429 with `Retry-After` and reset time (2026-10-01)
   - [x] Export and delete controls: `GET /api/v1/me/export`, scenario and account deletion with defined semantics; retention/backup/geocoding disclosure (2026-10-01)
   - [x] Accepted hosted release: target-hardware/recovery evidence, configured GitHub OAuth, owner sign-in, backup/restore and healthy deployment. Cross-account isolation passes automated two-user tests; a second live account was waived by the owner.
-  - [x] Playwright smoke (spec §16; consolidated in M8): production lesson → persisted valid and complete result → non-zero revenue and shipment metrics → downloaded JSON export; no page-level overflow at 1440 and 390 px
+  - [x] Production agent-browser smoke (spec §16; consolidated in M8): production lesson → persisted valid and complete result → non-zero revenue and shipment metrics → downloaded JSON export; no page-level overflow at 1440×900 and iPhone 16 393×852
 - [x] **M5 Allocation depth and imports** (CP-SAT, other strategies, whole-order mode, geocoding; done 2026-10-01)
   - [x] Allocation strategies in the pipeline (`allocation.py`): order date then value (default), first come, priority, proportional fair share (heuristic), optimized CP-SAT (revenue or priority then revenue, optional "respect order date", per-stage status)
   - [x] Whole-order fulfillment policy for every strategy; an order with an excluded line is excluded as a whole (`excluded_with_order`)
@@ -114,10 +122,12 @@
   - [ ] Planned-route timeline/playback from persisted timing and verified geometry; waits for supported M6 adapters
   - [ ] GeoJSON route geometry, explorer replay and road-matrix export; export only implemented adapters and validated provider data
 - [ ] M8 Verification and handoff
-  - [x] Production Playwright browser smoke for the public synthetic fulfillment lesson, using the real Python worker and an isolated temporary database; validates result, revenue, shipments and JSON export at desktop and 390 px
-  - [ ] Protected scenario/import → validated result browser smoke at desktop and 390 px
-  - [ ] Bounded experiment → ranked comparison browser smoke at desktop and 390 px
-  - [ ] Target-hardware timings, recovery checks, hosted access gates and account-free local distribution; complete the reproducible handoff
+  - [x] Production local agent-browser smoke for the public synthetic fulfillment lesson, using the real Python worker and an isolated temporary database; validates result, revenue, shipments and JSON export at desktop and iPhone 16
+  - [x] Protected scenario/import → validated result, browser reload and scenario-matching JSON export; keyless reads denied; desktop and iPhone 16 checks (2026-10-02)
+  - [x] Bounded experiment → exact two-run preview → successful valid comparable results → ranked Best option; desktop and iPhone 16 checks (2026-10-02)
+  - [x] Image target-hardware timings/recovery on VPS and Pi 5, and accepted hosted access gates (records below)
+  - [ ] Account-free native Bun/npm distribution and reproducible handoff
+  - [ ] Broader browser cancellation and scenario edit/branch coverage; optional request-access/admin iPhone review
 
 ## Current state
 
@@ -182,7 +192,7 @@ Imported CSV completed preview → immutable save → real worker → validated 
 ## Known gaps
 - Target-hardware evidence covers the image only (`deploy/target_check.py`, release `fa9c0b8`, VPS and Pi 5). Native Bun/uv timings on the targets were not collected; the ingress/transport boundary (item 5 in `release-verification.md`) was checked by hand, not by the harness.
 - After a worker-loss retry, a run's stage list (`/runs/<id>`, `stages`) shows the abandoned attempt's checkpoints as well as the final ones. Checkpoints are kept per execution by design; the result stages appear once.
-- Broader browser acceptance is incomplete: the public lesson/result/export smoke exists, but protected imports and experiments still need separate flows. The cancelled umbrella attempt delivered no recoverable code or detailed failure evidence.
+- Three local agent-browser flows cover the public lesson/result/export, protected imports and bounded ranked experiments. Browser cancellation, scenario editing/branching and optional request-access/admin responsive review remain open; hosted account isolation and quotas are covered separately by production API checks.
 - Optional responsive review remains for `/request-access` and `/admin` at 390 px; the collaborative preview resize control timed out. The owner accepted the hosted release without this additional visual check.
 - Travel snapshots are operator-API only: there is no browser upload, preview or selector, and nothing builds a Valhalla snapshot in a job yet. A replay bundle for a run on the largest snapshots (about 1,000 nodes with high-entropy values) is several tens of MB.
 - A snapshot's nodes are the depot plus stop IDs (one namespace); a location whose ID equals the depot's cannot use a snapshot. Stops are matched by exact coordinates, so any edit to a stop with demand needs a new snapshot.
@@ -200,7 +210,7 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - Estimated travel remains the default. Operator-selected immutable directed snapshots are bound to worker runs, preflight, stage/cache/comparison identities and replay on `main`; browser selection and live Valhalla snapshot jobs are not implemented. No service-radius policy is enabled (per spec).
 - A capacity-forced prohibited leg (B reachable only via A, but A + B exceed a trailer) ends as "no valid candidate": PyVRP prefers an overloaded infeasible route over a MAX_VALUE edge. Correctly reported, never counted as planned.
 - `ghcr.io/timblazing/fillrate:latest` is now the combined web + optimizer image. Deployments keep `/app/data`; starting runs in production needs `RUN_KEY`.
-- The Playwright browser smoke installs Chromium from Playwright's browser CDN on a cold CI runner; source dependencies are locked, and the app build itself no longer fetches fonts.
+- The browser smoke requires the agent-browser runtime on a cold CI runner; source dependencies are locked, and the app build itself no longer fetches fonts.
 - The legacy `solve_loads` spike in `loads.py` keeps its zero default truck penalty for its capability fixtures; the pipeline uses `solve_partition` with the derived penalty and shared location nodes. The gallery still uses its v1.3 TypeScript stand-in.
 - The prior decision suggesting all stops beyond 500 miles from the depot should be dropped is superseded: with a per-leg constraint, an intermediate visit may make such a stop reachable. Spec §7 defines the distinction.
 - The cluster-diameter limit is off by default (M2). With it off, auto-k only enforces `MAX_STOPS`, so auto k is usually 1; runs default to a fixed k. Trucks-then-miles stays the default objective; the cost objective works in the solver but needs his real rates.
@@ -223,7 +233,7 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - Deleting a scenario also deletes branches made from it; account and scenario deletion are refused while a job is unfinished (cancel first). A travel snapshot is stored once by content hash and removed only when no owner holds it. Deleted data stays in backups until they expire; `deploy/backup.sh` deletes host backups older than 30 days, matching `/privacy`.
 - In hosted mode the operator key (`SCENARIO_KEY`) reaches only the operator dataset; signed-in accounts never see it. A hosted sweep is capped at 10 runs by default because the global queue is 10.
 - Better Auth uses its in-memory limiter for auth routes (per process); application quotas are in SQLite.
-- Vitest persistence/contract tests and optimizer pytest exist. The Playwright production smoke now covers one public synthetic lesson run and JSON export; deployment, target-hardware, recovery and other flows remain outside its scope.
+- Vitest persistence/contract tests and optimizer pytest exist. The production agent-browser smoke covers a public synthetic lesson/export, protected CSV import/result/export and a bounded ranked experiment; live OAuth, deployment and target-hardware/recovery evidence remain outside its scope.
 - The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (M2 item 16; needs the OpenPencil app open).
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
@@ -235,10 +245,10 @@ Round two is answered (2026-10-01). Still open from him:
 Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts and the missing Foundations tokens added (M2 item 16, the last M2 item).
 
 ## Next step
-Prioritize the initial hosted release using the remaining work and dependencies below:
-0. M8: add protected scenario/import and experiment browser coverage as separate local increments, using the existing public-lesson smoke.
-1. M2: finish the OpenPencil design file; continue M6 matrix selection/provider work.
-2. M8: verify account-free Bun/npm/Docker distribution and complete the reproducible handoff.
+The hosted release is accepted and the three local browser acceptance flows pass. Use the remaining work and dependencies below:
+1. M6: expose imported-matrix preview/upload/selection and the matrix inspector using the existing immutable snapshot and worker APIs. Keep live Valhalla and advanced features capability-gated.
+2. M8: prove account-free native Bun/npm distribution, extend cancellation/edit/branch browser coverage, and finish the reproducible handoff.
+3. M2: finish the OpenPencil design file when the app is available. M7 lessons can proceed only for already-supported behavior; geometry/playback waits for M6.
 
 ## 2026-10-01: Hosted/local release scope and execution workflow
 
@@ -246,9 +256,9 @@ Spec v1.10 adds free hosted Better Auth accounts, owner isolation, compute quota
 
 ## 2026-10-01: Browser smoke and self-hosted Geist fonts (Codex)
 
-The public-lesson acceptance flow is implemented on `main` at `ea66a3f`. An earlier reported commit `47c32ab` was unavailable, so completion is based on the local implementation and verification: a production standalone server and real Python worker use a temporary database and run key; Playwright waits for a persisted valid, complete result, checks non-zero planned revenue and shipment counts, downloads and parses the JSON export, and checks the result page at 1440 px and 390 px. `bun run test:browser` passed. Full Vitest passed (100/100), lint and typecheck passed, and `bun run build` passed.
+The public-lesson acceptance flow is implemented on `main` at `ea66a3f`. An earlier reported commit `47c32ab` was unavailable, so completion is based on the local implementation and verification: a production standalone server and real Python worker use a temporary database and run key; the earlier browser runner waits for a persisted valid, complete result, checks non-zero planned revenue and shipment counts, downloads and parses the JSON export, and checks the result page at 1440 px and 390 px. `bun run test:browser` passed. Full Vitest passed (100/100), lint and typecheck passed, and `bun run build` passed.
 
-The restricted build environment's Geist download failure is avoided by bundling the Latin WOFF2 subsets under the SIL Open Font License and using `next/font/local`; no outbound Google Fonts request is needed at build time. A cold CI run still needs the locked packages and Playwright's Chromium download. No network policy was loosened.
+The restricted build environment's Geist download failure is avoided by bundling the Latin WOFF2 subsets under the SIL Open Font License and using `next/font/local`; no outbound Google Fonts request is needed at build time. That earlier smoke needed the locked packages and a browser-runtime download on a cold CI runner. No network policy was loosened.
 
 ## Remaining work and dependencies
 
@@ -277,11 +287,12 @@ M4 is complete for the owner-accepted release scope (see the dated deployment an
 - **Exports:** GeoJSON geometry matches validated selected-provider route data; explorer replay reproduces recorded inputs/deterministic artifacts; road-matrix export retains identity/metadata once snapshots are selectable. Document implemented adapter semantics and limits.
 
 ### M8 — Verification and distribution
-- **Protected import browser smoke:** minimal deterministic CSV preview → commit → run → persisted valid result with scenario identity and meaningful revenue/shipments. Check `/scenarios` and the result at desktop and 390 px with no page-level overflow. Use an isolated operator key and preserve imported-data protection; reuse existing public lesson/result/export coverage.
-- **Experiment browser smoke:** smallest useful deterministic sweep → previewed combination count → completion → ranked Best option with meaningful comparison metrics. Check builder/comparison at desktop and 390 px; add one experiment export only as a bounded extension. Implement independently of imports; record the first unresolved blocker and avoid unrelated launcher refactors.
+- **Protected import browser smoke (done, 2026-10-02):** `bun run test:browser --flow=import` drives deterministic CSV preview/save/preflight/result/reload/export, compares the entire exported scenario to its saved document and checks exact $250/one-shipment output plus keyless denials. Workbench/result bounds pass at desktop and iPhone 16.
+- **Experiment browser smoke (done, 2026-10-02):** `bun run test:browser --flow=experiment` previews two allocation-example combinations (k=2,3), completes both valid plans in one comparable cohort and renders ranked Best option with meaningful metrics. Builder/comparison bounds pass at desktop and iPhone 16. Each flow uses a fresh agent-browser session; the combined command passes too.
+- **Remaining browser breadth:** cancellation, scenario editing/branching, and optional `/request-access`/`/admin` phone inspection. These do not reopen the owner-accepted hosted release gate.
 - **Target hardware/recovery (done for the image, 2026-10-01):** `deploy/target_check.py` collected timings and the restart/persistence, worker-loss, cancellation and backup/restore checks on the VPS and the Pi 5 against release `fa9c0b8`; all passed (`docs/release-verification.md`). Rerun it for each release that changes the worker or storage.
 - **Account-free local distribution (after explicit mode):** prove root Bun/npm install/dev/build/worker under Node 24 + Python 3.13/uv; resolve npm workspaces and lockfile reproducibility under one dependency policy. Remove Bun-only runner assumptions without introducing Bun-only application APIs. Document supported native optimizer/SQLite platforms, data location/export/backups and loopback defaults. Both image architectures and local Compose start without auth secrets; hosted refuses missing configuration. Verify before advertising npm support; image builds/smokes stay in Actions.
-- **Reproducible handoff (after evidence):** exact commands/artifacts and supported behavior/limits for container, native development, public ingress, auth, two-user isolation, quotas, mode refusal, backup/restore, performance and recovery. Include real hardware timings and local distribution evidence; hosted real-data release stays open until its gates pass.
+- **Reproducible handoff (after evidence):** exact commands/artifacts and supported behavior/limits for container, native development, public ingress, auth, two-user isolation, quotas, mode refusal, backup/restore, performance and recovery. Include real hardware timings and local distribution evidence; retain the accepted hosted-release evidence and its explicit live-test limits.
 
 
 ## 2026-10-01: Verification record reconciliation (Codex)

@@ -1,6 +1,6 @@
 {
   "updated": "2026-10-02",
-  "focus": "M8",
+  "focus": "M6",
   "productBehavior": 58,
   "milestones": {
     "M1": {
@@ -13,7 +13,7 @@
       "weight": 10,
       "done": 95,
       "state": "waiting",
-      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
+      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: \u2605 = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
     },
     "M3": {
       "weight": 20,
@@ -47,15 +47,15 @@
     },
     "M8": {
       "weight": 7,
-      "done": 36,
+      "done": 60,
       "state": "active",
-      "notes": "Done: production public-lesson browser smoke; hosted/local acceptance (`bun run test:hosted`); image smoke checks hosted refusal and keyless local startup; `deploy/target_check.py` timings plus persistence, worker-loss, cancellation and backup/restore evidence on the VPS and Pi 5 (all passed). Remaining: protected import and experiment browser flows, npm/Bun local distribution and handoff. Owner accepted hosted release; second live account check was waived."
+      "notes": "Done: pinned local agent-browser production smokes for lesson/result/export, protected CSV preview/save/preflight/result/reload/scenario-matching export with keyless denials, and a two-run comparable ranked allocation experiment. Desktop/iPhone 16 and browser diagnostics pass. Hosted/local production acceptance passes 82 checks; image target/recovery evidence covers VPS/Pi 5. Remaining: native Bun/npm distribution, broader cancellation/edit/branch browser coverage and reproducible handoff. No live second-account or new Linux CI/image evidence is claimed."
     }
   },
   "nextUp": [
-    "M8: separate protected-import and experiment browser smokes; use existing lesson/result/export coverage.",
-    "M2: fillrate.fig Components/Foundations with local OpenPencil.",
-    "M6: browser matrix selection, durable Valhalla snapshot job, pinned deployment and validated routing increments.",
-    "M7/M8: remaining verified lessons/exports, account-free npm/Bun local distribution and reproducible handoff."
+    "M6: imported-matrix browser preview/upload/selection and inspector on existing immutable snapshots; verify stale-coordinate refusal and directed units/coverage.",
+    "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff.",
+    "M2: fillrate.fig Components/Foundations with local OpenPencil when available.",
+    "M6/M7: durable Valhalla snapshot job and pinned deployment before geometry/playback/advanced lessons; independent lessons only for already-supported behavior."
   ]
 }

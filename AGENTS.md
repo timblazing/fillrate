@@ -2,6 +2,12 @@
 
 Canonical instructions for Codex and Claude Code (`CLAUDE.md` just imports this file).
 
+## Browser automation
+- Use only the local `agent-browser` CLI for browser navigation, inspection, interaction, screenshots and automated browser acceptance. Run headless by default in a named session; load the installed command guide with `agent-browser skills get core`.
+- Use `ui-check` for visual inspection, `ui-qa` for functional flows and `ui-evidence` for before/after evidence. Each uses `agent-browser`.
+- Check desktop at 1440×900 and phone with the iPhone 16 profile at 393×852. Browser smokes use isolated loopback servers, a temporary database and synthetic inputs; never use production data or live account credentials.
+- `bun run test:browser` is the repeatable production-build acceptance command. Keep browser automation in this command on `agent-browser` too.
+
 ## Project records
 The repository is the source of truth for Fillrate's specification, roadmap, decisions, progress and verification evidence. Use `docs/fillrate-technical-spec.md` as the canonical specification. Track remaining work and dependencies in `docs/progress.md`, append accepted decisions to `docs/decisions.md`, and keep dashboard estimates in `docs/status.json`. Supporting references and review records stay in `docs/`.
 
@@ -13,7 +19,7 @@ The repository is the source of truth for Fillrate's specification, roadmap, dec
 5. If milestone progress moved, update `docs/status.json` too (see "Progress page" below). Keep completed implementation separate from owner configuration, deployment and hardware evidence.
 
 ## Hosted/local modes and releases
-- Spec v1.11 calls for a free hosted service with Better Auth, owner-scoped server SQLite data and application compute quotas. Hosted request-only signup is deployed; the owner's real GitHub sign-in is confirmed. Accounts, isolation and quotas are implemented (`FILLRATE_MODE=hosted`, `docs/hosted-operations.md`); every route resolves the caller with `principal()` in `apps/web/src/lib/server/access.ts`, and the store re-checks ownership and charges admissions in the queuing transaction. New routes or stored kinds must do the same. Cross-account behavior passed local automated tests; the owner removed a second live GitHub account check from the release gate. Do not claim it was tested live.
+- Spec §14 calls for a free hosted service with Better Auth, owner-scoped server SQLite data and application compute quotas. Hosted request-only signup is deployed; the owner's real GitHub sign-in is confirmed. Accounts, isolation and quotas are implemented (`FILLRATE_MODE=hosted`, `docs/hosted-operations.md`); every route resolves the caller with `principal()` in `apps/web/src/lib/server/access.ts`, and the store re-checks ownership and charges admissions in the queuing transaction. New routes or stored kinds must do the same. Cross-account behavior passed local automated tests; the owner removed a second live GitHub account check from the release gate. Do not claim it was tested live.
 - Planned local distribution is account-free/single-user via Bun, npm and Docker, with loopback defaults and no auth credentials. Hosted/local mode must be explicit and hosted misconfiguration must never disable auth. `FILLRATE_MODE=local` exists (no keys or auth routes); npm compatibility is still planned work, not existing support. Python remains a private worker and never opens SQLite.
 - GitHub CI automatically runs only for relevant source/configuration changes. Documentation and `.fig` changes skip automatic checks. Image build/smoke/publish runs only for `v*` release tags or explicit dispatch, with reusable CI as prerequisite. Dispatch an image release when deployable runtime changes need publication; a Git push alone does not update the deployed image.
 

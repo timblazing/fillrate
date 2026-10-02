@@ -4,7 +4,9 @@ This reference records M4 release evidence and the remaining M8 release/handoff 
 
 ## Current evidence and missing handoff
 
-The public fulfillment lesson smoke is implemented on `main` at `ea66a3f` and documented in `browser-smoke.md`. Protected-import and experiment browser flows remain unimplemented. A cancelled attempt at the broader browser scope produced no recoverable changes, final failing command or detailed usage breakdown. Finish those flows individually using the existing launcher, isolated data and meaningful outcomes at desktop and 390 px.
+The local headless agent-browser acceptance runner covers the public fulfillment lesson/result/JSON export, protected CSV import/save/preflight/result/reload/scenario-matching export, and a two-run ranked allocation experiment. Each uses a fresh named browser session with isolated synthetic data and checks desktop 1440×900 and iPhone 16 393×852 bounds. The parent independently verified the combined `bun run test:browser` against a fresh production build on 2026-10-02; `bun run test:hosted` also passed 82 checks. See `browser-smoke.md` for prerequisites and independent flow commands. No live OAuth or deployed-site two-account claim follows from these local tests.
+
+Remaining M8 handoff work is native Bun/npm distribution, browser cancellation/edit/branch coverage and explicit reproducible commands/limits. Optional request-access/admin phone inspection remains open. The current runner/CI migration is reviewed but uncommitted; Linux CI and image publication have not run for this diff.
 
 The target-hardware harness is `deploy/target_check.py` (2026-10-01). It replaces the unrecoverable `3772136` claim. It runs against one tested image and only touches disposable containers and volumes. Its results for release `fa9c0b8` are below; raw outputs are kept on each host, outside Git. The owner accepted the hosted release after a real admin sign-in and waived a second live GitHub account check; the resulting evidence and limits are recorded below.
 
@@ -100,4 +102,4 @@ Perform disruptive recovery checks against synthetic/disposable data or a verifi
 
 ## Completion and handoff
 
-VPS and Pi 5 hardware/recovery checks and the agreed hosted release gates are complete. The owner accepted omission of a second live GitHub account check; do not report this as a tested production property. Remaining work is the broader M8 protected-import/experiment browser coverage and account-free Bun/npm distribution, plus M2/M6 roadmap work. Keep exact commands, raw artifact locations/hashes, immutable digest/commit, supported platforms, limitations and unresolved failures in `progress.md` and this record.
+VPS and Pi 5 hardware/recovery checks and the agreed hosted release gates are complete. The owner accepted omission of a second live GitHub account check; do not report this as a tested production property. Remaining work is account-free native Bun/npm distribution, broader cancellation/edit/branch browser coverage and handoff, plus M2/M6 roadmap work. Protected-import and experiment browser acceptance passed locally on 2026-10-02. Keep exact commands, raw artifact locations/hashes, immutable digest/commit, supported platforms, limitations and unresolved failures in `progress.md` and this record.
