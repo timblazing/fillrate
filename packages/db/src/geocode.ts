@@ -299,12 +299,13 @@ export async function runGeocodeJob(store: Store, config: GeocodeConfig, id: str
   const claim = store.sqlite.prepare("UPDATE geocode_jobs SET status='running', updatedAt=? WHERE id=? AND status='queued'").run(Date.now(), id);
   const row = store.sqlite.prepare("SELECT versionId, options, author, metadata, ownerId FROM geocode_jobs WHERE id=?").get(id) as { versionId: string; options: string; author: string; metadata: string; ownerId: string };
   if (!claim.changes) return geocodeJob(store, id, row?.ownerId);
-  const set = (sql: string, ...args: unknown[]) => store.sqlite.prepare(`UPDATE geocode_jobs SET ${sql}, updatedAt=? WHERE id=?`).run(...args, Date.now(), id);
+  const set = (sql: string, ...args: unknown[]) => store.sqlite.prepare(`UPDATE geocode_jobs SET ${sql}, updatedAt=? WHERE id=? AND status='running'`).run(...args, Date.now(), id);
   try {
     const scenarioId = (store.sqlite.prepare("SELECT scenarioId FROM scenario_versions WHERE id=?").get(row.versionId) as { scenarioId: string }).scenarioId;
     const version = scenarioVersion(store, scenarioId, row.versionId, row.ownerId);
     const options = JSON.parse(row.options) as GeocodeOptions;
     const { document, report } = await geocodeDocument(store, config, version.document, options, p => set("progress=?", canonical(p)), row.ownerId);
+    if ((store.sqlite.prepare("SELECT status FROM geocode_jobs WHERE id=?").get(id) as { status: string }).status === "cancelled") return geocodeJob(store, id, row.ownerId);
     const prior = (version.source ?? {}) as { geocoding?: unknown[] };
     const source = { ...prior, geocoding: [...(Array.isArray(prior.geocoding) ? prior.geocoding : []), { job: id, options, report }] };
     const save = (branch: boolean) => saveScenario(store, { document, author: row.author, metadata: JSON.parse(row.metadata), source, scenarioId, expectedVersionId: row.versionId, branch, ownerId: row.ownerId });

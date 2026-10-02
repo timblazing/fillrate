@@ -1,4 +1,4 @@
-import { principal } from "@/lib/server/access"
+import { accessError, principal } from "@/lib/server/access"
 import { initializeDatabase } from "@/lib/server/database"
 import { createSweep, experimentDetail, visibleExperiments } from "@/lib/server/experiments"
 import { errorResponse } from "@/lib/server/runs"
@@ -8,7 +8,9 @@ export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
   try {
-    return Response.json({ experiments: visibleExperiments(initializeDatabase(), await principal(request)) }, { headers: { "Cache-Control": "private, no-store" } })
+    const who = await principal(request)
+    if (who.kind === "pending") throw accessError(who)
+    return Response.json({ experiments: visibleExperiments(initializeDatabase(), who) }, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {
     return errorResponse(error)
   }

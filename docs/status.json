@@ -1,7 +1,7 @@
 {
-  "updated": "2026-10-01",
+  "updated": "2026-10-02",
   "focus": "M4",
-  "productBehavior": 57,
+  "productBehavior": 58,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -23,9 +23,9 @@
     },
     "M4": {
       "weight": 15,
-      "done": 97,
+      "done": 98,
       "state": "waiting",
-      "notes": "Done: explorer, H3/no-clustering baselines, bounded ranked sweeps, partition bounds, replay bundle, examples and flagship lesson; hosted Better Auth (GitHub) with explicit hosted/local mode, per-user ownership on every path, persistent in-transaction quotas, export/delete and privacy disclosure. Release fa9c0b8 is deployed (migration 0008, daily 30-day backups) in operator mode. Waiting on the owner: GitHub OAuth app, hosted .env and the live two-account script."
+      "notes": "Done in the checkout: explorer, sweeps, replay, lessons, hosted auth/isolation/quotas and migration 0009 request-only signup with one GitHub-ID admin. Daily on-server online backups remain the release policy; off-server storage is deferred by owner choice. The live site remains on fa9c0b8 in operator mode with on-host backups; gated image deployment, fresh backup/disposable restore and real two-account acceptance remain."
     },
     "M5": {
       "weight": 10,
@@ -53,8 +53,8 @@
     }
   },
   "nextUp": [
-    "Owner: create the GitHub OAuth app, add the hosted settings to the server .env, restart, sign in with two GitHub accounts and run scripts/live-two-account.mjs (docs/hosted-operations.md).",
-    "Owner: copy backups off the VPS; watch queue times after signup opens (quotas fit the measured 81 s default-budget run).",
+    "M4: publish the gated image, set ADMIN_GITHUB_ID and request signup before hosted restart; verify real GitHub sign-in and two approved accounts with scripts/live-two-account.mjs.",
+    "M4: verify a fresh on-server backup and disposable restore before migration 0009; watch queue times after signup opens. Server or disk loss is not covered by these backups.",
     "M8: separate protected-import and experiment browser smokes; use existing lesson/result/export coverage.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil.",
     "M6: browser matrix selection, durable Valhalla snapshot job, pinned deployment and validated routing increments.",

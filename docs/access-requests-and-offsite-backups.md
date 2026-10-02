@@ -1,6 +1,6 @@
-# Access requests and off-host backups (M4)
+# Access requests and on-server backups (M4)
 
-Implementation spec for two owner-requested increments before hosted mode is switched on at `fillrate.blasingame.dev`. Read `AGENTS.md`, `docs/hosted-operations.md` and `apps/web/src/lib/server/access.ts` first. Follow the session workflow in `AGENTS.md`: work on `main`, use `M4: …` commits and update the records at the end.
+Implementation spec for request-only access and the retained on-server backup policy before hosted mode is switched on at `fillrate.blasingame.dev`. Read `AGENTS.md`, `docs/hosted-operations.md` and `apps/web/src/lib/server/access.ts` first. Follow the session workflow in `AGENTS.md`: work on `main`, use `M4: …` commits and update the records at the end.
 
 ## Current state (2026-10-02)
 
@@ -117,42 +117,16 @@ access_requests
 3. The owner signs in, which approves them automatically as admin. A second GitHub account requests access, and the owner approves it at `/admin`.
 4. Run `scripts/live-two-account.mjs --sign-out-b` with both session cookies and record the result in `release-verification.md`.
 
-## Part B: encrypted off-host backups to Google Drive
+## Part B: on-server backups for this release
 
-### Design
+The owner has chosen to keep backups on the Fillrate server for now. Google Drive, rclone, off-site encryption, and a remote restore drill are outside this release. The existing `deploy/backup.sh` and daily systemd user timer remain the backup mechanism: an online SQLite copy is integrity-checked, written beside a `.sha256` file under `~/containers/fillrate/backups`, and rotated after 30 days. Preserve the timer while deploying hosted mode.
 
-- After each daily `deploy/backup.sh` run, `deploy/offsite.sh` uploads that run's new backup to Google Drive. It uses **rclone** with a `crypt` remote layered on a `drive` remote, so Drive only ever holds encrypted file contents and names.
-- Retention on Drive matches `/privacy`: delete remote files older than 30 days (`rclone delete --min-age 30d` on the crypt remote, then `rclone rmdirs`).
-- No sudo on the VPS: install the static rclone binary into `~/bin` from the official release (verify `SHA256SUMS`, and record the version).
-- Keep the config at `~/.config/rclone/rclone.conf` with mode 600. It holds the Drive token and the obscured crypt passwords. Never commit it or print it.
-- Use the narrowest Drive scope that works: `drive.file`, so rclone sees only files it created, under a dedicated folder such as `fillrate-backups`.
-
-### Script and timer
-
-- `deploy/offsite.sh [backups-dir] [remote]`, with defaults `./backups` and `fillrate-crypt:`:
-  1. Pick the newest `fillrate-*.sqlite` that has a matching `.sha256`, and re-check the hash before uploading.
-  2. `rclone copy` the `.sqlite` and `.sha256`, with `--immutable`.
-  3. Run `rclone check --one-way --download` on just that file. Downloading is how to verify a crypt remote, because the backend can't compare checksums of encrypted files.
-  4. Prune remote files older than 30 days.
-  5. Exit non-zero on any failure.
-- Change the existing `fillrate-backup.service` `ExecStart` to run `backup.sh` and then `offsite.sh`, so a failure shows in `systemctl --user status fillrate-backup`. Log to `backups/backup.log`.
-- `deploy/offsite.sh --restore <name> <dest>`: downloads and decrypts one backup, then checks its SHA-256. Document restoring from Drive in `hosted-operations.md` next to the existing restore steps.
-
-### Owner steps (cannot be automated)
-
-1. On the Mac, install rclone (`brew install rclone`), then run `rclone authorize "drive" --drive-scope drive.file` and sign in with the Google account that should hold the backups. Paste the JSON token it prints **into the VPS setup step only**, not into Git, an issue or chat logs. The implementing agent can run `rclone config create` over SSH with the token passed through stdin.
-2. Choose an encryption passphrase and a second "salt" passphrase, and store both in a password manager. **Without them the backups cannot be restored**, and neither is stored anywhere else.
-
-### Verification
-
-- On the VPS, run the timer service once (`systemctl --user start fillrate-backup.service`). Confirm the remote listing shows only encrypted names, and that `--restore` of that backup gives an identical SHA-256 and `PRAGMA integrity_check = ok`.
-- Restore drill: restore the Drive copy into a disposable volume with `deploy/target_check.py`'s restore approach (or by hand), start a container on it, and confirm health. Record the result in `release-verification.md`.
-- Record the rclone version and Drive folder name in `hosted-operations.md` (never tokens or passphrases).
+Before migration 0009, take another online backup. Verify its checksum and `PRAGMA integrity_check = ok`, then rehearse a restore into a disposable volume/container using the approach in `deploy/target_check.py`; record the image digest, backup hash, integrity result and health check in `release-verification.md`. Do not restore over the live volume for this drill. The on-server backups protect against database mistakes and do not survive loss of the server or its disk; record that limitation plainly in operations and progress documents. No additional owner credential or cloud account setup is required for backups in this release.
 
 ## Records to update when done
 
-- `progress.md`: dated entry with evidence. In Known gaps, remove "off-host copy not set up" and the open-signup caveat once live.
-- `decisions.md`: env-pinned single admin (no database role); request-only signup by default; Drive with rclone crypt instead of a hosted database such as Neon. The reason for the last one: keeping SQLite avoids a Postgres port, and the data is small.
+- `progress.md`: dated entry with evidence. In Known gaps, retain the on-server-only backup limitation and remove the open-signup caveat once the access gate is live.
+- `decisions.md`: env-pinned single admin (no database role); request-only signup by default; retain server-local SQLite backups for this release and record the server-loss limitation.
 - `status.json`: M4 notes and `nextUp`, then move M4 to done once the live two-account check passes.
-- `hosted-operations.md`: `SIGNUP_MODE`, `ADMIN_GITHUB_ID`, the admin workflow, off-host backups and restore.
+- `hosted-operations.md`: `SIGNUP_MODE`, `ADMIN_GITHUB_ID`, the admin workflow, on-server backups and restore.
 - `deploy/.env.example`: `ADMIN_GITHUB_ID=`, `SIGNUP_MODE=request`.

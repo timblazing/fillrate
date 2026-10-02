@@ -5,7 +5,7 @@ import { initializeDatabase } from "@/lib/server/database"
 import { exportCsv, exportJson, type CsvTable } from "@/lib/server/export"
 import type { SheetColumn } from "@/lib/shipment-sheet"
 import { ApiError, errorResponse } from "@/lib/server/runs"
-import { assertRunRead, principal } from "@/lib/server/access"
+import { accessError, assertRunRead, principal } from "@/lib/server/access"
 
 export const dynamic = "force-dynamic"
 
@@ -17,7 +17,9 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
     const params = new URL(request.url).searchParams
     const format = params.get("format") ?? "json"
     const store = initializeDatabase()
-    assertRunRead(store, await principal(request), id)
+    const who = await principal(request)
+    if (who.kind === "pending") throw accessError(who)
+    assertRunRead(store, who, id)
     const name = `fillrate-run-${id.slice(0, 8)}`
     if (format === "json") {
       return new Response(JSON.stringify(exportJson(store, id), null, 1), {

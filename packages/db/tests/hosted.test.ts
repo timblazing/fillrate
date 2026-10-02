@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import { clientIp, deploymentMode, ModeConfigError, quotaConfig } from "../src/hosted";
 
-const hosted = { FILLRATE_MODE: "hosted", BETTER_AUTH_SECRET: "x".repeat(32), BETTER_AUTH_URL: "https://fillrate.example.com", GITHUB_CLIENT_ID: "id", GITHUB_CLIENT_SECRET: "secret", NODE_ENV: "production" };
+const hosted = { FILLRATE_MODE: "hosted", BETTER_AUTH_SECRET: "x".repeat(32), BETTER_AUTH_URL: "https://fillrate.example.com", GITHUB_CLIENT_ID: "id", GITHUB_CLIENT_SECRET: "secret", ADMIN_GITHUB_ID: "119372400", NODE_ENV: "production" };
 const problems = (env: Record<string, string | undefined>) => { try { deploymentMode(env); return []; } catch (error) { if (error instanceof ModeConfigError) return error.problems; throw error; } };
 
 test("hosted mode needs complete auth configuration and never falls back", () => {
@@ -15,7 +15,12 @@ test("hosted mode needs complete auth configuration and never falls back", () =>
   expect(problems({ ...hosted, BETTER_AUTH_URL: "http://localhost:3000", NODE_ENV: "development" })).toEqual([]);
   expect(problems({ ...hosted, BETTER_AUTH_URL: "https://fillrate.example.com/app" })[0]).toMatch(/without a path/);
   // Every problem is reported at once.
-  expect(problems({ FILLRATE_MODE: "hosted" })).toHaveLength(4);
+  expect(problems({ FILLRATE_MODE: "hosted" })).toHaveLength(5);
+  expect(problems({ ...hosted, ADMIN_GITHUB_ID: undefined })).toContainEqual(expect.stringMatching(/ADMIN_GITHUB_ID/));
+  expect(problems({ ...hosted, ADMIN_GITHUB_ID: "timblazing" })).toContainEqual(expect.stringMatching(/numeric/));
+  expect(problems({ ...hosted, SIGNUP_MODE: "unknown" })).toContainEqual(expect.stringMatching(/SIGNUP_MODE/));
+  expect(deploymentMode(hosted)).toMatchObject({ mode: "hosted", signupMode: "request", adminGithubId: "119372400" });
+  expect(deploymentMode({ ...hosted, SIGNUP_MODE: "open" })).toMatchObject({ signupMode: "open" });
 });
 
 test("local mode needs no credentials; an unknown mode or auth settings without a mode are refused", () => {

@@ -8,7 +8,7 @@
 
 export type HostedAuthConfig = { secret: string; baseURL: string; origin: string; github: { clientId: string; clientSecret: string } };
 export type DeploymentMode =
-  | { mode: "hosted"; auth: HostedAuthConfig; trustedIpHeader: string | null }
+  | { mode: "hosted"; auth: HostedAuthConfig; trustedIpHeader: string | null; adminGithubId: string; signupMode: "request" | "open" }
   | { mode: "local"; trustedIpHeader: null }
   | { mode: "operator"; trustedIpHeader: string | null };
 
@@ -44,9 +44,12 @@ export function deploymentMode(env: Env): DeploymentMode {
   }
   if (!env.GITHUB_CLIENT_ID) problems.push("GITHUB_CLIENT_ID is required");
   if (!env.GITHUB_CLIENT_SECRET) problems.push("GITHUB_CLIENT_SECRET is required");
+  if (!/^[1-9][0-9]*$/.test(env.ADMIN_GITHUB_ID ?? "")) problems.push("ADMIN_GITHUB_ID must be a positive numeric GitHub user ID");
+  const signupMode = env.SIGNUP_MODE ?? "request";
+  if (signupMode !== "request" && signupMode !== "open") problems.push("SIGNUP_MODE must be request or open");
   if (problems.length) throw new ModeConfigError(problems);
   return {
-    mode: "hosted", trustedIpHeader: header,
+    mode: "hosted", trustedIpHeader: header, adminGithubId: env.ADMIN_GITHUB_ID!, signupMode: signupMode as "request" | "open",
     auth: { secret, baseURL: url!.origin, origin: url!.origin, github: { clientId: env.GITHUB_CLIENT_ID!, clientSecret: env.GITHUB_CLIENT_SECRET! } },
   };
 }

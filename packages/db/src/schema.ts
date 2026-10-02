@@ -150,3 +150,15 @@ export const verification = sqliteTable("verification", {
   id: text("id").primaryKey(), identifier: text("identifier").notNull(), value: text("value").notNull(),
   expiresAt: ms("expires_at").notNull(), createdAt: created(), updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
 }, t => [index("verification_identifier_idx").on(t.identifier)]);
+
+export const accessRequests = sqliteTable("access_requests", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["pending", "approved", "denied", "revoked"] }).notNull(),
+  note: text("note"), requestedAt: integer("requested_at").notNull(),
+  decidedAt: integer("decided_at"), decidedBy: text("decided_by"), updatedAt: integer("updated_at").notNull(),
+}, t => [index("access_requests_status_requested").on(t.status, t.requestedAt)]);
+
+export const adminEvents = sqliteTable("admin_events", {
+  id: text("id").primaryKey(), adminId: text("admin_id").notNull(),
+  userId: text("user_id").notNull(), action: text("action").notNull(), createdAt: integer("created_at").notNull(),
+});

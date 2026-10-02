@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 
 import { DevHeader } from "@/components/brand/dev-header"
 import { ExampleSwitch } from "@/components/lab/example-switch"
@@ -17,6 +18,7 @@ export const metadata = { title: "Runs · Fillrate" }
 export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
   const { key, example: exampleParam } = await searchParams
   const who = await pagePrincipal()
+  if (who.kind === "pending") redirect("/request-access")
   const runs = visibleRuns(initializeDatabase(), who)
   const open = canStartRuns(who, key)
   const example = exampleInfo(pageExample(exampleParam))

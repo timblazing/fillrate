@@ -16,6 +16,7 @@
     "./geocode": "./src/geocode.ts",
     "./review": "./src/review.ts",
     "./hosted": "./src/hosted.ts",
+    "./access-requests": "./src/access-requests.ts",
     "./schema": "./src/schema.ts"
   },
   "dependencies": {

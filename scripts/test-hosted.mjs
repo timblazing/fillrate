@@ -96,7 +96,7 @@ try {
   {
     const secret = randomBytes(32).toString("base64");
     const origin = "https://fillrate.example.com";
-    const server = await start({ FILLRATE_MODE: "hosted", BETTER_AUTH_SECRET: secret, BETTER_AUTH_URL: origin, GITHUB_CLIENT_ID: "check-client", GITHUB_CLIENT_SECRET: "check-secret", QUOTA_SOLVES_PER_DAY: "3", SCENARIO_KEY: "operator-check" });
+    const server = await start({ FILLRATE_MODE: "hosted", BETTER_AUTH_SECRET: secret, BETTER_AUTH_URL: origin, GITHUB_CLIENT_ID: "check-client", GITHUB_CLIENT_SECRET: "check-secret", ADMIN_GITHUB_ID: "119372400", SIGNUP_MODE: "open", QUOTA_SOLVES_PER_DAY: "3", SCENARIO_KEY: "operator-check" });
     const b = server.base;
     check("starts with complete settings", server.child.exitCode === null, server.output.join("").slice(-300));
     const db = new Database(join(server.dataDir, "fillrate.sqlite"));
@@ -104,6 +104,7 @@ try {
     const session = name => {
       const userId = randomUUID(), token = randomBytes(24).toString("hex");
       db.prepare("INSERT INTO user (id,name,email,email_verified,image,created_at,updated_at) VALUES (?,?,?,1,NULL,?,?)").run(userId, name, `${name.toLowerCase()}@example.com`, now, now);
+      db.prepare("INSERT INTO account (id,account_id,provider_id,user_id,created_at,updated_at) VALUES (?,?,'github',?,?,?)").run(randomUUID(), name === "Alice" ? "119372401" : "119372402", userId, now, now);
       db.prepare("INSERT INTO session (id,expires_at,token,created_at,updated_at,user_id) VALUES (?,?,?,?,?,?)").run(randomUUID(), now + 86_400_000, token, now, now, userId);
       const signature = createHmac("sha256", secret).update(token).digest("base64");
       return { userId, token, headers: { cookie: `__Secure-better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`, origin } };
@@ -173,12 +174,67 @@ try {
 
     const deleted = await call(b, "/api/v1/me", as(A, { method: "DELETE" }));
     check("A deletes the account", deleted.status === 200 && deleted.body?.deleted?.scenarios === 1, JSON.stringify(deleted.body));
-    const left = db.prepare("SELECT (SELECT count(*) FROM user WHERE id=?) + (SELECT count(*) FROM session WHERE user_id=?) + (SELECT count(*) FROM scenarios WHERE ownerId=?) + (SELECT count(*) FROM runs WHERE ownerId=?) AS n").get(A.userId, A.userId, `user:${A.userId}`, `user:${A.userId}`).n;
+    const left = db.prepare("SELECT (SELECT count(*) FROM user WHERE id=?) + (SELECT count(*) FROM session WHERE user_id=?) + (SELECT count(*) FROM access_requests WHERE user_id=?) + (SELECT count(*) FROM scenarios WHERE ownerId=?) + (SELECT count(*) FROM runs WHERE ownerId=?) AS n").get(A.userId, A.userId, A.userId, `user:${A.userId}`, `user:${A.userId}`).n;
     check("nothing of A remains", left === 0);
     check("A's old cookie no longer works", (await call(b, "/api/v1/scenarios", as(A))).status === 401);
     check("lessons stay public", (await fetch(`${b}/learn/fulfillment-pipeline`)).status === 200);
     db.close();
     await server.stop();
+  }
+  console.log("4. request-only hosted access");
+  {
+    const secret = randomBytes(32).toString("base64"), origin = "https://fillrate.example.com";
+    const server = await start({ FILLRATE_MODE: "hosted", BETTER_AUTH_SECRET: secret, BETTER_AUTH_URL: origin, GITHUB_CLIENT_ID: "check-client", GITHUB_CLIENT_SECRET: "check-secret", ADMIN_GITHUB_ID: "119372400", SCENARIO_KEY: "operator-check" });
+    const b = server.base, db = new Database(join(server.dataDir, "fillrate.sqlite")), now = Date.now();
+    const session = (name, githubId) => {
+      const userId = randomUUID(), token = randomBytes(24).toString("hex");
+      db.prepare("INSERT INTO user (id,name,email,email_verified,image,created_at,updated_at) VALUES (?,?,?,1,NULL,?,?)").run(userId, name, `${name.toLowerCase()}@example.com`, now, now);
+      db.prepare("INSERT INTO account (id,account_id,provider_id,user_id,created_at,updated_at) VALUES (?,?,'github',?,?,?)").run(randomUUID(), githubId, userId, now, now);
+      db.prepare("INSERT INTO session (id,expires_at,token,created_at,updated_at,user_id) VALUES (?,?,?,?,?,?)").run(randomUUID(), now + 86_400_000, token, now, now, userId);
+      const signature = createHmac("sha256", secret).update(token).digest("base64");
+      return { userId, headers: { cookie: `__Secure-better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`, origin } };
+    };
+    const admin = session("Admin", "119372400"), user = session("Pending", "123"), stranger = session("Stranger", "456");
+    const as = (who, extra = {}) => ({ ...extra, headers: { ...who.headers, ...(extra.headers ?? {}) } });
+    check("admin is approved by numeric GitHub ID", (await call(b, "/api/v1/me", as(admin))).body?.admin === true);
+    const pending = await call(b, "/api/v1/me", as(user));
+    check("new account is pending without usage", pending.body?.kind === "pending" && pending.body?.access === "pending" && pending.body?.usage === null && pending.body?.signup_mode === "request");
+    check("pending import is 403", (await call(b, "/api/v1/imports/commit", as(user, { method: "POST", body: importBody("Denied") }))).body?.error?.code === "access_pending");
+    check("pending cookie cannot borrow operator key", (await call(b, "/api/v1/scenarios", as(user, { headers: { "x-scenario-key": "operator-check" } }))).body?.error?.code === "access_pending");
+    check("pending run is 403", (await call(b, "/api/v1/runs", as(user, { method: "POST", body: {}, headers: { "idempotency-key": randomUUID() } }))).body?.error?.code === "access_pending");
+    check("pending run list is 403", (await call(b, "/api/v1/runs", as(user))).body?.error?.code === "access_pending");
+    check("pending export is 403", (await call(b, "/api/v1/me/export", as(user))).status === 403);
+    check("pending page redirects", (await fetch(`${b}/scenarios`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
+    check("lessons remain public", (await fetch(`${b}/learn/fulfillment-pipeline`)).status === 200);
+    check("pending note saves", (await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Testing with sample orders" } }))).status === 200);
+    check("note is stored", db.prepare("SELECT note FROM access_requests WHERE user_id=?").get(user.userId)?.note === "Testing with sample orders");
+    for (let i = 0; i < 9; i++) await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: `Update ${i}` } }));
+    const overNote = await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Too many" } }));
+    check("eleventh note update is rate limited", overNote.status === 429 && overNote.body?.error?.code === "quota_exceeded", JSON.stringify(overNote.body));
+    check("stranger cannot list requests", (await call(b, "/api/v1/admin/access-requests", as(stranger))).status === 404);
+    check("pending user cannot open admin page", (await fetch(`${b}/admin`, { headers: user.headers, redirect: "manual" })).status === 404);
+    check("stranger cannot forge approval", (await call(b, `/api/v1/admin/access-requests/${user.userId}`, as(stranger, { method: "POST", body: { action: "approve" } }))).status === 404);
+    const decision = (target, action, who = admin, headers = {}) => call(b, `/api/v1/admin/access-requests/${target.userId}`, as(who, { method: "POST", body: { action }, headers }));
+    check("cross-origin admin POST is refused", (await decision(user, "approve", admin, { origin: "https://evil.example" })).status === 403);
+    check("admin cannot change own status", (await decision(admin, "revoke")).status === 409);
+    check("admin approves", (await decision(user, "approve")).body?.status === "approved");
+    check("same session becomes approved", (await call(b, "/api/v1/me", as(user))).body?.kind === "user");
+    const saved = await call(b, "/api/v1/imports/commit", as(user, { method: "POST", body: importBody("Keep data"), headers: { "idempotency-key": randomUUID() } }));
+    check("approved user imports", saved.status === 201);
+    const run = await call(b, "/api/v1/scenarios/runs", as(user, { method: "POST", body: { versionId: saved.body?.versionId, settings: { ...example.settings, k: 1, solver_max_iterations: 50 } }, headers: { "idempotency-key": randomUUID() } }));
+    check("approved user queues a run", run.status === 201);
+    check("admin revokes", (await decision(user, "revoke")).body?.status === "revoked");
+    check("revocation applies to next request", (await call(b, "/api/v1/scenarios", as(user))).body?.error?.code === "access_revoked");
+    check("unfinished run is cancelled", db.prepare("SELECT status FROM runs WHERE id=?").get(run.body?.id)?.status === "cancelled");
+    check("data survives revoke", db.prepare("SELECT count(*) AS n FROM scenarios WHERE ownerId=?").get(`user:${user.userId}`).n === 1);
+    check("admin restores", (await decision(user, "restore")).body?.status === "approved");
+    check("restored session sees its data", (await call(b, "/api/v1/scenarios", as(user))).body?.scenarios?.length === 1);
+    check("admin denies pending", (await decision(stranger, "deny")).body?.status === "denied");
+    check("denied account cannot re-request immediately", (await call(b, "/api/v1/me/access-request", as(stranger, { method: "PUT", body: { note: "Again" } }))).body?.error?.code === "rerequest_wait");
+    db.prepare("UPDATE access_requests SET decided_at=? WHERE user_id=?").run(Date.now() - 8 * 86_400_000, stranger.userId);
+    check("denied account can re-request after seven days", (await call(b, "/api/v1/me/access-request", as(stranger, { method: "PUT", body: { note: "Again" } }))).body?.status === "pending");
+    check("audit records actions", db.prepare("SELECT count(*) AS n FROM admin_events").get().n === 4);
+    db.close(); await server.stop();
   }
 } catch (error) {
   failures++;

@@ -9,7 +9,12 @@ export const dynamic = "force-dynamic"
 export async function GET(request: Request) {
   try {
     const who = await principal(request)
-    return Response.json({ mode: mode().mode, kind: who.kind, user: who.user, owner: who.ownerId !== null, usage: usage(initializeDatabase(), who) }, { headers: { "Cache-Control": "private, no-store" } })
+    const store = initializeDatabase()
+    const config = mode()
+    const pendingCount = who.admin ? (store.sqlite.prepare("SELECT count(*) AS n FROM access_requests WHERE status='pending'").get() as { n: number }).n : 0
+    return Response.json({ mode: mode().mode, kind: who.kind, user: who.user, owner: who.ownerId !== null, access: who.access ?? null,
+      admin: !!who.admin, signup_mode: config.mode === "hosted" ? config.signupMode : null,
+      pending_count: pendingCount, usage: usage(store, who) }, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {
     return errorResponse(error)
   }
@@ -23,12 +28,12 @@ export async function GET(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const who = await principal(request)
-    if (who.kind !== "user" || !who.user) throw new ApiError(401, "sign_in_required", "Sign in to delete your account.")
+    if (!who.user) throw new ApiError(401, "sign_in_required", "Sign in to delete your account.")
     const store = initializeDatabase()
     let deleted
     try {
       deleted = store.sqlite.transaction(() => {
-        const result = store.deleteOwnerData(who.ownerId!)
+        const result = store.deleteOwnerData(`user:${who.user!.id}`)
         store.sqlite.prepare("DELETE FROM user WHERE id=?").run(who.user!.id) // sessions and accounts cascade
         return result
       }).immediate()

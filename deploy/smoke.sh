@@ -64,6 +64,18 @@ docker rm -f "$name-hosted" >/dev/null 2>&1 || true
 # 0 means it ran and exited cleanly; 124 means it was still serving when the timeout hit.
 if [ "$refused" = 0 ] || [ "$refused" = 124 ]; then echo "hosted mode did not refuse incomplete auth settings (status $refused)"; exit 1; fi
 echo "hosted mode refused incomplete auth settings (status $refused)"
+set +e
+admin_log=$(mktemp)
+timeout 180 docker run --rm --name "$name-hosted-admin" ${platform:+--platform "$platform"} \
+  -e FILLRATE_MODE=hosted -e BETTER_AUTH_SECRET=0123456789abcdef0123456789abcdef \
+  -e BETTER_AUTH_URL=https://fillrate.example.com -e GITHUB_CLIENT_ID=smoke -e GITHUB_CLIENT_SECRET=smoke \
+  "$image" >"$admin_log" 2>&1
+admin_refused=$?
+set -e
+docker rm -f "$name-hosted-admin" >/dev/null 2>&1 || true
+if [ "$admin_refused" != 78 ] || ! grep -q ADMIN_GITHUB_ID "$admin_log"; then echo "hosted mode did not specifically refuse missing ADMIN_GITHUB_ID (status $admin_refused)"; cat "$admin_log"; exit 1; fi
+rm "$admin_log"
+echo "hosted mode refused missing ADMIN_GITHUB_ID (status $admin_refused)"
 local_name="$name-local"; local_port=$((port + 1))
 docker run -d --name "$local_name" ${platform:+--platform "$platform"} -p "127.0.0.1:$local_port:3000" -e FILLRATE_MODE=local "$image" >/dev/null
 trap 'docker rm -f "$local_name" >/dev/null 2>&1 || true; cleanup' EXIT

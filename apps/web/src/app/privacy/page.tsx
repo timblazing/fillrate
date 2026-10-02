@@ -12,6 +12,7 @@ export default function PrivacyPage() {
         <section className="flex flex-col gap-2">
           <h2 className="text-base font-semibold">What is stored</h2>
           <p>Signing in with GitHub stores your GitHub name, email address and avatar link, a session record and the GitHub account link. Fillrate does not post to GitHub or read your repositories.</p>
+          <p>The owner sees your request note and GitHub profile details to decide whether to grant access.</p>
           <p>Scenarios you import (orders, stock, locations and addresses), their versions, runs, sweeps, results, geocoding answers and travel snapshots are stored in the server&apos;s database and belong to your account. Other accounts cannot list, open or reuse them, whatever their IDs or content hashes.</p>
         </section>
         <section className="flex flex-col gap-2">

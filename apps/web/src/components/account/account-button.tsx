@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Menu, MenuGroup, MenuGroupLabel, MenuItem, MenuLinkItem, MenuPopup, MenuSeparator, MenuTrigger } from "@/components/ui/menu"
 import { authClient, signInWithGitHub, type Me } from "@/lib/client/auth-client"
@@ -40,7 +41,8 @@ export function AccountButton() {
       <MenuPopup align="end">
         <MenuGroup>
           <MenuGroupLabel>{me.user.name}</MenuGroupLabel>
-          <MenuLinkItem href="/account"><UserRound aria-hidden />Account and data</MenuLinkItem>
+          <MenuLinkItem href={me.kind === "pending" ? "/request-access" : "/account"}><UserRound aria-hidden />{me.kind === "pending" ? "Request access" : "Account and data"}</MenuLinkItem>
+          {me.admin && <MenuLinkItem href="/admin">Admin {me.pending_count > 0 && <Badge variant="info">{me.pending_count}</Badge>}</MenuLinkItem>}
         </MenuGroup>
         <MenuSeparator />
         <MenuItem onClick={async () => { await authClient.signOut(); setMe({ ...me, user: null, owner: false }); router.push("/"); router.refresh() }}><LogOut aria-hidden />Sign out</MenuItem>

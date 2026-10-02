@@ -3,20 +3,24 @@ import { timingSafeEqual } from "node:crypto"
 import { headers } from "next/headers"
 import { EXAMPLES_OWNER, PUBLIC_OWNER, type Admission, type Store } from "@fillrate/db"
 import { clientIp, DAY_MS, quotaConfig } from "@fillrate/db/hosted"
+import { accessFor, type AccessStatus } from "@fillrate/db/access-requests"
 
 import { hostedAuth, mode } from "./auth"
 import { ApiError } from "./errors"
+import { initializeDatabase } from "./database"
 
 // Who is asking (spec §14). Authorization lives here and in the store's queries, never in browser IDs or
 // UI visibility. `ownerId` is the dataset the principal may read and write: "operator" for local mode and
 // the operator key, "user:<id>" for a hosted account, null for anonymous callers (bundled examples only).
 export type Principal = {
-  kind: "local" | "operator" | "user" | "anonymous"
+  kind: "local" | "operator" | "user" | "pending" | "anonymous"
   ownerId: string | null
   /** May start synthetic runs without spending the anonymous public budget. */
   runKey: boolean
   user: { id: string; name: string; email: string; image: string | null } | null
   ip: string | null
+  access?: AccessStatus
+  admin?: boolean
 }
 
 const UNSAFE = new Set(["POST", "PUT", "PATCH", "DELETE"])
@@ -52,15 +56,18 @@ export async function principal(source: Request | Headers): Promise<Principal> {
     const origin = headers.get("origin")
     if (origin && origin !== current.auth.origin) throw new ApiError(403, "cross_origin", "Cross-origin requests are not accepted.")
   }
-  if (keyMatches(scenarioKey, process.env.SCENARIO_KEY)) return operator
-  const runKey = keyMatches(runKeyGiven, process.env.RUN_KEY)
   if (current.mode === "hosted") {
     const found = await hostedAuth().api.getSession({ headers })
     if (found?.user) {
       const u = found.user
-      return { kind: "user", ownerId: `user:${u.id}`, runKey: false, user: { id: u.id, name: u.name, email: u.email, image: u.image ?? null }, ip }
+      const access = accessFor(initializeDatabase(), u.id, current.adminGithubId, current.signupMode)
+      if (access.status === "approved" && keyMatches(scenarioKey, process.env.SCENARIO_KEY)) return operator
+      return { kind: access.status === "approved" ? "user" : "pending", ownerId: access.status === "approved" ? `user:${u.id}` : null,
+        runKey: false, user: { id: u.id, name: u.name, email: u.email, image: u.image ?? null }, ip, access: access.status, admin: access.admin }
     }
   }
+  if (keyMatches(scenarioKey, process.env.SCENARIO_KEY)) return operator
+  const runKey = keyMatches(runKeyGiven, process.env.RUN_KEY)
   return { kind: "anonymous", ownerId: null, runKey, user: null, ip }
 }
 
@@ -72,10 +79,23 @@ export async function pagePrincipal() {
 /** The dataset a principal works in, or the reason it has none. */
 export function requireOwner(who: Principal) {
   if (who.ownerId) return who.ownerId
+  if (who.kind === "pending") throw accessError(who)
   const current = mode().mode
   if (current === "hosted") throw new ApiError(401, "sign_in_required", "Sign in to import, save and run your own scenarios.")
   if (!process.env.SCENARIO_KEY) throw new ApiError(503, "scenarios_disabled", "Scenario access is not enabled on this server.")
   throw new ApiError(403, "forbidden", "A valid scenario key is required.")
+}
+
+export function accessError(who: Principal) {
+  const [code, message] = who.access === "denied" ? ["access_denied", "Your access request was declined."]
+    : who.access === "revoked" ? ["access_revoked", "Your access was removed."]
+    : ["access_pending", "Your access request is waiting for approval."]
+  return new ApiError(403, code, message)
+}
+
+export function requireAdmin(who: Principal) {
+  if (who.kind !== "user" || !who.admin) throw new ApiError(404, "not_found", "Not found.")
+  return who.user!
 }
 
 export const canReadOwner = (who: Principal, ownerId: string) => ownerId === EXAMPLES_OWNER || (who.ownerId !== null && ownerId === who.ownerId)
@@ -130,6 +150,7 @@ export function admission(who: Principal): Admission {
  * `admission`; anonymous callers only when PUBLIC_SYNTHETIC_RUNS=1, against a global hourly/daily budget.
  */
 export function syntheticAdmission(who: Principal): { ownerId: string; admission: Admission } {
+  if (who.kind === "pending" && process.env.PUBLIC_SYNTHETIC_RUNS !== "1") throw accessError(who)
   if (who.ownerId || who.runKey) return { ownerId: who.ownerId ?? PUBLIC_OWNER, admission: admission(who) }
   if (process.env.PUBLIC_SYNTHETIC_RUNS !== "1") {
     if (mode().mode === "hosted") throw new ApiError(401, "sign_in_required", "Sign in to start runs.")

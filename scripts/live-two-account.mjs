@@ -50,6 +50,10 @@ const meA = await call("/api/v1/me", A), meB = await call("/api/v1/me", B);
 check("A is signed in", meA.body?.kind === "user", JSON.stringify(meA.body?.kind));
 check("B is signed in", meB.body?.kind === "user", JSON.stringify(meB.body?.kind));
 check("A and B are different accounts", meA.body?.user?.id && meA.body.user.id !== meB.body?.user?.id);
+if (meA.body?.access !== "approved" || meB.body?.access !== "approved") {
+  console.error("approve both accounts at /admin first");
+  process.exit(2);
+}
 if (failures) process.exit(1);
 console.log(`  A usage before: ${JSON.stringify(meA.body.usage?.solves)}`);
 

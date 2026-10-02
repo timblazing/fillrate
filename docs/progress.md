@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-10-02: Request-only access gate and on-server backup decision (Codex)
+- Migration 0009 adds constrained access requests, a status/date index, an admin-action audit log and approval backfill for earlier users. Hosted startup now requires the numeric admin GitHub ID and validates `SIGNUP_MODE`; request mode is the default. Pending, denied and revoked sessions lose owner access on their next request without re-login or quota use. A pending account cannot borrow an operator key. New `/request-access` and `/admin` pages and APIs cover notes, admin decisions, revocation cancellation, restore, and account deletion.
+- The owner chose to keep the existing daily on-server online backups with checksum and 30-day rotation for this release. Google Drive, rclone and an off-server restore are removed from scope. A fresh pre-migration backup and disposable restore drill remain required before the hosted container is recreated.
+- Local verification: typecheck, lint (existing vendored `globe.tsx` warning), build, 116 Vitest tests, 82 production hosted checks and the public lesson browser smoke passed. Browser check in a local hosted server confirmed pending note submit/update and admin approval at the current preview width; the preview resize tool timed out, so 390 px inspection remains open. An earlier full Vitest run had one intermittent directed-snapshot stage-reuse assertion fail; it passed alone and in the next full run.
+- **Live work still open:** the new image has not been published or deployed. The VPS is still on the operator-mode container and on-host backups. A fresh backup/disposable restore, real OAuth sign-ins and the live two-account check are pending. On-server backups do not survive server or disk loss. Do not recreate the container with hosted settings until the gated image and admin setting are present.
+
 ## 2026-10-01: Simplify /dev progress layout (Codex)
 - Removed the live/spec/date line and the entire hero. The weighted spec completion now leads a five-stat strip; product behavior, milestones, tasks and decisions follow.
 - Activity covers the rolling last three months, including its GitHub query, graph and caption. Milestone details all start collapsed.
@@ -209,9 +215,9 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - No sample order/inventory rows from the primary user yet (unanswered in both review rounds).
 - Chart recipes shared by charts and blocks live in `src/app/dev/components/recipes.tsx` until contracts exist.
 - The gallery fixture's truck loads come from a sweep heuristic, not PyVRP; numbers are illustrative of shape, not solver quality.
-- Hosted accounts, isolation and quotas are deployed (release `fa9c0b8`, migration 0008 applied) but not switched on: the site runs in operator mode. GitHub sign-in has only been exercised with sessions written to the database (`bun run test:hosted`, and `scripts/live-two-account.mjs` in a local rehearsal), not with a real OAuth app. Until the owner configures one and the live script passes, keep public exposure to synthetic surfaces and operator workflows.
+- Hosted accounts, isolation and quotas are deployed (release `fa9c0b8`, migration 0008 applied) but not switched on: the site runs in operator mode. The GitHub OAuth app has been configured in Compose but the container has not been recreated. Migration 0009 and the request-only gate are implemented locally; live GitHub sign-in and two-account checks remain open. Keep public exposure to synthetic surfaces and operator workflows until the gated image is deployed and checked.
 - Backups are on the VPS disk only (`~/containers/fillrate/backups`, daily systemd user timer, 30-day rotation). An off-host copy is not set up.
-- The production `compose.yaml` keeps `RUN_KEY`/`REVIEW_KEY` inline rather than in `.env`; move them when adding the hosted settings.
+- The production Compose file still needs `ADMIN_GITHUB_ID=119372400` and `SIGNUP_MODE=request` before hosted startup; moving secrets into mode-600 `.env` is preferred.
 - Per-address quotas apply only when `TRUSTED_CLIENT_IP_HEADER` is set, which is safe only if the app port is reachable solely through the proxy. Without it, Better Auth's own limiter also runs without IP tracking (it would otherwise trust spoofable forwarded headers).
 - Deleting a scenario also deletes branches made from it; account and scenario deletion are refused while a job is unfinished (cancel first). A travel snapshot is stored once by content hash and removed only when no owner holds it. Deleted data stays in backups until they expire; `deploy/backup.sh` deletes host backups older than 30 days, matching `/privacy`.
 - In hosted mode the operator key (`SCENARIO_KEY`) reaches only the operator dataset; signed-in accounts never see it. A hosted sweep is capped at 10 runs by default because the global queue is 10.
@@ -229,8 +235,8 @@ Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be r
 
 ## Next step
 Prioritize the initial hosted release using the remaining work and dependencies below:
-0. M4: implement `docs/access-requests-and-offsite-backups.md` (request-only signup with a single env-pinned admin, encrypted Drive backups) before recreating the container in hosted mode.
-1. Owner M4: create the GitHub OAuth app and add the hosted settings to `~/containers/fillrate/.env` (`docs/hosted-operations.md`), restart, then sign in with two GitHub accounts and run `scripts/live-two-account.mjs`. The image, migration, backups and VPS/Pi evidence are done.
+0. M4: publish the gated image from this implementation; configure `ADMIN_GITHUB_ID` and request signup before recreating the VPS container.
+1. M4 owner: use a second GitHub account for live approval and the two-account check; verify a fresh on-server backup and disposable restore before migration 0009 (`docs/hosted-operations.md`).
 2. M4/M8: watch real queue times after signup opens; the starting quotas fit the measured timings (`release-verification.md`).
 3. M8: add protected scenario/import and experiment browser coverage as separate local increments, using the existing public-lesson smoke.
 4. M2: finish the OpenPencil design file; continue M6 matrix selection/provider work after the initial release gates.
@@ -310,4 +316,4 @@ Repository workflow restoration: `bun run lint`, `bun run typecheck` and `bun ru
 - **`scripts/live-two-account.mjs`:** the live hosted acceptance from two real session cookies (38 checks), rehearsed 38/38 against a local hosted production build with a real worker.
 - **Evidence:** CI 36956880475 and image 36956880394 (amd64 + arm64 smoke, benchmark, publish) passed. Manifest `sha256:740aee91311c3c0d26d5d74ab77705d1b3e341d151d03a516a820d9d40d6d08c`. The VPS and the Pi 5 passed every check; timings and hashes are in `release-verification.md`. Comparable runs take about 6 s and 7 s; the default budget takes about 81 s on both. Locally: Vitest 115/115 (with the Python worker), pytest 219, ruff, lint, typecheck, build and `test:hosted` 51/51 pass.
 - **Deployed:** `fillrate.blasingame.dev` was backed up (SHA-256 `364a6d92…1061`), pinned to the digest and migrated to 0008. It stays in operator mode. Health reports the worker connected, a live lesson run succeeded valid and complete with CSV export, and auth routes are 404 until hosted mode.
-- **Not done (owner):** the GitHub OAuth app, the hosted `.env`, live sign-in with two GitHub accounts, and an off-host backup copy.
+- **At this 2026-10-01 checkpoint:** the GitHub OAuth app, hosted settings, live two-account sign-in and off-host copy were not yet available. The OAuth app and hosted settings were prepared on 2026-10-02; the owner then chose on-server backups for this release. The live container has not picked up hosted settings yet.

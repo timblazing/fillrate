@@ -8,9 +8,13 @@ export const authClient = createAuthClient()
 
 export type Me = {
   mode: "hosted" | "local" | "operator"
-  kind: "local" | "operator" | "user" | "anonymous"
+  kind: "local" | "operator" | "user" | "pending" | "anonymous"
   user: { id: string; name: string; email: string; image: string | null } | null
   owner: boolean
+  access: "pending" | "approved" | "denied" | "revoked" | null
+  admin: boolean
+  pending_count: number
+  signup_mode: "request" | "open" | null
 }
 
 export async function signInWithGitHub(callbackURL = window.location.pathname + window.location.search) {

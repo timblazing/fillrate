@@ -1,4 +1,4 @@
-import { principal } from "@/lib/server/access"
+import { accessError, principal } from "@/lib/server/access"
 import { initializeDatabase } from "@/lib/server/database"
 import { createRun, errorResponse, parseExample, parseOverrides, runDetail } from "@/lib/server/runs"
 import { visibleRuns } from "@/lib/server/scenarios"
@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
   try {
-    return Response.json({ runs: visibleRuns(initializeDatabase(), await principal(request)) }, { headers: { "Cache-Control": "private, no-store" } })
+    const who = await principal(request)
+    if (who.kind === "pending") throw accessError(who)
+    return Response.json({ runs: visibleRuns(initializeDatabase(), who) }, { headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {
     return errorResponse(error)
   }

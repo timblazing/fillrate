@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 
 import { DevHeader } from "@/components/brand/dev-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -16,6 +17,7 @@ const utc = (ms: number) => `${new Date(ms).toISOString().replace("T", " ").slic
 
 export default async function AccountPage() {
   const who = await pagePrincipal()
+  if (who.kind === "pending") redirect("/request-access")
   const current = mode().mode
   const store = initializeDatabase()
   const quota = usage(store, who)
@@ -30,7 +32,7 @@ export default async function AccountPage() {
           {current === "operator" && <p className="text-muted-foreground text-sm text-pretty">This server has no accounts. Imported scenarios belong to its operator and need the operator key.</p>}
           {current === "hosted" && !who.user && (
             <>
-              <p className="text-muted-foreground text-sm text-pretty">Sign in with GitHub to import, save and run your own scenarios. Accounts are free. Lessons and the bundled examples stay open without one.</p>
+              <p className="text-muted-foreground text-sm text-pretty">Sign in with GitHub to request access to import, save and run your own scenarios. Lessons and the bundled examples stay open to everyone.</p>
               <div><SignInButton /></div>
             </>
           )}

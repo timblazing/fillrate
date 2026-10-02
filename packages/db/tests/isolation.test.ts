@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 import { AdmissionError, canonical, contentHash, openDatabase, type Admission, type ArtifactInput, type Store } from "../src/index";
 import { saveScenario, scenarioList, scenarioVersion } from "../src/scenarios";
 import { createGeocodeJob, geocodeJob } from "../src/geocode";
+import { accessFor, decideAccess, saveAccessNote } from "../src/access-requests";
 import type { Lease } from "@fillrate/contracts";
 import example from "../../../examples/m1-synthetic.json";
 
@@ -221,5 +222,35 @@ test("migration 0008 keeps existing data operator-owned and the bundled examples
     expect(migrated.sqlite.prepare("SELECT scope, inputHash FROM stage_cache ORDER BY inputHash").all()).toEqual([{ scope: "examples", inputHash: "i-ex" }, { scope: "operator", inputHash: "i-imp" }]);
     expect(scenarioList(migrated, "user:first-signup")).toHaveLength(0);
     for (const table of ["user", "session", "account", "verification"]) expect(migrated.sqlite.prepare(`SELECT count(*) AS n FROM "${table}"`).get()).toEqual({ n: 0 });
+  } finally { migrated.close(); }
+});
+
+test("migration 0009 approves existing users, new requests transition, and deletion cascades", () => {
+  const old = join(dir, "migrations-0008");
+  cpSync(resolve("packages/db/migrations"), old, { recursive: true });
+  const journalPath = join(old, "meta/_journal.json");
+  const journal = JSON.parse(readFileSync(journalPath, "utf8"));
+  journal.entries = journal.entries.filter((e: { idx: number }) => e.idx < 9);
+  writeFileSync(journalPath, JSON.stringify(journal));
+  const legacyPath = join(dir, "users.sqlite");
+  const legacy = openDatabase(legacyPath, old);
+  legacy.sqlite.prepare("INSERT INTO user (id,name,email,email_verified,created_at,updated_at) VALUES ('old','Old','old@example.com',1,1,1)").run();
+  legacy.close();
+  const migrated = openDatabase(legacyPath);
+  try {
+    expect(migrated.sqlite.prepare("SELECT status FROM access_requests WHERE user_id='old'").get()).toEqual({ status: "approved" });
+    migrated.sqlite.prepare("INSERT INTO user (id,name,email,email_verified,created_at,updated_at) VALUES ('new','New','new@example.com',1,1,1),('admin','Admin','admin@example.com',1,1,1)").run();
+    migrated.sqlite.prepare("INSERT INTO account (id,account_id,provider_id,user_id,created_at,updated_at) VALUES ('a','119372400','github','admin',1,1)").run();
+    expect(accessFor(migrated, "new", "119372400", "request").status).toBe("pending");
+    expect(accessFor(migrated, "admin", "119372400", "request")).toMatchObject({ admin: true, status: "approved" });
+    expect(saveAccessNote(migrated, "new", "Uses synthetic data").note).toBe("Uses synthetic data");
+    expect(() => saveAccessNote(migrated, "new", "x".repeat(501))).toThrow("note_too_long");
+    expect(() => decideAccess(migrated, "admin", "admin", "revoke", "119372400")).toThrow("admin_immutable");
+    expect(decideAccess(migrated, "admin", "new", "approve", "119372400")).toBe("approved");
+    expect(decideAccess(migrated, "admin", "new", "revoke", "119372400")).toBe("revoked");
+    expect(decideAccess(migrated, "admin", "new", "restore", "119372400")).toBe("approved");
+    expect(migrated.sqlite.prepare("SELECT count(*) AS n FROM admin_events").get()).toEqual({ n: 3 });
+    migrated.sqlite.prepare("DELETE FROM user WHERE id='new'").run();
+    expect(migrated.sqlite.prepare("SELECT count(*) AS n FROM access_requests WHERE user_id='new'").get()).toEqual({ n: 0 });
   } finally { migrated.close(); }
 });
