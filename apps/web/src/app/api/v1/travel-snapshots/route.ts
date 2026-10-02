@@ -25,3 +25,11 @@ export async function POST(request: Request) {
     return errorResponse(error)
   }
 }
+
+export async function GET(request: Request) {
+  try {
+    const ownerId = requireOwner(await principal(request))
+    const snapshots = initializeDatabase().listTravelSnapshots(ownerId)
+    return Response.json({ snapshots }, { headers: { "Cache-Control": "private, no-store" } })
+  } catch (error) { return errorResponse(error) }
+}

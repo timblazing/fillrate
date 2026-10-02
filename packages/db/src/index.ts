@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { gzipSync, gunzipSync } from "node:zlib";
 import Database from "better-sqlite3";
-import { and, eq, asc, sql } from "drizzle-orm";
+import { and, eq, asc, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { parseContract, type Lease, type ScenarioDocument, type StageManifest, type Snapshot, type WorkerEvent } from "@fillrate/contracts";
@@ -120,6 +120,13 @@ export class Store {
     if (!this.ownsTravelSnapshot(id, ownerId)) return null;
     return this.db.select({ id: s.travelSnapshots.id, byteLength: s.travelSnapshots.byteLength, nodeCount: s.travelSnapshots.nodeCount, provider: s.travelSnapshots.provider, providerVersion: s.travelSnapshots.providerVersion, datasetRevision: s.travelSnapshots.datasetRevision, profile: s.travelSnapshots.profile, createdAt: s.travelSnapshots.createdAt })
       .from(s.travelSnapshots).where(eq(s.travelSnapshots.id, id)).get() ?? null;
+  }
+
+  /** Recent snapshots visible to one owner. */
+  listTravelSnapshots(ownerId = OPERATOR, limit = 50) {
+    return this.db.select({ id: s.travelSnapshots.id, byteLength: s.travelSnapshots.byteLength, nodeCount: s.travelSnapshots.nodeCount, provider: s.travelSnapshots.provider, providerVersion: s.travelSnapshots.providerVersion, datasetRevision: s.travelSnapshots.datasetRevision, profile: s.travelSnapshots.profile, createdAt: s.travelSnapshots.createdAt })
+      .from(s.travelSnapshots).innerJoin(s.travelSnapshotOwners, eq(s.travelSnapshots.id, s.travelSnapshotOwners.snapshotId))
+      .where(eq(s.travelSnapshotOwners.ownerId, ownerId)).orderBy(desc(s.travelSnapshotOwners.createdAt)).limit(Math.max(1, Math.min(100, limit))).all();
   }
 
   /** The stored snapshot, re-hashed on every read: a row that no longer matches its identity is corrupt. */

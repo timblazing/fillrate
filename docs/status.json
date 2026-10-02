@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-02",
   "focus": "M6",
-  "productBehavior": 58,
+  "productBehavior": 59,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -35,9 +35,9 @@
     },
     "M6": {
       "weight": 12,
-      "done": 8,
+      "done": 20,
       "state": "active",
-      "notes": "Done: typed raw directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash snapshot storage, `travel_snapshot_id` in run settings with stage-identity, comparison and replay binding, stale-coordinate refusal before enqueue, and directed-matrix preflight and worker reachability with independent leg validation (integrated into main; live/UI work remains). Road travel stays planned: no browser selection, matrix preview or inspector, and no live pinned Valhalla deployment yet. Fixtures and API-only selection do not increase productBehavior."
+      "notes": "Done: typed raw directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, server stale-coordinate refusal, and directed preflight/worker reachability with independent leg validation. `/scenarios` now previews matrices before save, lists owner-linked snapshots, selects a snapshot and inspects provider metadata, units, directed coverage and a bounded heatmap sample. Remaining: repeatable browser/worker stale-coordinate acceptance, durable Valhalla snapshot jobs, pinned live deployment and geometry. `directed_road_travel` stays planned until browser and deployment evidence pass."
     },
     "M7": {
       "weight": 6,
@@ -53,7 +53,7 @@
     }
   },
   "nextUp": [
-    "M6: imported-matrix browser preview/upload/selection and inspector on existing immutable snapshots; verify stale-coordinate refusal and directed units/coverage.",
+    "M6: add repeatable browser acceptance for imported-matrix stale-coordinate refusal and a directed worker run; keep capability planned until pinned Valhalla deployment evidence.",
     "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil when available.",
     "M6/M7: durable Valhalla snapshot job and pinned deployment before geometry/playback/advanced lessons; independent lessons only for already-supported behavior."

@@ -83,9 +83,19 @@ and preflight findings). Regenerate it with `uv run python -m tests.travel_parit
   1,001 nodes (a full 1,001-node matrix with 5-decimal values is about 37 MB; measured on a Mac,
   Node validates, hashes and stores it in about 1.1 s and Python validates and re-hashes it in
   about 2 s).
-- **Upload.** `POST /api/v1/travel-snapshots` (operator key) validates the document with the same
-  rules as `TravelSnapshot` and returns `{id, created, ...}`; saving the same document again is a
-  no-op. `GET /api/v1/travel-snapshots/<id>` returns metadata only. There is no browser control.
+- **Upload and browser inspection.** `POST /api/v1/travel-snapshots/preview` validates a document
+  with the same rules as `TravelSnapshot` without storing it and returns the identity, provider
+  metadata, units, directed edge coverage, all node coordinates, and a 12-node distance sample.
+  `GET /api/v1/travel-snapshots` lists only snapshots linked to the caller. `POST
+  /api/v1/travel-snapshots` stores a validated document under its identity; saving the same document
+  again is a no-op. `GET /api/v1/travel-snapshots/<id>` returns metadata, while `?inspect=1` returns
+  the same bounded inspector data after re-verifying the stored identity. The `/scenarios` workbench
+  previews before save, selects an owner's snapshot, shows provider/version/dataset/profile and
+  distance/duration units, reports full-matrix directed coverage, and displays the first 12 nodes as
+  an origin-row/destination-column heatmap. Scenario demand-node coordinates are compared exactly
+  with the snapshot; server-side enqueue/preflight remains authoritative. Estimated travel remains
+  the default. The `directed_road_travel` capability stays planned until the repeatable browser
+  acceptance and pinned Valhalla deployment are verified.
 - **Selection.** `RunSettings.travel_snapshot_id` is the identity, or `null` for estimated travel
   (haversine × `travel_circuity`). With a snapshot, `travel_circuity` is not used for travel. The
   public synthetic API cannot set it, and the k explorer rejects it (it clusters on the symmetric
@@ -131,9 +141,9 @@ and preflight findings). Regenerate it with `uv run python -m tests.travel_parit
 
 Next M6 increments:
 
-1. Add imported-matrix preview and a browser control for selecting a snapshot (showing the
-   estimated/road difference), then a matrix inspector. Enable `directed_road_travel` and the
-   `travel_modes` entry only with tested browser selection.
+1. Add repeatable browser acceptance for preview/upload/select, exact coordinate mismatch refusal,
+   directed units/coverage and a real worker run. Keep `directed_road_travel` planned until browser
+   acceptance and the pinned deployment are both verified.
 2. Add the pinned Compose service, extract preparation and recorded deployment coverage.
    Test against that live image, including out-of-coverage nodes and effective costing defaults.
    A worker job that builds a Valhalla snapshot (the provider exists; nothing calls it yet).
