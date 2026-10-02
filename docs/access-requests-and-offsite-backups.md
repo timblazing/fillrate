@@ -4,9 +4,8 @@ Implementation spec for request-only access and the retained on-server backup po
 
 ## Current state (2026-10-02)
 
-- Release `fa9c0b8` (`sha256:740aee91…6d08c`) is deployed in **operator mode**. Migration 0008 is applied, and daily on-host backups run (`deploy/backup.sh`, systemd user timer, 30-day rotation).
-- The owner has created the GitHub OAuth app. `FILLRATE_MODE=hosted`, `BETTER_AUTH_*`, `GITHUB_CLIENT_*` and `TRUSTED_CLIENT_IP_HEADER` are now in `~/containers/fillrate/compose.yaml`. The running container has not been recreated with them yet (`/api/v1/me` still reports `"mode":"operator"`).
-- **Don't run `docker compose up -d` until Part A is deployed.** Today, hosted mode lets any GitHub user sign in and spend quotas (open signup). The owner wants request-only access first.
+- Release `696d2c9` (`sha256:7def261e143c118409c827ed78d2daef2befc093eb770168d025bcd37b81c510`) is deployed in **hosted mode** with migration 0009, request-only signup and the numeric admin ID. The daily on-host backup timer and 30-day rotation remain active.
+- The owner has created the GitHub OAuth app. Better Auth and GitHub credentials are in the mode-600 VPS Compose file. A pre-migration backup passed checksum/integrity, and the new image migrated a disposable restored copy with a healthy worker. The live site reports hosted/request mode; real GitHub sign-ins and the two-account check remain.
 - The owner is the only admin: GitHub `timblazing`, numeric user ID **119372400**.
 
 ## Part A: request-access sign-up with a single admin

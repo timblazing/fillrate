@@ -25,7 +25,7 @@
       "weight": 15,
       "done": 98,
       "state": "waiting",
-      "notes": "Done in the checkout: explorer, sweeps, replay, lessons, hosted auth/isolation/quotas and migration 0009 request-only signup with one GitHub-ID admin. Daily on-server online backups remain the release policy; off-server storage is deferred by owner choice. The live site remains on fa9c0b8 in operator mode with on-host backups; gated image deployment, fresh backup/disposable restore and real two-account acceptance remain."
+      "notes": "Live on fillrate.blasingame.dev: hosted Better Auth, request-only signup, one numeric GitHub-ID admin and migration 0009. Image 696d2c9 passed amd64/arm64 smoke and benchmark; a checked on-server backup migrated cleanly in a disposable container. Daily on-server backups remain the release policy and do not cover server or disk loss. Real GitHub sign-ins and the live two-account check remain."
     },
     "M5": {
       "weight": 10,
@@ -53,8 +53,8 @@
     }
   },
   "nextUp": [
-    "M4: publish the gated image, set ADMIN_GITHUB_ID and request signup before hosted restart; verify real GitHub sign-in and two approved accounts with scripts/live-two-account.mjs.",
-    "M4: verify a fresh on-server backup and disposable restore before migration 0009; watch queue times after signup opens. Server or disk loss is not covered by these backups.",
+    "M4: owner signs in with the admin GitHub account and a second GitHub account, approves the request, then run scripts/live-two-account.mjs with both real sessions.",
+    "M4: watch real queue times after access is granted. On-server backups do not cover server or disk loss.",
     "M8: separate protected-import and experiment browser smokes; use existing lesson/result/export coverage.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil.",
     "M6: browser matrix selection, durable Valhalla snapshot job, pinned deployment and validated routing increments.",
