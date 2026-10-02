@@ -10,6 +10,7 @@ umask 077  # backups may contain hosted customer data; host copies and their dir
 container="${1:-fillrate}"
 dest="${2:-./backups}"
 days="${BACKUP_RETENTION_DAYS:-30}"
+[[ "$days" =~ ^[1-9][0-9]*$ ]] || { echo "BACKUP_RETENTION_DAYS must be a positive integer" >&2; exit 2; }
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 name="fillrate-$stamp.sqlite"
 mkdir -p "$dest"
@@ -37,4 +38,5 @@ docker cp "$container:/app/data/backups/$name" "$dest/$name"
 docker exec "$container" rm -f "/app/data/backups/$name"
 (cd "$dest" && sha256sum "$name" > "$name.sha256" && cat "$name.sha256")
 chmod 600 "$dest/$name" "$dest/$name.sha256"
-find "$dest" -maxdepth 1 -name 'fillrate-*.sqlite*' -mtime "+$days" -print -delete
+# find rounds -mtime down to whole days: +29 means 30 days or older, matching the privacy limit.
+find "$dest" -maxdepth 1 -name 'fillrate-*.sqlite*' -mtime "+$((days - 1))" -print -delete
