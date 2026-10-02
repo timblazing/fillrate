@@ -334,6 +334,14 @@ class Supervisor:
                     log.info("run %s succeeded", job["run_id"])
                     return "succeeded"
                 elif kind == "error":
+                    # A cancel that lands between heartbeats refuses the child's next cache,
+                    # checkpoint or cluster call, which surfaces here as an error: it is a
+                    # cancellation, not a failed run.
+                    beat = self.transport.post("/internal/worker/heartbeat", {"lease": lease})
+                    if beat.get("cancel_requested"):
+                        send("cancelled", {"reason": "cancel_requested"})
+                        log.info("run %s cancelled during a server call", job["run_id"])
+                        return "cancelled"
                     send("failed", payload)  # invalid input: permanent, not retried
                     log.info("run %s failed: %s", job["run_id"], payload.get("code"))
                     return "failed"

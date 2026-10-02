@@ -121,6 +121,20 @@ test.skipIf(!hasUv)("cancelling a running solve kills it and frees the worker", 
   expect(log()).toContain("solver process killed");
 }, 120_000);
 
+test.skipIf(!hasUv)("a cancel that refuses the solver's next server call ends cancelled, not failed", async () => {
+  // Long heartbeats (and a lease to match) so the child's checkpoint, not a heartbeat, meets the cancel first.
+  await transport.close();
+  transport = createWorkerTransport(store, { token, port: 0, leaseMs: 120_000 });
+  url = `http://127.0.0.1:${(await transport.listen()).port}`;
+  const runId = enqueue({ solver_max_iterations: null, solver_time_limit_s: 60 }, "cancel-call");
+  const worker = spawn(join(optimizer, ".venv/bin/fillrate-worker"), [], { cwd: optimizer, env: { ...env, WORKER_HEARTBEAT_SECONDS: "60", FILLRATE_INTERNAL_URL: url, WORKER_ID: "w1" }, stdio: "ignore" });
+  workers.push(worker);
+  await waitFor(() => store.runView(runId)!.status !== "queued", 30_000);
+  store.cancel(runId);
+  await waitFor(() => ["cancelled", "failed"].includes(store.runView(runId)!.status), 30_000);
+  expect(store.runView(runId)!.status).toBe("cancelled");
+}, 120_000);
+
 test.skipIf(!hasUv)("a crashed worker's job is retried by a new worker after lease expiry", async () => {
   const runId = enqueue({ solver_max_iterations: null, solver_time_limit_s: 60 }, "crash");
   const first = startWorker("w1");

@@ -89,8 +89,8 @@ short = [p for p in summary["products"] if p["product_id"] == "SKU-B"][0]
 assert short["allocated"] == 30 and short["unselected"] > 0, short
 
 # Imported results stay behind the key, including the public run list.
-call(f"/api/v1/runs/{run_id}", auth=False, expect=403)
-call(f"/api/v1/runs/{run_id}/export?format=csv&table=loads", auth=False, expect=403)
+call(f"/api/v1/runs/{run_id}", auth=False, expect=404)
+call(f"/api/v1/runs/{run_id}/export?format=csv&table=loads", auth=False, expect=404)
 listed = call("/api/v1/runs", auth=False)
 assert all(r["id"] != run_id for r in listed["runs"]), "imported run leaked into public list"
 
