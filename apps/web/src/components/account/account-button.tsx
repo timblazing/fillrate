@@ -1,6 +1,6 @@
 "use client"
 
-import { LogIn, LogOut, UserRound } from "lucide-react"
+import { Cog, LogIn, LogOut, Shield, UserRound } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
@@ -41,8 +41,11 @@ export function AccountButton() {
       <MenuPopup align="end">
         <MenuGroup>
           <MenuGroupLabel>{me.user.name}</MenuGroupLabel>
-          <MenuLinkItem href={me.kind === "pending" ? "/request-access" : "/account"}><UserRound aria-hidden />{me.kind === "pending" ? "Request access" : "Account and data"}</MenuLinkItem>
-          {me.admin && <MenuLinkItem href="/admin">Admin {me.pending_count > 0 && <Badge variant="info">{me.pending_count}</Badge>}</MenuLinkItem>}
+          <MenuLinkItem href={me.kind === "pending" ? "/request-access" : "/account"}>
+            {me.kind === "pending" ? <UserRound aria-hidden /> : <Cog aria-hidden />}
+            {me.kind === "pending" ? "Request access" : "Settings"}
+          </MenuLinkItem>
+          {me.admin && <MenuLinkItem href="/admin"><Shield aria-hidden />Admin {me.pending_count > 0 && <Badge variant="info">{me.pending_count}</Badge>}</MenuLinkItem>}
         </MenuGroup>
         <MenuSeparator />
         <MenuItem onClick={async () => { await authClient.signOut(); setMe({ ...me, user: null, owner: false }); router.push("/"); router.refresh() }}><LogOut aria-hidden />Sign out</MenuItem>
