@@ -22,7 +22,7 @@
     "./schema": "./src/schema.ts"
   },
   "dependencies": {
-    "@fillrate/contracts": "workspace:*",
+    "@fillrate/contracts": "0.1.0",
     "drizzle-orm": "0.45.3",
     "better-sqlite3": "13.0.3"
   }
