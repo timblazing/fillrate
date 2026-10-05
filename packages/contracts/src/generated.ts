@@ -206,6 +206,45 @@ export interface components {
             violations: string[];
             /** Visit Count */
             visit_count: number;
+            warm_start?: components["schemas"]["ClusterWarmStart"] | null;
+        };
+        /**
+         * ClusterWarmStart
+         * @description One cluster's warm-start outcome. `initial_cost` is PyVRP's objective of the mapped plan on
+         *     this run's problem; `final_cost` is the objective PyVRP returned starting from it (never higher
+         *     with a feasible start: tests/test_warm_start.py).
+         */
+        ClusterWarmStart: {
+            /**
+             * Detail
+             * @default null
+             */
+            detail: string | null;
+            /**
+             * Final Cost
+             * @default null
+             */
+            final_cost: number | null;
+            /**
+             * Initial Cost
+             * @default null
+             */
+            initial_cost: number | null;
+            /**
+             * Reason
+             * @default null
+             */
+            reason: ("travel_changed" | "visit_set_changed" | "demand_changed" | "source_invalid" | "invalid_on_new_problem" | "solver_rejected") | null;
+            /**
+             * Source Cluster Id
+             * @default null
+             */
+            source_cluster_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "used" | "skipped";
         };
         /** ClusteringSummary */
         ClusteringSummary: {
@@ -875,6 +914,7 @@ export interface components {
              * @default null
              */
             travel_snapshot_id: string | null;
+            warm_start?: components["schemas"]["WarmStartSource"] | null;
             /**
              * Weighted Truck Penalty M
              * @default null
@@ -934,6 +974,7 @@ export interface components {
             versions: {
                 [key: string]: string;
             };
+            warm_start?: components["schemas"]["WarmStartSummary"] | null;
         };
         /** ScenarioDocument */
         ScenarioDocument: {
@@ -1007,7 +1048,7 @@ export interface components {
              * Stage Type
              * @enum {string}
              */
-            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "solve" | "validation" | "summary" | "explorer";
+            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "warm_start" | "solve" | "validation" | "summary" | "explorer";
         };
         /**
          * TimeModel
@@ -1225,6 +1266,99 @@ export interface components {
              * @enum {string}
              */
             stage: "preflight" | "allocation" | "problem" | "solve" | "validation";
+        };
+        /**
+         * WarmStartCluster
+         * @description A source cluster: validated ones carry their routes in service order; others carry none.
+         */
+        WarmStartCluster: {
+            /** Cluster Id */
+            cluster_id: string;
+            /** Location Ids */
+            location_ids: string[];
+            /** Routes */
+            routes: components["schemas"]["WarmStartVisit"][][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "validated" | "invalid_candidate" | "no_candidate" | "nothing_to_solve";
+        };
+        /**
+         * WarmStartPlan
+         * @description The warm-start source interface (spec §10, M6): a plan as routes of visits with their
+         *     location and load, per source cluster, and the travel it was validated on. Its content hash is
+         *     the plan identity recorded in the `warm_start` stage artifact and the replay bundle.
+         */
+        WarmStartPlan: {
+            /** Clusters */
+            clusters: components["schemas"]["WarmStartCluster"][];
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            source: components["schemas"]["WarmStartSource"];
+            travel: components["schemas"]["WarmStartTravel"];
+        };
+        /**
+         * WarmStartSource
+         * @description Where a warm start's plan comes from (spec §10, M6). Today only a succeeded pipeline run the
+         *     submitter can read; the web resolves it with owner checks and the worker receives its validated
+         *     plan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)
+         *     would be a new `kind` producing the same plan document.
+         */
+        WarmStartSource: {
+            /**
+             * Kind
+             * @default run
+             * @constant
+             */
+            kind: "run";
+            /** Run Id */
+            run_id: string;
+        };
+        /** WarmStartSummary */
+        WarmStartSummary: {
+            /** Plan Id */
+            plan_id: string;
+            /** Skipped */
+            skipped: number;
+            source: components["schemas"]["WarmStartSource"];
+            /** Used */
+            used: number;
+        };
+        /**
+         * WarmStartTravel
+         * @description The travel identity the source plan was validated on: estimated haversine × circuity, or
+         *     a stored directed snapshot.
+         */
+        WarmStartTravel: {
+            /**
+             * Circuity
+             * @default null
+             */
+            circuity: number | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "estimated" | "snapshot";
+            /**
+             * Snapshot Id
+             * @default null
+             */
+            snapshot_id: string | null;
+        };
+        /** WarmStartVisit */
+        WarmStartVisit: {
+            /** Load */
+            load: number;
+            /** Location Id */
+            location_id: string;
+            /** Visit Id */
+            visit_id: string;
         };
         /** WorkerEvent */
         WorkerEvent: {

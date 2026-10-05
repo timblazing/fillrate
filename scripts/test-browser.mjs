@@ -11,8 +11,8 @@ const appDir = join(root, "apps/web");
 const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
-const flows = selected === "all" ? ["lesson", "import", "matrix", "experiment", "lessons", "time-windows"] : [selected];
-if (flows.some((flow) => !["lesson", "import", "matrix", "experiment", "lessons", "time-windows"].includes(flow))) throw new Error("Use --flow=lesson, --flow=import, --flow=matrix, --flow=experiment, --flow=lessons, --flow=time-windows, or --flow=all.");
+const flows = selected === "all" ? ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "warm-start"] : [selected];
+if (flows.some((flow) => !["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "warm-start"].includes(flow))) throw new Error("Use --flow=lesson, --flow=import, --flow=matrix, --flow=experiment, --flow=lessons, --flow=time-windows, --flow=warm-start, or --flow=all.");
 
 const dataDir = mkdtempSync(join(tmpdir(), "fillrate-browser-smoke-"));
 const downloadDir = join(dataDir, "downloads");
@@ -559,6 +559,43 @@ async function timeWindowsFlow(baseURL, scenarioKey) {
   console.log(`  passed: run ${runId.slice(0, 8)}, ${detail.summary.trucks.length} shipments, wait/service states on Timeline`);
 }
 
+// M6 verified warm starts: a finished example run is re-run from its page, warm-started from itself. Every cluster of
+// the identical problem must start from the source plan, never end above its starting objective, and say so on the page.
+async function warmStartFlow(baseURL, runKey) {
+  console.log("Browser smoke: warm-started rerun");
+  beginBrowserFlow("warm-start");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const started = await fetch(new URL("/api/v1/runs", baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "allocation" }) });
+  const source = await started.json();
+  expect(started.status === 201 && source?.id, `Source run was not queued: ${JSON.stringify(source)}`);
+  const sourceDetail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${source.id}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Warm-start source run");
+  expect(sourceDetail.status === "succeeded" && sourceDetail.summary?.validity === "valid", `Source run did not validate: ${JSON.stringify(sourceDetail.summary?.validity)}`);
+  const key = `?key=${encodeURIComponent(runKey)}`;
+  open(`${baseURL}/runs/${source.id}${key}`);
+  browser("wait", "--text", "Re-run warm-started", "--timeout", "20000");
+  clickButton("Re-run warm-started");
+  const path = await poll(() => evalValue("location.pathname"), (p) => typeof p === "string" && /^\/runs\/[0-9a-f-]+$/i.test(p) && !p.endsWith(source.id), "Warm rerun navigation", 20_000);
+  const runId = path.split("/").at(-1);
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Warm-started run");
+  expect(detail.status === "succeeded", `Warm-started run failed: ${JSON.stringify(detail.failure)}`);
+  const warm = detail.summary.warm_start;
+  const outcomes = detail.summary.clusters.filter((c) => c.warm_start).map((c) => c.warm_start);
+  expect(detail.settings.warm_start?.run_id === source.id && warm?.source?.run_id === source.id, "Warm-started run does not name its source.");
+  expect(outcomes.length > 0 && warm.used === outcomes.length && warm.skipped === 0, `Identical rerun should use every cluster: ${JSON.stringify(outcomes)}`);
+  expect(outcomes.every((o) => o.status === "used" && o.final_cost <= o.initial_cost), `A warm-started cluster ended above its starting objective: ${JSON.stringify(outcomes)}`);
+  expect(detail.stages.some((s) => s.stage === "warm_start") && detail.summary.validity === "valid", "Warm-started run lacks its warm_start stage or validity.");
+  expect(detail.summary.totals.trucks <= sourceDetail.summary.totals.trucks, "Warm-started run needs more trucks than its source.");
+  browser("wait", "--text", "started from its validated plan", "--timeout", "20000");
+  const text = String(parsedText());
+  expect(text.includes(`${warm.used} of ${warm.used} solved`) && (text.match(/\bUsed\b/g) ?? []).length >= outcomes.length, "Run page does not show the per-cluster warm-start outcome.");
+  expect(text.includes(`warm-started from run ${source.id.slice(0, 8)}`) || text.includes(source.id.slice(0, 8)), "Run page does not link the warm-start source.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("warm start");
+  console.log(`  passed: run ${runId.slice(0, 8)} warm-started from ${source.id.slice(0, 8)}, ${warm.used} cluster(s) used, objective never higher`);
+}
+
 async function experimentFlow(baseURL, runKey) {
   console.log("Browser smoke: bounded synthetic experiment");
   beginBrowserFlow("experiment");
@@ -809,6 +846,7 @@ try {
     if (flow === "experiment") await experimentFlow(baseURL, runKey);
     if (flow === "lessons") await lessonsFlow(baseURL, runKey);
     if (flow === "time-windows") await timeWindowsFlow(baseURL, scenarioKey);
+    if (flow === "warm-start") await warmStartFlow(baseURL, runKey);
   }
   await stop();
 } catch (error) {

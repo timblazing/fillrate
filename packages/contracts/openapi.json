@@ -417,6 +417,16 @@
           "visit_count": {
             "title": "Visit Count",
             "type": "integer"
+          },
+          "warm_start": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClusterWarmStart"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -444,6 +454,98 @@
           "violations"
         ],
         "title": "ClusterSummary",
+        "type": "object"
+      },
+      "ClusterWarmStart": {
+        "additionalProperties": false,
+        "description": "One cluster's warm-start outcome. `initial_cost` is PyVRP's objective of the mapped plan on\nthis run's problem; `final_cost` is the objective PyVRP returned starting from it (never higher\nwith a feasible start: tests/test_warm_start.py).",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          },
+          "final_cost": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Final Cost"
+          },
+          "initial_cost": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Initial Cost"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "travel_changed",
+                  "visit_set_changed",
+                  "demand_changed",
+                  "source_invalid",
+                  "invalid_on_new_problem",
+                  "solver_rejected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "source_cluster_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Cluster Id"
+          },
+          "status": {
+            "enum": [
+              "used",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ClusterWarmStart",
         "type": "object"
       },
       "ClusteringSummary": {
@@ -2108,6 +2210,16 @@
             "default": null,
             "title": "Travel Snapshot Id"
           },
+          "warm_start": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WarmStartSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "weighted_truck_penalty_m": {
             "anyOf": [
               {
@@ -2260,6 +2372,16 @@
             },
             "title": "Versions",
             "type": "object"
+          },
+          "warm_start": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WarmStartSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2449,6 +2571,7 @@
               "clustering",
               "travel",
               "problem",
+              "warm_start",
               "solve",
               "validation",
               "summary",
@@ -3123,6 +3246,213 @@
           "evidence"
         ],
         "title": "UnplannedLine",
+        "type": "object"
+      },
+      "WarmStartCluster": {
+        "additionalProperties": false,
+        "description": "A source cluster: validated ones carry their routes in service order; others carry none.",
+        "properties": {
+          "cluster_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Cluster Id",
+            "type": "string"
+          },
+          "location_ids": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Location Ids",
+            "type": "array"
+          },
+          "routes": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/WarmStartVisit"
+              },
+              "type": "array"
+            },
+            "title": "Routes",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "validated",
+              "invalid_candidate",
+              "no_candidate",
+              "nothing_to_solve"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "status",
+          "location_ids",
+          "routes"
+        ],
+        "title": "WarmStartCluster",
+        "type": "object"
+      },
+      "WarmStartPlan": {
+        "additionalProperties": false,
+        "description": "The warm-start source interface (spec \u00a710, M6): a plan as routes of visits with their\nlocation and load, per source cluster, and the travel it was validated on. Its content hash is\nthe plan identity recorded in the `warm_start` stage artifact and the replay bundle.",
+        "properties": {
+          "clusters": {
+            "items": {
+              "$ref": "#/components/schemas/WarmStartCluster"
+            },
+            "title": "Clusters",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/WarmStartSource"
+          },
+          "travel": {
+            "$ref": "#/components/schemas/WarmStartTravel"
+          }
+        },
+        "required": [
+          "source",
+          "travel",
+          "clusters"
+        ],
+        "title": "WarmStartPlan",
+        "type": "object"
+      },
+      "WarmStartSource": {
+        "additionalProperties": false,
+        "description": "Where a warm start's plan comes from (spec \u00a710, M6). Today only a succeeded pipeline run the\nsubmitter can read; the web resolves it with owner checks and the worker receives its validated\nplan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)\nwould be a new `kind` producing the same plan document.",
+        "properties": {
+          "kind": {
+            "const": "run",
+            "default": "run",
+            "title": "Kind",
+            "type": "string"
+          },
+          "run_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "WarmStartSource",
+        "type": "object"
+      },
+      "WarmStartSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_id": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/WarmStartSource"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "plan_id",
+          "used",
+          "skipped"
+        ],
+        "title": "WarmStartSummary",
+        "type": "object"
+      },
+      "WarmStartTravel": {
+        "additionalProperties": false,
+        "description": "The travel identity the source plan was validated on: estimated haversine \u00d7 circuity, or\na stored directed snapshot.",
+        "properties": {
+          "circuity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Circuity"
+          },
+          "mode": {
+            "enum": [
+              "estimated",
+              "snapshot"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Id"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "WarmStartTravel",
+        "type": "object"
+      },
+      "WarmStartVisit": {
+        "additionalProperties": false,
+        "properties": {
+          "load": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Load",
+            "type": "integer"
+          },
+          "location_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Location Id",
+            "type": "string"
+          },
+          "visit_id": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Visit Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_id",
+          "location_id",
+          "load"
+        ],
+        "title": "WarmStartVisit",
         "type": "object"
       },
       "WorkerEvent": {

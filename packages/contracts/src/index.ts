@@ -12,7 +12,9 @@ export type RunSettings = components["schemas"]["RunSettings"];
 export type RunSummary = components["schemas"]["RunSummary"];
 export type ExplorerSettings = components["schemas"]["ExplorerSettings"];
 export type ExplorerSummary = components["schemas"]["ExplorerSummary"];
-export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary" | "ExplorerSettings" | "ExplorerSummary";
+export type WarmStartSource = components["schemas"]["WarmStartSource"];
+export type WarmStartPlan = components["schemas"]["WarmStartPlan"];
+export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary" | "ExplorerSettings" | "ExplorerSummary" | "WarmStartPlan";
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);

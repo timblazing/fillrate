@@ -7,9 +7,23 @@ from pydantic.json_schema import models_json_schema
 
 from .app import app
 from .contracts import ContractBundle
-from .model import ExplorerSettings, ExplorerSummary, RunSettings, RunSummary, ScenarioDocument
+from .model import (
+    ExplorerSettings,
+    ExplorerSummary,
+    RunSettings,
+    RunSummary,
+    ScenarioDocument,
+    WarmStartPlan,
+)
 
-PIPELINE_MODELS = (ScenarioDocument, RunSettings, RunSummary, ExplorerSettings, ExplorerSummary)
+PIPELINE_MODELS = (
+    ScenarioDocument,
+    RunSettings,
+    RunSummary,
+    ExplorerSettings,
+    ExplorerSummary,
+    WarmStartPlan,
+)
 
 
 def main():
