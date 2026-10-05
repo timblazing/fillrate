@@ -10,8 +10,16 @@ a chain of allowed directed legs reaches it.
 from collections import defaultdict
 from math import asin, cos, radians, sin, sqrt
 
+import numpy as np
+
 from .model import PreflightFinding, RunSettings, ScenarioDocument
-from .travel import EARTH_RADIUS_M, reachable
+from .timeplan import (
+    TimeContext,
+    estimated_seconds,
+    shortest_seconds_from_depot,
+    time_context,
+)
+from .travel import EARTH_RADIUS_M, distance_matrix_m, reachable
 from .travel_provider import TravelSnapshot, stop_nodes
 
 
@@ -67,6 +75,79 @@ def _far_stops(
     return far, {nodes[i].id for i in reachable(meters, settings.max_leg_m) if i > 0}
 
 
+def _hms(seconds: float) -> str:
+    total = int(seconds)
+    return f"{total // 3600:02d}:{total % 3600 // 60:02d}:{total % 60:02d}"
+
+
+def _time_findings(
+    tctx: TimeContext,
+    scenario: ScenarioDocument,
+    settings: RunSettings,
+    points: dict[str, tuple[float, float]],
+    active: dict[str, list[str]],
+    snapshot: TravelSnapshot | None,
+) -> list[PreflightFinding]:
+    """Provable time findings only. `window_unreachable` uses the shortest chain of allowed
+    legs from the depot, ignoring other stops' service and waiting, so it is a lower bound on
+    the earliest possible start: if even that misses the window, no plan can serve the stop."""
+    empty: dict[str, str] = {}
+    for loc_id in sorted(active):
+        vt = tctx.locations.get(loc_id)
+        if (
+            vt
+            and vt.earliest_s is not None
+            and vt.latest_s is not None
+            and (vt.earliest_s > vt.latest_s)
+        ):
+            empty[loc_id] = (
+                f"{loc_id}: earliest {_hms(vt.earliest_s)} is after latest {_hms(vt.latest_s)}"
+            )
+    unreachable: dict[str, str] = {}
+    depot = scenario.depot
+    nodes = stop_nodes(depot.id, (depot.lat, depot.lon), points)
+    if snapshot is None:
+        coords = np.array([(n.lat, n.lon) for n in nodes])
+        meters = distance_matrix_m(coords, settings.travel_circuity)
+        seconds = estimated_seconds(coords, settings.travel_circuity)
+    else:
+        meters, seconds = snapshot.effective(nodes)
+    shortest = shortest_seconds_from_depot(meters, seconds, settings.max_leg_m)
+    for i, node in enumerate(nodes[1:], start=1):
+        loc_id = node.id
+        vt = tctx.locations.get(loc_id)
+        if loc_id in empty or not np.isfinite(shortest[i]):
+            continue
+        earliest_arrival = tctx.depot_open_s + float(shortest[i])
+        start = max(earliest_arrival, vt.earliest_s or 0) if vt else earliest_arrival
+        service = vt.service_s if vt else 0
+        base = (
+            f"{loc_id}: shortest allowed drive from the depot is {_hms(shortest[i])}; leaving at "
+            f"{_hms(tctx.depot_open_s)} the earliest arrival is {_hms(earliest_arrival)}"
+        )
+        if vt and vt.latest_s is not None and start > vt.latest_s:
+            unreachable[loc_id] = f"{base}, after the window end {_hms(vt.latest_s)}"
+        elif start + service > tctx.horizon_end_s:
+            unreachable[loc_id] = (
+                f"{base}; service would end at {_hms(start + service)}, after the horizon end "
+                f"{_hms(tctx.horizon_end_s)}"
+            )
+    out = []
+    for check, hits in (("window_empty", empty), ("window_unreachable", unreachable)):
+        if hits:
+            line_ids = sorted(line for loc in hits for line in active[loc])
+            out.append(
+                PreflightFinding(
+                    check=check,
+                    action="block",
+                    location_ids=sorted(hits),
+                    line_ids=line_ids,
+                    message=f"{check}: " + "; ".join(hits[k] for k in sorted(hits)) + ".",
+                )
+            )
+    return out
+
+
 def preflight_checks(
     scenario: ScenarioDocument, settings: RunSettings, snapshot: TravelSnapshot | None = None
 ) -> list[PreflightFinding]:
@@ -79,6 +160,7 @@ def preflight_checks(
     found: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
     grouped: dict[tuple[str, str], list[tuple[str, int]]] = defaultdict(list)
     located_lines: dict[str, list[str]] = defaultdict(list)
+    active_lines: dict[str, list[str]] = defaultdict(list)
     points: dict[str, tuple[float, float]] = {}
     for order in scenario.orders:
         loc = locations[order.location_id]
@@ -89,6 +171,7 @@ def preflight_checks(
         if not missing:
             points[loc.id] = (loc.lat, loc.lon)
         for line in active:
+            active_lines[loc.id].append(line.id)
             if missing:
                 found["missing_coordinates"][loc.id].append(line.id)
             if not missing:
@@ -126,4 +209,6 @@ def preflight_checks(
                     message=f"{check}: {len(line_ids)} line(s) at {len(hits)} location(s).",
                 )
             )
+    if tctx := time_context(scenario):
+        out.extend(_time_findings(tctx, scenario, settings, points, active_lines, snapshot))
     return out

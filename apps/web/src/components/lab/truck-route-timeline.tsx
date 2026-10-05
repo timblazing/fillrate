@@ -5,21 +5,23 @@ import { ChevronLeft, ChevronRight, Info, Warehouse } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
-import { cursorAt, formatClock, formatDriveTime, type Timeline, type TimingSource } from "@/lib/timeline"
+import { cursorAt, formatClock, formatDriveTime, localClock, type Timeline, type TimelineClock, type TimingSource } from "@/lib/timeline"
 import { formatFeet, formatMiles } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 const METERS_PER_MILE = 1609.344
 
 // Per-truck planned-route timeline (spec §13, M7): depot departure at 0:00, then arrival, service and the load on
-// board before and after each stop, driven by a keyboard-accessible cursor. Planned durations only: service time is
-// not modeled, there is no waiting, and the open route has no planned return. Not traffic or GPS.
+// board before and after each stop, driven by a keyboard-accessible cursor. Planned durations only. Without time-window
+// data service is 0 s and there is no waiting; with it each stop shows drive, wait and service with local clock times,
+// its window and the slack. The open route has no planned return. Not traffic or GPS.
 export function TruckRouteTimeline({
   timeline,
   source,
   cursor,
   onCursorChange,
   depotLabel,
+  clock,
   className,
 }: {
   timeline: Timeline
@@ -27,14 +29,17 @@ export function TruckRouteTimeline({
   cursor: number
   onCursorChange: (seconds: number) => void
   depotLabel: string
+  /** Scenario clock (`RunSummary.time`); with it the cursor and stops show local times. */
+  clock?: TimelineClock | null
   className?: string
 }) {
-  const { stops, timed, totalS } = timeline
+  const { stops, timed, totalS, scheduled } = timeline
+  const at = (s: number) => (scheduled ? (localClock(clock, timeline.shiftStartS + s) ?? formatClock(s)) : formatClock(s))
   const state = cursorAt(timeline, cursor)
   const stepS = Math.max(1, Math.round((totalS ?? 0) / 300))
   const currentIndex = state ? (state.phase === "drive" ? (state.stopIndex ?? 0) - 1 : (state.stopIndex ?? -1)) : -2
   // Cursor stops: departure plus every arrival, de-duplicated so Previous/Next always moves.
-  const marks = timed ? [0, ...stops.map((s) => s.arrivalS as number)] : []
+  const marks = timed ? [0, ...stops.map((s) => s.arrivalS as number), ...(scheduled ? [totalS as number] : [])] : []
   const previous = [...marks].reverse().find((m) => m < cursor)
   const next = marks.find((m) => m > cursor)
 
@@ -43,7 +48,11 @@ export function TruckRouteTimeline({
     : state.phase === "depot"
       ? `At ${depotLabel}, departing with ${formatFeet(state.load)} on board`
       : state.phase === "service"
-        ? `At stop ${(state.stopIndex ?? 0) + 1}, ${stops[state.stopIndex ?? 0].label}: service time not modeled (0 s), ${formatFeet(state.load)} on board after delivery`
+        ? scheduled
+          ? `At stop ${(state.stopIndex ?? 0) + 1}, ${stops[state.stopIndex ?? 0].label}: serving (${formatDriveTime(stops[state.stopIndex ?? 0].serviceS)}), ${formatFeet(state.load)} on board after delivery`
+          : `At stop ${(state.stopIndex ?? 0) + 1}, ${stops[state.stopIndex ?? 0].label}: service time not modeled (0 s), ${formatFeet(state.load)} on board after delivery`
+        : state.phase === "wait"
+          ? `Waiting at stop ${(state.stopIndex ?? 0) + 1}, ${stops[state.stopIndex ?? 0].label}, for its window to open at ${stops[state.stopIndex ?? 0].window?.earliest ?? "?"}, ${formatFeet(state.load)} on board`
         : `Driving to stop ${(state.stopIndex ?? 0) + 1}, ${stops[state.stopIndex ?? 0].label}, ${Math.round(state.fraction * 100)}% of the leg, ${formatFeet(state.load)} on board`
 
   return (
@@ -59,8 +68,16 @@ export function TruckRouteTimeline({
         </div>
         <div className="flex gap-1.5">
           <dt className="font-medium">Service</dt>
-          <dd>service time not modeled (0 s), no waiting</dd>
+          <dd>{scheduled ? "service durations and windows from the scenario" : "service time not modeled (0 s), no waiting"}</dd>
         </div>
+        {scheduled && clock && (
+          <div className="flex gap-1.5">
+            <dt className="font-medium">Clock</dt>
+            <dd>
+              {clock.timezone}, {clock.planning_date}
+            </dd>
+          </div>
+        )}
       </dl>
 
       {!timed && (
@@ -78,7 +95,7 @@ export function TruckRouteTimeline({
         <div className="bg-card flex flex-col gap-2 rounded-xl border p-3">
           <div className="flex items-center justify-between gap-2 text-sm">
             <span className="font-mono font-medium tabular-nums" aria-hidden>
-              {formatClock(cursor)} <span className="text-muted-foreground font-sans text-xs">of {formatClock(totalS ?? 0)}</span>
+              {at(cursor)} <span className="text-muted-foreground font-sans text-xs">until {at(totalS ?? 0)}</span>
             </span>
             <div className="flex gap-1">
               <Button variant="outline" size="icon-sm" aria-label="Previous stop" disabled={previous == null} onClick={() => previous != null && onCursorChange(previous)}>
@@ -110,7 +127,7 @@ export function TruckRouteTimeline({
         <li className={cn("bg-card flex items-center gap-2 rounded-lg border px-3 py-2 text-sm", timed && currentIndex === -1 && "border-primary ring-primary/20 ring-2")}>
           <Warehouse className="size-4 shrink-0" aria-hidden />
           <span className="min-w-0 flex-1 truncate font-medium">Depart {depotLabel}</span>
-          <span className="text-muted-foreground text-xs tabular-nums">{timed ? "0:00" : "—"} · {formatFeet(timeline.departLoad)} on board</span>
+          <span className="text-muted-foreground text-xs tabular-nums">{timed ? at(0) : "—"} · {formatFeet(timeline.departLoad)} on board</span>
         </li>
         {stops.map((s, i) => {
           const active = timed && currentIndex === i
@@ -119,15 +136,31 @@ export function TruckRouteTimeline({
               <div className="flex items-baseline gap-2">
                 <span className="text-muted-foreground w-5 shrink-0 text-xs tabular-nums">{s.sequence}</span>
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.label}</span>
-                <span className="font-mono text-xs tabular-nums">{s.arrivalS == null ? "time n/a" : formatClock(s.arrivalS)}</span>
+                <span className="font-mono text-xs tabular-nums">{s.arrivalS == null ? "time n/a" : s.arrivalClock ? `${s.arrivalClock}${s.startS !== s.arrivalS ? ` → ${s.startClock}` : ""}` : formatClock(s.arrivalS)}</span>
               </div>
               <dl className="text-muted-foreground mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 pl-7 text-xs">
                 <dt>Drive</dt>
                 <dd className="tabular-nums">
                   {s.legS == null ? "time unavailable" : formatDriveTime(s.legS)} · {formatMiles(s.legM / METERS_PER_MILE)} {s.sequence === 1 ? "from depot" : "leg"}
                 </dd>
-                <dt>Service</dt>
-                <dd>not modeled (0 s)</dd>
+                {scheduled ? (
+                  <>
+                    <dt>Wait</dt>
+                    <dd className="tabular-nums">{s.waitS > 0 ? `${formatDriveTime(s.waitS)} until the window opens` : "none"}</dd>
+                    <dt>Service</dt>
+                    <dd className="tabular-nums">
+                      {s.serviceS > 0 ? formatDriveTime(s.serviceS) : "none"}
+                      {s.departClock && ` · leaves ${s.departClock}`}
+                    </dd>
+                    <dt>Window</dt>
+                    <dd className="tabular-nums">{s.window ? `${s.window.earliest}–${s.window.latest} · ${formatDriveTime(s.window.slackS)} slack` : "none"}</dd>
+                  </>
+                ) : (
+                  <>
+                    <dt>Service</dt>
+                    <dd>not modeled (0 s)</dd>
+                  </>
+                )}
                 <dt>Load</dt>
                 <dd className="tabular-nums">
                   {formatFeet(s.loadBefore)} → {formatFeet(s.loadAfter)} ({formatFeet(s.delivered)} delivered)

@@ -6,9 +6,11 @@ and TypeScript. Units: meters, integer hundredths of a foot, integer cents.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+
+from .timewin import elapsed_s, load_zone, midnight_epoch_s
 
 Id = Annotated[str, Field(min_length=1, max_length=200)]
 Count = Annotated[int, Field(strict=True, ge=0, le=9007199254740991)]
@@ -20,6 +22,29 @@ CoordinateSource = Literal["imported", "manual", "census", "zcta", "unresolved"]
 
 class Doc(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+def _drop_sparse_defaults(schema: dict, model: type) -> None:
+    for key in model._sparse:  # type: ignore[attr-defined]
+        schema.get("properties", {}).get(key, {}).pop("default", None)
+
+
+class SparseDoc(Doc):
+    """Optional fields added after M5 are left out of dumps when unset, so documents that never
+    use them keep their exact content hash and stored shape."""
+
+    _sparse: ClassVar[tuple[str, ...]] = ()
+    # No schema default, so generated TypeScript types make these properties optional (absent),
+    # matching what is stored, instead of required-with-null.
+    model_config = ConfigDict(extra="forbid", json_schema_extra=_drop_sparse_defaults)
+
+    @model_serializer(mode="wrap")
+    def _omit_unset(self, handler):
+        data = handler(self)
+        for key in self._sparse:
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
 
 
 # ---- Scenario (business + spatial input) ------------------------------------------------------
@@ -66,7 +91,51 @@ class CoordinateOrigin(Doc):
     geocode: GeocodeMatch | None = None
 
 
-class Location(Doc):
+ClockText = Annotated[str, Field(pattern=r"^\d{2}:[0-5]\d$")]
+
+
+class TimeModel(Doc):
+    """Single-day time model (spec §5): clock strings are local to `timezone` on `planning_date`
+    and normalize to elapsed integer seconds from local midnight. `horizon_end` may pass 24:00
+    (late shifts), at most 48:00. `depot_open` is when trucks leave the depot."""
+
+    timezone: Annotated[str, Field(min_length=1, max_length=100)]
+    planning_date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+    horizon_end: ClockText = "24:00"
+    depot_open: ClockText = "00:00"
+
+    @model_validator(mode="after")
+    def _check(self):
+        load_zone(self.timezone)
+        midnight_epoch_s(self.timezone, self.planning_date)  # also validates the date
+        if not 0 <= self.depot_open_s < self.horizon_end_s:
+            raise ValueError("depot_open must be before horizon_end")
+        return self
+
+    @property
+    def depot_open_s(self) -> int:
+        return elapsed_s(self.timezone, self.planning_date, self.depot_open, None, "depot_open")
+
+    @property
+    def horizon_end_s(self) -> int:
+        return elapsed_s(self.timezone, self.planning_date, self.horizon_end, None, "horizon_end")
+
+    @property
+    def midnight_epoch_s(self) -> int:
+        return midnight_epoch_s(self.timezone, self.planning_date)
+
+
+class ClockWindow(Doc):
+    """Service-start window in local clock time. `fold` picks the occurrence of an ambiguous
+    (fall-back) time and applies to both ends. earliest > latest is a preflight finding."""
+
+    earliest: ClockText
+    latest: ClockText
+    fold: Literal[0, 1] | None = None
+
+
+class Location(SparseDoc):
+    _sparse = ("service_minutes", "window")
     id: Id
     label: str
     lat: Lat | None
@@ -76,6 +145,9 @@ class Location(Doc):
     address: Annotated[str, Field(max_length=500)] | None = None
     geocode: GeocodeMatch | None = None
     original: CoordinateOrigin | None = None
+    # Defaults for every visit at this location (spec §5: windows and service belong to visits).
+    service_minutes: Annotated[int, Field(strict=True, ge=0, le=2880)] | None = None
+    window: ClockWindow | None = None
 
 
 class OrderLine(Doc):
@@ -101,7 +173,8 @@ class InventoryItem(Doc):
     available_pieces: Count
 
 
-class ScenarioDocument(Doc):
+class ScenarioDocument(SparseDoc):
+    _sparse = ("time_model",)
     schema_version: Literal[1] = 1
     name: str
     depot: Depot
@@ -109,6 +182,30 @@ class ScenarioDocument(Doc):
     locations: list[Location]
     orders: list[Order]
     inventory: list[InventoryItem]
+    time_model: TimeModel | None = None
+
+    @model_validator(mode="after")
+    def _check_time_attributes(self):
+        timed = [loc for loc in self.locations if loc.window or loc.service_minutes is not None]
+        if not self.time_model:
+            if timed:
+                raise ValueError(
+                    "windows and service durations need a time_model (timezone and planning_date)"
+                )
+            return self
+        tm, horizon = self.time_model, self.time_model.horizon_end_s
+        for loc in timed:
+            if not loc.window:
+                continue
+            fold = loc.window.fold
+            label = f"location {loc.id} window"
+            bounds = [
+                elapsed_s(tm.timezone, tm.planning_date, text, fold, f"{label} {name}")
+                for name, text in (("earliest", loc.window.earliest), ("latest", loc.window.latest))
+            ]
+            if max(bounds) > horizon:
+                raise ValueError(f"{label} extends past the horizon end {tm.horizon_end}")
+        return self
 
 
 PreflightAction = Literal["block", "warn"]
@@ -216,7 +313,11 @@ class LineOnBoard(Doc):
     amount_cents: Count
 
 
-class TruckVisit(Doc):
+class TruckVisit(SparseDoc):
+    _sparse = (
+        "arrival_s", "wait_s", "service_s", "start_s", "departure_s",
+        "window_earliest_s", "window_latest_s",
+    )  # fmt: skip
     visit_id: str
     location_id: Id
     sequence: int
@@ -226,9 +327,20 @@ class TruckVisit(Doc):
     leg_s: Count | None = None
     load: Count
     lines: list[LineOnBoard]
+    # Time-window adapter only (M6); seconds elapsed from local midnight on the planning date.
+    # arrival = previous departure + leg_s; start = max(arrival, window_earliest_s);
+    # wait_s = start - arrival; departure = start + service_s.
+    arrival_s: Count | None = None
+    wait_s: Count | None = None
+    service_s: Count | None = None
+    start_s: Count | None = None
+    departure_s: Count | None = None
+    window_earliest_s: Count | None = None
+    window_latest_s: Count | None = None
 
 
-class TruckSummary(Doc):
+class TruckSummary(SparseDoc):
+    _sparse = ("shift_start_s", "service_s_total", "wait_s_total", "end_s")
     id: str
     cluster_id: str
     load: Count
@@ -238,6 +350,11 @@ class TruckSummary(Doc):
     drive_s: Count | None = None
     amount_cents: Count
     visits: list[TruckVisit]
+    # Time-window adapter only (M6): shift start, totals and the last departure (route end).
+    shift_start_s: Count | None = None
+    service_s_total: Count | None = None
+    wait_s_total: Count | None = None
+    end_s: Count | None = None
 
 
 class ClusterSummary(Doc):
@@ -317,6 +434,8 @@ PreflightCheckId = Literal[
     "oversize_stop",
     "far_via_stop",
     "approximate_coordinates",
+    "window_empty",
+    "window_unreachable",
 ]
 
 
@@ -390,7 +509,18 @@ class AllocationSummary(Doc):
     runtime_s: float
 
 
-class RunSummary(Doc):
+class TimeSummary(Doc):
+    """The time model a time-window run used; `*_s` values are seconds from local midnight."""
+
+    timezone: str
+    planning_date: str
+    midnight_epoch_s: Annotated[int, Field(strict=True)]
+    depot_open_s: Count
+    horizon_end_s: Count
+
+
+class RunSummary(SparseDoc):
+    _sparse = ("time",)
     schema_version: Literal[1] = 1
     scenario_name: str
     validity: Literal["valid", "invalid"]
@@ -410,6 +540,8 @@ class RunSummary(Doc):
     allocation: AllocationSummary | None = None
     # Absent on runs created before M6.
     travel: TravelSummary | None = None
+    # Present only when the time-window adapter ran (M6).
+    time: TimeSummary | None = None
     diagnostics: list[Diagnostic]
     versions: dict[str, str]
 

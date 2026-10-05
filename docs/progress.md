@@ -1,9 +1,15 @@
 # Progress
 
+## 2026-10-05: M6 time windows and service-duration adapter (Codex)
+- PR #42 adds an optional scenario time model with IANA timezone and DST-aware normalization, service-start windows, per-location service durations, a native PyVRP adapter, provable window preflight findings, and an independent validator that recomputes timing from the raw directed duration matrix. Documents without active time attributes preserve their canonical hash and legacy result shape.
+- Results persist validated arrival, wait, service, start and departure values. The route Timeline now shows local clock time, waiting, service, windows and slack. Open routes still have no timed return. A deterministic six-stop synthetic example exercises two shipments and a planned wait.
+- Verification on the branch updated with `origin/main`: `uv run pytest` (264), `uv run ruff check .`, contract generation (no additional generated diff), `bun run lint` (existing `globe.tsx` warning), `bun run typecheck`, `bun run test` (142), `bun run build`, `bun run test:hosted` (82), and full `bun run test:browser` (lesson, import, matrix, experiment, lessons and time-windows) all passed. The time-window flow checked wait/service/window/timezone/open-route content and desktop 1440×900 plus iPhone 16 393×852 bounds.
+- Verification covers bundled fixtures and local synthetic browser jobs only. No live Valhalla deployment, road geometry or target-hardware evidence is claimed; `directed_road_travel` stays planned.
+
 ## 2026-10-05: M6 Valhalla snapshot job completion (Codex)
 - PR #41 adds the durable `travel_snapshot` job: owner-scoped admission/idempotency, progress, failure and cancellation, lease-checked snapshot storage, and a `/scenarios` build action that never exposes deployment settings.
 - Verification: `bun run lint` (existing `globe.tsx` warning), `bun run typecheck`, `bun run test` (137), `bun run build`, `bun run test:browser` (all five flows), `bun run test:hosted` (82), `uv run pytest` (243), and `uv run ruff check .` passed. A synthetic local Valhalla service completed the job from the browser; the selected 2-node directed snapshot matched the saved scenario. UI reviewed at 1440×900 and 393×852, with no page-level horizontal overflow.
-- This verifies the fixture/local job path only. No pinned Valhalla image or live coverage is verified, so `directed_road_travel` stays planned. PR #42 remains the next M6 increment.
+- This verifies the fixture/local job path only. No pinned Valhalla image or live coverage is verified, so `directed_road_travel` stays planned. PR #42 adds the separate time-window and service-duration adapter.
 
 ## 2026-10-05: M2 design file deferred by owner (Codex)
 - The owner does not want to work on `fillrate.fig` or OpenPencil for now. Defer the coss Components page and additional Foundations tokens until the owner chooses to resume that work; they no longer block M2 completion.
@@ -13,7 +19,7 @@
 - PR #37 (matrix browser acceptance, route timeline, capacity and seed lessons) was squash-merged as `88f37e5`.
 - PR #39 (GeoJSON route export and travel matrix downloads) was squash-merged as `a555470`; its CI passed on the PR and merged `main`.
 - PR #40 (Timeline and lesson browser acceptance) was squash-merged as `1f7f1c8`; after resolving overlap with #39, full CI passed on the combined change.
-- [#41](https://github.com/timblazing/fillrate/pull/41) durable Valhalla travel-snapshot job is implemented and verified against fixtures and a local fake service; no live deployment is claimed. [#42](https://github.com/timblazing/fillrate/pull/42) time windows + service durations remains a draft stopped mid-implementation.
+- [#41](https://github.com/timblazing/fillrate/pull/41) durable Valhalla travel-snapshot job is implemented and verified against fixtures and a local fake service; no live deployment is claimed. [#42](https://github.com/timblazing/fillrate/pull/42) implements time windows, service durations and Timeline wait/service states, with fixture and browser verification recorded above.
 - `directed_road_travel` stays planned until a pinned Valhalla deployment is verified on target hardware. M7 progress/status includes the merged export and browser-acceptance work.
 
 ## 2026-10-05: M7 browser acceptance for the route timeline and two lessons (Claude Code)
