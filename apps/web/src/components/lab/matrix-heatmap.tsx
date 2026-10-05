@@ -22,8 +22,8 @@ export function MatrixHeatmap({
 }) {
   const [hover, setHover] = useState<[number, number] | null>(null)
   const finite = values.flat().filter((v): v is number => v != null && v > 0)
-  const max = Math.max(...finite)
-  const min = Math.min(...finite)
+  const max = finite.length ? Math.max(...finite) : 0
+  const min = finite.length ? Math.min(...finite) : 0
 
   const hovered = hover ? values[hover[0]][hover[1]] : undefined
   const reverse = hover ? values[hover[1]][hover[0]] : undefined
