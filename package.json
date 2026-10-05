@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "node scripts/workspace.mjs apps/web dev",
-    "worker": "cd services/optimizer && UV_PYTHON=python3.13 uv run fillrate-worker",
+    "worker": "cd services/optimizer && FILLRATE_WORKER=1 UV_PYTHON=python3.13 uv run fillrate-optimizer",
     "build": "node scripts/workspace.mjs apps/web build",
     "start": "node scripts/workspace.mjs apps/web start",
     "lint": "node scripts/workspace.mjs apps/web lint && node scripts/workspace.mjs . lint:packages",

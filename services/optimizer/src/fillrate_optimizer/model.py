@@ -227,7 +227,18 @@ class PreflightPolicy(Doc):
     approximate_coordinates: PreflightAction = "warn"
 
 
-class RunSettings(Doc):
+class WarmStartSource(Doc):
+    """Where a warm start's plan comes from (spec §10, M6). Today only a succeeded pipeline run the
+    submitter can read; the web resolves it with owner checks and the worker receives its validated
+    plan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)
+    would be a new `kind` producing the same plan document."""
+
+    kind: Literal["run"] = "run"
+    run_id: Id
+
+
+class RunSettings(SparseDoc):
+    _sparse = ("warm_start",)
     schema_version: Literal[1] = 1
     trailer_capacity: Annotated[int, Field(strict=True, ge=1, le=1_000_000)] = 5_300
     travel_circuity: Annotated[float, Field(ge=1, le=5)] = 1.2
@@ -269,6 +280,11 @@ class RunSettings(Doc):
     allocation_objective: Literal["revenue", "priority_then_revenue"] = "revenue"
     respect_order_date: bool = False
     allocation_time_limit_s: Annotated[float, Field(gt=0, le=300)] = 10
+    # Verified warm start (M6): each cluster whose visits, demands and travel match the source plan
+    # exactly, and whose mapped plan passes the independent validator on this run's problem, starts
+    # PyVRP from that plan. Solver provenance: part of the solve stage identity, never of the
+    # comparison signature. Left out of dumps when unset.
+    warm_start: WarmStartSource | None = None
 
     @model_validator(mode="after")
     def validate_cost_rates(self) -> RunSettings:
@@ -357,7 +373,31 @@ class TruckSummary(SparseDoc):
     end_s: Count | None = None
 
 
-class ClusterSummary(Doc):
+WarmStartReason = Literal[
+    "travel_changed",
+    "visit_set_changed",
+    "demand_changed",
+    "source_invalid",
+    "invalid_on_new_problem",
+    "solver_rejected",
+]
+
+
+class ClusterWarmStart(Doc):
+    """One cluster's warm-start outcome. `initial_cost` is PyVRP's objective of the mapped plan on
+    this run's problem; `final_cost` is the objective PyVRP returned starting from it (never higher
+    with a feasible start: tests/test_warm_start.py)."""
+
+    status: Literal["used", "skipped"]
+    reason: WarmStartReason | None = None
+    source_cluster_id: str | None = None
+    initial_cost: Count | None = None
+    final_cost: Count | None = None
+    detail: Annotated[str, Field(max_length=1000)] | None = None
+
+
+class ClusterSummary(SparseDoc):
+    _sparse = ("warm_start",)
     id: str
     index: int
     location_ids: list[str]
@@ -380,6 +420,8 @@ class ClusterSummary(Doc):
     iterations: int
     runtime_s: float
     violations: list[str]
+    # Present only on warm-started runs, for clusters that reached the solver.
+    warm_start: ClusterWarmStart | None = None
 
 
 class ProductReconciliation(Doc):
@@ -519,8 +561,50 @@ class TimeSummary(Doc):
     horizon_end_s: Count
 
 
+class WarmStartVisit(Doc):
+    visit_id: Annotated[str, Field(min_length=1, max_length=500)]
+    location_id: Id
+    load: Count
+
+
+class WarmStartCluster(Doc):
+    """A source cluster: validated ones carry their routes in service order; others carry none."""
+
+    cluster_id: Annotated[str, Field(min_length=1, max_length=200)]
+    status: Literal["validated", "invalid_candidate", "no_candidate", "nothing_to_solve"]
+    location_ids: list[Id]
+    routes: list[list[WarmStartVisit]]
+
+
+class WarmStartTravel(Doc):
+    """The travel identity the source plan was validated on: estimated haversine × circuity, or
+    a stored directed snapshot."""
+
+    mode: Literal["estimated", "snapshot"]
+    circuity: float | None = None
+    snapshot_id: Hash | None = None
+
+
+class WarmStartPlan(Doc):
+    """The warm-start source interface (spec §10, M6): a plan as routes of visits with their
+    location and load, per source cluster, and the travel it was validated on. Its content hash is
+    the plan identity recorded in the `warm_start` stage artifact and the replay bundle."""
+
+    schema_version: Literal[1] = 1
+    source: WarmStartSource
+    travel: WarmStartTravel
+    clusters: list[WarmStartCluster]
+
+
+class WarmStartSummary(Doc):
+    source: WarmStartSource
+    plan_id: Hash
+    used: int
+    skipped: int
+
+
 class RunSummary(SparseDoc):
-    _sparse = ("time",)
+    _sparse = ("time", "warm_start")
     schema_version: Literal[1] = 1
     scenario_name: str
     validity: Literal["valid", "invalid"]
@@ -542,6 +626,8 @@ class RunSummary(SparseDoc):
     travel: TravelSummary | None = None
     # Present only when the time-window adapter ran (M6).
     time: TimeSummary | None = None
+    # Present only on warm-started runs (M6).
+    warm_start: WarmStartSummary | None = None
     diagnostics: list[Diagnostic]
     versions: dict[str, str]
 

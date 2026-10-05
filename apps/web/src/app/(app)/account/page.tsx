@@ -47,7 +47,7 @@ export default async function AccountPage() {
                 <TableHeader><TableRow><TableHead>Limit</TableHead><TableHead className="text-right">Used</TableHead><TableHead className="text-right">Room frees up</TableHead></TableRow></TableHeader>
                 <TableBody>
                   <TableRow><TableCell>Unfinished jobs</TableCell><TableCell className="text-right tabular-nums">{quota.active.used} of {quota.active.limit}</TableCell><TableCell className="text-muted-foreground text-right text-xs">when one finishes</TableCell></TableRow>
-                  {([["Solve admissions per day", quota.solves], ["Geocoding jobs per day", quota.geocode], ["Address lookups per day", quota.lookups], ["Scenario saves per day", quota.saves], ["Travel matrix previews and uploads per day", quota.uploads]] as const).map(([label, q]) => (
+                  {([["Solve admissions per day", quota.solves], ["Geocoding jobs per day", quota.geocode], ["Address lookups per day", quota.lookups], ["Scenario saves per day", quota.saves], ["Travel matrix previews and uploads per day", quota.uploads], ["Manual plan evaluations per day", quota.evaluations]] as const).map(([label, q]) => (
                     <TableRow key={label}><TableCell>{label}</TableCell><TableCell className="text-right tabular-nums">{q.used} of {q.limit}</TableCell><TableCell className="text-muted-foreground text-right text-xs tabular-nums">{q.resetsAt ? utc(q.resetsAt) : "–"}</TableCell></TableRow>
                   ))}
                 </TableBody>

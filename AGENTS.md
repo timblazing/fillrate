@@ -61,7 +61,7 @@ The canonical specification is [`docs/fillrate-technical-spec.md`](docs/fillrate
 ## Commands (run from the repo root; Bun is the canonical package manager and script runner, Node 24 is the runtime; every root script also works as `npm run <script>`)
 - `bun install`: install workspace deps (commit `bun.lock`). After any dependency change also run `node scripts/npm-lock.mjs --sync` and commit `package-lock.json`; CI checks that direct dependencies match. Root scripts must stay package-manager neutral (`node scripts/workspace.mjs <dir> <script>` instead of `bun run --filter`), and workspace packages reference each other by version, not `workspace:*`
 - `bun run dev`: Next.js dev server (http://localhost:3000); it also serves the loopback worker transport on 127.0.0.1:3100
-- `bun run worker`: Python worker supervisor that claims and runs pipeline jobs (run it next to `bun run dev`, then use `/runs`)
+- `bun run worker`: the optimizer service as the image runs it: FastAPI on 127.0.0.1:8000 (`/evaluate` for manual plans) plus the worker supervisor that claims and runs pipeline jobs (run it next to `bun run dev`, then use `/runs`)
 - `bun run lint` / `bun run typecheck` / `bun run build`; `bun run test:browser` runs the production browser smoke (see `docs/browser-smoke.md`); `bun run test:hosted` runs the hosted/local mode and two-account checks against the production build
 - `node scripts/live-two-account.mjs`: optional live diagnostic (two session cookies; see the script header), not a release requirement
 - `bun run test`: Node Vitest persistence/contract/transport tests plus end-to-end tests that spawn the real Python worker (needs `uv`; `FILLRATE_SKIP_PYTHON=1` skips them); `bun run contracts:generate`: regenerate shared contracts from Python

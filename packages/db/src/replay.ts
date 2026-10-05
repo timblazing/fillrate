@@ -1,10 +1,10 @@
 // Python reproduction bundle (spec §13, M4 exit evidence): a zip with the scenario, the recorded
 // settings, the deterministic stage artifacts, the pinned optimizer source and lock file, and a
-// replay script. It runs without web credentials, network or live geocoding.
+// replay script. k explorer jobs get their own bundle (`explorerReplayBundle`, M7). It runs without web credentials, network or live geocoding.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
-import type { RunSummary } from "@fillrate/contracts";
+import type { ExplorerSettings, ExplorerSummary, RunSummary } from "@fillrate/contracts";
 import type { Store } from "./index";
 import { canonical } from "./canonical";
 
@@ -27,6 +27,7 @@ function optimizerFiles(sourceDir: string) {
 export function replayBundle(store: Store, runId: string, sourceDir: string) {
   const view = store.runView(runId);
   if (!view) throw new Error("run_not_found");
+  if (view.kind === "explorer" && view.status === "succeeded") return explorerReplayBundle(store, runId, sourceDir);
   if (view.kind !== "pipeline" || view.status !== "succeeded") throw new Error("run_not_replayable");
   const summaryManifest = view.artifacts.find(a => a.stage_type === "summary");
   if (!summaryManifest) throw new Error("run_not_replayable");
@@ -35,6 +36,12 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
   const settings = view.settings.document;
   // A run on a stored directed travel snapshot replays from that exact snapshot, offline.
   const snapshotId = (settings as { travel_snapshot_id?: string | null }).travel_snapshot_id ?? null;
+  // A warm-started run ships the exact source plan its solve stage recorded; replay checks its identity and
+  // refuses the bundle without it (fillrate_optimizer.replay).
+  const warmManifest = view.artifacts.find(a => a.stage_type === "warm_start");
+  const warm = summary.warm_start
+    ? { source: summary.warm_start.source, plan_id: summary.warm_start.plan_id, outcomes: Object.fromEntries(summary.clusters.filter(c => c.warm_start).map(c => [c.id, [c.warm_start!.status, c.warm_start!.reason ?? null]])) }
+    : undefined;
   const deterministic = Object.fromEntries(DETERMINISTIC.map(stage => [stage, view.artifacts.find(a => a.stage_type === stage)?.output_hash ?? null]));
   const expected = {
     run_id: runId,
@@ -49,15 +56,17 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
     allocation: summary.allocation ? { strategy: summary.allocation.strategy, fulfillment_policy: summary.allocation.fulfillment_policy, kind: summary.allocation.kind } : undefined,
     travel: snapshotId ? { provider: "snapshot", snapshot_id: snapshotId, summary: summary.travel ?? null } : { provider: "estimated", circuity: (settings as { travel_circuity?: number }).travel_circuity ?? 1.2 },
     iteration_based: Boolean((settings as { solver_max_iterations?: number | null }).solver_max_iterations),
+    ...(warm ? { warm_start: warm } : {}),
   };
   const json = (value: unknown) => Buffer.from(JSON.stringify(value, null, 1) + "\n");
   const files: [string, Buffer, boolean?][] = [
-    ["README.md", Buffer.from(readme(runId, expected.iteration_based, snapshotId))],
+    ["README.md", Buffer.from(readme(runId, expected.iteration_based, snapshotId, warm?.source.run_id ?? null))],
     ["replay.py", Buffer.from(REPLAY_PY)],
     ["scenario.json", json(scenario)],
     ["settings.json", json(settings)],
     ["expected.json", json(expected)],
     // Compact canonical JSON, deflated: a 1,000-node matrix is millions of numbers.
+    ...(warmManifest ? [["warm-start.json", json(store.readArtifact(warmManifest.output_hash))] as [string, Buffer]] : []),
     ...(snapshotId ? [["travel-snapshot.json", Buffer.from(canonical(store.travelSnapshot(snapshotId))), true] as [string, Buffer, boolean]] : []),
     ...DETERMINISTIC.flatMap(stage => {
       const manifest = view.artifacts.find(a => a.stage_type === stage);
@@ -71,7 +80,93 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
   return zipStore(files);
 }
 
-function readme(runId: string, iterationBased: boolean, snapshotId: string | null) {
+/**
+ * k explorer bundle (spec §8a, §9, §13; M7): the scenario version, the recorded `ExplorerSettings` and the recorded
+ * explorer artifact in `expected.json`. The checks live in `fillrate_optimizer.explorer_replay`. The explorer
+ * clusters on the spatial metric only (creation refuses a travel snapshot), so the bundle declares that and nothing
+ * else; the replay refuses any other provider.
+ */
+export function explorerReplayBundle(store: Store, runId: string, sourceDir: string) {
+  const view = store.runView(runId);
+  if (!view) throw new Error("run_not_found");
+  if (view.kind !== "explorer" || view.status !== "succeeded") throw new Error("run_not_replayable");
+  const manifest = view.artifacts.find(a => a.stage_type === "explorer");
+  if (!manifest) throw new Error("run_not_replayable");
+  const summary = store.readArtifact(manifest.output_hash) as ExplorerSummary;
+  const settings = view.settings.document as unknown as ExplorerSettings;
+  const expected = {
+    kind: "explorer",
+    run_id: runId,
+    output_hash: manifest.output_hash,
+    versions: summary.versions,
+    max_tasks: summary.max_tasks,
+    travel: { provider: "estimated", metric: "spatial", circuity: settings.base?.cluster_circuity ?? 1.2 },
+    summary,
+  };
+  const json = (value: unknown) => Buffer.from(JSON.stringify(value, null, 1) + "\n");
+  const files: [string, Buffer][] = [
+    ["README.md", Buffer.from(explorerReadme(runId, summary))],
+    ["replay.py", Buffer.from(EXPLORER_REPLAY_PY)],
+    ["scenario.json", json(store.versionDocument(view.versionId).document)],
+    ["settings.json", json(settings)],
+    ["expected.json", json(expected)],
+    ["artifacts/explorer.json", json({ manifest, payload: summary })],
+    ...optimizerFiles(sourceDir),
+  ];
+  if (files.reduce((n, [, data]) => n + data.length, 0) > MAX_BUNDLE_BYTES) throw new Error("bundle_too_large");
+  return zipStore(files);
+}
+
+function explorerReadme(runId: string, summary: ExplorerSummary) {
+  return `# Fillrate replay: k explorer ${runId}
+
+Recomputes this k explorer job offline from the files in this folder: \`scenario.json\` (the saved
+scenario version), \`settings.json\` (the recorded explorer settings: k range ${summary.ks.join(", ")}, seeds
+${summary.seeds.join(", ")}, reference seed ${summary.reference_seed}, H3 resolutions ${summary.h3.map(r => r.resolution).join(", ") || "none"}),
+the pinned optimizer source in \`optimizer/\` with its \`uv.lock\`, and \`expected.json\` (the recorded
+explorer statistics; \`artifacts/explorer.json\` is the same artifact with its manifest). No web
+credentials, network access or geocoding are needed.
+
+    uv run --project optimizer python replay.py
+
+(Python 3.13; or \`pip install ./optimizer\` and \`python replay.py\`.)
+
+The script reruns the explorer with the recorded task allowance (${summary.max_tasks}) and checks:
+
+1. Exactly equal: the clustered location population (${summary.locations_clustered} locations and their
+   coordinates), the k range and selected k, the task and k-means fit counts, raw and effective
+   cluster counts, diameter-repair counts per seed, H3 cluster counts and each location's reference
+   cluster.
+2. Equal within a relative tolerance of 1e-9 (absolute 1e-12): inertia per seed and its mean,
+   raw and repaired stability (mean pairwise adjusted Rand index), per-location seed agreement and
+   H3 inertia. On the pinned versions and the same platform the replay is normally bit-identical,
+   and the script says so. Another CPU or BLAS build can change the last bits of a sum of squares;
+   a different partition changes counts, labels or the statistics by far more than the tolerance
+   and fails.
+3. Travel: the explorer clusters on the spatial metric (straight-line distance × the recorded
+   cluster circuity) and never reads a travel matrix. A bundle that declares any other provider,
+   or settings that name a travel snapshot, is refused instead of replayed.
+
+Different package versions are reported; differences still fail. These statistics describe how the
+groupings behave across seeds. They are not solver objectives or probabilities of correctness.
+`;
+}
+
+const EXPLORER_REPLAY_PY = `"""Replays a Fillrate k explorer job from this bundle. See README.md."""
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "optimizer" / "src"))
+
+from fillrate_optimizer.explorer_replay import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main(root=ROOT))
+`;
+
+function readme(runId: string, iterationBased: boolean, snapshotId: string | null, warmSource: string | null) {
   return `# Fillrate replay: run ${runId}
 
 Reproduces this pipeline run offline from the files in this folder: \`scenario.json\` (the saved
@@ -82,6 +177,11 @@ ${snapshotId ? `
 This run selected the directed travel snapshot \`${snapshotId}\` (\`travel-snapshot.json\`). The script loads it
 from the bundle, checks that its content hash equals that identity and routes over its recorded legs; it
 never calls a routing service.
+` : ""}${warmSource ? `
+This run was warm-started from the validated plan of run \`${warmSource}\`. That plan ships as
+\`warm-start.json\`; the script checks that it hashes to the recorded plan identity, starts the same
+clusters from it and requires each cluster's warm-start outcome (used, or skipped with its reason) to
+reproduce. Without the file the replay is refused, never run cold.
 ` : ""}
     uv run --project optimizer python replay.py
 

@@ -21,6 +21,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Evaluate
+         * @description Manual plan evaluation (spec §10): bounded, synchronous CPU work in FastAPI's thread
+         *     pool, never on the event loop. Only Next.js calls it, with the worker bearer token.
+         */
+        post: operations["post_evaluate_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -157,6 +178,16 @@ export interface components {
             /** Latest */
             latest: string;
         };
+        /**
+         * ClusterPlan
+         * @description Ordered visit IDs per truck for one cluster; the shape of a solve artifact's routes.
+         */
+        ClusterPlan: {
+            /** Cluster Id */
+            cluster_id: string;
+            /** Routes */
+            routes: string[][];
+        };
         /** ClusterSummary */
         ClusterSummary: {
             /** Avg Fill */
@@ -206,6 +237,45 @@ export interface components {
             violations: string[];
             /** Visit Count */
             visit_count: number;
+            warm_start?: components["schemas"]["ClusterWarmStart"] | null;
+        };
+        /**
+         * ClusterWarmStart
+         * @description One cluster's warm-start outcome. `initial_cost` is PyVRP's objective of the mapped plan on
+         *     this run's problem; `final_cost` is the objective PyVRP returned starting from it (never higher
+         *     with a feasible start: tests/test_warm_start.py).
+         */
+        ClusterWarmStart: {
+            /**
+             * Detail
+             * @default null
+             */
+            detail: string | null;
+            /**
+             * Final Cost
+             * @default null
+             */
+            final_cost: number | null;
+            /**
+             * Initial Cost
+             * @default null
+             */
+            initial_cost: number | null;
+            /**
+             * Reason
+             * @default null
+             */
+            reason: ("travel_changed" | "visit_set_changed" | "demand_changed" | "source_invalid" | "invalid_on_new_problem" | "solver_rejected") | null;
+            /**
+             * Source Cluster Id
+             * @default null
+             */
+            source_cluster_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "used" | "skipped";
         };
         /** ClusteringSummary */
         ClusteringSummary: {
@@ -300,6 +370,64 @@ export interface components {
              * @enum {string}
              */
             severity: "info" | "warning" | "error";
+        };
+        /**
+         * EvaluateRequest
+         * @description One cluster of a completed run, as its artifacts recorded it, plus the plans to evaluate.
+         *
+         *     ``cluster``, ``problem`` and ``travel`` are that cluster's entries of the clustering, problem
+         *     and (decoded) travel artifacts; ``visits`` are the aggregation's visits of the cluster.
+         *     ``reference`` is normally the run's optimized routes, evaluated alongside for comparison.
+         */
+        EvaluateRequest: {
+            /** Cluster */
+            cluster: {
+                [key: string]: unknown;
+            };
+            plan: components["schemas"]["ClusterPlan"];
+            /** Problem */
+            problem: {
+                [key: string]: unknown;
+            };
+            reference?: components["schemas"]["ClusterPlan"] | null;
+            scenario: components["schemas"]["ScenarioDocument"];
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            settings: components["schemas"]["RunSettings"];
+            /** Travel */
+            travel: {
+                [key: string]: unknown;
+            };
+            /** Travel Snapshot */
+            travel_snapshot?: {
+                [key: string]: unknown;
+            } | null;
+            /** Visits */
+            visits: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** EvaluateResponse */
+        EvaluateResponse: {
+            /** Cluster Id */
+            cluster_id: string;
+            /**
+             * Evaluator Version
+             * @default fillrate-evaluate/1
+             */
+            evaluator_version: string;
+            manual: components["schemas"]["PlanEvaluation"];
+            reference?: components["schemas"]["PlanEvaluation"] | null;
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
         };
         /** ExplorerH3 */
         ExplorerH3: {
@@ -485,6 +613,444 @@ export interface components {
             product_id: string;
         };
         JsonValue: unknown;
+        /**
+         * LabClient
+         * @description A visit created directly (spec §5: no order needed). Delivery is per dimension id; a
+         *     dimension left out delivers 0.
+         */
+        LabClient: {
+            /** Delivery */
+            delivery?: {
+                [key: string]: number;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Lat
+             * @default null
+             */
+            lat: number | null;
+            /**
+             * Lon
+             * @default null
+             */
+            lon: number | null;
+            /**
+             * Service Duration
+             * @default 0
+             */
+            service_duration: number;
+            /**
+             * X
+             * @default null
+             */
+            x: number | null;
+            /**
+             * Y
+             * @default null
+             */
+            y: number | null;
+        };
+        /** LabDepot */
+        LabDepot: {
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Lat
+             * @default null
+             */
+            lat: number | null;
+            /**
+             * Lon
+             * @default null
+             */
+            lon: number | null;
+            /**
+             * X
+             * @default null
+             */
+            x: number | null;
+            /**
+             * Y
+             * @default null
+             */
+            y: number | null;
+        };
+        /**
+         * LabDimension
+         * @description A named load dimension (units, weight, volume or any user-defined resource).
+         */
+        LabDimension: {
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Unit */
+            unit: string;
+        };
+        /** LabFleetUse */
+        LabFleetUse: {
+            /** Available */
+            available: number;
+            /** Used */
+            used: number;
+            /** Vehicle Type */
+            vehicle_type: string;
+        };
+        /** LabInstance */
+        LabInstance: {
+            /** Clients */
+            clients: components["schemas"]["LabClient"][];
+            /**
+             * Coordinates
+             * @enum {string}
+             */
+            coordinates: "planar" | "geographic";
+            /**
+             * Cost Unit
+             * @default cost units
+             */
+            cost_unit: string;
+            /** Depots */
+            depots: components["schemas"]["LabDepot"][];
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Dimensions */
+            dimensions: components["schemas"]["LabDimension"][];
+            /**
+             * Kind
+             * @default lab_instance
+             * @constant
+             */
+            kind: "lab_instance";
+            /** Name */
+            name: string;
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            solver?: components["schemas"]["LabSolver"];
+            travel?: components["schemas"]["LabTravel"];
+            /** Vehicle Types */
+            vehicle_types: components["schemas"]["LabVehicleType"][];
+        };
+        /**
+         * LabObjective
+         * @description Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle
+         *     its fixed cost, plus unit_distance_cost × route distance and unit_duration_cost × route
+         *     duration. Infeasibility penalties are never part of it.
+         */
+        LabObjective: {
+            /** Distance Cost */
+            distance_cost: number;
+            /** Duration Cost */
+            duration_cost: number;
+            /** Fixed Cost */
+            fixed_cost: number;
+            /** Total */
+            total: number;
+        };
+        /** LabResult */
+        LabResult: {
+            /**
+             * Coordinates
+             * @enum {string}
+             */
+            coordinates: "planar" | "geographic";
+            /** Fleet */
+            fleet: components["schemas"]["LabFleetUse"][];
+            /** Instance Name */
+            instance_name: string;
+            /**
+             * Kind
+             * @default lab_result
+             * @constant
+             */
+            kind: "lab_result";
+            objective: components["schemas"]["LabObjective"];
+            /** Problem Fingerprint */
+            problem_fingerprint: string;
+            /**
+             * Proof
+             * @default heuristic
+             * @constant
+             */
+            proof: "heuristic";
+            /** Routes */
+            routes: components["schemas"]["LabRoute"][];
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            solver: components["schemas"]["LabSolverInfo"];
+            /** Solver Feasible */
+            solver_feasible: boolean;
+            totals: components["schemas"]["LabTotals"];
+            units: components["schemas"]["LabUnits"];
+            /** Validated Feasible */
+            validated_feasible: boolean;
+            /** Violations */
+            violations: components["schemas"]["LabViolation"][];
+        };
+        /** LabRoute */
+        LabRoute: {
+            /** Cost */
+            cost: number;
+            /** Distance */
+            distance: number;
+            /** Distance Cost */
+            distance_cost: number;
+            /** Duration */
+            duration: number;
+            /** Duration Cost */
+            duration_cost: number;
+            /** Fixed Cost */
+            fixed_cost: number;
+            /** Index */
+            index: number;
+            /** Load */
+            load: {
+                [key: string]: number;
+            };
+            /** Service Duration */
+            service_duration: number;
+            /** Travel Duration */
+            travel_duration: number;
+            /** Utilization */
+            utilization: {
+                [key: string]: number;
+            };
+            /** Vehicle Type */
+            vehicle_type: string;
+            /** Visits */
+            visits: components["schemas"]["LabVisit"][];
+        };
+        /**
+         * LabSolver
+         * @description Seed and stopping criteria. With ``max_iterations`` the run stops after that many
+         *     iterations (reproducible across machines) unless the runtime cap is hit first; without it,
+         *     the runtime alone stops the search (machine dependent).
+         */
+        LabSolver: {
+            /**
+             * Max Iterations
+             * @default 2000
+             */
+            max_iterations: number | null;
+            /**
+             * Max Runtime S
+             * @default 30
+             */
+            max_runtime_s: number;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+        };
+        /** LabSolverInfo */
+        LabSolverInfo: {
+            /** Adapter Version */
+            adapter_version: string;
+            /** Excess Distance */
+            excess_distance: number;
+            /** Excess Load */
+            excess_load: {
+                [key: string]: number;
+            };
+            /** Iterations */
+            iterations: number;
+            /** Max Iterations */
+            max_iterations: number | null;
+            /** Max Runtime S */
+            max_runtime_s: number;
+            /**
+             * Name
+             * @default pyvrp
+             * @constant
+             */
+            name: "pyvrp";
+            /** Nominal Cost */
+            nominal_cost: number;
+            /** Runtime S */
+            runtime_s: number;
+            /** Seed */
+            seed: number;
+            /**
+             * Stopped By
+             * @enum {string}
+             */
+            stopped_by: "iterations" | "runtime";
+            /** Time Warp */
+            time_warp: number;
+            /** Version */
+            version: string;
+        };
+        /** LabTotals */
+        LabTotals: {
+            /** Clients Served */
+            clients_served: number;
+            /** Clients Total */
+            clients_total: number;
+            /** Distance */
+            distance: number;
+            /** Duration */
+            duration: number;
+            /** Load */
+            load: {
+                [key: string]: number;
+            };
+            /** Routes */
+            routes: number;
+            /** Service Duration */
+            service_duration: number;
+            /** Travel Duration */
+            travel_duration: number;
+        };
+        /**
+         * LabTravel
+         * @description Geographic only: haversine × circuity meters, and seconds at a constant speed.
+         */
+        LabTravel: {
+            /**
+             * Circuity
+             * @default 1.2
+             */
+            circuity: number;
+            /**
+             * Speed M Per S
+             * @default 11.176
+             */
+            speed_m_per_s: number;
+        };
+        /** LabUnits */
+        LabUnits: {
+            /** Cost */
+            cost: string;
+            /** Dimensions */
+            dimensions: {
+                [key: string]: string;
+            };
+            /** Distance */
+            distance: string;
+            /** Duration */
+            duration: string;
+        };
+        /**
+         * LabVehicleType
+         * @description A vehicle type with a finite count. Every vehicle starts and ends at the single depot
+         *     (closed routes; PyVRP-native, no open-route workaround). Capacity names every dimension.
+         */
+        LabVehicleType: {
+            /** Capacity */
+            capacity: {
+                [key: string]: number;
+            };
+            /** Count */
+            count: number;
+            /**
+             * Fixed Cost
+             * @default 0
+             */
+            fixed_cost: number;
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Max Distance
+             * @default null
+             */
+            max_distance: number | null;
+            /**
+             * Shift Duration
+             * @default null
+             */
+            shift_duration: number | null;
+            /**
+             * Unit Distance Cost
+             * @default 1
+             */
+            unit_distance_cost: number;
+            /**
+             * Unit Duration Cost
+             * @default 0
+             */
+            unit_duration_cost: number;
+        };
+        /** LabViolation */
+        LabViolation: {
+            /**
+             * Client Id
+             * @default null
+             */
+            client_id: string | null;
+            /** Code */
+            code: string;
+            /**
+             * Dimension
+             * @default null
+             */
+            dimension: string | null;
+            /** Message */
+            message: string;
+            /**
+             * Route
+             * @default null
+             */
+            route: number | null;
+            /**
+             * Vehicle Type
+             * @default null
+             */
+            vehicle_type: string | null;
+        };
+        /** LabVisit */
+        LabVisit: {
+            /** Arrival */
+            arrival: number;
+            /** Client Id */
+            client_id: string;
+            /** Departure */
+            departure: number;
+            /** Leg Distance */
+            leg_distance: number;
+            /** Leg Duration */
+            leg_duration: number;
+            /** Load After */
+            load_after: {
+                [key: string]: number;
+            };
+            /** Load Before */
+            load_before: {
+                [key: string]: number;
+            };
+            /** Service Duration */
+            service_duration: number;
+        };
         /** Lease */
         Lease: {
             /** Attempt */
@@ -627,6 +1193,73 @@ export interface components {
             ordered_pieces: number;
             /** Product Id */
             product_id: string;
+        };
+        /** PlanEvaluation */
+        PlanEvaluation: {
+            metrics: components["schemas"]["PlanMetrics"];
+            /** Trucks */
+            trucks: components["schemas"]["TruckSummary"][];
+            /** Valid */
+            valid: boolean;
+            /** Violations */
+            violations: components["schemas"]["PlanViolation"][];
+        };
+        /**
+         * PlanMetrics
+         * @description The run's cluster metrics for this plan, under the run's objective definition.
+         */
+        PlanMetrics: {
+            /** Avg Fill */
+            avg_fill: number | null;
+            /** Capacity Lower Bound */
+            capacity_lower_bound: number;
+            /** Distance Cost */
+            distance_cost: number;
+            /** Drive S */
+            drive_s: number | null;
+            /** Load */
+            load: number;
+            /** Loaded Distance M */
+            loaded_distance_m: number | null;
+            /** Min Fill */
+            min_fill: number | null;
+            /** Objective */
+            objective: number | null;
+            /** Objective Cents */
+            objective_cents?: number | null;
+            /** Objective Mode */
+            objective_mode: string;
+            /** Planned Amount Cents */
+            planned_amount_cents: number;
+            /** Planned Visit Count */
+            planned_visit_count: number;
+            /** Truck Penalty */
+            truck_penalty: number;
+            /** Trucks */
+            trucks: number;
+            /**
+             * Unmeasured Trucks
+             * @default 0
+             */
+            unmeasured_trucks: number;
+            /** Visit Count */
+            visit_count: number;
+            /** Wait S */
+            wait_s: number | null;
+        };
+        /** PlanViolation */
+        PlanViolation: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "unknown_visit" | "unreachable_visit" | "duplicate_visit" | "missing_visit" | "empty_truck" | "over_capacity" | "leg_missing" | "leg_over_limit" | "leg_mismatch" | "leg_no_duration" | "window_late" | "horizon_exceeded" | "cluster_diameter";
+            /** Message */
+            message: string;
+            /** Truck */
+            truck?: number | null;
+            /** Visit Id */
+            visit_id?: string | null;
         };
         /**
          * PreflightFinding
@@ -875,6 +1508,7 @@ export interface components {
              * @default null
              */
             travel_snapshot_id: string | null;
+            warm_start?: components["schemas"]["WarmStartSource"] | null;
             /**
              * Weighted Truck Penalty M
              * @default null
@@ -934,6 +1568,7 @@ export interface components {
             versions: {
                 [key: string]: string;
             };
+            warm_start?: components["schemas"]["WarmStartSummary"] | null;
         };
         /** ScenarioDocument */
         ScenarioDocument: {
@@ -1007,7 +1642,7 @@ export interface components {
              * Stage Type
              * @enum {string}
              */
-            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "solve" | "validation" | "summary" | "explorer";
+            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "warm_start" | "solve" | "validation" | "summary" | "explorer" | "lab";
         };
         /**
          * TimeModel
@@ -1226,6 +1861,99 @@ export interface components {
              */
             stage: "preflight" | "allocation" | "problem" | "solve" | "validation";
         };
+        /**
+         * WarmStartCluster
+         * @description A source cluster: validated ones carry their routes in service order; others carry none.
+         */
+        WarmStartCluster: {
+            /** Cluster Id */
+            cluster_id: string;
+            /** Location Ids */
+            location_ids: string[];
+            /** Routes */
+            routes: components["schemas"]["WarmStartVisit"][][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "validated" | "invalid_candidate" | "no_candidate" | "nothing_to_solve";
+        };
+        /**
+         * WarmStartPlan
+         * @description The warm-start source interface (spec §10, M6): a plan as routes of visits with their
+         *     location and load, per source cluster, and the travel it was validated on. Its content hash is
+         *     the plan identity recorded in the `warm_start` stage artifact and the replay bundle.
+         */
+        WarmStartPlan: {
+            /** Clusters */
+            clusters: components["schemas"]["WarmStartCluster"][];
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            source: components["schemas"]["WarmStartSource"];
+            travel: components["schemas"]["WarmStartTravel"];
+        };
+        /**
+         * WarmStartSource
+         * @description Where a warm start's plan comes from (spec §10, M6). Today only a succeeded pipeline run the
+         *     submitter can read; the web resolves it with owner checks and the worker receives its validated
+         *     plan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)
+         *     would be a new `kind` producing the same plan document.
+         */
+        WarmStartSource: {
+            /**
+             * Kind
+             * @default run
+             * @constant
+             */
+            kind: "run";
+            /** Run Id */
+            run_id: string;
+        };
+        /** WarmStartSummary */
+        WarmStartSummary: {
+            /** Plan Id */
+            plan_id: string;
+            /** Skipped */
+            skipped: number;
+            source: components["schemas"]["WarmStartSource"];
+            /** Used */
+            used: number;
+        };
+        /**
+         * WarmStartTravel
+         * @description The travel identity the source plan was validated on: estimated haversine × circuity, or
+         *     a stored directed snapshot.
+         */
+        WarmStartTravel: {
+            /**
+             * Circuity
+             * @default null
+             */
+            circuity: number | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "estimated" | "snapshot";
+            /**
+             * Snapshot Id
+             * @default null
+             */
+            snapshot_id: string | null;
+        };
+        /** WarmStartVisit */
+        WarmStartVisit: {
+            /** Load */
+            load: number;
+            /** Location Id */
+            location_id: string;
+            /** Visit Id */
+            visit_id: string;
+        };
         /** WorkerEvent */
         WorkerEvent: {
             /**
@@ -1267,6 +1995,46 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Capabilities"];
                 };
+            };
+        };
+    };
+    post_evaluate_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluateResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

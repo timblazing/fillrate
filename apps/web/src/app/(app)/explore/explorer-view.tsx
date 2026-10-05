@@ -1,7 +1,7 @@
 "use client"
 
 import type { ExplorerSettings, ExplorerSummary } from "@fillrate/contracts"
-import { ArrowLeft, Check, FlaskConical, Play } from "lucide-react"
+import { ArrowLeft, Check, Download, FlaskConical, Play } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -67,6 +67,11 @@ export function ExplorerView({ initial, imported, example, canRun, runKey }: { i
         <span className="text-muted-foreground text-xs tabular-nums">
           {settings.ks ? `k ${settings.ks.join(", ")}` : "k near the selected value"} · seeds {(settings.seeds ?? []).join(", ")} · H3 {(settings.h3_resolutions ?? []).join(", ") || "none"}
         </span>
+        {run.status === "succeeded" && run.explorer && (
+          <Button variant="outline" size="sm" className="ml-auto" render={<a href={`/api/v1/runs/${run.id}/export?format=python`} download />}>
+            <Download aria-hidden /> Python replay bundle
+          </Button>
+        )}
       </div>
       <p className="text-muted-foreground max-w-3xl text-sm text-pretty">
         Clustering only: no stock is reallocated and no shipments are solved. The error sum, stability and seed agreement describe how the

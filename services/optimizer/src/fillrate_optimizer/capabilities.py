@@ -187,6 +187,32 @@ BEHAVIORS = [
         fixture="tests/test_time_windows.py::test_service_duration_changes_feasibility_and_truck_count",
     ),
     Behavior(
+        id="warm_start",
+        provided_by="native",
+        description=(
+            "Run setting warm_start {kind: run, run_id}: each cluster starts PyVRP's search from "
+            "the source run's validated plan (pyvrp.solve initial_solution). With a feasible "
+            "initial solution the pinned search keeps it as the incumbent, so the returned "
+            "objective is never higher. Fillrate passes a plan only after the independent "
+            "validator accepts it on the new problem; every cluster records used or skipped "
+            "with a reason, and the plan is a recorded input of the solve stage."
+        ),
+        restrictions=[
+            "Compatibility rule: same travel identity (estimated circuity or snapshot), a "
+            "validated source cluster that planned exactly the same visit IDs, and the same "
+            "location and load for every visit; otherwise the cluster is solved cold "
+            "(travel_changed, visit_set_changed, source_invalid, demand_changed).",
+            "The mapped plan must pass the independent validator on the new problem "
+            "(invalid_on_new_problem) and be complete and feasible to PyVRP (solver_rejected). "
+            "Pinned PyVRP accepts infeasible, incomplete or mismatched initial solutions without "
+            "an error (tests/test_warm_start.py), so Fillrate refuses them instead.",
+            "Sources are succeeded pipeline runs the submitter can read; manual baselines are "
+            "not a source yet.",
+            "Warm starts change solver provenance only, never the comparison signature.",
+        ],
+        fixture="tests/test_warm_start.py::test_feasible_initial_solution_is_never_worsened",
+    ),
+    Behavior(
         id="independent_validation",
         provided_by="validation",
         description=(
@@ -197,6 +223,102 @@ BEHAVIORS = [
         ),
         fixture="tests/test_pipeline.py::test_validator_rejects_solver_feasible_missing_edge_candidate",
     ),
+    Behavior(
+        id="manual_evaluator",
+        provided_by="validation",
+        description=(
+            "A hand-edited plan for one cluster of a completed pipeline run (ordered visit IDs "
+            "per truck: reorder visits, move them between trucks, add or remove trucks) is "
+            "checked by the same independent validator against the run's recorded travel "
+            "artifact, problem, visit lineage and, for snapshot runs, the selected snapshot. "
+            "It reports concrete violations and the run's cluster metrics and objective for "
+            "both the manual and the optimized plan; the optimized plan reproduces the run."
+        ),
+        restrictions=[
+            "One cluster at a time, within that cluster's visits; visits cannot move between "
+            "clusters.",
+            "Evaluation only: a valid manual plan is a baseline, not a solver result, and is "
+            "not saved or used as a warm start.",
+        ],
+        fixture=(
+            "tests/test_evaluate.py::"
+            "test_evaluating_the_optimized_routes_reproduces_the_recorded_metrics"
+        ),
+    ),
+    # ---- Solver Lab (M6): generic normalized routing instances, not the fulfillment pipeline ----
+    Behavior(
+        id="solver_lab",
+        provided_by="native",
+        description=(
+            "Lab instances (fillrate_optimizer.lab) create depots, clients and vehicle types "
+            "directly and are solved by PyVRP 0.14.0 as one problem: closed routes from one "
+            "depot, every edge with its raw distance and duration, a seed and an iteration or "
+            "runtime budget. Planar instances use rounded euclidean abstract units (never "
+            "latitude/longitude); geographic ones haversine × circuity meters and "
+            "constant-speed seconds. An independent validator recomputes coverage, loads, "
+            "fleet counts, limits, distances, durations and the nominal objective, and flags "
+            "any PyVRP route number that differs."
+        ),
+        restrictions=[
+            "Exactly one depot; no time windows, release times, pickups, prizes, groups, "
+            "shipments or reloads (each is refused as a planned capability).",
+            "Heuristic search: results are the best found within the budget, never proven optimal.",
+            "At most 500 clients, 8 dimensions and 10 vehicle types per instance.",
+        ],
+        fixture="tests/test_lab.py::test_lab_run_agrees_with_independent_validation",
+    ),
+    Behavior(
+        id="multiple_load_dimensions",
+        provided_by="native",
+        description=(
+            "Lab instances name 1–8 load dimensions with explicit integer units; client "
+            "deliveries and vehicle capacities become PyVRP delivery/capacity vectors in the "
+            "instance's dimension order. Any one dimension can bind."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline still uses linear feet alone.",
+            "Delivery loads only (no pickups).",
+        ],
+        fixture="tests/test_lab.py::test_weight_dimension_binds_and_changes_the_plan",
+    ),
+    Behavior(
+        id="heterogeneous_fleet",
+        provided_by="native",
+        description=(
+            "Lab vehicle types each have a finite count, per-dimension capacity, fixed cost, "
+            "unit distance and duration costs, and optional per-route max distance and shift "
+            "duration (PyVRP VehicleType). The validator checks counts per type."
+        ),
+        restrictions=[
+            "Solver Lab only; every type starts and ends at the single depot.",
+            "Max distance and shift duration are penalized in PyVRP's search; only the "
+            "independent validator decides whether a route respects them.",
+        ],
+        fixture="tests/test_lab.py::test_mixed_fleet_uses_cheaper_type_within_its_count",
+    ),
+    *[
+        Behavior(
+            id=capability,
+            availability="planned",
+            provided_by="native",
+            description=f"Solver Lab: {text}. Instances that use it are refused for now.",
+            fixture=None,
+        )
+        for capability, text in (
+            ("multiple_depots", "several depots with per-vehicle-type start and end depots"),
+            ("reloads", "reload depots and multiple trips per vehicle"),
+            ("optional_clients", "optional visits with prizes"),
+            ("client_groups", "mutually exclusive client groups"),
+            ("paired_shipments", "pickup and delivery pairs"),
+            ("pickups_and_deliveries", "client pickup loads beside deliveries"),
+            (
+                "lab_time_windows",
+                "client and vehicle time windows and release times (the fulfillment pipeline's "
+                "time_windows adapter is separate)",
+            ),
+            ("routing_profiles", "per-vehicle-type travel profiles"),
+        )
+    ],
 ]
 
 

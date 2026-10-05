@@ -45,7 +45,7 @@ browser ──HTTP──▶ apps/web (Next.js 16, App Router)
                    └─ worker transport on 127.0.0.1:3100 (token-authenticated, lease-fenced)
                               ▲
                               │ HTTP claim / heartbeat / complete
-services/optimizer (Python 3.13, uv): fillrate-worker supervisor → child process per job
+services/optimizer (Python 3.13, uv): fillrate-optimizer (FastAPI /evaluate + FILLRATE_WORKER=1 supervisor) → child process per job
                    allocation → aggregation → clustering → travel → PyVRP solve → validation → summary
 packages/contracts  Pydantic-owned envelopes → JSON Schema / OpenAPI → TypeScript types (AJV validation)
 ```

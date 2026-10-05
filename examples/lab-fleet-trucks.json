@@ -1,0 +1,147 @@
+{
+ "schema_version": 1,
+ "kind": "lab_instance",
+ "name": "Heterogeneous fleet, trucks only (Memphis, 10 clients)",
+ "description": "The same clients served by the three box trucks only.",
+ "coordinates": "geographic",
+ "travel": {
+  "circuity": 1.2,
+  "speed_m_per_s": 11.176
+ },
+ "cost_unit": "cost units",
+ "dimensions": [
+  {
+   "id": "pallets",
+   "label": "Pallets",
+   "unit": "pallets"
+  }
+ ],
+ "depots": [
+  {
+   "id": "DC",
+   "label": "Memphis DC",
+   "lat": 35.1495,
+   "lon": -90.049
+  }
+ ],
+ "clients": [
+  {
+   "id": "F-01",
+   "label": "Hardware store",
+   "lat": 35.20739,
+   "lon": -89.83659,
+   "delivery": {
+    "pallets": 3
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-02",
+   "label": "Garden center",
+   "lat": 35.06266,
+   "lon": -89.73038,
+   "delivery": {
+    "pallets": 2
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-03",
+   "label": "Grocery",
+   "lat": 35.35212,
+   "lon": -90.20831,
+   "delivery": {
+    "pallets": 4
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-04",
+   "label": "Pharmacy",
+   "lat": 35.10608,
+   "lon": -90.31451,
+   "delivery": {
+    "pallets": 2
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-05",
+   "label": "School",
+   "lat": 34.90346,
+   "lon": -89.94279,
+   "delivery": {
+    "pallets": 3
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-06",
+   "label": "Builder yard",
+   "lat": 35.32318,
+   "lon": -89.60648,
+   "delivery": {
+    "pallets": 5
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-07",
+   "label": "Clinic",
+   "lat": 35.29423,
+   "lon": -90.43842,
+   "delivery": {
+    "pallets": 2
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-08",
+   "label": "Restaurant supply",
+   "lat": 35.46791,
+   "lon": -89.9959,
+   "delivery": {
+    "pallets": 3
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-09",
+   "label": "Farm co-op",
+   "lat": 34.80214,
+   "lon": -90.15521,
+   "delivery": {
+    "pallets": 4
+   },
+   "service_duration": 900
+  },
+  {
+   "id": "F-10",
+   "label": "Office park",
+   "lat": 34.86004,
+   "lon": -89.80119,
+   "delivery": {
+    "pallets": 2
+   },
+   "service_duration": 900
+  }
+ ],
+ "vehicle_types": [
+  {
+   "id": "box-truck",
+   "label": "26 ft box truck",
+   "count": 3,
+   "capacity": {
+    "pallets": 14
+   },
+   "fixed_cost": 40000,
+   "unit_distance_cost": 2,
+   "unit_duration_cost": 0
+  }
+ ],
+ "solver": {
+  "seed": 0,
+  "max_iterations": 2000,
+  "max_runtime_s": 30.0
+ }
+}

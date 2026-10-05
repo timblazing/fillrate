@@ -29,6 +29,11 @@ const LESSONS = [
     title: "Time windows and waiting",
     blurb: "9 synthetic stops on one day: delivery windows and unloading minutes make trucks wait and need a second truck; remove the windows to compare.",
   },
+  {
+    href: "/learn/manual-routes",
+    title: "Manual versus optimized routes",
+    blurb: "10 synthetic stops on 3 trucks: evaluate a dispatcher's plans against the optimized one with the same matrix and validator, then edit your own.",
+  },
 ]
 
 // Every lesson runs the real pipeline on a bundled synthetic scenario (spec §13).
@@ -41,7 +46,7 @@ export default function LessonsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Lessons</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each lesson starts real runs on a synthetic scenario and lists what to look for, not fixed answers. Lessons use only features the app runs today: estimated travel,
-            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations and the PyVRP shipment builder.
+            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder and the manual plan evaluator.
           </p>
         </section>
         <ul className="grid gap-3 sm:grid-cols-2">
