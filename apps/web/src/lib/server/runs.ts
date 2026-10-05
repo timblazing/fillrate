@@ -7,17 +7,22 @@ import { mode } from "./auth";
 import { ApiError } from "./errors";
 
 import allocation from "../../../../../examples/lesson-allocation.json";
+import capacity from "../../../../../examples/lesson-capacity.json";
 import lesson from "../../../../../examples/lesson-fulfillment.json";
+import seeds from "../../../../../examples/lesson-seeds.json";
 import m1 from "../../../../../examples/m1-synthetic.json";
 
 // Keyless and run-key submissions execute bundled synthetic scenarios only (spec §14: public
 // surfaces stay synthetic). `m1` is the small edge-case example (always partial coverage, so its
 // sweeps never rank); `lesson` is the 2,000-order flagship lesson scenario; `allocation` is the small
-// scarce-stock scenario for the allocation lesson (spec §13).
+// scarce-stock scenario for the allocation lesson; `capacity` and `seeds` are the small truck-capacity and
+// seed-sensitivity lesson scenarios (spec §13).
 export const EXAMPLES = {
   m1: { id: "m1", scenario: m1.scenario as ScenarioDocument, settings: m1.settings as RunSettings, blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop" },
   lesson: { id: "lesson", scenario: lesson.scenario as ScenarioDocument, settings: lesson.settings as RunSettings, blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete" },
   allocation: { id: "allocation", scenario: allocation.scenario as ScenarioDocument, settings: allocation.settings as RunSettings, blurb: "Allocation lesson: scarce carpet rolls, so strategy and piece or whole-order policy decide who ships" },
+  capacity: { id: "capacity", scenario: capacity.scenario as ScenarioDocument, settings: capacity.settings as RunSettings, blurb: "Truck capacity lesson: plentiful stock on 53 ft trailers, so linear feet set the truck count and one oversize stop splits" },
+  seeds: { id: "seeds", scenario: seeds.scenario as ScenarioDocument, settings: seeds.settings as RunSettings, blurb: "Seed lesson: 60 evenly spread stops, so the k-means seed changes the clusters, trucks and miles" },
 } as const;
 export type ExampleId = keyof typeof EXAMPLES;
 export type Example = (typeof EXAMPLES)[ExampleId];
@@ -33,7 +38,7 @@ export function parseExample(input: unknown, fallback: ExampleId): Example {
   throw new ApiError(400, "unknown_example", `Unknown example; use one of ${Object.keys(EXAMPLES).join(", ")}.`, ["example"]);
 }
 
-const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson" };
+const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", seeds: "Seed lesson" };
 
 /** Small listing for pages and `GET /api/v1/examples`. */
 export function exampleInfo(example: Example) {
