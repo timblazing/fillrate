@@ -81,6 +81,10 @@ export function createWorkerTransport(store: Store, options: WorkerTransportOpti
         const { lease, snapshot_id } = body as { lease: Lease; snapshot_id: string };
         return send(res, 200, { snapshot: store.leaseTravelSnapshot(lease, snapshot_id, now()) });
       }
+      if (route === "/internal/worker/store_snapshot") {
+        const { lease, snapshot, snapshot_id } = body as { lease: Lease; snapshot: unknown; snapshot_id: string };
+        return send(res, 200, store.storeLeaseTravelSnapshot(lease, snapshot, snapshot_id, now()));
+      }
       if (route === "/internal/worker/cluster") {
         const { lease, action, cluster_id, input_hash, result } = body as { lease: Lease; action: string; cluster_id: string; input_hash: string; result?: unknown };
         return send(res, 200, store.clusterTask(lease, action, cluster_id, input_hash, result, now()));

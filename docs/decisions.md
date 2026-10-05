@@ -2,6 +2,10 @@
 
 Append-only. Each entry: date, decision, reason, session tool.
 
+## 2026-10-05: Defer the M2 OpenPencil design-file follow-up (Codex)
+**Decision:** The owner does not want to work on OpenPencil or `fillrate.fig` for now. Defer the coss Components page and additional Foundations tokens until the owner chooses to resume; this follow-up is not an M2 completion gate. M2 is complete for the already accepted and implemented scope.
+**Reason:** The remaining design-file work should not hold the progress page or subsequent product work at 95% while the owner is intentionally deferring it. No design-file changes or OpenPencil review are claimed.
+
 ## 2026-09-29: Split milestone 1; frontend foundation first (Claude Code)
 **Decision:** Before the rest of M1 (DB, Python, worker, CI, Docker), set up only the monorepo skeleton and `apps/web` (Next.js, Tailwind, shadcn, mapcn), plus a dev-only `/dev/components` gallery.
 **Reason:** The OpenPencil design system (`pyvrp-lab.fig`: Foundations, Components, Blocks) should be designed against the real shadcn/mapcn components. The design work needs no backend. This follows the spec's M1 → M2 (design accepted before M3) ordering. The remaining M1 items are unchanged.
@@ -434,3 +438,11 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-05: Lessons for basic capacity and seed sensitivity; public time budgets stay fixed (Claude Code)
 - **Decision:** Add `capacity` and `seeds` examples with `/learn/truck-capacity` and `/learn/seed-sensitivity`. Pytest asserts every observation. The seeds lesson demonstrates seed and iteration-budget reproducibility interactively but explains time budgets only in text: public synthetic runs keep accepting only sweep-axis overrides, so anonymous compute stays bounded.
 - **Reason:** These are the remaining spec §13 lessons that current behavior supports. The others need M6 adapters (windows, fleets, depots, reloads, groups, shipments, manual evaluation) or road matrices in public lessons.
+
+## 2026-10-05: Route GeoJSON is schematic; only recorded matrices are exported (Claude Code)
+- **Decision:** Run GeoJSON draws straight lines from the depot through physical visits, labeled `schematic_straight_line`, and never the synthetic return. Matrix exports serve only stored travel snapshots (canonical JSON hashing to the id, or long-form CSV with empty cells for missing edges). Estimated-travel runs return 409 `matrix_not_recorded`.
+- **Reason:** Spec §7/§13 require road geometry only "where available", raw matrices preserved and road and estimated distances kept distinct. Regenerating the estimated matrix in TypeScript could drift from the worker's values, so exporting it would present an approximation as the matrix the run used.
+
+## 2026-10-05: Durable Valhalla snapshot jobs are fixture-verified only (Codex)
+- **Decision:** Build one immutable directed snapshot per saved scenario version through the durable worker queue. The worker reads endpoint, costing and provider identity only from deployment configuration; the server revalidates the snapshot, checks its lease and coordinate binding, then stores it for the run owner. No partial result or estimated-travel fallback is accepted.
+- **Verification boundary:** Pytest/Vitest fake-provider coverage and a browser-to-worker run pass. The pinned Valhalla Compose deployment and live coverage/configuration checks remain open, so `directed_road_travel` remains planned.

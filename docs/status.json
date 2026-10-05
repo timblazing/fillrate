@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-05",
   "focus": "M6",
-  "productBehavior": 63,
+  "productBehavior": 64,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -11,9 +11,9 @@
     },
     "M2": {
       "weight": 10,
-      "done": 95,
-      "state": "waiting",
-      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
+      "done": 100,
+      "state": "done",
+      "notes": "Complete for the accepted scope: round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01); applied ★ = Best trade-off, far-via-stop warning, oversize-stop split default, and no cost rates. The owner deferred the optional fillrate.fig/OpenPencil follow-up (2026-10-05); it does not block M2."
     },
     "M3": {
       "weight": 20,
@@ -35,15 +35,15 @@
     },
     "M6": {
       "weight": 12,
-      "done": 34,
+      "done": 39,
       "state": "active",
-      "notes": "Done: typed directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, stale-coordinate refusal, directed preflight/worker reachability, browser preview/selection/inspector, repeatable imported-matrix browser acceptance, durable Valhalla snapshot jobs, and a DST-aware time-window/service-duration adapter with independent validation and Timeline states. Remaining: pinned live deployment, route geometry and the capability-gated fleet/depot/group/shipment/reload adapters, manual evaluator and warm starts. `directed_road_travel` stays planned until deployment evidence passes."
+      "notes": "Done: typed directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, stale-coordinate refusal, directed preflight/worker reachability, browser preview/selection/inspector, repeatable imported-matrix browser acceptance, durable Valhalla snapshot jobs with browser-to-worker fixture verification, and a DST-aware time-window/service-duration adapter with independent validation and Timeline states. Remaining: pinned live deployment, route geometry and the capability-gated fleet/depot/group/shipment/reload adapters, manual evaluator and warm starts. `directed_road_travel` stays planned until deployment evidence passes."
     },
     "M7": {
       "weight": 6,
-      "done": 52,
+      "done": 62,
       "state": "active",
-      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity and seed/runtime sensitivity lessons with pytest-asserted observations; /learn index; per-leg drive seconds (`leg_s`, `drive_s`) and a planned-route timeline with schematic paths, service and wait states; `leg_s` in the loads CSV; browser acceptance for the Timeline. Remaining: lessons that need M6 adapters, verified road geometry, GeoJSON route geometry, explorer replay and road-matrix export."
+      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity and seed/runtime sensitivity lessons; /learn index; per-leg drive seconds and planned-route timeline; GeoJSON route export and owner-only snapshot matrix downloads; browser acceptance for Timeline, lessons, matrix exports, time-window waiting and service. Remaining: lessons needing M6 adapters, verified Valhalla road geometry and explorer replay."
     },
     "M8": {
       "weight": 7,
@@ -53,10 +53,9 @@
     }
   },
   "nextUp": [
-    "M6: durable Valhalla snapshot job (fixtures) and pinned Compose deployment evidence (owner hardware); then route geometry.",
-    "M6: first capability-gated routing adapter (time windows + service durations, or heterogeneous fleet) with independent validator fixtures, unlocking matching lessons and timeline service/wait states.",
-    "M7: browser assertions for the timeline and new lessons; GeoJSON route export and road-matrix export; Haversine vs recorded road-matrix lesson.",
-    "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff.",
-    "M2: fillrate.fig Components/Foundations with local OpenPencil when available."
+    "M6/M7: add the time-windows lesson using the new capability and browser fixture.",
+    "M6: pinned Valhalla Compose deployment evidence needs owner hardware; route geometry follows verification.",
+    "M7: Haversine vs recorded road-matrix lesson; road geometry after a verified Valhalla deployment; explorer replay.",
+    "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff."
   ]
 }
