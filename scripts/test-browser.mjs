@@ -11,9 +11,10 @@ const appDir = join(root, "apps/web");
 const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
-const FLOWS = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan"];
-const flows = selected === "all" ? FLOWS : [selected];
-if (flows.some((flow) => !FLOWS.includes(flow))) throw new Error(`Use ${FLOWS.map((f) => `--flow=${f}`).join(", ")}, or --flow=all.`);
+// The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit"];
+const flows = selected === "all" ? allFlows : [selected];
+if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
 const dataDir = mkdtempSync(join(tmpdir(), "fillrate-browser-smoke-"));
 const downloadDir = join(dataDir, "downloads");
@@ -83,6 +84,11 @@ function stable(value) { return JSON.stringify(value, (_key, item) => item && ty
 function snapshot() { return browser("snapshot", "-i"); }
 function open(url) { browser("open", url); }
 function clickButton(name) { browser("find", "role", "button", "click", "--name", name, "--exact"); }
+// Centers the named button first so a sticky app header cannot cover its click point.
+function clickButtonCentered(name) {
+  browser("eval", `[...document.querySelectorAll("button")].find((b) => b.innerText.trim() === ${JSON.stringify(name)})?.scrollIntoView({ block: "center" })`);
+  clickButton(name);
+}
 function clickMenuItem(name) { browser("find", "role", "menuitem", "click", "--name", name, "--exact"); }
 function fillCss(css, value) { browser("fill", css, value); }
 function fillLabel(label, value) { browser("find", "label", label, "fill", value); }
@@ -101,8 +107,18 @@ function assertViewport(width, height) {
   expect(dims.width === width && dims.height === height && dims.scroll <= dims.width, `Page has horizontal overflow or incorrect viewport at ${width}x${height}: ${JSON.stringify(dims)}`);
 }
 
+// browser() blocks this process's event loop (spawnSync), so the server can close an idle keep-alive socket unnoticed and
+// the next request fails with "other side closed". Yield first so pending socket closes are processed, then retry once on
+// that socket error (every request here is a read or carries an Idempotency-Key).
+async function localFetch(url, init = {}) {
+  await new Promise((resolveTick) => setImmediate(resolveTick));
+  try { return await fetch(url, init); } catch (error) {
+    if (error?.cause?.code !== "UND_ERR_SOCKET") throw error;
+    return fetch(url, init);
+  }
+}
 async function fetchJson(baseURL, path, key, header = "x-scenario-key") {
-  const response = await fetch(new URL(path, baseURL), { headers: key ? { [header]: key } : {}, signal: AbortSignal.timeout(8_000) });
+  const response = await localFetch(new URL(path, baseURL), { headers: key ? { [header]: key } : {}, signal: AbortSignal.timeout(8_000) });
   return { response, body: await response.json().catch(() => null) };
 }
 async function fetchOkJson(baseURL, path, key, header = "x-scenario-key") {
@@ -322,7 +338,7 @@ async function importFlow(baseURL, scenarioKey) {
   assertViewport(393, 852);
   const unkeyed = await fetchJson(baseURL, `/api/v1/runs/${runId}`);
   expect([401, 403, 404].includes(unkeyed.response.status), `Unkeyed imported run access should be denied; received ${unkeyed.response.status}.`);
-  const unkeyedExport = await fetch(baseURL + `/api/v1/runs/${runId}/export?format=json`);
+  const unkeyedExport = await localFetch(baseURL + `/api/v1/runs/${runId}/export?format=json`);
   expect([401, 403, 404].includes(unkeyedExport.status), `Unkeyed imported export should be denied; received ${unkeyedExport.status}.`);
   const refreshed = await fetchJson(baseURL, `/api/v1/runs/${runId}${access}`, scenarioKey);
   checkRun(refreshed.body, "refreshed imported CSV");
@@ -343,7 +359,7 @@ function haversineM(a, b) {
 }
 function clickButtonStartingWith(prefix) { browser("find", "role", "button", "click", "--name", prefix); }
 async function postJson(baseURL, path, key, body) {
-  const response = await fetch(new URL(path, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-scenario-key": key, "idempotency-key": randomUUID() }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+  const response = await localFetch(new URL(path, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-scenario-key": key, "idempotency-key": randomUUID() }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
   return { response, body: await response.json().catch(() => null) };
 }
 
@@ -446,7 +462,7 @@ async function matrixFlow(baseURL, scenarioKey) {
   }
   expect(checked >= 3, `Expected every stop leg to be checked; checked ${checked}.`);
   // Exports: schematic GeoJSON without the synthetic return, and the imported matrix with its node binding.
-  const exportGet = (query, key = scenarioKey) => fetch(new URL(`/api/v1/runs/${runId}/export?${query}`, baseURL), { headers: key ? { "x-scenario-key": key } : {}, signal: AbortSignal.timeout(15_000) });
+  const exportGet = (query, key = scenarioKey) => localFetch(new URL(`/api/v1/runs/${runId}/export?${query}`, baseURL), { headers: key ? { "x-scenario-key": key } : {}, signal: AbortSignal.timeout(15_000) });
   const geoResponse = await exportGet("format=geojson");
   expect(geoResponse.status === 200 && geoResponse.headers.get("content-type")?.startsWith("application/geo+json") && /filename="fillrate-run-[0-9a-f]{8}\.geojson"/.test(geoResponse.headers.get("content-disposition") ?? ""), "GeoJSON export headers are wrong.");
   const geo = await geoResponse.json();
@@ -463,9 +479,9 @@ async function matrixFlow(baseURL, scenarioKey) {
   const matrixCsv = (await (await exportGet("format=matrix&as=csv")).text()).trim().split(/\r?\n/);
   expect(matrixCsv[0] === "from_id,to_id,distance_m,duration_s" && matrixCsv.length === 17 && matrixCsv.includes(`${nodes[0].id},${nodes[1].id},${meters[0][1]},${Math.round(km[0][1] * 60)}`) && !matrixCsv.includes(`${nodes[1].id},${nodes[0].id},${meters[0][1]},${Math.round(km[0][1] * 60)}`), "Matrix CSV is not the directed imported matrix.");
   expect((await exportGet("format=geojson", "")).status === 404 && (await exportGet("format=matrix", "")).status === 404, "Keyless exports of a saved run must be refused.");
-  const keyless = await fetch(new URL(`/api/v1/travel-snapshots/${snapshotId}?format=csv`, baseURL), { signal: AbortSignal.timeout(8_000) });
+  const keyless = await localFetch(new URL(`/api/v1/travel-snapshots/${snapshotId}?format=csv`, baseURL), { signal: AbortSignal.timeout(8_000) });
   expect(keyless.status >= 400, "Keyless snapshot download must be refused.");
-  const snapshotJson = await (await fetch(new URL(`/api/v1/travel-snapshots/${snapshotId}?format=json`, baseURL), { headers: { "x-scenario-key": scenarioKey }, signal: AbortSignal.timeout(15_000) })).text();
+  const snapshotJson = await (await localFetch(new URL(`/api/v1/travel-snapshots/${snapshotId}?format=json`, baseURL), { headers: { "x-scenario-key": scenarioKey }, signal: AbortSignal.timeout(15_000) })).text();
   expect(createHash("sha256").update(snapshotJson).digest("hex") === snapshotId, "Downloaded snapshot JSON must hash to its identity.");
   browser("wait", "--text", "Validated, complete", "--timeout", "20000");
   assertViewport(1440, 900);
@@ -558,6 +574,237 @@ async function timeWindowsFlow(baseURL, scenarioKey) {
   assertViewport(393, 852);
   checkBrowserDiagnostics("time windows");
   console.log(`  passed: run ${runId.slice(0, 8)}, ${detail.summary.trucks.length} shipments, wait/service states on Timeline`);
+}
+
+const ORDER_HEADER = "order_id,line_id,order_date,customer_id,location_id,location_label,latitude,longitude,product,ordered_pieces,net_value_per_piece,linear_feet_per_piece,priority";
+const ACTIVE_RUN = new Set(["queued", "claimed", "running"]);
+
+// Imports a small CSV scenario through the workbench and returns its listing row (found by name; flows share the database).
+async function importInWorkbench(baseURL, scenarioKey, { author, name, orders, inventory }) {
+  open(`${baseURL}/scenarios`);
+  expect(snapshot().includes("Scenarios"), "Scenario workbench did not load.");
+  fillLabel("Operator key", scenarioKey);
+  fillLabel("Display name", author);
+  fillLabel("Scenario name", name);
+  fillLabel("Depot label", "Memphis depot");
+  fillCss('textarea[aria-label="orders CSV content"]', [ORDER_HEADER, ...orders].join("\n"));
+  fillCss('textarea[aria-label="inventory CSV content"]', inventory);
+  clickButton("Preview import");
+  browser("wait", "--text", "ready to save", "--timeout", "20000");
+  clickButton("Save import");
+  browser("wait", "--text", "Import saved as version 1.", "--timeout", "25000");
+  const rows = (await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey)).scenarios?.filter((s) => s.name === name) ?? [];
+  expect(rows.length === 1 && rows[0].revision === 1, `Expected one saved "${name}" scenario at version 1.`);
+  return rows[0];
+}
+
+// Opens a saved scenario in a fresh workbench: key and author, Load scenarios, then the listing button with this exact label.
+function openSavedScenario(baseURL, scenarioKey, author, label) {
+  open(`${baseURL}/scenarios`);
+  fillLabel("Operator key", scenarioKey);
+  fillLabel("Display name", author);
+  clickButton("Load scenarios");
+  browser("wait", "--text", label, "--timeout", "20000");
+  clickButton(label);
+  browser("wait", "--text", "Run settings", "--timeout", "20000");
+}
+
+// Sets one cluster and a per-cluster solver budget in the workbench, runs the saved version and returns the new run ID.
+function runFromWorkbench(timeLimitSeconds) {
+  fillLabel("Clusters (blank = auto)", "1");
+  fillLabel("Time per cluster (seconds)", String(timeLimitSeconds));
+  clickButton("Review and run saved version");
+  browser("wait", "--url", "**/runs/**", "--timeout", "25000");
+  const runId = browser("get", "url").match(/\/runs\/([0-9a-f-]+)/i)?.[1];
+  expect(runId, "Workbench run did not open its run page.");
+  return runId;
+}
+
+const hasButton = (name) => evalValue(`[...document.querySelectorAll('button')].some((b) => b.innerText.trim() === ${JSON.stringify(name)})`) === true;
+
+// A cancelled run page (after a fresh load) shows the cancelled state and offers no result, export or further cancel.
+async function checkCancelledRun(baseURL, scenarioKey, runId, label) {
+  open(`${baseURL}/runs/${runId}`);
+  browser("wait", "--text", "Nothing from this run is counted as planned.", "--timeout", "15000");
+  const text = String(parsedText());
+  expect(text.includes("Cancelled") && !text.includes("Validated") && !text.includes("Planned revenue"), `${label}: reloaded page does not show only the cancelled state.`);
+  expect(!hasButton("Export") && !hasButton("Cancel") && !text.includes("Shipment sheets"), `${label}: a cancelled run must not offer export, shipment sheets or cancel.`);
+  const loads = await localFetch(new URL(`/api/v1/runs/${runId}/export?format=csv&table=loads`, baseURL), { headers: { "x-scenario-key": scenarioKey }, signal: AbortSignal.timeout(8_000) });
+  const loadsBody = await loads.json().catch(() => null);
+  expect(loads.status === 409 && loadsBody?.error?.code === "no_result", `${label}: result CSV of a cancelled run should be refused with no_result; got ${loads.status}.`);
+  const geo = await localFetch(new URL(`/api/v1/runs/${runId}/export?format=geojson`, baseURL), { headers: { "x-scenario-key": scenarioKey }, signal: AbortSignal.timeout(8_000) });
+  expect(geo.status === 409, `${label}: GeoJSON export of a cancelled run should be refused; got ${geo.status}.`);
+  const audit = await fetchOkJson(baseURL, `/api/v1/runs/${runId}/export?format=json`, scenarioKey);
+  expect(audit.run?.status === "cancelled" && audit.summary === null, `${label}: the JSON record of a cancelled run must carry no result.`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+}
+
+// Spec §9/§12: cancelling a queued run ends it at once; cancelling a running one kills the solver child and persists
+// `cancelled`. Neither offers a result, and the worker goes on to finish the next run.
+async function cancelFlow(baseURL, scenarioKey) {
+  console.log("Browser smoke: run cancellation (queued and running)");
+  beginBrowserFlow("cancel");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const author = "Cancel smoke", name = "Cancellable browser run";
+  await importInWorkbench(baseURL, scenarioKey, { author, name, inventory: "product,available_pieces\nCX-SKU,100\n", orders: [
+    "CX-1,CX-L1,2026-10-01,Cust A,CX-A,Stop A,35.10,-90.00,CX-SKU,10,25.00,1.00,1",
+    "CX-2,CX-L2,2026-10-01,Cust B,CX-B,Stop B,35.20,-90.10,CX-SKU,10,25.00,1.00,1",
+    "CX-3,CX-L3,2026-10-01,Cust C,CX-C,Stop C,35.25,-89.95,CX-SKU,10,25.00,1.00,1",
+  ] });
+  const detailOf = (id) => fetchOkJson(baseURL, `/api/v1/runs/${id}`, scenarioKey);
+
+  // A long run (a 120 s solve budget on one cluster) occupies the single worker.
+  const longId = runFromWorkbench(120);
+  await poll(() => detailOf(longId), (body) => body?.status === "running" && body.progress?.stage === "solve" || !ACTIVE_RUN.has(body?.status), "Long run reaching the solve stage", 90_000);
+  const solving = await detailOf(longId);
+  expect(solving.status === "running" && solving.progress?.stage === "solve", `Long run should be solving before it is cancelled: ${solving.status}.`);
+
+  // A second run waits in the queue behind it; cancel it there.
+  openSavedScenario(baseURL, scenarioKey, author, `${name} · v1`);
+  const queuedId = runFromWorkbench(120);
+  expect((await detailOf(queuedId)).status === "queued", "The second run should be queued behind the running one.");
+  browser("wait", "--text", "Waiting for a worker…", "--timeout", "15000");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  clickButtonCentered("Cancel");
+  browser("wait", "--text", "Nothing from this run is counted as planned.", "--timeout", "15000");
+  const queued = await detailOf(queuedId);
+  expect(queued.status === "cancelled" && queued.cancel_requested === true && queued.attempts.length === 0 && queued.summary === null, `A queued run should be cancelled at once without an attempt: ${JSON.stringify({ status: queued.status, cancel: queued.cancel_requested, attempts: queued.attempts })}`);
+  await checkCancelledRun(baseURL, scenarioKey, queuedId, "cancelled queued run");
+
+  // Cancel the running one from its page; the worker kills the solver at its next heartbeat.
+  open(`${baseURL}/runs/${longId}`);
+  browser("wait", "--fn", "[...document.querySelectorAll('button')].some((b) => b.innerText.trim() === 'Cancel')", "--timeout", "15000");
+  expect((await detailOf(longId)).status === "running", "The long run finished before it could be cancelled.");
+  const requested = Date.now();
+  clickButtonCentered("Cancel");
+  browser("wait", "--text", "Nothing from this run is counted as planned.", "--timeout", "60000");
+  const stopped = await poll(() => detailOf(longId), (body) => !ACTIVE_RUN.has(body?.status), "Running-run cancellation", 60_000);
+  const waited = Date.now() - requested;
+  expect(stopped.status === "cancelled" && stopped.cancel_requested === true && stopped.summary === null, `A running run should end cancelled (not failed or succeeded): ${stopped.status}.`);
+  expect(stopped.attempts.length === 1 && waited < 60_000, `Cancellation should stop the attempt well before the 120 s solve budget (took ${waited} ms).`);
+  await checkCancelledRun(baseURL, scenarioKey, longId, "cancelled running run");
+
+  // The worker is free again: a short run of the same version completes.
+  openSavedScenario(baseURL, scenarioKey, author, `${name} · v1`);
+  const nextId = runFromWorkbench(1);
+  const next = await poll(() => detailOf(nextId), (body) => ["succeeded", "failed", "cancelled", "interrupted"].includes(body?.status), "Run after cancellations");
+  checkRun(next, "post-cancellation");
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  const runs = (await fetchOkJson(baseURL, "/api/v1/runs", scenarioKey)).runs;
+  expect(stable([longId, queuedId, nextId].map((id) => runs.find((r) => r.id === id)?.status)) === '["cancelled","cancelled","succeeded"]', "The run list does not persist both cancellations and the later success.");
+  checkBrowserDiagnostics("run cancellation");
+  console.log(`  passed: queued run cancelled at once, running run cancelled in ${(waited / 1000).toFixed(1)} s, next run ${nextId.slice(0, 8)} succeeded`);
+}
+
+const piecesOf = (document, lineId) => document.orders.flatMap((o) => o.lines).find((l) => l.id === lineId)?.ordered_pieces;
+const stockOf = (document, product) => document.inventory.find((i) => i.product_id === product)?.available_pieces;
+const CONFLICT_ACTIONS = ["Save my edits as a new branch", "Discard my edits and reload"];
+
+// Saves a version as another editor would (a second client starting from `from`), so the browser's next save conflicts.
+async function saveAsOtherEditor(baseURL, scenarioKey, scenarioId, from, edit) {
+  const document = structuredClone(from.document);
+  edit(document);
+  const saved = await postJson(baseURL, `/api/v1/scenarios/${scenarioId}`, scenarioKey, { document, author: "Other editor", metadata: { timezone: "America/Chicago", planningDate: "2026-10-06", browserId: `edit-other-${process.pid}` }, source: from.source, expectedVersionId: from.id });
+  expect(saved.response.status === 201 && saved.body?.versionId, `Concurrent save failed: ${JSON.stringify(saved.body)}`);
+  return saved.body.versionId;
+}
+
+function expectConflictChoices(label) {
+  browser("wait", "--text", "Another version was saved.", "--timeout", "15000");
+  const choices = evalValue("JSON.stringify([...document.querySelectorAll('[role=\"alert\"] button')].map((b) => b.innerText.trim()))");
+  const parsed = typeof choices === "string" ? JSON.parse(choices) : choices;
+  expect(stable(parsed) === stable(CONFLICT_ACTIONS), `${label}: the conflict should offer exactly ${JSON.stringify(CONFLICT_ACTIONS)}; got ${JSON.stringify(parsed)}.`);
+  expect(!hasButton("Save version") && !hasButton("Save branch") && !hasButton("Discard changes"), `${label}: the ordinary save, branch and discard buttons must give way to the two conflict choices.`);
+}
+
+// Spec §5: saves are immutable versions; a version conflict offers exactly branch or discard; a branch is a new scenario
+// referencing the version the user started editing; existing runs keep their original version and settings.
+async function editFlow(baseURL, scenarioKey) {
+  console.log("Browser smoke: scenario editing, version conflicts and branches");
+  beginBrowserFlow("edit");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const author = "Browser editor", name = "Editable browser scenario";
+  const created = await importInWorkbench(baseURL, scenarioKey, { author, name, inventory: "product,available_pieces\nED-SKU,100\n", orders: [
+    "ED-1,ED-L1,2026-10-01,Cust A,ED-A,Stop A,35.10,-90.00,ED-SKU,10,25.00,1.00,1",
+    "ED-2,ED-L2,2026-10-01,Cust B,ED-B,Stop B,35.20,-90.10,ED-SKU,6,25.00,1.00,1",
+  ] });
+  const scenarioId = created.id, v1 = created.versionId;
+  const version = (id, versionId) => fetchOkJson(baseURL, `/api/v1/scenarios/${id}${versionId ? `?version=${encodeURIComponent(versionId)}` : ""}`, scenarioKey);
+  const named = async () => (await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey)).scenarios.filter((s) => s.name === name);
+
+  // A run of version 1, started in the browser.
+  const runId = runFromWorkbench(2);
+  const run = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey), (body) => ["succeeded", "failed"].includes(body?.status), "Version 1 run");
+  checkRun(run, "version 1");
+
+  // Edit a value and save: a new immutable version whose parent is version 1.
+  openSavedScenario(baseURL, scenarioKey, author, `${name} · v1`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  fillLabel("Pieces ED-L1", "7");
+  browser("press", "Enter");
+  browser("wait", "--text", "Unsaved changes", "--timeout", "10000");
+  clickButton("Save version");
+  browser("wait", "--text", "Version saved.", "--timeout", "20000");
+  const v2 = await version(scenarioId);
+  expect(v2.revision === 2 && v2.parentVersionId === v1 && v2.author === author && piecesOf(v2.document, "ED-L1") === 7, `Saved edit should be version 2 of version 1 with 7 pieces: ${JSON.stringify({ revision: v2.revision, parent: v2.parentVersionId, pieces: piecesOf(v2.document, "ED-L1") })}`);
+  const original = await version(scenarioId, v1);
+  expect(original.revision === 1 && piecesOf(original.document, "ED-L1") === 10, "Version 1 must stay unchanged after an edit.");
+  expect((await fetchOkJson(baseURL, "/api/v1/runs", scenarioKey)).runs.find((r) => r.id === runId)?.versionId === v1, "The existing run must still reference version 1.");
+  const rerun = await fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey);
+  expect(stable(rerun.settings) === stable(run.settings) && rerun.settings.solver_time_limit_s === 2 && rerun.settings.k === 1, "The existing run's settings snapshot changed.");
+  const record = await fetchOkJson(baseURL, `/api/v1/runs/${runId}/export?format=json`, scenarioKey);
+  expect(stable(record.scenario) === stable(original.document), "The existing run's export must carry the version 1 document.");
+
+  // Round 1: another editor saves from version 2 while the browser has unsaved edits; branch the browser's edits.
+  fillLabel("Pieces ED-L1", "8");
+  browser("press", "Enter");
+  browser("wait", "--text", "Unsaved changes", "--timeout", "10000");
+  const v3 = await saveAsOtherEditor(baseURL, scenarioKey, scenarioId, v2, (doc) => { doc.inventory.find((i) => i.product_id === "ED-SKU").available_pieces = 90 });
+  clickButton("Save version");
+  expectConflictChoices("branch round");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  clickButton(CONFLICT_ACTIONS[0]);
+  browser("wait", "--text", "Branch saved.", "--timeout", "20000");
+  const branchRow = (await named()).find((s) => s.id !== scenarioId);
+  expect(branchRow && branchRow.branchedFrom === v2.id && branchRow.revision === 1, `Branching should create a new scenario whose parent is version 2: ${JSON.stringify(branchRow)}`);
+  const branch = await version(branchRow.id);
+  expect(branch.parentVersionId === v2.id && piecesOf(branch.document, "ED-L1") === 8 && stockOf(branch.document, "ED-SKU") === 100, "The branch should hold the browser's edit on top of version 2, without the other editor's change.");
+  const afterBranch = await version(scenarioId);
+  expect(afterBranch.id === v3 && afterBranch.revision === 3 && stockOf(afterBranch.document, "ED-SKU") === 90 && piecesOf(afterBranch.document, "ED-L1") === 7, "The original scenario should keep the other editor's version 3 untouched.");
+  browser("wait", "--text", `parent ${v2.id.slice(0, 8)}`, "--timeout", "10000");
+  expect(String(parsedText()).includes("Version 1 · Browser editor · Saved"), "The workbench should show the saved branch.");
+
+  // Round 2: another conflict on the original scenario; discard the browser's edits and reload the latest version.
+  openSavedScenario(baseURL, scenarioKey, author, `${name} · v3`);
+  fillLabel("Pieces ED-L1", "9");
+  browser("press", "Enter");
+  browser("wait", "--text", "Unsaved changes", "--timeout", "10000");
+  const v4 = await saveAsOtherEditor(baseURL, scenarioKey, scenarioId, afterBranch, (doc) => { doc.orders.flatMap((o) => o.lines).find((l) => l.id === "ED-L2").ordered_pieces = 4 });
+  clickButton("Save version");
+  expectConflictChoices("discard round");
+  clickButton(CONFLICT_ACTIONS[1]);
+  browser("wait", "--text", "Version 4 · Other editor · Saved", "--timeout", "20000");
+  const reloaded = String(parsedText());
+  expect(!reloaded.includes("Unsaved changes") && !reloaded.includes("Another version was saved."), "Discard should leave no unsaved edits or conflict.");
+  const cell = (label) => evalValue(`document.querySelector('input[aria-label=${JSON.stringify(label)}]')?.value ?? ''`);
+  expect(String(cell("Pieces ED-L1")) === "7" && String(cell("Pieces ED-L2")) === "4", `Reload should show version 4 (7 and 4 pieces); shows ${cell("Pieces ED-L1")} and ${cell("Pieces ED-L2")}.`);
+  const latest = await version(scenarioId);
+  expect(latest.id === v4 && latest.revision === 4 && piecesOf(latest.document, "ED-L1") === 7, "Discarding must not save anything.");
+  expect((await named()).length === 2, "Discarding must not create another branch.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("scenario editing");
+  console.log(`  passed: v1 -> v2 edit, run kept v1, conflict offered branch/discard, branch ${branchRow.id.slice(0, 8)} of v2, discard reloaded v4`);
 }
 
 async function experimentFlow(baseURL, runKey) {
@@ -819,7 +1066,7 @@ async function manualPlanFlow(baseURL, runKey) {
   // Access: anyone may read the public example run's plan context; evaluating needs the run key here.
   const context = await fetchJson(baseURL, `/api/v1/runs/${runId}/evaluate?cluster=C1`);
   expect(context.response.status === 200 && context.body.visits.length === 10 && context.body.reference_routes.length === 3, "Plan context for a public example run is wrong.");
-  const keyless = await fetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cluster_id: "C1", routes: context.body.reference_routes }) });
+  const keyless = await localFetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cluster_id: "C1", routes: context.body.reference_routes }) });
   expect(keyless.status === 403, `Keyless evaluation should be refused, got ${keyless.status}.`);
 
   // The run page's Manual plan tab, from the keyboard.
@@ -915,6 +1162,8 @@ try {
     if (flow === "lessons") await lessonsFlow(baseURL, runKey);
     if (flow === "time-windows") await timeWindowsFlow(baseURL, scenarioKey);
     if (flow === "manual-plan") await manualPlanFlow(baseURL, runKey);
+    if (flow === "cancel") await cancelFlow(baseURL, scenarioKey);
+    if (flow === "edit") await editFlow(baseURL, scenarioKey);
   }
   await stop();
 } catch (error) {
