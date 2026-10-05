@@ -2,6 +2,10 @@
 
 Append-only. Each entry: date, decision, reason, session tool.
 
+## 2026-10-05: Defer the M2 OpenPencil design-file follow-up (Codex)
+**Decision:** The owner does not want to work on OpenPencil or `fillrate.fig` for now. Defer the coss Components page and additional Foundations tokens until the owner chooses to resume; this follow-up is not an M2 completion gate. M2 is complete for the already accepted and implemented scope.
+**Reason:** The remaining design-file work should not hold the progress page or subsequent product work at 95% while the owner is intentionally deferring it. No design-file changes or OpenPencil review are claimed.
+
 ## 2026-09-29: Split milestone 1; frontend foundation first (Claude Code)
 **Decision:** Before the rest of M1 (DB, Python, worker, CI, Docker), set up only the monorepo skeleton and `apps/web` (Next.js, Tailwind, shadcn, mapcn), plus a dev-only `/dev/components` gallery.
 **Reason:** The OpenPencil design system (`pyvrp-lab.fig`: Foundations, Components, Blocks) should be designed against the real shadcn/mapcn components. The design work needs no backend. This follows the spec's M1 → M2 (design accepted before M3) ordering. The remaining M1 items are unchanged.

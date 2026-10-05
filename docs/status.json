@@ -11,9 +11,9 @@
     },
     "M2": {
       "weight": 10,
-      "done": 95,
-      "state": "waiting",
-      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
+      "done": 100,
+      "state": "done",
+      "notes": "Complete for the accepted scope: round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01); applied ★ = Best trade-off, far-via-stop warning, oversize-stop split default, and no cost rates. The owner deferred the optional fillrate.fig/OpenPencil follow-up (2026-10-05); it does not block M2."
     },
     "M3": {
       "weight": 20,
@@ -56,7 +56,6 @@
     "M6: resume draft #42 (time windows + service durations adapter, validator fixtures, timeline wait/service states), then a time-windows lesson.",
     "M6: pinned Valhalla Compose deployment evidence needs owner hardware; route geometry follows verification.",
     "M7: Haversine vs recorded road-matrix lesson; road geometry after a verified Valhalla deployment; explorer replay.",
-    "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff.",
-    "M2: fillrate.fig Components/Foundations with local OpenPencil when available."
+    "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff."
   ]
 }
