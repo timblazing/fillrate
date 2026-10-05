@@ -1,60 +1,49 @@
 "use client"
 
-import { Activity, GraduationCap, Play, Shapes } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 
 import { AccountButton } from "@/components/account/account-button"
 import { AppIcon } from "@/components/brand/app-icon"
-import { ThemeToggle } from "@/components/theme/theme-toggle"
-import { cn } from "@/lib/utils"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const links = [
-  { href: "/dev", label: "Progress", icon: Activity },
-  { href: "/runs", label: "Runs", icon: Play },
-  { href: "/learn", label: "Lessons", icon: GraduationCap },
-  { href: "/dev/components", label: "Design system", icon: Shapes },
+  { href: "/dev", label: "Progress" },
+  { href: "/runs", label: "Runs" },
+  { href: "/learn", label: "Lessons" },
+  { href: "/dev/components", label: "Design system" },
 ] as const
 
-// Shared sticky header for the /dev and /runs pages. `children` go on the right, before the theme toggle.
+// Shared sticky header for the /dev and /runs pages.
 export function DevHeader({ children }: { children?: ReactNode }) {
   const pathname = usePathname()
 
   return (
-    <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur-md sm:px-6">
+    <header className="bg-background/80 sticky top-0 z-30 grid h-14 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b px-4 backdrop-blur-md sm:px-6">
       <Link href="/" aria-label="Fillrate home" className="flex items-center gap-2.5 rounded-md">
         <AppIcon />
         <span className="sr-only font-semibold tracking-tight sm:not-sr-only">Fillrate</span>
       </Link>
-      <nav aria-label="Development" className="flex items-center gap-0.5">
-        {links.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href
-          const className = cn(
-            "flex h-8 items-center gap-1.5 rounded-md px-2 text-sm transition-colors duration-150 sm:px-2.5",
-            active ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
-          )
-          const content = (
-            <>
-              <Icon className="size-4 shrink-0" aria-hidden />
-              <span className="sr-only md:not-sr-only">{label}</span>
-            </>
-          )
-          // The current page is not a link.
-          return active ? (
-            <span key={href} aria-current="page" className={className}>
-              {content}
-            </span>
-          ) : (
-            <Link key={href} href={href} className={className}>
-              {content}
-            </Link>
-          )
-        })}
+      <nav aria-label="Development" className="absolute left-1/2 max-w-[calc(100%-7rem)] -translate-x-1/2 overflow-x-auto overflow-y-hidden">
+        <Tabs value={links.find(({ href }) => pathname === href || (href !== "/dev" && pathname.startsWith(`${href}/`)))?.href} className="gap-0">
+          <TabsList variant="line" className="gap-x-0.5 py-0 sm:gap-x-1">
+            {links.map(({ href, label }) => (
+              <TabsTrigger
+                key={href}
+                value={href}
+                render={<Link href={href} />}
+                nativeButton={false}
+                className="px-2 py-2 text-xs sm:px-3 sm:text-sm"
+              >
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </nav>
-      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+      <div className="col-start-3 ml-auto flex items-center gap-2 sm:gap-3">
         {children}
-        <ThemeToggle />
         <AccountButton />
       </div>
     </header>
