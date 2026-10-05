@@ -53,9 +53,10 @@
     }
   },
   "nextUp": [
-    "M6: durable Valhalla snapshot job (fixtures) and pinned Compose deployment evidence (owner hardware); then route geometry.",
-    "M6: first capability-gated routing adapter (time windows + service durations, or heterogeneous fleet) with independent validator fixtures, unlocking matching lessons and timeline service/wait states.",
-    "M7: browser assertions for the timeline and new lessons; GeoJSON route export and road-matrix export; Haversine vs recorded road-matrix lesson.",
+    "Review/merge #39 (GeoJSON + matrix export) and #40 (timeline + lesson browser acceptance); then update the M7 estimate.",
+    "M6: verify and finish draft #41 (durable Valhalla snapshot job, fixtures only); pinned Compose deployment evidence needs owner hardware.",
+    "M6: finish draft #42 (time windows + service durations adapter, validator fixtures, timeline wait/service states), then a time-windows lesson.",
+    "M7: Haversine vs recorded road-matrix lesson; road geometry after a verified Valhalla deployment.",
     "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil when available."
   ]
