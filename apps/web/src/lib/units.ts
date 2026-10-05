@@ -53,3 +53,17 @@ export function plural(n: number, noun: string, pluralNoun = `${noun}s`) {
 export function cssPercent(ratio: number) {
   return `${(Math.max(0, ratio) * 100).toFixed(2)}%`
 }
+
+type TravelBasisInput = { mode: "estimated" | "snapshot"; provider: string; dataset_revision: string } | null | undefined
+
+/**
+ * How a run measured its miles (spec §7, §10). Estimated miles (haversine × circuity) and miles from a recorded
+ * directed matrix are different measurement systems and are labeled so they are never read as interchangeable.
+ */
+export function travelBasis(travel: TravelBasisInput, circuity: number) {
+  if (travel?.mode === "snapshot") {
+    const source = travel.provider === "valhalla" ? "Valhalla road matrix" : "recorded matrix"
+    return { step: "Recorded", unit: "matrix miles", note: `From the ${source} (${travel.dataset_revision}), open routes`, sentence: `Miles come from the ${source} (${travel.dataset_revision}), not from straight lines.` }
+  }
+  return { step: `× ${circuity}`, unit: "haversine miles", note: `Estimated: haversine × ${circuity}, open routes`, sentence: `Miles are estimated (haversine × ${circuity}), not road miles.` }
+}

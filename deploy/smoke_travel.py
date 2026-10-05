@@ -118,5 +118,33 @@ bundle = zipfile.ZipFile(io.BytesIO(call(f"/api/v1/runs/{run['id']}/export?forma
 shipped = json.loads(bundle.read("travel-snapshot.json"))
 assert shipped["distances"] == DISTANCES and "replay.py" in bundle.namelist()
 
+
+def finished(run_id):
+    for _ in range(150):
+        result = call(f"/api/v1/runs/{run_id}")
+        if result["status"] == "succeeded":
+            return result
+        if result["status"] in ("failed", "cancelled", "interrupted"):
+            sys.exit(f"run {run_id} ended {result['status']}: {result.get('failure')}")
+        time.sleep(2)
+    sys.exit(f"run {run_id} did not finish")
+
+
+# The road matrix lesson: a public example run binds the bundled synthetic recorded matrix, which the server
+# seeds for the examples owner. It stays out of this account's snapshot list but ships with the run's exports.
+lesson = finished(call("/api/v1/runs", {"example": "matrix_recorded"}, idempotent=True, expect=201)["id"])
+road = lesson["summary"]
+lesson_snapshot = lesson["settings"]["travel_snapshot_id"]
+assert road["travel"]["mode"] == "snapshot" and road["travel"]["snapshot_id"] == lesson_snapshot, road["travel"]
+assert [(u["location_id"], u["reason"]) for u in road["unplanned"]] == [("RM-07", "unreachable")]
+assert road["totals"]["trucks"] == 1 and road["coverage"] == "partial", road["totals"]
+assert lesson_snapshot not in {s["id"] for s in call("/api/v1/travel-snapshots")["snapshots"]}
+call(f"/api/v1/travel-snapshots/{lesson_snapshot}", expect=404)
+matrix = call(f"/api/v1/runs/{lesson['id']}/export?format=matrix&as=json")
+assert matrix["snapshot_id"] == lesson_snapshot and matrix["snapshot"]["options"]["synthetic"] is True
+bundle = zipfile.ZipFile(io.BytesIO(call(f"/api/v1/runs/{lesson['id']}/export?format=python", raw=True)))
+assert json.loads(bundle.read("expected.json"))["travel"]["snapshot_id"] == lesson_snapshot
+
 print(f"travel smoke ok: run {run['id']} routed depot → A → B → C over {snapshot_id[:8]} "
-      f"({summary['totals']['loaded_distance_m']} m), stale edit refused, snapshot in the bundle")
+      f"({summary['totals']['loaded_distance_m']} m), stale edit refused, snapshot in the bundle; "
+      f"road matrix lesson run {lesson['id'][:8]} left RM-07 unreachable on {lesson_snapshot[:8]}")

@@ -1,4 +1,5 @@
 import { join } from "node:path"
+import { EXAMPLES_OWNER } from "@fillrate/db"
 import { replayBundle } from "@fillrate/db/replay"
 import { MAX_EXPORT_NODES, runMatrixJson, snapshotCsv } from "@fillrate/db/travel-export"
 
@@ -22,7 +23,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
     const store = initializeDatabase()
     const who = await principal(request)
     if (who.kind === "pending") throw accessError(who)
-    assertRunRead(store, who, id)
+    const view = assertRunRead(store, who, id)
     const name = `fillrate-run-${id.slice(0, 8)}`
     if (format === "json") {
       return new Response(JSON.stringify(exportJson(store, id), null, 1), {
@@ -51,7 +52,10 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
       if (as !== "csv" && as !== "json") throw new ApiError(400, "invalid_format", "as must be csv or json.", ["as"])
       const snapshotId = summary.travel?.mode === "snapshot" ? summary.travel.snapshot_id : null
       if (!snapshotId) throw new ApiError(409, "matrix_not_recorded", "This run used estimated travel (straight line × circuity). No matrix was recorded, so there is nothing to export; rerun with a travel snapshot to get one.")
-      const info = who.ownerId ? store.travelSnapshotInfo(snapshotId, who.ownerId) : null
+      // A bundled example's recorded snapshot is public synthetic data, readable with its public run; any other
+      // snapshot needs its owner.
+      const exampleRun = store.versionOwner(view.versionId) === EXAMPLES_OWNER
+      const info = (who.ownerId ? store.travelSnapshotInfo(snapshotId, who.ownerId) : null) ?? (exampleRun ? store.travelSnapshotInfo(snapshotId, EXAMPLES_OWNER) : null)
       if (!info) throw new ApiError(404, "travel_snapshot_not_found", "The travel snapshot this run used is not available to you.")
       if (info.nodeCount > MAX_EXPORT_NODES) throw new ApiError(413, "matrix_too_large", `This matrix has ${info.nodeCount} nodes; run matrix exports are limited to ${MAX_EXPORT_NODES}.`)
       const snapshot = store.travelSnapshot(snapshotId)
