@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   }
 }
 
-// Creates a run of a bundled synthetic scenario (`example`: "m1" default, "lesson", "allocation", "capacity" or "seeds"). Settings: k, kmeans_seed, solver_seed, inventory_percent, allocation_strategy, fulfillment_policy. Requires an Idempotency-Key header.
+// Creates a run of a bundled synthetic scenario (`example`: "m1" default, "lesson", "allocation", "capacity", "seeds", "windows" or "windows_off"). Settings: k, kmeans_seed, solver_seed, inventory_percent, allocation_strategy, fulfillment_policy. Requires an Idempotency-Key header.
 export async function POST(request: Request) {
   try {
     const who = await principal(request)
