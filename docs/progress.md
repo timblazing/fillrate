@@ -1,5 +1,9 @@
 # Progress
 
+## 2026-10-05: M2 design file deferred by owner (Codex)
+- The owner does not want to work on `fillrate.fig` or OpenPencil for now. Defer the coss Components page and additional Foundations tokens until the owner chooses to resume that work; they no longer block M2 completion.
+- Round-two review acceptance, implementation, and recorded verification are complete. M2 is now complete for the accepted scope. The design file remains a future optional follow-up, not an outstanding milestone gate.
+
 ## 2026-10-05: M6/M7 batch integration handoff (Codex)
 - PR #37 (matrix browser acceptance, route timeline, capacity and seed lessons) was squash-merged as `88f37e5`.
 - PR #39 (GeoJSON route export and travel matrix downloads) was squash-merged as `a555470`; its CI passed on the PR and merged `main`.
@@ -53,7 +57,7 @@
 - Protected CSV acceptance covers preview/save/preflight, persisted valid complete execution, browser reload, and downloaded JSON exactly matching the saved scenario. The fixture ships ten pieces worth $250 on one shipment. Keyless scenario listing, run reads and export reads are denied. The allocation experiment previews exactly two k combinations (2 and 3), completes both valid plans, checks one comparable cohort and renders Best option ($65,291, 14 shipments). Existing public lesson/result/export coverage remains (443 shipments, $2,242,946 planned revenue in this run).
 - Desktop 1440×900 and iPhone 16 393×852 bounds checks pass for the workbench, sweep builder and result/comparison screens, with no page-level horizontal overflow or console/page errors. These are local operator/synthetic browser tests, not live OAuth or deployed-site two-account evidence.
 - GPT-6-Luna with medium reasoning implemented the runner and new flows. Parent review tightened export filename/run identity, exact scenario equality and fixture totals, diagnostic parsing, test-key redaction and exact comparable sweep membership. Parent verification: frozen dependency install, lint (existing vendored `globe.tsx` warning), typecheck, production build, 116 Vitest tests, 82 hosted/local production checks, all three browser flows and actionlint passed. No application/solver code, deployed image or production data changed. The reviewed changes remain uncommitted for owner review; Linux CI/image publication has not been run for this diff.
-- Next product increment: M6 imported-matrix browser preview/upload/selection and inspector. Native Bun/npm distribution and handoff, broader cancellation/edit/branch browser coverage, the optional access/admin phone review, and the M2 design file remain open. M8 is estimated at 60%; product behavior stays at 58% because this increment verifies existing behavior.
+- Next product increment: M6 imported-matrix browser preview/upload/selection and inspector. Native Bun/npm distribution and handoff, broader cancellation/edit/branch browser coverage, and the optional access/admin phone review remain open. The M2 design-file follow-up is deferred and does not block progress. M8 is estimated at 60%; product behavior stays at 58% because this increment verifies existing behavior.
 
 ## 2026-10-02: Request-only access gate, hosted release and on-server backups (Codex)
 - Migration 0009 adds constrained access requests, a status/date index, an admin-action audit log and approval backfill for earlier users. Hosted startup now requires the numeric admin GitHub ID and validates `SIGNUP_MODE`; request mode is the default. Pending, denied and revoked sessions lose owner access on their next request without re-login or quota use. A pending account cannot borrow an operator key. New `/request-access` and `/admin` pages and APIs cover notes, admin decisions, revocation cancellation, restore, and account deletion.
@@ -87,7 +91,7 @@
   - [x] Single image with web + optimizer + worker (tini, `deploy/entrypoint.sh`), `HEALTHCHECK`, `deploy/smoke.sh`; arm64 image built and smoke-tested locally once (2026-09-30)
   - [x] `ci.yml` (lint, typecheck, Vitest incl. Python worker e2e, pytest, Ruff, contract drift, build) and `image.yml` (after CI on `main`, tags, manual; native amd64 + arm64 runners, smoke before push, multi-arch manifest from tested digests)
   - [x] First green `ci.yml` (run 36776415077) and `image.yml` (run 36776618684): amd64 and arm64 each built natively and passed the smoke run; `latest` and `sha-953cb1c` published as a multi-arch manifest
-- [ ] **M2 Accepted design** (spec v1.9 §15 "M2 scope"; round two accepted 2026-10-01; only `fillrate.fig` remains)
+- [x] **M2 Accepted design** (round two accepted 2026-10-01; design-file follow-up deferred by owner 2026-10-05)
   - [x] Round-one answers recorded (`docs/reviews/fillrate-design-review-2026-09-30.json`, spec v1.8, `docs/decisions.md`)
   - [x] Wording in one copy module (`src/lib/copy.ts`): Cluster / Shipment / Unshipped; internal names unchanged; CSV exports carry a header note
   - [x] Map first on `/runs/<id>`, the Results Block and the Workbench
@@ -107,7 +111,7 @@
   - [x] Round-two review run at `/dev/review` with new `r2.*` question ids, then removed (2026-10-01)
   - [x] Round-two answers recorded (`docs/reviews/fillrate-design-review-2026-10-01.json`, spec v1.9): every Block, `/runs/<id>` and the shipment sheet accepted; ★ = "Best trade-off"; 90% full confirmed; flow strip kept; no cost rates
   - [x] Round-two policy applied: a far stop reachable through another stop only warns (`far_via_stop`, Python and TS preflight); a stop larger than one trailer splits by default (`oversize_stop: warn`)
-  - [ ] `fillrate.fig`: Components page on coss parts; Foundations gains `--chart-*`, `--info/--success/--warning(-foreground)`, `--destructive-foreground`, fill bands (OpenPencil app was not running this session)
+  - [x] `fillrate.fig` follow-up explicitly deferred by owner (2026-10-05); it is not part of M2 completion. No OpenPencil or design-file work was performed.
 - [x] **M3 Operational core** (done 2026-10-01)
   - [x] CSV preview/commit, scenario editing and versioning, real imported runs and exports
   - [x] Cost objective, customer-aware stops, blocking preflight, durable cluster checkpoints and deterministic stage reuse
@@ -201,7 +205,7 @@ Communication pass (2026-09-30, from the premium-planner research): new `PlanFlo
 
 Lab components (`src/components/lab`): new `ClusterCard`/`LimitBar`/`TruckFillStrip`, `TrailerFill`/`FillMeter`/`FillPercent`, `TruckLoad`, `UnshippedLines`, `PipelineStages`, `RunMetricGroups`, `IterationTable`, `StockTable`, `LineStateBadge`, `StopPointsLayer`/`FitBounds` (map), `ClusterSwatch`/`ClusterLegend`/`TruckTag`; `DataTable` gained pagination; `CoordinateSourceBadge` gained `unresolved`; status colors moved to the coss `--info/--success/--warning/--destructive-foreground` tokens. Shared units/formatting in `src/lib/units.ts`, provisional pipeline types in `src/lib/fulfillment.ts` (to be replaced by generated contracts).
 
-**M2 round two is accepted (2026-10-01).** The primary user accepted every revised Block, `/runs/<id>` and the shipment sheet; the only open M2 item is `fillrate.fig` (item 16, needs the OpenPencil app). Round two also changed two policies (spec v1.9): far stops reachable through another stop warn (`far_via_stop`), and oversize stops split by default. Verification: pytest 82 passed, Vitest 43 passed, Ruff, lint, typecheck pass. **Earlier (2026-09-30):** Spec v1.8 §15 "M2 scope" items 1–15 and 17 are built (checklist above). Exit evidence still missing: round-two answers with explicit acceptance, and item 16 (`fillrate.fig` Components on coss, missing Foundations tokens), which needs the OpenPencil desktop app. Verification: optimizer pytest 54 passed (new: diameter off by default, preflight block/warn, `excluded_by_user` reconciliation, unknown exclusions rejected); Vitest 24 passed (new: shipment sheets agree with validated trucks, a blocking preflight fails permanently on attempt 1, review store upsert/delete); Ruff, lint (one pre-existing `globe.tsx` warning), typecheck, contract regeneration and build pass. A dev run of the example (k = 4) gave 19 shipments, valid, partial coverage, all three checks recorded as warnings.
+**M2 round two was accepted (2026-10-01), and M2 is complete for the accepted scope (2026-10-05).** The primary user accepted every revised Block, `/runs/<id>` and the shipment sheet. The user deferred the optional `fillrate.fig` Components/Foundations follow-up; it no longer blocks M2. Round two also changed two policies (spec v1.9): far stops reachable through another stop warn (`far_via_stop`), and oversize stops split by default. Verification: pytest 82 passed, Vitest 43 passed, Ruff, lint, typecheck pass. **Earlier (2026-09-30):** Spec v1.8 §15 "M2 scope" items 1–15 and 17 are built (checklist above). Verification: optimizer pytest 54 passed (new: diameter off by default, preflight block/warn, `excluded_by_user` reconciliation, unknown exclusions rejected); Vitest 24 passed (new: shipment sheets agree with validated trucks, a blocking preflight fails permanently on attempt 1, review store upsert/delete); Ruff, lint (one pre-existing `globe.tsx` warning), typecheck, contract regeneration and build pass. A dev run of the example (k = 4) gave 19 shipments, valid, partial coverage, all three checks recorded as warnings.
 
 **M3 is complete (2026-10-01).** `/scenarios` imports order and inventory CSVs (column mapping, row errors, samples, templates), saves immutable versions with authorship, optimistic conflicts and branches, edits lines/stock/coordinates, reviews preflight checks (block, exclude lines, or warn) and starts real worker runs with the full settings, including the cost objective. Runs reuse deterministic stages and checkpoint each cluster. Imported data needs `SCENARIO_KEY` in production. Evidence and benchmarks are under "M3 done" below.
 
@@ -285,7 +289,7 @@ Imported CSV completed preview → immutable save → real worker → validated 
 - In hosted mode the operator key (`SCENARIO_KEY`) reaches only the operator dataset; signed-in accounts never see it. A hosted sweep is capped at 10 runs by default because the global queue is 10.
 - Better Auth uses its in-memory limiter for auth routes (per process); application quotas are in SQLite.
 - Vitest persistence/contract tests and optimizer pytest exist. The production agent-browser smoke covers a public synthetic lesson/export, protected CSV import/result/export and a bounded ranked experiment; live OAuth, deployment and target-hardware/recovery evidence remain outside its scope.
-- The OpenPencil Components page still mirrors shadcn components; it needs redoing against coss ui (M2 item 16; needs the OpenPencil app open).
+- The optional `fillrate.fig` Components/Foundations follow-up is deferred by the owner and is not an M2 blocker.
 - `components/ui/chart.tsx` and `resizable.tsx` are still shadcn (coss has no equivalent).
 
 ## Waiting on the primary user (come back to this)
@@ -293,13 +297,13 @@ Round two is answered (2026-10-01). Still open from him:
 - Example order and inventory rows (fake values) and "what should we fix first" (unanswered in both rounds).
 - Cost per truck and per mile, only if he ever wants the "Lowest cost" objective (he answered N/A).
 
-Owner: open `fillrate.fig` in the OpenPencil app so the Components page can be rebuilt on coss parts and the missing Foundations tokens added (M2 item 16, the last M2 item).
+Owner: no M2 action is waiting on the owner. The `fillrate.fig` Components/Foundations follow-up is deferred until the owner chooses to resume it.
 
 ## Next step
 The hosted release is accepted and the three local browser acceptance flows pass. Use the remaining work and dependencies below:
 1. M6: expose imported-matrix preview/upload/selection and the matrix inspector using the existing immutable snapshot and worker APIs. Keep live Valhalla and advanced features capability-gated.
 2. M8: prove account-free native Bun/npm distribution, extend cancellation/edit/branch browser coverage, and finish the reproducible handoff.
-3. M2: finish the OpenPencil design file when the app is available. M7 lessons can proceed only for already-supported behavior; geometry/playback waits for M6.
+3. Continue M7 lessons for already-supported behavior; geometry/playback waits for M6. The optional M2 design-file follow-up is deferred.
 
 ## 2026-10-01: Hosted/local release scope and execution workflow
 
@@ -315,8 +319,8 @@ The restricted build environment's Geist download failure is avoided by bundling
 
 These local increments retain the remaining specification scope and acceptance criteria. Completed engine work stays complete; planned features and release checks below do not count as completion evidence.
 
-### M2 — Design file
-- Finish `fillrate.fig` Components with current coss part names/compositions and Foundations with light/dark chart, status, destructive and fill-band tokens. Export and compare with the implemented gallery and `globals.css`. Requires local OpenPencil.
+### M2 — Design file follow-up (deferred)
+- The owner deferred changes to `fillrate.fig` and OpenPencil on 2026-10-05. Revisit only if the owner later chooses to resume the coss Components and Foundations token work; it does not block M2.
 
 ### M4 — Hosted release
 M4 is complete for the owner-accepted release scope (see the dated deployment and acceptance record above and `docs/hosted-operations.md`). The VPS runs hosted/request mode with migration 0009, the owner is signed in as the configured admin, target hardware and recovery checks passed, and the on-server backup policy is active. The owner waived a second live account check; local automated tests cover cross-user isolation.
