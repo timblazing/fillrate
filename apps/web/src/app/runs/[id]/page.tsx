@@ -39,7 +39,7 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
     const view = assertRunRead(store, who, id)
     cancellable = canCancel(who, view.ownerId) || (view.ownerId === "public" && typeof key === "string")
     detail = runDetail(store, id)
-    rerun = detail.kind === "pipeline" && detail.status === "succeeded" ? warmRerun(store, who, view.versionId, detail.settings, key) : null
+    rerun = detail.kind === "pipeline" ? warmRerun(store, who, view.versionId, detail.settings, key) : null
   } catch (error) {
     // Another owner's runs read as missing, so their existence is not revealed.
     if (error instanceof ApiError && [403, 404].includes(error.status)) notFound()

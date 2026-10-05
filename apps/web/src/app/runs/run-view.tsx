@@ -105,7 +105,7 @@ export function RunView({ initial, canCancel, runKey, rerun }: { initial: Pipeli
           Attempt {run.attempt} of {run.max_attempts} · {run.settings.cluster_strategy === "kmeans" ? `k ${run.settings.k ?? "auto"}` : run.settings.cluster_strategy === "h3" ? `H3 r${run.settings.h3_resolution}` : "no clustering"} · solver seed {run.settings.solver_seed}
           {run.settings.inventory_percent !== 100 && ` · inventory ${run.settings.inventory_percent}%`}
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {active && canCancel && !run.cancel_requested && (
             <Button variant="destructive-outline" size="sm" onClick={cancel} loading={cancelling}>
               <Ban aria-hidden /> Cancel

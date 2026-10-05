@@ -590,6 +590,7 @@ async function warmStartFlow(baseURL, runKey) {
   const text = String(parsedText());
   expect(text.includes(`${warm.used} of ${warm.used} solved`) && (text.match(/\bUsed\b/g) ?? []).length >= outcomes.length, "Run page does not show the per-cluster warm-start outcome.");
   expect(text.includes(`warm-started from run ${source.id.slice(0, 8)}`) || text.includes(source.id.slice(0, 8)), "Run page does not link the warm-start source.");
+  expect(text.includes("Re-run warm-started"), "A run that finished while its page was open should offer the warm rerun.");
   assertViewport(1440, 900);
   assertViewport(393, 852);
   checkBrowserDiagnostics("warm start");
