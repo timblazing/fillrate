@@ -46,13 +46,13 @@ export function AppShell({ admin, children }: { admin: boolean; children: ReactN
     </Tooltip>
   )
   return (
-    <div className="flex min-h-dvh">
-      <nav className="bg-sidebar sticky top-0 flex h-dvh w-12 shrink-0 flex-col items-center gap-1 border-r py-3" aria-label="App">
-        <Link href="/" aria-label="Fillrate home" className="bg-foreground text-background mb-3 flex size-7 items-center justify-center rounded-lg">
+    <div className="flex min-h-dvh flex-col sm:flex-row">
+      <nav className="bg-sidebar flex h-12 shrink-0 items-center gap-1 overflow-x-auto border-b px-3 sm:sticky sm:top-0 sm:h-dvh sm:w-12 sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:px-0 sm:py-3" aria-label="App">
+        <Link href="/" aria-label="Fillrate home" className="bg-foreground text-background mr-2 flex size-7 shrink-0 sm:mr-0 sm:mb-3 items-center justify-center rounded-lg">
           <Truck className="size-4" />
         </Link>
         {items.filter(({ href }) => !footer.some((f) => f.href === href) && href !== "/admin").map(link)}
-        <div className="mt-auto flex flex-col items-center gap-1">{items.filter(({ href }) => footer.some((f) => f.href === href) || href === "/admin").map(link)}</div>
+        <div className="ml-auto flex items-center gap-1 sm:mt-auto sm:ml-0 sm:flex-col">{items.filter(({ href }) => footer.some((f) => f.href === href) || href === "/admin").map(link)}</div>
       </nav>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="bg-background/80 sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4 backdrop-blur-md">
