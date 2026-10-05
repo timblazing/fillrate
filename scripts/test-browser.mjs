@@ -233,7 +233,7 @@ async function checkTimeline(detail, label, { timing }) {
   expect(active() === 0, `${label}: Next stop should activate the first stop (active row ${active()}).`);
   const afterNext = String(parsedText());
   expect(/At stop 1, .+: service time not modeled \(0 s\), .+ on board after delivery/.test(afterNext), `${label}: stop status did not describe the first arrival.`);
-  expect(/\d+:\d\d\s+of\s+\d+:\d\d/.test(afterNext), `${label}: current time of total is not shown.`);
+  expect(/\d+:\d\d(?::\d\d)?\s+until\s+\d+:\d\d(?::\d\d)?/.test(afterNext), `${label}: current time until the route total is not shown.`);
   if (stopCount > 1) {
     browser("find", "role", "button", "click", "--name", "Next stop", "--exact");
     expect(active() === 1, `${label}: Next stop did not advance to the second stop.`);
