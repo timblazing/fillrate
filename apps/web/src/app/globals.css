@@ -271,3 +271,28 @@
     color: black !important;
   }
 }
+
+/* Landing FAQ: animate the disclosure height where the browser supports it. */
+@supports (interpolate-size: allow-keywords) {
+  .faq-item {
+    interpolate-size: allow-keywords;
+  }
+
+  .faq-item::details-content {
+    height: 0;
+    overflow: clip;
+    opacity: 0;
+    transition: height 250ms ease, opacity 250ms ease, content-visibility 250ms allow-discrete;
+  }
+
+  .faq-item[open]::details-content {
+    height: auto;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-item::details-content {
+    transition: none;
+  }
+}
