@@ -116,6 +116,7 @@ def child_main(
 ) -> None:
     """Runs in a separate process; reports progress, result, or a permanent error."""
     from .explorer import ExplorerError
+    from .lab.solve import LabError
     from .model import RunSettings, ScenarioDocument
     from .pipeline import Limits, PipelineError, run_pipeline
     from .travel_job import TravelJobError
@@ -130,6 +131,14 @@ def child_main(
     try:
         if settings.get("kind") == "explorer":
             out.put(("result", explorer_result(scenario, settings, execution_id, out)))
+            return
+        if settings.get("kind") == "lab":
+            from .lab.job import lab_job
+
+            result = lab_job(
+                scenario, settings, execution_id, lambda detail: out.put(("progress", detail))
+            )
+            out.put(("result", result))
             return
         if settings.get("kind") == "travel_snapshot":
             from .travel_job import build_snapshot
@@ -190,7 +199,7 @@ def child_main(
                 },
             )
         )
-    except (PipelineError, ExplorerError, TravelJobError) as error:
+    except (PipelineError, ExplorerError, TravelJobError, LabError) as error:
         out.put(("error", {"code": error.code, "message": str(error)}))
     except Exception as error:  # pydantic validation and anything unexpected
         out.put(("error", {"code": type(error).__name__, "message": str(error)[:2000]}))

@@ -25,6 +25,7 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
   }
   // Matrix builds have no run view; their progress and result live in the scenario matrix panel.
   if (detail.kind === "travel_snapshot") redirect("/scenarios")
+  if (detail.kind === "lab") redirect(`/labs/${id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`)
   if (detail.kind === "explorer") redirect(`/explore/${id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`)
   return (
     <div className="flex min-h-dvh flex-col">

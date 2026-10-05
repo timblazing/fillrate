@@ -156,6 +156,8 @@ export function explorerSummary(store: Store, runId: string): ExplorerSummary | 
 export function runDetail(store: Store, runId: string) {
   const view = store.runView(runId);
   if (!view) throw new ApiError(404, "run_not_found", "No run with this ID.");
+  // Lab runs have their own detail (lib/server/lab.ts, /labs/<id>); here they carry only the shared fields.
+  if (view.kind === "lab") return { ...baseDetail(view), kind: "lab" as const, explorer_settings: null, settings: null, summary: null, explorer: null };
   if (view.kind === "travel_snapshot") return { ...baseDetail(view), kind: "travel_snapshot" as const, explorer_settings: null, settings: null, summary: null, explorer: null, travel_snapshot: travelJobResult(view) };
   if (view.kind === "explorer") return { ...baseDetail(view), kind: "explorer" as const, explorer_settings: view.settings.document, settings: null, summary: null, explorer: view.status === "succeeded" ? explorerSummary(store, runId) : null };
   return { ...baseDetail(view), kind: "pipeline" as const, explorer_settings: null, settings: view.settings.document as unknown as RunSettings, summary: view.status === "succeeded" ? runSummary(store, runId) : null, explorer: null };
@@ -167,7 +169,7 @@ function travelJobResult(view: NonNullable<ReturnType<Store["runView"]>>) {
   return done?.snapshot_id ? { snapshot_id: done.snapshot_id, node_count: done.node_count ?? null, blocks: done.blocks ?? null } : null;
 }
 
-function baseDetail(view: NonNullable<ReturnType<Store["runView"]>>) {
+export function baseDetail(view: NonNullable<ReturnType<Store["runView"]>>) {
   const failure = view.events.find(e => e.kind === "failed")?.payload ?? null;
   const progress = [...view.events].reverse().find(e => e.kind === "progress")?.payload ?? null;
   return {

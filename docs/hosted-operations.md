@@ -22,6 +22,7 @@ Owner IDs are `operator`, `user:<Better Auth user id>`, `examples` (the bundled 
 
 - Scenarios, versions and branches, runs and their artifacts and exports, replay bundles, sweeps, k explorer jobs, geocoding jobs and preflight: every route resolves the caller on the server (`apps/web/src/lib/server/access.ts`) and checks the owner. Another owner's IDs answer 404, the same as missing ones.
 - The store enforces job admission. A run or sweep can only be queued on a bundled example or on the submitter's own scenario (`Store.enqueue`/`createExperiment`), whichever route calls it.
+- Solver Lab instances (`/labs`, M6) are stored as private versions of their owner and queued in the transaction that charges admission; they are never listed as scenarios. Lab runs on the bundled lab examples are public like lesson runs and use the same synthetic admission (`docs/solver-lab.md`).
 - Stage reuse is keyed by the scenario's owner, and geocoder answers are cached per owner. One account's work never shows up as another's cache hit.
 - A travel snapshot is stored once by content hash. Each owner that uploaded it holds a link, and reading or selecting it needs a link. A hash is not an access token.
 - Idempotency keys replayed by another owner are conflicts and never return the first owner's result.

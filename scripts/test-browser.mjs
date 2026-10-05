@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1104,6 +1104,74 @@ async function manualPlanFlow(baseURL, runKey) {
   console.log(`  passed: run ${runId.slice(0, 8)} 3 trucks/273 mi; order-sequence plan valid at 714 mi; east-west plan over capacity; keyboard edit overloads shipment ${to + 1}`);
 }
 
+// Solver Lab (M6): a bundled planar example runs from /labs with the run key and its persisted, validated result is
+// what the page renders and exports; then an operator edits the instance JSON in the page and runs it as their own.
+async function labsFlow(baseURL, runKey, scenarioKey) {
+  console.log("Browser smoke: Solver Lab");
+  beginBrowserFlow("labs");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const keyed = `key=${encodeURIComponent(runKey)}`;
+  open(`${baseURL}/labs?example=dimensions&${keyed}`);
+  const landing = snapshot();
+  expect(landing.includes('heading "Solver Lab"') && /(link|tab) "Labs"/.test(landing), `Solver Lab page or its header link did not load: ${landing.slice(0, 1500)}`);
+  expect(browser("read").includes("Read-only: bundled examples run unchanged"), "A keyless visitor should see the example JSON as read-only.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  clickButton("Run example");
+  browser("wait", "--url", "**/labs/**", "--timeout", "20000");
+  const runId = browser("get", "url").match(/\/labs\/([0-9a-f-]{36})/i)?.[1];
+  expect(runId, "Starting the lab example did not open its run page.");
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${runId}?${keyed}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), "Lab example run");
+  expect(detail.status === "succeeded" && detail.kind === "lab" && detail.example === "dimensions", `Lab example run did not succeed: ${JSON.stringify(detail).slice(0, 800)}`);
+  const result = detail.result;
+  // The observations services/optimizer/tests/test_lab_examples.py asserts: weight sets the truck count.
+  expect(result.validated_feasible && result.solver_feasible && result.violations.length === 0, "Lab example result is not validated feasible.");
+  expect(result.totals.routes === 3 && result.routes.every((r) => r.load.weight <= 1200) && Math.max(...result.routes.map((r) => r.utilization.volume)) < 0.6, `Unexpected lab example routes: ${JSON.stringify(result.totals)}`);
+  expect(result.proof === "heuristic" && result.objective.total === result.solver.nominal_cost, "Lab objective must be the recomputed nominal cost, labeled heuristic.");
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  const text = browser("read");
+  expect(text.includes("PyVRP: feasible") && text.includes("not proven optimal"), "Lab page does not separate solver and validated feasibility or claims optimality.");
+  expect(text.includes(result.problem_fingerprint) && text.includes(result.objective.total.toLocaleString("en-US")), "Lab page does not show the persisted fingerprint and objective.");
+  expect(text.includes("not latitude/longitude, so no map") && !text.includes("OpenStreetMap"), "Planar lab plot must be labeled abstract and drawn without a map.");
+  expect(Number(evalValue("document.querySelectorAll('svg polyline[data-route]').length")) === 3, "Lab plot should draw one path per route.");
+  expect(Number(evalValue("document.querySelectorAll('[data-testid=\"lab-routes\"] tbody tr').length")) === 3, "Route table should list three routes.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  const file = join(downloadDir, `fillrate-lab-${runId.slice(0, 8)}.json`);
+  clickLink("JSON");
+  await poll(() => existsSync(file), Boolean, "Lab JSON export", 10_000);
+  const exported = JSON.parse(readFileSync(file, "utf8"));
+  expect(exported.run.id === runId && stable(exported.result) === stable(result) && exported.instance.name === detail.instance.name, "Lab JSON export does not match the persisted run.");
+  const script = await (await localFetch(new URL(`/api/v1/lab/runs/${runId}/export?format=python&${keyed}`, baseURL), { headers: { "x-run-key": runKey }, signal: AbortSignal.timeout(8_000) })).text();
+  expect(script.includes("fillrate_optimizer.lab.replay") && script.includes(result.problem_fingerprint), "Lab Python export is missing its replay call or fingerprint.");
+
+  // Operator: edit the JSON (heavier trucks) and run it as an own instance; weight no longer binds, so 2 trucks.
+  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(scenarioKey)}; path=/; SameSite=Lax"`);
+  open(`${baseURL}/labs?example=dimensions`);
+  const edited = { ...detail.instance, name: "Browser smoke: heavier trucks", vehicle_types: detail.instance.vehicle_types.map((v) => ({ ...v, capacity: { ...v.capacity, weight: 3000 } })) };
+  fillCss("#lab-json", JSON.stringify(edited, null, 2));
+  browser("wait", "--text", "Edited", "--timeout", "10000");
+  clickButton("Run my instance");
+  browser("wait", "--url", "**/labs/**", "--timeout", "20000");
+  const ownId = browser("get", "url").match(/\/labs\/([0-9a-f-]{36})/i)?.[1];
+  expect(ownId && ownId !== runId, "Running the edited instance did not open a new run.");
+  const own = await poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${ownId}`, scenarioKey), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), "Edited lab run");
+  expect(own.status === "succeeded" && own.example === null && own.instance.name === edited.name, `Edited lab run did not succeed as an own instance: ${JSON.stringify(own).slice(0, 800)}`);
+  expect(own.result.validated_feasible && own.result.totals.routes === 2 && own.result.problem_fingerprint !== result.problem_fingerprint, `Edited instance should need 2 trucks: ${JSON.stringify(own.result?.totals)}`);
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  const denied = await fetchJson(baseURL, `/api/v1/lab/runs/${ownId}`);
+  expect(denied.response.status === 404, `A keyless read of the operator's lab run should be 404; received ${denied.response.status}.`);
+  const scenarios = await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey);
+  expect(!scenarios.scenarios.some((sc) => sc.name.includes("heavier trucks")), "A lab instance must not appear as a scenario.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  checkBrowserDiagnostics("Solver Lab");
+  console.log(`  passed: example run ${runId.slice(0, 8)} (3 routes, objective ${result.objective.total}), edited run ${ownId.slice(0, 8)} (2 routes), JSON and Python exports`);
+}
+
 async function stop() {
   if (stopping) return stopping;
   stopping = (async () => {
@@ -1164,6 +1232,7 @@ try {
     if (flow === "manual-plan") await manualPlanFlow(baseURL, runKey);
     if (flow === "cancel") await cancelFlow(baseURL, scenarioKey);
     if (flow === "edit") await editFlow(baseURL, scenarioKey);
+    if (flow === "labs") await labsFlow(baseURL, runKey, scenarioKey);
   }
   await stop();
 } catch (error) {

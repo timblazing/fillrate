@@ -23,6 +23,7 @@ const standalone = join(appDir, ".next/standalone/apps/web");
 cpSync(join(appDir, ".next/static"), join(standalone, ".next/static"), { recursive: true });
 cpSync(join(appDir, "public"), join(standalone, "public"), { recursive: true });
 const example = JSON.parse(readFileSync(join(root, "examples/m1-synthetic.json"), "utf8"));
+const labInstance = JSON.parse(readFileSync(join(root, "examples/lab-dimensions.json"), "utf8"));
 
 let failures = 0, passes = 0;
 function check(label, condition, detail = "") {
@@ -84,6 +85,8 @@ try {
     const saved = await call(b, "/api/v1/imports/commit", { method: "POST", body: importBody("Local"), headers: { "idempotency-key": randomUUID() } });
     check("imports without a key", saved.status === 201, JSON.stringify(saved.body));
     check("starts a synthetic run without a key", (await call(b, "/api/v1/runs", { method: "POST", body: {}, headers: { "idempotency-key": randomUUID() } })).status === 201);
+    check("starts a lab example run without a key", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { example: "fleet" }, headers: { "idempotency-key": randomUUID() } })).status === 201);
+    check("runs an own lab instance without a key", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { instance: { ...labInstance, name: "Local lab" } }, headers: { "idempotency-key": randomUUID() } })).status === 201);
     check("has no account routes", (await call(b, "/api/auth/get-session")).status === 404);
     check("reports local mode", (await call(b, "/api/v1/me")).body?.mode === "local");
     const db = new Database(join(server.dataDir, "fillrate.sqlite"), { readonly: true });
@@ -164,6 +167,26 @@ try {
     check("A downloads own data", dataExport.status === 200 && exported?.scenarios?.length === 1 && exported?.runs?.length === 1);
     check("B's download has none of A's data", (await (await fetch(`${b}/api/v1/me/export`, as(B))).json()).scenarios.length === 0);
     check("B cannot delete A's scenario (404)", (await call(b, `/api/v1/scenarios/${scenarioId}`, as(B, { method: "DELETE" }))).status === 404);
+
+    // Solver Lab (M6): an account's own instance is private and is not a scenario; anonymous callers need sign-in.
+    check("anonymous lab run needs sign-in (401)", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { example: "dimensions" }, headers: { "idempotency-key": randomUUID() } })).status === 401);
+    check("anonymous own lab instance needs sign-in (401)", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { instance: labInstance }, headers: { "idempotency-key": randomUUID() } })).status === 401);
+    const planned = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, depots: [...labInstance.depots, { id: "depot-2", x: 5, y: 5 }] } }, headers: { "idempotency-key": randomUUID() } }));
+    check("a planned lab capability is refused by name (422)", planned.status === 422 && planned.body?.error?.code === "planned_capability" && /multiple_depots/.test(planned.body?.error?.message ?? ""), JSON.stringify(planned.body));
+    const lab = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, name: "Bob's lab" } }, headers: { "idempotency-key": randomUUID() } }));
+    check("B queues a lab run on an own instance", lab.status === 201 && lab.body?.kind === "lab" && lab.body?.example === null, JSON.stringify(lab.body).slice(0, 300));
+    const labId = lab.body?.id;
+    check("A cannot read B's lab run (404)", (await call(b, `/api/v1/lab/runs/${labId}`, as(A))).status === 404);
+    check("anonymous cannot read B's lab run (404)", (await call(b, `/api/v1/lab/runs/${labId}`)).status === 404);
+    check("A cannot export B's lab run (404)", (await call(b, `/api/v1/lab/runs/${labId}/export?format=json`, as(A))).status === 404);
+    check("A cannot cancel B's lab run (404)", (await call(b, `/api/v1/lab/runs/${labId}/cancel`, as(A, { method: "POST" }))).status === 404);
+    check("A's lab run list omits it", !(await call(b, "/api/v1/lab/runs", as(A))).body?.runs?.some(r => r.id === labId));
+    check("B's lab run list has it", (await call(b, "/api/v1/lab/runs", as(B))).body?.runs?.some(r => r.id === labId));
+    check("B's lab run page opens", (await fetch(`${b}/labs/${labId}`, as(B))).status === 200);
+    check("A's lab run page is not found", (await fetch(`${b}/labs/${labId}`, as(A))).status === 404);
+    check("a lab instance is not one of B's scenarios", (await call(b, "/api/v1/scenarios", as(B))).body?.scenarios?.length === 0);
+    check("B's second job is refused: one unfinished job (429)", (await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { example: "fleet" }, headers: { "idempotency-key": randomUUID() } }))).status === 429);
+    check("B cancels own lab run", (await call(b, `/api/v1/lab/runs/${labId}/cancel`, as(B, { method: "POST" }))).status === 202);
 
     const signOut = await fetch(`${b}/api/auth/sign-out`, { method: "POST", headers: { ...B.headers, "content-type": "application/json" }, body: "{}" });
     check("B signs out", signOut.status === 200, String(signOut.status));
