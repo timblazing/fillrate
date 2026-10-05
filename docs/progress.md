@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-10-05: App shell separated from public/dev navbars (Claude Code)
+- Product pages moved into an `(app)` route group with an icon-rail `AppShell`; `/dev` keeps `DevHeader` (Progress, Design system); signed-out visitors and `privacy`/`request-access` use `PublicHeader`. Header logo/title sized to match the owner's SportsCal header.
+- Verified: typecheck and lint pass; `/scenarios` screenshot checked in local mode at 1440×900. Not checked: hosted-mode signed-out header, phone width, other app pages.
+- Known gap: the spec §4 Workbench (section tabs, map-first view) is still the import form at `/scenarios`; no Settings page beyond `/account`.
+
 ## 2026-10-05: Public landing page (Codex)
 - Expanded `/` with a responsive navbar, hero, workflow overview and FAQ. The page retains the existing globe and links to Scenarios, GitHub and project progress.
 - Copy follows current behavior: Allocate → Cluster → Solve, estimated travel is labeled as estimated, and the product is described as a planning workbench rather than a dispatch or navigation system.

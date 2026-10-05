@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation"
 import { listAccessRequests } from "@fillrate/db/access-requests"
-import { DevHeader } from "@/components/brand/dev-header"
 import { pagePrincipal, requireAdmin } from "@/lib/server/access"
 import { initializeDatabase } from "@/lib/server/database"
 import { AdminRequests, type RequestItem } from "./requests"
@@ -19,5 +18,5 @@ export default async function AdminPage() {
       return { ...row, login: profile && typeof profile === "object" && "login" in profile && typeof profile.login === "string" ? profile.login : null }
     } catch { return { ...row, login: null } }
   }))
-  return <div className="min-h-dvh"><DevHeader /><main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 sm:px-6"><h1 className="text-2xl font-semibold">Access requests</h1><AdminRequests initial={requests} /></main></div>
+  return <div className="min-h-dvh"><main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-8 sm:px-6"><h1 className="text-2xl font-semibold">Access requests</h1><AdminRequests initial={requests} /></main></div>
 }

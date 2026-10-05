@@ -1,6 +1,5 @@
 import Link from "next/link"
 
-import { DevHeader } from "@/components/brand/dev-header"
 
 export const metadata = { title: "Lessons · Fillrate" }
 
@@ -31,7 +30,7 @@ const LESSONS = [
 export default function LessonsPage() {
   return (
     <div className="flex min-h-dvh flex-col">
-      <DevHeader />
+
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
         <section className="flex flex-col gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Lessons</h1>

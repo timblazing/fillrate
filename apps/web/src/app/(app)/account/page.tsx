@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
-import { DevHeader } from "@/components/brand/dev-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { pagePrincipal, usage } from "@/lib/server/access"
 import { mode } from "@/lib/server/auth"
@@ -24,7 +23,7 @@ export default async function AccountPage() {
   const scenarios = who.ownerId ? (scenarioList(store, who.ownerId) as { id: string; name: string; revision: number; createdAt: number }[]) : []
   return (
     <div className="flex min-h-dvh flex-col">
-      <DevHeader />
+
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6">
         <section className="flex flex-col gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Account and data</h1>

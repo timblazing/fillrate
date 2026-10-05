@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation"
 
-import { DevHeader } from "@/components/brand/dev-header"
 import { initializeDatabase } from "@/lib/server/database"
 import { isImportedVersion } from "@/lib/server/experiments"
 import { assertRunRead, pagePrincipal } from "@/lib/server/access"
@@ -28,7 +27,7 @@ export default async function ExplorePage({ params, searchParams }: PageProps<"/
   const imported = isImportedVersion(store, versionId)
   return (
     <div className="flex min-h-dvh flex-col">
-      <DevHeader />
+
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
         <ExplorerView initial={detail} imported={imported} example={imported ? null : exampleForVersion(store, versionId)} canRun={imported || canStartRuns(who, key)} runKey={typeof key === "string" ? key : undefined} />
       </main>
