@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation"
 
-import { DevHeader } from "@/components/brand/dev-header"
 import { initializeDatabase } from "@/lib/server/database"
 import { pagePrincipal } from "@/lib/server/access"
 import { assertExperimentRead, canEditExperiment, experimentDetail, isImportedVersion } from "@/lib/server/experiments"
@@ -26,7 +25,7 @@ export default async function ExperimentPage({ params, searchParams }: PageProps
   const imported = isImportedVersion(store, experiment.versionId)
   return (
     <div className="flex min-h-dvh flex-col">
-      <DevHeader />
+
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
         <ExperimentView initial={experimentDetail(store, id)} canEdit={canEditExperiment(who, experiment.ownerId) || (experiment.ownerId === "public" && typeof key === "string")} runKey={typeof key === "string" ? key : undefined} imported={imported} />
       </main>

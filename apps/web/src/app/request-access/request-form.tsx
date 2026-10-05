@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { toastManager } from "@/components/ui/toast"
 import { authClient } from "@/lib/client/auth-client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { DeleteAccountButton } from "../account/account-actions"
+import { DeleteAccountButton } from "../(app)/account/account-actions"
 
 export function RequestForm({ name, email, image, status, note, canRetry }: { name: string; email: string; image: string | null; status: "pending" | "approved" | "denied" | "revoked"; note: string; canRetry: boolean }) {
   const [value, setValue] = useState(note)

@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
-import { DevHeader } from "@/components/brand/dev-header"
 import { ExampleSwitch } from "@/components/lab/example-switch"
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -26,7 +25,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <DevHeader />
+
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
         <section className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-4 text-sm">

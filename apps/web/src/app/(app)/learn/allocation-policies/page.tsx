@@ -1,4 +1,3 @@
-import { DevHeader } from "@/components/brand/dev-header"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { EXAMPLES, exampleInfo, canStartRuns, runsClosedNote } from "@/lib/server/runs"
 import { pagePrincipal } from "@/lib/server/access"
@@ -28,7 +27,7 @@ export default async function AllocationLessonPage({ searchParams }: PageProps<"
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <DevHeader />
+
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
         <section className="flex flex-col gap-3">
           <Link href="/learn" className="text-muted-foreground text-sm underline underline-offset-4">Lessons</Link>
