@@ -31,6 +31,7 @@ from .loads import (
     PartitionProblem,
     PartitionTime,
     PartitionVisit,
+    WarmStartRejected,
     monetary_objective,
     solve_partition,
     truck_count_first_penalty,
@@ -53,6 +54,8 @@ from .model import (
     TruckSummary,
     TruckVisit,
     UnplannedLine,
+    WarmStartPlan,
+    WarmStartSummary,
 )
 from .preflight import preflight_checks
 from .timeplan import (
@@ -61,13 +64,14 @@ from .timeplan import (
     estimated_seconds,
     time_context,
 )
-from .timewin import VisitTime, recompute_route
+from .timewin import Finding, VisitTime, recompute_route
 from .travel import distance_matrix_m, haversine_m, reachable
 from .travel_provider import (
     SnapshotBindingError,
     TravelSnapshot,
     stop_nodes,
 )
+from .warmstart import match_cluster, travel_identity
 
 PRODUCER_VERSION = "fillrate-pipeline/3"
 ADAPTER_VERSION = "pyvrp-partition/1"
@@ -208,12 +212,15 @@ def run_pipeline(
     cluster_task: Callable | None = None,
     travel_snapshot: TravelSnapshot | None = None,
     snapshot_loader: Callable[[str], dict[str, Any]] | None = None,
+    warm_start_plan: WarmStartPlan | None = None,
+    warm_start_loader: Callable[[Any], dict[str, Any]] | None = None,
     clock: Callable[[], float] = time.monotonic,
     now_ms: Callable[[], int] = lambda: int(time.time() * 1000),
 ) -> PipelineOutput:
     limits = limits or Limits()
     report = progress or (lambda stage, detail: None)
     snapshot = resolve_snapshot(settings, travel_snapshot, snapshot_loader)
+    warm_plan = resolve_warm_start(settings, warm_start_plan, warm_start_loader)
     # With a selected snapshot, preflight and the travel stage depend on its identity instead of
     # the estimating circuity (which is then unused for travel).
     travel_keys = ["travel_snapshot_id"] if snapshot else ["travel_circuity"]
@@ -251,19 +258,7 @@ def run_pipeline(
                 raise PipelineError("unknown_product", f"Line {line.id}: unknown product.")
             if line.id in lines:
                 raise PipelineError("duplicate_id", f"Duplicate order line ID {line.id}.")
-            lf = line.linear_feet_per_piece or products[line.product_id].linear_feet_per_piece
-            lines[line.id] = {
-                "line_id": line.id,
-                "order_id": order.id,
-                "customer_id": order.customer_id or order.id,
-                "product_id": line.product_id,
-                "location_id": order.location_id,
-                "order_date": order.order_date,
-                "priority": order.priority,
-                "ordered": line.ordered_pieces,
-                "value": line.net_value_per_piece_cents,
-                "lf": lf,
-            }
+            lines[line.id] = line_record(order, line, products)
     if len(lines) > limits.max_order_lines:
         raise PipelineError("too_many_lines", f"{len(lines)} order lines exceed MAX_ORDER_LINES.")
     try:
@@ -729,6 +724,19 @@ def run_pipeline(
     )
 
     # ---- 6. Solve one PyVRP problem per cluster (§8b) -----------------------------------------
+    raw_leg = snapshot_leg_reader(raw_meters, loc_ids)
+    solve_parents = ["problem"]
+    solve_keys = ["solver_seed", "solver_max_iterations", "solver_time_limit_s"]
+    plan_id = None
+    if warm_plan:
+        # The source plan is a recorded input of the solve stage (spec §10: provenance and part of
+        # the solve-stage identity, never of the comparison signature).
+        plan_payload = warm_plan.model_dump(mode="json")
+        plan_id = content_hash(plan_payload)
+        stages.add("warm_start", plan_payload, [], ["warm_start"])
+        solve_parents.append("warm_start")
+        solve_keys.append("warm_start")
+    run_travel = travel_identity(settings)
     solves = []
     for i, (meta, prob, trav) in enumerate(zip(clusters_meta, problems, travel, strict=True)):
         report("solve", {"cluster": meta["id"], "index": i + 1, "of": len(problems)})
@@ -739,6 +747,7 @@ def run_pipeline(
                 "visits": visits,
                 "settings": settings.model_dump(mode="json"),
                 "versions": versions(),
+                **({"warm_start": plan_id} if plan_id else {}),
             }
         )
         task = cluster_task("claim", meta["id"], task_hash, None) if cluster_task else None
@@ -763,21 +772,35 @@ def run_pipeline(
             if cluster_task:
                 cluster_task("complete", meta["id"], task_hash, solves[-1])
             continue
+        partition = PartitionProblem(
+            distance=np.array(trav["matrix"], dtype=np.int64),
+            visits=pvisits,
+            capacity=cap,
+            max_leg_m=settings.max_leg_m,
+            truck_penalty=prob["truck_penalty"],
+            distance_cost=prob["distance_cost"],
+            seed=settings.solver_seed,
+            max_iterations=settings.solver_max_iterations,
+            max_runtime_s=min(settings.solver_time_limit_s, remaining - 0.5),
+            time=partition_time(prob, pvisits),
+        )
+        warm, initial = None, None
+        if warm_plan:
+            warm, initial = warm_start_for(
+                warm_plan, run_travel, meta, prob, trav, visits, lines, settings, raw_leg,
+                leg_seconds,
+            )  # fmt: skip
         try:
-            result = solve_partition(
-                PartitionProblem(
-                    distance=np.array(trav["matrix"], dtype=np.int64),
-                    visits=pvisits,
-                    capacity=cap,
-                    max_leg_m=settings.max_leg_m,
-                    truck_penalty=prob["truck_penalty"],
-                    distance_cost=prob["distance_cost"],
-                    seed=settings.solver_seed,
-                    max_iterations=settings.solver_max_iterations,
-                    max_runtime_s=min(settings.solver_time_limit_s, remaining - 0.5),
-                    time=partition_time(prob, pvisits),
+            try:
+                result = (
+                    solve_partition(partition, initial) if initial else solve_partition(partition)
                 )
-            )
+            except WarmStartRejected as rejected:
+                warm = {**warm, "status": "skipped", "reason": "solver_rejected"}
+                warm["detail"] = str(rejected)
+                result = solve_partition(partition)
+            if warm and warm["status"] == "used":
+                warm["initial_cost"], warm["final_cost"] = result.initial_cost, result.cost
         except Exception as error:  # noqa: BLE001 - one cluster's failure must not hide the others
             # Spec §9: a failed cluster invalidates the plan; other clusters stay inspectable.
             # Not checkpointed, so a retried attempt solves this cluster again.
@@ -799,16 +822,12 @@ def run_pipeline(
                 "iterations": result.iterations,
                 "runtime_s": round(result.runtime_s, 3),
                 "cost": result.cost,
+                **({"warm_start": warm} if warm else {}),
             }
         )
         if cluster_task:
             cluster_task("complete", meta["id"], task_hash, solves[-1])
-    stages.add(
-        "solve",
-        {"clusters": solves},
-        ["problem"],
-        ["solver_seed", "solver_max_iterations", "solver_time_limit_s"],
-    )
+    stages.add("solve", {"clusters": solves}, solve_parents, solve_keys)
 
     # ---- 7. Validate independently from raw travel and lineage (§16) ---------------------------
     report("validation", {})
@@ -824,7 +843,6 @@ def run_pipeline(
             )
         )
     validations = []
-    raw_leg = snapshot_leg_reader(raw_meters, loc_ids)
     for meta, prob, trav, solve in zip(clusters_meta, problems, travel, solves, strict=True):
         validations.append(
             validate_cluster(meta, prob, trav, solve, visits, lines, settings, raw_leg, leg_seconds)
@@ -845,74 +863,13 @@ def run_pipeline(
         zip(clusters_meta, problems, solves, validations, strict=True)
     ):
         valid = check["valid"]
-        cluster_trucks: list[TruckSummary] = []
-        if valid:
-            for t, truck in enumerate(check["trucks"]):
-                tv = []
-                for seq, (vid, leg, leg_s) in enumerate(
-                    zip(truck["visits"], truck["legs_m"], truck["legs_s"], strict=True), 1
-                ):
-                    v = visits[vid]
-                    on_board = [
-                        LineOnBoard(
-                            line_id=p["line_id"],
-                            order_id=lines[p["line_id"]]["order_id"],
-                            product_id=lines[p["line_id"]]["product_id"],
-                            pieces=p["pieces"],
-                            linear_feet=p["pieces"] * lines[p["line_id"]]["lf"],
-                            amount_cents=p["pieces"] * lines[p["line_id"]]["value"],
-                        )
-                        for p in v["lines"]
-                    ]
-                    for p in v["lines"]:
-                        planned_pieces[p["line_id"]] += p["pieces"]
-                    stop_time = truck["timing"][seq - 1] if "timing" in truck else None
-                    tv.append(
-                        TruckVisit(
-                            visit_id=vid,
-                            location_id=v["location_id"],
-                            sequence=seq,
-                            leg_m=leg,
-                            leg_s=leg_s,
-                            load=v["load"],
-                            lines=on_board,
-                            **(
-                                {
-                                    "arrival_s": stop_time["arrival_s"],
-                                    "wait_s": stop_time["wait_s"],
-                                    "service_s": stop_time["service_s"],
-                                    "start_s": stop_time["start_s"],
-                                    "departure_s": stop_time["departure_s"],
-                                    "window_earliest_s": stop_time["earliest_s"],
-                                    "window_latest_s": stop_time["latest_s"],
-                                }
-                                if stop_time
-                                else {}
-                            ),
-                        )
-                    )
-                cluster_trucks.append(
-                    TruckSummary(
-                        id=f"{meta['id']}-T{t + 1}",
-                        cluster_id=meta["id"],
-                        load=truck["load"],
-                        fill=truck["load"] / cap,
-                        distance_m=truck["distance_m"],
-                        drive_s=truck["drive_s"],
-                        amount_cents=sum(lob.amount_cents for x in tv for lob in x.lines),
-                        visits=tv,
-                        **(
-                            {
-                                "shift_start_s": truck["shift_start_s"],
-                                "service_s_total": sum(x.service_s for x in tv),
-                                "wait_s_total": sum(x.wait_s for x in tv),
-                                "end_s": tv[-1].departure_s,
-                            }
-                            if "timing" in truck
-                            else {}
-                        ),
-                    )
-                )
+        cluster_trucks: list[TruckSummary] = (
+            truck_summaries(meta["id"], check["trucks"], visits, lines, cap) if valid else []
+        )
+        for truck in cluster_trucks:
+            for tv in truck.visits:
+                for lob in tv.lines:
+                    planned_pieces[lob.line_id] += lob.pieces
         # Unplanned visits in this cluster, by reason.
         for b in prob["blocked"]:
             add_visit_unplanned(
@@ -997,6 +954,7 @@ def run_pipeline(
                 iterations=solve.get("iterations", 0),
                 runtime_s=solve.get("runtime_s", 0.0),
                 violations=check["violations"],
+                warm_start=solve.get("warm_start"),
             )
         )
         trucks_out.extend(cluster_trucks)
@@ -1054,6 +1012,22 @@ def run_pipeline(
         location_state[loc.id] = state
     cluster_of = {loc: c["id"] for c in clusters_meta for loc in c["locations"]}
 
+    if warm_plan:
+        outcomes = [c.warm_start for c in cluster_out if c.warm_start]
+        used = sum(o.status == "used" for o in outcomes)
+        reasons = sorted({o.reason.replace("_", " ") for o in outcomes if o.reason})
+        diagnostics.append(
+            Diagnostic(
+                code="warm_start",
+                severity="info",
+                message=(
+                    f"Warm start from run {settings.warm_start.run_id}: {used} of {len(outcomes)} "
+                    "solved cluster(s) started from the source plan after independent validation"
+                    + (f"; skipped: {', '.join(reasons)}" if reasons else "")
+                    + ". Shipments and miles remain heuristic best-found values."
+                ),
+            )
+        )
     if not all_valid:
         diagnostics.append(
             Diagnostic(
@@ -1127,6 +1101,18 @@ def run_pipeline(
             if tctx
             else None
         ),
+        warm_start=(
+            WarmStartSummary(
+                source=settings.warm_start,
+                plan_id=plan_id,
+                used=sum(1 for c in cluster_out if c.warm_start and c.warm_start.status == "used"),
+                skipped=sum(
+                    1 for c in cluster_out if c.warm_start and c.warm_start.status == "skipped"
+                ),
+            )
+            if warm_plan
+            else None
+        ),
         diagnostics=diagnostics,
         versions=versions(),
     )
@@ -1184,6 +1170,79 @@ def resolve_snapshot(
     return snapshot
 
 
+def resolve_warm_start(
+    settings: RunSettings,
+    provided: WarmStartPlan | None,
+    loader: Callable[[Any], dict[str, Any]] | None,
+) -> WarmStartPlan | None:
+    """The source plan the settings name. The loader is the worker transport (the web resolved
+    the source with owner checks) or a replay bundle; its document must name the same source."""
+    wanted = settings.warm_start
+    if wanted is None:
+        if provided is not None:
+            raise PipelineError(
+                "warm_start_unbound",
+                "A warm-start plan was supplied but the run settings do not select one.",
+            )
+        return None
+    plan = provided
+    if plan is None:
+        if loader is None:
+            raise PipelineError(
+                "warm_start_missing",
+                f"A warm start from run {wanted.run_id} is selected but no source was provided.",
+            )
+        try:
+            plan = WarmStartPlan.model_validate(loader(wanted))
+        except Exception as error:  # noqa: BLE001 - transport, missing run and invalid document
+            raise PipelineError(
+                "warm_start_unavailable",
+                f"The warm-start source run {wanted.run_id} could not be loaded: {error}"[:500],
+            ) from error
+    if plan.source != wanted:
+        raise PipelineError(
+            "warm_start_source_mismatch",
+            "The warm-start plan comes from a different source than the settings select.",
+        )
+    return plan
+
+
+def warm_start_for(
+    plan, run_travel, meta, prob, trav, visits, lines, settings, raw_leg, leg_seconds
+) -> tuple[dict[str, Any], list[list[int]] | None]:
+    """Rules 1–4 of `warmstart.py` for one cluster: the recorded outcome and, when every rule
+    passed, the initial routes as visit indices for `solve_partition` (which checks rule 5)."""
+    source, routes, reason, detail = match_cluster(
+        plan, run_travel, prob["visits"], meta["locations"], visits
+    )
+    outcome: dict[str, Any] = {
+        "status": "skipped",
+        "reason": reason,
+        "source_cluster_id": source.cluster_id if source else None,
+        "detail": detail,
+    }
+    if routes is None:
+        return outcome, None
+    check = validate_cluster(
+        meta,
+        prob,
+        trav,
+        {"status": "solved", "solver_feasible": True, "routes": routes},
+        visits,
+        lines,
+        settings,
+        raw_leg,
+        leg_seconds,
+    )
+    if not check["valid"]:
+        outcome["reason"] = "invalid_on_new_problem"
+        outcome["detail"] = "; ".join(check["violations"][:5])[:1000]
+        return outcome, None
+    index = {vid: k for k, vid in enumerate(prob["visits"])}
+    outcome.update(status="used", reason=None, detail=None)
+    return outcome, [[index[vid] for vid in route] for route in routes]
+
+
 def snapshot_leg_reader(raw_meters: np.ndarray | None, loc_ids: list[str]):
     """`leg(a, b)` in meters straight from the snapshot's effective matrix, by travel-node name
     ("depot" or a location ID); None for estimated travel."""
@@ -1234,6 +1293,22 @@ def travel_summary(snapshot: TravelSnapshot | None, settings: RunSettings) -> Tr
         profile="estimated",
         circuity=settings.travel_circuity,
     )
+
+
+def line_record(order, line, products) -> dict[str, Any]:
+    """One order line as the pipeline stages and the validator read it."""
+    return {
+        "line_id": line.id,
+        "order_id": order.id,
+        "customer_id": order.customer_id or order.id,
+        "product_id": line.product_id,
+        "location_id": order.location_id,
+        "order_date": order.order_date,
+        "priority": order.priority,
+        "ordered": line.ordered_pieces,
+        "value": line.net_value_per_piece_cents,
+        "lf": line.linear_feet_per_piece or products[line.product_id].linear_feet_per_piece,
+    }
 
 
 def exclusion_reason(line, loc, cap: int, user_excluded: set[str]) -> str | None:
@@ -1400,8 +1475,6 @@ def validate_cluster(
     optional policy is on, cluster diameter. With a selected travel snapshot, `raw_leg(a, b)`
     reads the leg from the snapshot itself, so a travel artifact that disagrees with it (a stale
     cache entry, the wrong matrix) is rejected rather than trusted."""
-    violations: list[str] = []
-    trucks = []
     if solve["status"] == "empty":
         return {"cluster_id": meta["id"], "valid": True, "violations": [], "trucks": []}
     if solve["status"] != "solved":
@@ -1411,57 +1484,131 @@ def validate_cluster(
             "violations": [solve.get("error", "no candidate")],
             "trucks": [],
         }
+    violations: list[str] = []
     if not solve["solver_feasible"]:
-        violations.append("solver reported the candidate infeasible")
+        violations.append(Finding("solver_infeasible", "solver reported the candidate infeasible"))
+    found, trucks = check_routes(
+        meta, prob, trav, solve["routes"], visits, lines, settings, raw_leg, leg_seconds
+    )
+    violations.extend(found)
+    return {
+        "cluster_id": meta["id"],
+        "valid": not violations,
+        "violations": violations,
+        "trucks": trucks,
+    }
+
+
+def check_routes(
+    meta, prob, trav, routes, visits, lines, settings, raw_leg=None, leg_seconds=None
+) -> tuple[list[Finding], list[dict[str, Any]]]:
+    """The independent validator for one cluster's routes (ordered visit IDs per truck), shared
+    by solver candidates and manual plans (spec §10). Every leg, load and time is recomputed from
+    the recorded travel artifact, the visit lineage and the raw provider durations.
+
+    Returns the violations and one entry per truck, parallel to ``routes``; an entry lists only
+    the truck's visits that belong to the cluster problem, so its legs line up with them."""
+    violations: list[Finding] = []
+    trucks = []
     node_of = {loc: k for k, loc in enumerate(trav["nodes"])}
     matrix = trav["matrix"]
     expected = set(prob["visits"])
+    blocked = {b["visit_id"] for b in prob.get("blocked", [])}
     seen: dict[str, int] = {}
-    for t, route in enumerate(solve["routes"]):
+    for t, route in enumerate(routes):
         if not route:
-            violations.append(f"truck {t + 1} has no visits")
+            violations.append(Finding("empty_truck", f"truck {t + 1} has no visits", t + 1))
             continue
         load = 0
         legs = []
         legs_s = []
+        known = []
         prev = 0
         for vid in route:
             if vid not in expected:
-                violations.append(f"{vid} does not belong to cluster {meta['id']}")
+                violations.append(
+                    Finding(
+                        "unreachable_visit",
+                        f"{vid} has no chain of legs within the leg limit from the depot in "
+                        f"cluster {meta['id']}, so it is not part of the problem",
+                        t + 1,
+                        vid,
+                    )
+                    if vid in blocked
+                    else Finding(
+                        "unknown_visit",
+                        f"{vid} does not belong to cluster {meta['id']}",
+                        t + 1,
+                        vid,
+                    )
+                )
                 continue
             if vid in seen:
-                violations.append(f"{vid} is on more than one truck")
+                violations.append(
+                    Finding("duplicate_visit", f"{vid} is on more than one truck", t + 1, vid)
+                )
             seen[vid] = t
+            known.append(vid)
             v = visits[vid]
             load += sum(p["pieces"] * lines[p["line_id"]]["lf"] for p in v["lines"])
             node = node_of[v["location_id"]]
             leg = int(matrix[prev][node])
             if leg < 0:
-                violations.append(f"leg to {v['location_id']} is unreachable in the raw matrix")
+                violations.append(
+                    Finding(
+                        "leg_missing",
+                        f"leg to {v['location_id']} is unreachable in the raw matrix",
+                        t + 1,
+                        vid,
+                    )
+                )
             if leg > settings.max_leg_m:
                 violations.append(
-                    f"leg to {v['location_id']} is {leg / 1609.344:.0f} mi > "
-                    f"{settings.max_leg_m / 1609.344:.0f} mi"
+                    Finding(
+                        "leg_over_limit",
+                        f"leg to {v['location_id']} is {leg / 1609.344:.0f} mi > "
+                        f"{settings.max_leg_m / 1609.344:.0f} mi",
+                        t + 1,
+                        vid,
+                    )
                 )
             if raw_leg is not None:
                 recorded = raw_leg(trav["nodes"][prev], trav["nodes"][node])
                 if leg != recorded:
                     violations.append(
-                        f"leg to {v['location_id']} is {leg} m in the travel artifact but "
-                        f"{recorded} m in the travel snapshot"
+                        Finding(
+                            "leg_mismatch",
+                            f"leg to {v['location_id']} is {leg} m in the travel artifact but "
+                            f"{recorded} m in the travel snapshot",
+                            t + 1,
+                            vid,
+                        )
                     )
             legs.append(leg)
             if leg_seconds is not None:
                 seconds = leg_seconds(trav["nodes"][prev], trav["nodes"][node])
                 if seconds < 0:
-                    violations.append(f"leg to {v['location_id']} has no duration in the provider")
+                    violations.append(
+                        Finding(
+                            "leg_no_duration",
+                            f"leg to {v['location_id']} has no duration in the provider",
+                            t + 1,
+                            vid,
+                        )
+                    )
                 legs_s.append(seconds)
             prev = node
         if load > settings.trailer_capacity:
-            violations.append(f"truck {t + 1} load {load} > capacity {settings.trailer_capacity}")
+            violations.append(
+                Finding(
+                    "over_capacity",
+                    f"truck {t + 1} load {load} > capacity {settings.trailer_capacity}",
+                    t + 1,
+                )
+            )
         timed = leg_seconds is not None and len(legs_s) == len(legs)
         entry = {
-            "visits": route,
+            "visits": known,
             "load": load,
             "legs_m": legs,
             "legs_s": legs_s if timed else [None] * len(legs),
@@ -1469,35 +1616,121 @@ def validate_cluster(
             "drive_s": sum(legs_s) if timed else None,
         }
         clock = prob.get("time")
-        if clock and len(legs) == len(route):
+        if clock and known and len(legs) == len(known):
             # Independent recomputation from the raw provider durations, never the solver's.
             if not timed or min(legs_s) < 0:
-                violations.append(f"truck {t + 1} has legs without a provider duration")
+                violations.append(
+                    Finding(
+                        "leg_no_duration",
+                        f"truck {t + 1} has legs without a provider duration",
+                        t + 1,
+                    )
+                )
             else:
                 timings, found = recompute_route(
                     legs_s,
-                    [VisitTime(*clock["visits"][vid]) for vid in route],
-                    [f"truck {t + 1} {visits[vid]['location_id']}" for vid in route],
+                    [VisitTime(*clock["visits"][vid]) for vid in known],
+                    [f"truck {t + 1} {visits[vid]['location_id']}" for vid in known],
                     clock["depot_open_s"],
                     clock["horizon_end_s"],
+                    known,
                 )
-                violations.extend(found)
+                violations.extend(f.at(t + 1) for f in found)
                 entry["timing"] = [vars(x) for x in timings]
                 entry["shift_start_s"] = clock["depot_open_s"]
         trucks.append(entry)
     for vid in sorted(expected - set(seen)):
-        violations.append(f"{vid} is not on any truck")
+        violations.append(Finding("missing_visit", f"{vid} is not on any truck", visit_id=vid))
     limit = settings.max_cluster_diameter_m
     if limit is not None and meta["diameter_m"] > limit:
         violations.append(
-            f"cluster diameter {meta['diameter_m'] / 1609.344:.0f} mi exceeds the limit"
+            Finding(
+                "cluster_diameter",
+                f"cluster diameter {meta['diameter_m'] / 1609.344:.0f} mi exceeds the limit",
+            )
         )
-    return {
-        "cluster_id": meta["id"],
-        "valid": not violations,
-        "violations": violations,
-        "trucks": trucks,
-    }
+    return violations, trucks
+
+
+def truck_summaries(
+    cluster_id, checked, visits, lines, cap, prefix="T", strict=True
+) -> list[TruckSummary]:
+    """Result rows for checked trucks (``check_routes`` entries): stop sequence, lines on board,
+    loads, legs and, with the time-window adapter, the recomputed timing. A truck that uses a leg
+    without a recorded distance or duration has no row: an error, or None when not ``strict``."""
+    out = []
+    for t, truck in enumerate(checked):
+        if min(truck["legs_m"], default=0) < 0 or any(
+            s is not None and s < 0 for s in truck["legs_s"]
+        ):
+            if strict:
+                raise ValueError(f"truck {t + 1} uses a leg without a recorded value")
+            out.append(None)
+            continue
+        tv = []
+        for seq, (vid, leg, leg_s) in enumerate(
+            zip(truck["visits"], truck["legs_m"], truck["legs_s"], strict=True), 1
+        ):
+            v = visits[vid]
+            on_board = [
+                LineOnBoard(
+                    line_id=p["line_id"],
+                    order_id=lines[p["line_id"]]["order_id"],
+                    product_id=lines[p["line_id"]]["product_id"],
+                    pieces=p["pieces"],
+                    linear_feet=p["pieces"] * lines[p["line_id"]]["lf"],
+                    amount_cents=p["pieces"] * lines[p["line_id"]]["value"],
+                )
+                for p in v["lines"]
+            ]
+            stop_time = truck["timing"][seq - 1] if "timing" in truck else None
+            tv.append(
+                TruckVisit(
+                    visit_id=vid,
+                    location_id=v["location_id"],
+                    sequence=seq,
+                    leg_m=leg,
+                    leg_s=leg_s,
+                    load=v["load"],
+                    lines=on_board,
+                    **(
+                        {
+                            "arrival_s": stop_time["arrival_s"],
+                            "wait_s": stop_time["wait_s"],
+                            "service_s": stop_time["service_s"],
+                            "start_s": stop_time["start_s"],
+                            "departure_s": stop_time["departure_s"],
+                            "window_earliest_s": stop_time["earliest_s"],
+                            "window_latest_s": stop_time["latest_s"],
+                        }
+                        if stop_time
+                        else {}
+                    ),
+                )
+            )
+        out.append(
+            TruckSummary(
+                id=f"{cluster_id}-{prefix}{t + 1}",
+                cluster_id=cluster_id,
+                load=truck["load"],
+                fill=truck["load"] / cap,
+                distance_m=truck["distance_m"],
+                drive_s=truck["drive_s"],
+                amount_cents=sum(lob.amount_cents for x in tv for lob in x.lines),
+                visits=tv,
+                **(
+                    {
+                        "shift_start_s": truck["shift_start_s"],
+                        "service_s_total": sum(x.service_s for x in tv),
+                        "wait_s_total": sum(x.wait_s for x in tv),
+                        "end_s": tv[-1].departure_s,
+                    }
+                    if "timing" in truck
+                    else {}
+                ),
+            )
+        )
+    return out
 
 
 def reconcile(summary: RunSummary) -> None:

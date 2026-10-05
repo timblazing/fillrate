@@ -34,7 +34,7 @@ The repository is the source of truth for Fillrate's specification, roadmap, dec
 
 ## Hosted/local modes and releases
 - Spec §14 calls for a free hosted service with Better Auth, owner-scoped server SQLite data and application compute quotas. Hosted request-only signup is deployed; the owner's real GitHub sign-in is confirmed. Accounts, isolation and quotas are implemented (`FILLRATE_MODE=hosted`, `docs/hosted-operations.md`); every route resolves the caller with `principal()` in `apps/web/src/lib/server/access.ts`, and the store re-checks ownership and charges admissions in the queuing transaction. New routes or stored kinds must do the same. Cross-account behavior passed local automated tests; the owner removed a second live GitHub account check from the release gate. Do not claim it was tested live.
-- Planned local distribution is account-free/single-user via Bun, npm and Docker, with loopback defaults and no auth credentials. Hosted/local mode must be explicit and hosted misconfiguration must never disable auth. `FILLRATE_MODE=local` exists (no keys or auth routes); npm compatibility is still planned work, not existing support. Python remains a private worker and never opens SQLite.
+- Planned local distribution is account-free/single-user via Bun, npm and Docker, with loopback defaults and no auth credentials. Hosted/local mode must be explicit and hosted misconfiguration must never disable auth. `FILLRATE_MODE=local` exists (no keys or auth routes). The root scripts also run under npm (`npm ci` from the committed `package-lock.json`); the full native npm workflow was verified on Node 22 in a dev container and CI's `npm` job checks Node 24 + npm (`docs/local.md`, `docs/handoff.md`). Bun and `bun.lock` stay canonical. Python remains a private worker and never opens SQLite.
 - GitHub CI automatically runs only for relevant source/configuration changes. Documentation and `.fig` changes skip automatic checks. Image build/smoke/publish runs only for `v*` release tags or explicit dispatch, with reusable CI as prerequisite. Dispatch an image release when deployable runtime changes need publication; a Git push alone does not update the deployed image.
 
 ## Progress page (`/dev`)
@@ -58,10 +58,10 @@ fillrate.fig          OpenPencil design file: Foundations / Components / Blocks
 
 The canonical specification is [`docs/fillrate-technical-spec.md`](docs/fillrate-technical-spec.md).
 
-## Commands (run from the repo root; Bun is the package manager and script runner, Node 24 is the runtime)
-- `bun install`: install workspace deps (commit `bun.lock`)
+## Commands (run from the repo root; Bun is the canonical package manager and script runner, Node 24 is the runtime; every root script also works as `npm run <script>`)
+- `bun install`: install workspace deps (commit `bun.lock`). After any dependency change also run `node scripts/npm-lock.mjs --sync` and commit `package-lock.json`; CI checks that direct dependencies match. Root scripts must stay package-manager neutral (`node scripts/workspace.mjs <dir> <script>` instead of `bun run --filter`), and workspace packages reference each other by version, not `workspace:*`
 - `bun run dev`: Next.js dev server (http://localhost:3000); it also serves the loopback worker transport on 127.0.0.1:3100
-- `bun run worker`: Python worker supervisor that claims and runs pipeline jobs (run it next to `bun run dev`, then use `/runs`)
+- `bun run worker`: the optimizer service as the image runs it: FastAPI on 127.0.0.1:8000 (`/evaluate` for manual plans) plus the worker supervisor that claims and runs pipeline jobs (run it next to `bun run dev`, then use `/runs`)
 - `bun run lint` / `bun run typecheck` / `bun run build`; `bun run test:browser` runs the production browser smoke (see `docs/browser-smoke.md`); `bun run test:hosted` runs the hosted/local mode and two-account checks against the production build
 - `node scripts/live-two-account.mjs`: optional live diagnostic (two session cookies; see the script header), not a release requirement
 - `bun run test`: Node Vitest persistence/contract/transport tests plus end-to-end tests that spawn the real Python worker (needs `uv`; `FILLRATE_SKIP_PYTHON=1` skips them); `bun run contracts:generate`: regenerate shared contracts from Python

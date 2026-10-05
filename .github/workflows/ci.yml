@@ -85,3 +85,31 @@ jobs:
           # the isolated synthetic smoke environment.
           AGENT_BROWSER_ARGS: --no-sandbox
         run: bun run test:browser
+
+  # The documented npm path (spec §14 local distribution): package-lock.json install on Node 24,
+  # lockfile alignment with bun.lock, typecheck, Vitest with the real Python worker, and the build.
+  npm:
+    runs-on: ubuntu-24.04
+    env:
+      UV_PYTHON: "3.13"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.18.1
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: 0.8.2
+          enable-cache: true
+          cache-dependency-glob: services/optimizer/uv.lock
+      - name: Install
+        run: |
+          npm ci --no-audit --no-fund
+          node scripts/npm-lock.mjs
+          cd services/optimizer && uv sync --locked
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Vitest
+        run: npm test
+      - name: Build
+        run: npm run build

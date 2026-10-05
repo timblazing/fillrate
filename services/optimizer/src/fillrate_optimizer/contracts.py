@@ -22,10 +22,12 @@ class StageManifest(Contract):
         "clustering",
         "travel",
         "problem",
+        "warm_start",
         "solve",
         "validation",
         "summary",
         "explorer",
+        "lab",
     ]
     input_hash: Hash
     output_hash: Hash

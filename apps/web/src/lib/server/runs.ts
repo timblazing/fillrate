@@ -5,6 +5,7 @@ import { EXAMPLES_OWNER, type Store } from "@fillrate/db";
 import { quotas, syntheticAdmission, type Principal } from "./access";
 import { mode } from "./auth";
 import { ApiError } from "./errors";
+import { assertWarmStartSource, parseWarmStart, warmStartError } from "./warm-start";
 
 import allocation from "../../../../../examples/lesson-allocation.json";
 import capacity from "../../../../../examples/lesson-capacity.json";
@@ -12,6 +13,7 @@ import lesson from "../../../../../examples/lesson-fulfillment.json";
 import matrixEstimated from "../../../../../examples/lesson-matrix-estimated.json";
 import matrixSnapshot from "../../../../../examples/lesson-matrix-snapshot.json";
 import matrix from "../../../../../examples/lesson-matrix.json";
+import manual from "../../../../../examples/lesson-manual.json";
 import seeds from "../../../../../examples/lesson-seeds.json";
 import windowsOff from "../../../../../examples/lesson-windows-off.json";
 import windows from "../../../../../examples/lesson-windows.json";
@@ -25,6 +27,7 @@ import m1 from "../../../../../examples/m1-synthetic.json";
 // and without their delivery windows; `matrix_estimated` and `matrix_recorded` are the road matrix lesson's one
 // scenario on estimated travel and on its bundled synthetic recorded matrix (spec §13). An example's `travel` is a
 // travel snapshot document its settings select; it is stored for the examples owner before the first run.
+// `manual` is the manual versus optimized routes lesson (spec §13).
 export const EXAMPLES = {
   m1: { id: "m1", scenario: m1.scenario as ScenarioDocument, settings: m1.settings as RunSettings, blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop" },
   lesson: { id: "lesson", scenario: lesson.scenario as ScenarioDocument, settings: lesson.settings as RunSettings, blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete" },
@@ -35,10 +38,13 @@ export const EXAMPLES = {
   windows_off: { id: "windows_off", scenario: windowsOff.scenario as ScenarioDocument, settings: windowsOff.settings as RunSettings, blurb: "Time-window lesson without windows: the same nine stops and service durations, no delivery windows" },
   matrix_estimated: { id: "matrix_estimated", scenario: matrixEstimated.scenario as ScenarioDocument, settings: matrixEstimated.settings as RunSettings, blurb: "Road matrix lesson on estimated travel: seven stops, straight-line distance × 1.2" },
   matrix_recorded: { id: "matrix_recorded", scenario: matrix.scenario as ScenarioDocument, settings: matrix.settings as RunSettings, travel: matrixSnapshot as unknown, blurb: "Road matrix lesson on a synthetic recorded directed matrix (not real roads): a one-way river crossing and a ridge detour" },
+  manual: { id: "manual", scenario: manual.scenario as ScenarioDocument, settings: manual.settings as RunSettings, blurb: "Manual routes lesson: ten stops around Memphis on three trucks, to compare a dispatcher's plan with the optimized one" },
 } as const;
 export type ExampleId = keyof typeof EXAMPLES;
 export type Example = (typeof EXAMPLES)[ExampleId];
 export const exampleScenario = EXAMPLES.m1.scenario;
+/** The manual routes lesson's dispatcher plans: location IDs per truck, in visit order. */
+export const MANUAL_LESSON_PLANS = manual.plans as { in_order: string[][]; east_west: string[][] };
 export const exampleSettings = EXAMPLES.m1.settings;
 
 /** The example a page's `?example=` names; anything else is the flagship lesson. */
@@ -50,7 +56,7 @@ export function parseExample(input: unknown, fallback: ExampleId): Example {
   throw new ApiError(400, "unknown_example", `Unknown example; use one of ${Object.keys(EXAMPLES).join(", ")}.`, ["example"]);
 }
 
-const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", seeds: "Seed lesson", windows: "Time-window lesson", windows_off: "Time-window lesson, no windows", matrix_estimated: "Road matrix lesson, estimated", matrix_recorded: "Road matrix lesson, recorded matrix" };
+const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", seeds: "Seed lesson", windows: "Time-window lesson", windows_off: "Time-window lesson, no windows", manual: "Manual routes lesson", matrix_estimated: "Road matrix lesson, estimated", matrix_recorded: "Road matrix lesson, recorded matrix" };
 
 /** Small listing for pages and `GET /api/v1/examples`. */
 export function exampleInfo(example: Example) {
@@ -99,7 +105,7 @@ export function exampleForVersion(store: Store, versionId: string): ExampleId | 
 const ALLOCATION_STRATEGIES = ["order_date_then_value", "first_come", "priority", "proportional", "optimized"] as const;
 const FULFILLMENT_POLICIES = ["piece", "whole_order"] as const;
 
-/** Only these settings are overridable on `/api/v1/runs`; the rest come from the bundled example. */
+/** Only these settings are overridable on `/api/v1/runs`; the rest come from the bundled example. `warm_start` names a run to start each cluster's solve from (M6). */
 export function parseOverrides(input: unknown): Partial<RunSettings> {
   if (input === undefined || input === null) return {};
   if (typeof input !== "object" || Array.isArray(input)) throw new ApiError(400, "invalid_settings", "Settings must be an object.");
@@ -125,6 +131,8 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
       if (!FULFILLMENT_POLICIES.includes(value as never))
         throw new ApiError(400, "invalid_settings", `fulfillment_policy must be one of ${FULFILLMENT_POLICIES.join(", ")}.`, ["settings.fulfillment_policy"]);
       out.fulfillment_policy = value as RunSettings["fulfillment_policy"];
+    } else if (key === "warm_start") {
+      out.warm_start = parseWarmStart(value);
     } else {
       throw new ApiError(400, "invalid_settings", `Setting ${key} cannot be changed in this version.`, [`settings.${key}`]);
     }
@@ -135,6 +143,8 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
 export function createRun(store: Store, who: Principal, idempotencyKey: string, overrides: Partial<RunSettings>, example: Example = EXAMPLES.m1) {
   if (!idempotencyKey || idempotencyKey.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
   const settings = parseContract("RunSettings", { ...example.settings, ...overrides });
+  if (settings.warm_start === null) delete settings.warm_start;
+  assertWarmStartSource(store, who, settings);
   const snapshot: Snapshot = { schema_version: 1, document: settings as unknown as Snapshot["document"] };
   const { ownerId, admission } = syntheticAdmission(who);
   try {
@@ -142,7 +152,7 @@ export function createRun(store: Store, who: Principal, idempotencyKey: string, 
   } catch (error) {
     if (error instanceof Error && error.message === "idempotency_conflict")
       throw new ApiError(409, "idempotency_conflict", "This Idempotency-Key was already used with different settings.");
-    throw error;
+    throw warmStartError(error);
   }
 }
 
@@ -160,6 +170,8 @@ export function explorerSummary(store: Store, runId: string): ExplorerSummary | 
 export function runDetail(store: Store, runId: string) {
   const view = store.runView(runId);
   if (!view) throw new ApiError(404, "run_not_found", "No run with this ID.");
+  // Lab runs have their own detail (lib/server/lab.ts, /labs/<id>); here they carry only the shared fields.
+  if (view.kind === "lab") return { ...baseDetail(view), kind: "lab" as const, explorer_settings: null, settings: null, summary: null, explorer: null };
   if (view.kind === "travel_snapshot") return { ...baseDetail(view), kind: "travel_snapshot" as const, explorer_settings: null, settings: null, summary: null, explorer: null, travel_snapshot: travelJobResult(view) };
   if (view.kind === "explorer") return { ...baseDetail(view), kind: "explorer" as const, explorer_settings: view.settings.document, settings: null, summary: null, explorer: view.status === "succeeded" ? explorerSummary(store, runId) : null };
   return { ...baseDetail(view), kind: "pipeline" as const, explorer_settings: null, settings: view.settings.document as unknown as RunSettings, summary: view.status === "succeeded" ? runSummary(store, runId) : null, explorer: null };
@@ -171,7 +183,7 @@ function travelJobResult(view: NonNullable<ReturnType<Store["runView"]>>) {
   return done?.snapshot_id ? { snapshot_id: done.snapshot_id, node_count: done.node_count ?? null, blocks: done.blocks ?? null } : null;
 }
 
-function baseDetail(view: NonNullable<ReturnType<Store["runView"]>>) {
+export function baseDetail(view: NonNullable<ReturnType<Store["runView"]>>) {
   const failure = view.events.find(e => e.kind === "failed")?.payload ?? null;
   const progress = [...view.events].reverse().find(e => e.kind === "progress")?.payload ?? null;
   return {

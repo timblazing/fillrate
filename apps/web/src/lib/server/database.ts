@@ -28,3 +28,6 @@ export async function startWorkerTransport() {
 }
 
 export const workerTransport = () => globalDatabase.fillrateTransport ?? null;
+
+/** The worker bearer token; the optimizer's loopback FastAPI accepts it too (manual plan evaluation). */
+export const workerToken = () => resolveWorkerToken(databasePath());

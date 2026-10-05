@@ -10,6 +10,7 @@ export function PublicHeader() {
       <BrandLink />
       <nav aria-label="Main navigation" className="flex items-center gap-4 sm:gap-6">
         <Link href="/learn" className="text-muted-foreground hover:text-foreground rounded-sm text-sm">Lessons</Link>
+        <Link href="/labs" className="text-muted-foreground hover:text-foreground rounded-sm text-sm">Labs</Link>
         <Link href="/#faq" className="text-muted-foreground hover:text-foreground rounded-sm text-sm">FAQ</Link>
         <AccountButton />
       </nav>

@@ -7,11 +7,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter web dev",
-    "worker": "cd services/optimizer && UV_PYTHON=python3.13 uv run fillrate-worker",
-    "build": "bun run --filter web build",
-    "lint": "bun run --filter web lint && bun run lint:packages",
-    "typecheck": "bun run typecheck:packages && bun run --filter web typecheck",
+    "dev": "node scripts/workspace.mjs apps/web dev",
+    "worker": "cd services/optimizer && FILLRATE_WORKER=1 UV_PYTHON=python3.13 uv run fillrate-optimizer",
+    "build": "node scripts/workspace.mjs apps/web build",
+    "start": "node scripts/workspace.mjs apps/web start",
+    "lint": "node scripts/workspace.mjs apps/web lint && node scripts/workspace.mjs . lint:packages",
+    "typecheck": "node scripts/workspace.mjs . typecheck:packages && node scripts/workspace.mjs apps/web typecheck",
     "test": "node node_modules/vitest/vitest.mjs run",
     "test:browser": "node scripts/test-browser.mjs",
     "db:generate": "node node_modules/drizzle-kit/bin.cjs generate --config packages/db/drizzle.config.ts",

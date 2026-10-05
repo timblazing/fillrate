@@ -12,7 +12,9 @@
     "./travel": "./src/travel.ts",
     "./travel-job": "./src/travel-job.ts",
     "./travel-export": "./src/travel-export.ts",
+    "./lab": "./src/lab.ts",
     "./experiments": "./src/experiments.ts",
+    "./evaluate": "./src/evaluate.ts",
     "./canonical": "./src/canonical.ts",
     "./replay": "./src/replay.ts",
     "./geocode": "./src/geocode.ts",
@@ -22,7 +24,7 @@
     "./schema": "./src/schema.ts"
   },
   "dependencies": {
-    "@fillrate/contracts": "workspace:*",
+    "@fillrate/contracts": "0.1.0",
     "drizzle-orm": "0.45.3",
     "better-sqlite3": "13.0.3"
   }

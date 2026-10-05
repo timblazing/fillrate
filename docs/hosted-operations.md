@@ -22,6 +22,7 @@ Owner IDs are `operator`, `user:<Better Auth user id>`, `examples` (the bundled 
 
 - Scenarios, versions and branches, runs and their artifacts and exports, replay bundles, sweeps, k explorer jobs, geocoding jobs and preflight: every route resolves the caller on the server (`apps/web/src/lib/server/access.ts`) and checks the owner. Another owner's IDs answer 404, the same as missing ones.
 - The store enforces job admission. A run or sweep can only be queued on a bundled example or on the submitter's own scenario (`Store.enqueue`/`createExperiment`), whichever route calls it.
+- Solver Lab instances (`/labs`, M6) are stored as private versions of their owner and queued in the transaction that charges admission; they are never listed as scenarios. Lab runs on the bundled lab examples are public like lesson runs and use the same synthetic admission (`docs/solver-lab.md`).
 - Stage reuse is keyed by the scenario's owner, and geocoder answers are cached per owner. One account's work never shows up as another's cache hit.
 - A travel snapshot is stored once by content hash. Each owner that uploaded it holds a link, and reading or selecting it needs a link. A hash is not an access token.
 - Idempotency keys replayed by another owner are conflicts and never return the first owner's result.
@@ -37,6 +38,7 @@ Each admission is checked and charged in the same SQLite write transaction that 
 - 60 solve admissions per client address per day, but only when `TRUSTED_CLIENT_IP_HEADER` names a header that the proxy overwrites. Without it, no address is trusted.
 - 10 jobs in the global queue and sweeps of at most 10 runs (outside hosted mode: 50 and 25).
 - 10 geocoding jobs, 200 address lookups, 100 scenario saves and 20 travel snapshot uploads per account per day.
+- 200 manual plan evaluations per account per day (`QUOTA_EVALUATIONS_PER_DAY`). An evaluation is a bounded synchronous call from the web server to the optimizer's loopback `/evaluate`, not a queued job, so it never waits behind solves; it is charged before the call and nothing is stored. Any caller who can read a run may load its manual plan context; evaluating needs an account, the operator/run key, or, on bundled-example runs only with `PUBLIC_SYNTHETIC_RUNS=1`, a global budget of 300 per hour (`PUBLIC_EVALUATIONS_PER_HOUR`).
 - 10 MB request bodies for imports and uploads. The order, visit and solver wall limits still apply.
 
 Refusals are HTTP 429 with `Retry-After`, an error code (`active_limit`, `queue_full`, `quota_exceeded`) and the time the window frees up. The account page shows usage. The Better Auth limiter protects only the auth routes. These starting values were checked against target-hardware timings; review them against live queue behavior as approved usage grows.

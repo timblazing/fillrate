@@ -193,7 +193,34 @@ test.skipIf(!hasUv)("a k explorer job runs clustering only and stores one explor
   expect(summary.selected_k).toBe(4);
   // Location-level statistics, no dense pairwise array: one row per clustered location.
   expect(summary.locations).toHaveLength(summary.locations_clustered);
-}, 120_000);
+
+  // The explorer replay bundle recomputes every statistic offline and compares it with the recording (M7).
+  const out = join(dir, "explorer-bundle"); const file = join(dir, "explorer-bundle.zip");
+  writeFileSync(file, replayBundle(store, runId, optimizer));
+  expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
+  const expected = JSON.parse(readFileSync(join(out, "expected.json"), "utf8"));
+  expect(expected.kind).toBe("explorer");
+  expect(expected.output_hash).toBe(view.artifacts[0].output_hash);
+  expect(expected.travel).toEqual({ provider: "estimated", metric: "spatial", circuity: 1.2 });
+  expect(canonical(expected.summary)).toBe(canonical(summary));
+  const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  for (const section of ["population", "selection", "settings", "per_k", "h3", "locations"]) expect(replay.stdout).toMatch(new RegExp(`${section}\\s+reproduced`));
+  expect(replay.stdout).toMatch(/explorer\s+bit-identical to the recorded artifact/);
+  expect(replay.stdout).toContain("REPLAY OK");
+  expect(replay.status).toBe(0);
+  // A tampered statistic is reported by name; another travel provider is refused before any rerun.
+  const tampered = structuredClone(expected);
+  tampered.summary.per_k[1].stability_raw = -0.5;
+  writeFileSync(join(out, "expected.json"), JSON.stringify(tampered));
+  const differs = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(differs.status).toBe(1);
+  expect(differs.stdout).toContain("DIFFERS: per_k[k=4].stability_raw recorded -0.5");
+  expect(differs.stdout).toContain("REPLAY FAILED: per_k");
+  writeFileSync(join(out, "expected.json"), JSON.stringify({ ...expected, travel: { provider: "valhalla" } }));
+  const refused = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(refused.status).toBe(1);
+  expect(refused.stdout).toContain("cannot be replayed");
+}, 180_000);
 
 test.skipIf(!hasUv)("sweep runs are independent solves, ranked within one cohort, and replay from a bundle", async () => {
   const runs = expandSweep(example.settings, { kmeans_seed: [0, 1], inventory_percent: [100, 60] });
@@ -362,3 +389,42 @@ test.skipIf(!hasUv)("a worker refuses a snapshot it cannot use and fails the run
   expect(failure(missingRun)).toMatchObject({ status: "failed", attempt: 1, code: "travel_snapshot_unavailable" });
   expect(String(failure(missingRun).message)).toContain("travel_snapshot_not_found");
 }, 120_000);
+
+test.skipIf(!hasUv)("a warm-started rerun starts each cluster from the source's validated plan and replays from its bundle", async () => {
+  const source = enqueue({}, "cold");
+  startWorker("warm");
+  await waitFor(() => ["succeeded", "failed"].includes(store.runView(source)!.status));
+  expect(store.runView(source)!.status).toBe("succeeded");
+  const rerun = enqueue({ warm_start: { kind: "run", run_id: source } }, "warm");
+  await waitFor(() => ["succeeded", "failed"].includes(store.runView(rerun)!.status));
+  const view = store.runView(rerun)!;
+  expect(view.status).toBe("succeeded");
+  expect(view.artifacts.map(a => a.stage_type)).toEqual(["preflight", "allocation", "aggregation", "clustering", "travel", "problem", "warm_start", "solve", "validation", "summary"]);
+  const warmManifest = view.artifacts.find(a => a.stage_type === "warm_start")!;
+  expect(view.artifacts.find(a => a.stage_type === "solve")!.parent_hashes).toContain(warmManifest.output_hash);
+  const plan = parseContract("WarmStartPlan", store.readArtifact(warmManifest.output_hash));
+  expect(plan.source).toEqual({ kind: "run", run_id: source });
+  const summary = parseContract("RunSummary", store.readArtifact(view.artifacts.at(-1)!.output_hash)) as RunSummary;
+  const sourceSummary = store.readArtifact(store.runView(source)!.artifacts.at(-1)!.output_hash) as RunSummary;
+  expect(summary.warm_start).toMatchObject({ source: { kind: "run", run_id: source }, plan_id: warmManifest.output_hash, skipped: 0 });
+  const used = summary.clusters.filter(c => c.warm_start);
+  expect(used.length).toBe(summary.warm_start!.used);
+  expect(used.length).toBeGreaterThan(0);
+  for (const c of used) {
+    expect(c.warm_start!.status).toBe("used");
+    expect(c.warm_start!.final_cost!).toBeLessThanOrEqual(c.warm_start!.initial_cost!);
+  }
+  expect(summary.validity).toBe(sourceSummary.validity);
+  expect(summary.totals.trucks).toBeLessThanOrEqual(sourceSummary.totals.trucks);
+
+  const out = join(dir, "bundle"); const file = join(dir, "bundle.zip");
+  writeFileSync(file, replayBundle(store, rerun, optimizer));
+  expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
+  const expected = JSON.parse(readFileSync(join(out, "expected.json"), "utf8"));
+  expect(expected.warm_start.plan_id).toBe(warmManifest.output_hash);
+  const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(replay.stdout).toContain("plan identity verified");
+  expect(replay.stdout).toMatch(/warm outcomes reproduced/);
+  expect(replay.stdout).toContain("REPLAY OK");
+  expect(replay.status).toBe(0);
+}, 180_000);

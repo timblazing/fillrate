@@ -254,3 +254,42 @@ test("migration 0009 approves existing users, new requests transition, and delet
     expect(migrated.sqlite.prepare("SELECT count(*) AS n FROM access_requests WHERE user_id='new'").get()).toEqual({ n: 0 });
   } finally { migrated.close(); }
 });
+
+test("a warm-start source must be a succeeded run the submitter can read, re-checked for the worker", () => {
+  const a = save(A), b = save(B);
+  const examples = store.createScenario("Example", { schema_version: 1, document: example.scenario } as never, "Fillrate examples", 1, "examples");
+  const warm = (runId: string) => ({ schema_version: 1 as const, document: { n: 1, warm_start: { kind: "run", run_id: runId } } });
+  let now = 2_000_000;
+  /** Queues a run and completes it with a summary artifact, as the worker would. */
+  function finished(versionId: string, ownerId: string) {
+    const runId = store.enqueue(versionId, settings(), randomUUID(), now++, 3, "pipeline", { ownerId });
+    const lease = store.claim("w", now++)!.lease;
+    const payload = { validity: "valid", runId };
+    const manifest = { ...artifact(lease, "e".repeat(64)).manifest, stage_type: "summary" as const, output_hash: contentHash(canonical(payload)) };
+    store.record({ lease, sequence: 1, kind: "succeeded", payload: {} }, [{ manifest, payload }], now++);
+    return runId;
+  }
+  const sourceA = finished(a.versionId, A), exampleRun = finished(examples.versionId, B);
+  // Another account's run reads as missing, in the queue and in a sweep.
+  expect(() => store.enqueue(b.versionId, warm(sourceA), "b-warm", now++, 3, "pipeline", { ownerId: B })).toThrow("warm_start_source_not_found");
+  expect(() => store.createExperiment({ versionId: b.versionId, name: "x", spec: {}, comparison: {}, runs: [{ settings: warm(sourceA), varied: {} }], ownerId: B }, "b-sweep")).toThrow("warm_start_source_not_found");
+  expect(() => store.enqueue(b.versionId, warm("no-such-run"), "b-missing", now++, 3, "pipeline", { ownerId: B })).toThrow("warm_start_source_not_found");
+  expect(store.listRuns(50, B).map(r => r.id)).not.toContain(sourceA);
+  // A run that has not succeeded is not a source yet.
+  const queued = store.enqueue(a.versionId, settings(9), "a-queued", now++, 3, "pipeline", { ownerId: A });
+  expect(() => store.enqueue(a.versionId, warm(queued), "a-early", now++, 3, "pipeline", { ownerId: A })).toThrow("warm_start_source_not_ready");
+  store.cancel(queued);
+  // The owner, and anyone for a bundled example's run, may warm-start; the worker receives the source summary.
+  const warmA = store.enqueue(a.versionId, warm(sourceA), "a-warm", now++, 3, "pipeline", { ownerId: A });
+  const warmB = store.enqueue(b.versionId, warm(exampleRun), "b-example", now++, 3, "pipeline", { ownerId: B });
+  const leaseA = store.claim("w", now++)!.lease;
+  expect(store.runView(warmA)!.status).toBe("claimed");
+  expect(store.leaseWarmStartSummary(leaseA, now++)).toEqual({ validity: "valid", runId: sourceA });
+  const leaseB = store.claim("w", now++)!.lease;
+  expect(store.runView(warmB)!.status).toBe("claimed");
+  expect(store.leaseWarmStartSummary(leaseB, now++)).toEqual({ validity: "valid", runId: exampleRun });
+  // A run without a warm start gets nothing.
+  store.enqueue(a.versionId, settings(3), "a-cold", now++, 3, "pipeline", { ownerId: A });
+  const cold = store.claim("w", now++)!.lease;
+  expect(() => store.leaseWarmStartSummary(cold, now++)).toThrow("warm_start_not_selected");
+});

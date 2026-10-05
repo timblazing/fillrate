@@ -30,6 +30,11 @@ const LESSONS = [
     blurb: "9 synthetic stops on one day: delivery windows and unloading minutes make trucks wait and need a second truck; remove the windows to compare.",
   },
   {
+    href: "/learn/manual-routes",
+    title: "Manual versus optimized routes",
+    blurb: "10 synthetic stops on 3 trucks: evaluate a dispatcher's plans against the optimized one with the same matrix and validator, then edit your own.",
+  },
+  {
     href: "/learn/road-matrices",
     title: "Haversine versus recorded road matrices",
     blurb: "7 synthetic stops planned on straight-line estimates and on a synthetic recorded directed matrix: a one-way river crossing reorders the route and a ridge detour puts one stop out of reach.",
@@ -46,7 +51,7 @@ export default function LessonsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Lessons</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each lesson starts real runs on a synthetic scenario and lists what to look for, not fixed answers. Lessons use only features the app runs today: estimated travel,
-            recorded directed travel matrices, the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations and the PyVRP shipment builder.
+            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator and recorded directed travel matrices.
           </p>
         </section>
         <ul className="grid gap-3 sm:grid-cols-2">
