@@ -5,6 +5,8 @@ import type { ScenarioDocument } from "@fillrate/contracts"
 import { MatrixHeatmap } from "@/components/lab/matrix-heatmap"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Progress } from "@/components/ui/progress"
+import { toastManager } from "@/components/ui/toast"
 
 type SnapshotInfo = {
   id: string
@@ -29,6 +31,14 @@ type SnapshotPreview = SnapshotInfo & {
 function snapshotLabel(snapshot: SnapshotInfo) {
   return `${snapshot.provider} · ${snapshot.profile} · ${snapshot.datasetRevision} · ${snapshot.id.slice(0, 10)}`
 }
+type BuildJob = { id: string; status: string; done: number; total: number; cancelling: boolean; error: string }
+type JobDetail = {
+  status: string
+  cancel_requested: boolean
+  progress: { blocks_done?: number; blocks_total?: number } | null
+  failure: { code?: string; message?: string } | null
+  travel_snapshot?: { snapshot_id: string } | null
+}
 const MAX_MATRIX_FILE_BYTES = 64 * 1024 * 1024
 
 function errorMessage(data: unknown, fallback: string) {
@@ -47,6 +57,8 @@ export function TravelMatrixPanel({
   excludedLineIds,
   selectedId,
   onSelect,
+  versionId,
+  versionSaved,
 }: {
   accessMode: "hosted" | "local" | "operator"
   operatorKey: string
@@ -54,6 +66,9 @@ export function TravelMatrixPanel({
   excludedLineIds: string[]
   selectedId: string | null
   onSelect: (id: string | null) => void
+  /** The saved version a road matrix would be built for; edits that are not saved yet cannot be bound. */
+  versionId: string | null
+  versionSaved: boolean
 }) {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
   const [inspected, setInspected] = useState<SnapshotPreview | null>(null)
@@ -62,6 +77,8 @@ export function TravelMatrixPanel({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState("")
   const [loadError, setLoadError] = useState("")
+  const [configured, setConfigured] = useState<boolean | null>(null)
+  const [build, setBuild] = useState<BuildJob | null>(null)
 
   async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
     const response = await fetch(path, {
@@ -94,6 +111,63 @@ export function TravelMatrixPanel({
     // `loadSnapshots` deliberately reads the current key and is triggered after key entry settles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessMode, operatorKey])
+
+  useEffect(() => {
+    if (accessMode === "operator" && !operatorKey) return
+    let cancelled = false
+    request<{ valhalla: { configured: boolean } }>("/api/v1/travel-snapshots/jobs").then(
+      value => { if (!cancelled) setConfigured(value.valhalla.configured) },
+      () => { if (!cancelled) setConfigured(null) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessMode, operatorKey])
+
+  const buildId = build && ["queued", "running"].includes(build.status) ? build.id : null
+  useEffect(() => {
+    if (!buildId) return
+    const timer = window.setInterval(() => {
+      request<JobDetail>(`/api/v1/runs/${buildId}`).then(async detail => {
+        if (detail.status === "succeeded" && detail.travel_snapshot) {
+          const id = detail.travel_snapshot.snapshot_id
+          setBuild(null)
+          await loadSnapshots()
+          onSelect(id)
+          toastManager.add({ type: "success", title: "Road matrix built", description: "The new Valhalla matrix is selected for this scenario." })
+        } else if (detail.status === "failed") {
+          const error = detail.failure?.message ?? "The road matrix build failed."
+          setBuild(current => current && { ...current, status: "failed", error })
+          toastManager.add({ type: "error", title: "Road matrix not built", description: error })
+        } else if (detail.status === "cancelled") {
+          setBuild(null)
+          toastManager.add({ type: "info", title: "Road matrix build cancelled", description: "Nothing was saved." })
+        } else {
+          setBuild(current => current && { ...current, status: detail.status, done: detail.progress?.blocks_done ?? current.done, total: detail.progress?.blocks_total ?? current.total })
+        }
+      }, () => undefined)
+    }, 1000)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildId])
+
+  async function startBuild() {
+    if (!versionId) return
+    setLoadError("")
+    try {
+      const run = await request<{ id: string; status: string }>("/api/v1/travel-snapshots/jobs", "POST", { versionId, idempotencyKey: crypto.randomUUID() })
+      setBuild({ id: run.id, status: run.status, done: 0, total: 0, cancelling: false, error: "" })
+    } catch (error) {
+      const description = error instanceof Error ? error.message : "Could not start the road matrix build."
+      setLoadError(description)
+      toastManager.add({ type: "error", title: "Road matrix not started", description })
+    }
+  }
+
+  async function cancelBuild() {
+    if (!build) return
+    setBuild({ ...build, cancelling: true })
+    try { await request(`/api/v1/runs/${build.id}/cancel`, "POST") }
+    catch (error) { setBuild(current => current && { ...current, cancelling: false }); setLoadError(error instanceof Error ? error.message : "Could not cancel the build.") }
+  }
 
   useEffect(() => {
     if (!selectedId) return
@@ -173,6 +247,21 @@ export function TravelMatrixPanel({
       </label>
     </div>
     {loadError && <p role="alert" className="text-sm text-destructive">{loadError}</p>}
+
+    <div className="space-y-2 border-t pt-3" aria-label="Road matrix build">
+      {configured === true && <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" disabled={!versionId || !versionSaved || Boolean(buildId)} onClick={() => void startBuild()}>Build road matrix (Valhalla)</Button>
+        {buildId && <Button variant="ghost" disabled={build?.cancelling} onClick={() => void cancelBuild()}>{build?.cancelling ? "Cancelling…" : "Cancel build"}</Button>}
+      </div>}
+      {configured === false && <p className="text-sm text-muted-foreground">Road matrices are not available: this server has no Valhalla deployment configured. Estimated travel and imported matrices still work.</p>}
+      {configured === true && !versionSaved && <p className="text-sm text-muted-foreground">Save the scenario version first; a matrix is built for the saved coordinates.</p>}
+      {configured === true && <p className="text-sm text-muted-foreground">Builds a directed truck matrix for the depot and every stop with demand in this saved version, using the server&apos;s configured routing data.</p>}
+      {buildId && build && <div role="status" aria-live="polite" className="space-y-1.5 text-sm">
+        <p>{build.cancelling ? "Cancelling…" : build.status === "queued" ? "Queued, waiting for the worker…" : build.total ? `Requesting road legs: block ${build.done} of ${build.total}` : "Starting…"}</p>
+        <Progress aria-label="Road matrix build progress" value={build.total ? Math.round((build.done / build.total) * 100) : 0} className="max-w-md" />
+      </div>}
+      {build?.status === "failed" && <p role="alert" className="text-sm text-destructive">{build.error}</p>}
+    </div>
 
     {selectedId && currentPreview ? <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <div className="space-y-3 text-sm">

@@ -75,13 +75,15 @@ BEHAVIORS = [
         description=(
             "M6: immutable directed travel snapshots (imported or Valhalla truck matrices) are "
             "stored by content hash and selected in run settings; the worker's travel stage, "
-            "reachability and the submission preflight read that matrix. The browser cannot "
-            "select one yet."
+            "reachability and the submission preflight read that matrix. A durable job can "
+            "build a Valhalla snapshot for a scenario version; that job is verified against "
+            "fixtures only."
         ),
         restrictions=[
             "Selectable only through the operator API (travel_snapshot_id) and the worker; "
             "no browser control or matrix preview yet.",
-            "No live Valhalla deployment or route geometry has been verified.",
+            "No live Valhalla deployment or route geometry has been verified; the snapshot "
+            "building job runs against fixtures only.",
         ],
         fixture=None,
     ),
