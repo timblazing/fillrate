@@ -37,6 +37,7 @@ Each admission is checked and charged in the same SQLite write transaction that 
 - 60 solve admissions per client address per day, but only when `TRUSTED_CLIENT_IP_HEADER` names a header that the proxy overwrites. Without it, no address is trusted.
 - 10 jobs in the global queue and sweeps of at most 10 runs (outside hosted mode: 50 and 25).
 - 10 geocoding jobs, 200 address lookups, 100 scenario saves and 20 travel snapshot uploads per account per day.
+- 200 manual plan evaluations per account per day (`QUOTA_EVALUATIONS_PER_DAY`). An evaluation is a bounded synchronous call from the web server to the optimizer's loopback `/evaluate`, not a queued job, so it never waits behind solves; it is charged before the call and nothing is stored. Any caller who can read a run may load its manual plan context; evaluating needs an account, the operator/run key, or, on bundled-example runs only with `PUBLIC_SYNTHETIC_RUNS=1`, a global budget of 300 per hour (`PUBLIC_EVALUATIONS_PER_HOUR`).
 - 10 MB request bodies for imports and uploads. The order, visit and solver wall limits still apply.
 
 Refusals are HTTP 429 with `Retry-After`, an error code (`active_limit`, `queue_full`, `quota_exceeded`) and the time the window frees up. The account page shows usage. The Better Auth limiter protects only the auth routes. These starting values were checked against target-hardware timings; review them against live queue behavior as approved usage grows.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Experiments smoke (spec §14, M4/M7): on the bundled lesson scenario, a k explorer job, a two-run
-sweep with a ranked Best option, and a Python replay bundle of a finished run; on the allocation
+"""Experiments smoke (spec §14, M4/M7): on the bundled lesson scenario, a k explorer job and its
+replay bundle, a two-run sweep with a ranked Best option, and a Python replay bundle of a finished run; on the allocation
 lesson scenario, a CP-SAT whole-order run and its replay bundle.
 Usage: smoke_experiments.py <base-url> <run-key> <finished-run-id>"""
 
@@ -44,7 +44,7 @@ def wait(check, what, seconds=300):
 
 
 examples = {e["id"] for e in call("/api/v1/examples")["examples"]}
-if examples != {"m1", "lesson", "allocation", "capacity", "seeds", "windows", "windows_off"}:
+if examples != {"m1", "lesson", "allocation", "capacity", "seeds", "windows", "windows_off", "manual"}:
     sys.exit(f"unexpected examples: {examples}")
 call("/api/v1/runs", {"example": "nope"}, expect=400)
 
@@ -64,6 +64,17 @@ per_k = {row["k"]: row for row in detail["explorer"]["per_k"]}
 if sorted(per_k) != [8, 9] or detail["explorer"]["tasks"] != 23:
     sys.exit(f"explorer summary unexpected: ks={sorted(per_k)} tasks={detail['explorer']['tasks']}")
 print(f"explorer ok: k=8 stability {per_k[8]['stability_raw']}, k=9 {per_k[9]['stability_raw']}")
+
+# The explorer's replay bundle: the recorded explorer artifact as expected.json and the explorer replay module.
+bundle = zipfile.ZipFile(io.BytesIO(call(f"/api/v1/runs/{explorer['id']}/export?format=python", raw=True)))
+expected = json.loads(bundle.read("expected.json"))
+if expected.get("kind") != "explorer" or expected.get("travel", {}).get("metric") != "spatial" \
+        or expected["summary"]["per_k"] != detail["explorer"]["per_k"]:
+    sys.exit(f"explorer replay expected.json unexpected: {sorted(expected)}")
+if not {"replay.py", "scenario.json", "settings.json",
+        "optimizer/src/fillrate_optimizer/explorer_replay.py"} <= set(bundle.namelist()):
+    sys.exit("explorer replay bundle lacks its replay files")
+print(f"explorer replay bundle ok: {len(bundle.namelist())} files")
 
 # Sweep: preview enqueues nothing, then two runs (k 6 and 8) ranked within one cohort.
 sweep = {"example": "lesson", "name": "Smoke sweep", "axes": {"k": [6, 8]}}

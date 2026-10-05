@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "cancel", "edit"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -848,6 +848,33 @@ async function experimentFlow(baseURL, runKey) {
   assertViewport(393, 852);
   checkBrowserDiagnostics("experiment comparison");
   console.log(`  passed: 2 combinations, Best option ${best.metrics.planned_cents} cents, ${best.metrics.trucks} shipments`);
+  await explorerReplayStep(baseURL, runKey);
+}
+
+// A small k explorer job on the same example, then its Python replay bundle from /explore/<id> (spec §13, M7).
+async function explorerReplayStep(baseURL, runKey) {
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const created = await fetch(new URL("/api/v1/explorer", baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "allocation", settings: { ks: [2, 3], seeds: [0, 1], selected_k: 3, h3_resolutions: [] } }), signal: AbortSignal.timeout(8_000) });
+  const job = await created.json().catch(() => null);
+  expect(created.status === 201 && job?.id, `Explorer job was not created: HTTP ${created.status} ${JSON.stringify(job)}`);
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${job.id}${access}`, runKey, "x-run-key"), (body) => body && !["queued", "claimed", "running"].includes(body.status), "Explorer job");
+  expect(detail.status === "succeeded" && detail.explorer?.per_k?.length === 2, `Explorer job did not succeed with two k rows: ${JSON.stringify(detail.failure ?? detail.status)}`);
+  open(`${baseURL}/explore/${job.id}${access}`);
+  browser("wait", "--text", "Python replay bundle", "--timeout", "20000");
+  const href = evalValue("document.querySelector('a[download][href*=\"format=python\"]')?.getAttribute('href') ?? ''");
+  expect(href === `/api/v1/runs/${job.id}/export?format=python`, `Explorer replay link is unexpected: ${href}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  const file = join(downloadDir, `fillrate-run-${job.id.slice(0, 8)}-replay.zip`);
+  expect(!existsSync(file), "Explorer replay bundle should be a new download.");
+  browser("find", "role", "link", "click", "--name", "Python replay bundle");
+  await poll(() => existsSync(file) && readFileSync(file).length > 0, Boolean, "Explorer replay bundle download", 15_000);
+  const zip = readFileSync(file);
+  const names = zip.toString("latin1");
+  expect(zip.subarray(0, 2).toString() === "PK" && ["replay.py", "expected.json", "settings.json", "optimizer/uv.lock", "optimizer/src/fillrate_optimizer/explorer_replay.py"].every((name) => names.includes(name)), "Explorer replay bundle lacks its replay files.");
+  checkBrowserDiagnostics("explorer replay");
+  console.log(`  passed: explorer ${job.id.slice(0, 8)} (k 2, 3 × seeds 0, 1), replay bundle ${zip.length} bytes`);
 }
 
 function clickLink(name) { browser("find", "role", "link", "click", "--name", name, "--exact"); }
@@ -1002,6 +1029,81 @@ async function lessonsFlow(baseURL, runKey) {
   console.log(`  passed: capacity ${bound} trucks at the bound, split stop on 3 shipments, inventory sweep 13/9/7/4; seeds give 6 partitions, ${Math.min(...miles)}-${Math.max(...miles)} loaded miles; windows 2 trucks/225 mi vs 1 truck/177 mi without`);
 }
 
+// Manual plan evaluator (spec §10) and the manual versus optimized routes lesson: the lesson's dispatcher plans are
+// evaluated through the page, then the run's Manual plan tab is edited from the keyboard and evaluated. Every
+// number is checked against the persisted run and services/optimizer/tests/test_lesson_manual.py.
+async function manualPlanFlow(baseURL, runKey) {
+  console.log("Browser smoke: manual plan evaluator and manual routes lesson");
+  beginBrowserFlow("manual-plan");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  open(`${baseURL}/learn/manual-routes${access}`);
+  expect(snapshot().includes('heading "Manual versus optimized routes"'), "Manual routes lesson did not load.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  clickButton("Run the pipeline");
+  browser("wait", "--text", "Open run", "--timeout", "20000");
+  const runId = evalValue(`document.querySelector('a[href^="/runs/"]')?.getAttribute('href') ?? ''`).split("/").pop().split("?")[0];
+  expect(/^[0-9a-f-]{36}$/.test(runId), `Manual lesson run link is unexpected: ${runId}`);
+  const run = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}${access}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Manual lesson run");
+  checkRun(run, "manual lesson");
+  expect(run.summary.totals.trucks === 3 && run.summary.totals.capacity_lower_bound === 3 && milesOf(run.summary) === 273, `Manual lesson run should use 3 trucks at the bound and about 273 mi: ${run.summary.totals.trucks}, ${milesOf(run.summary)} mi.`);
+
+  clickButton("Evaluate the order-sequence plan");
+  browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
+  let page = String(parsedText());
+  expect(page.includes("714 mi") && page.includes("273 mi") && page.includes("Manual baseline, not a solver result"), "Order-sequence evaluation does not show 714 vs 273 loaded miles.");
+  clickButton("Evaluate the east–west plan");
+  browser("wait", "--text", "Over trailer capacity", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes("truck 2 load 6400 > capacity 5300") && page.includes("Manual plan invalid · 1 violation"), "East–west evaluation does not name the over-capacity shipment.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // Access: anyone may read the public example run's plan context; evaluating needs the run key here.
+  const context = await fetchJson(baseURL, `/api/v1/runs/${runId}/evaluate?cluster=C1`);
+  expect(context.response.status === 200 && context.body.visits.length === 10 && context.body.reference_routes.length === 3, "Plan context for a public example run is wrong.");
+  const keyless = await localFetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cluster_id: "C1", routes: context.body.reference_routes }) });
+  expect(keyless.status === 403, `Keyless evaluation should be refused, got ${keyless.status}.`);
+
+  // The run page's Manual plan tab, from the keyboard.
+  open(`${baseURL}/runs/${runId}${access}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", "--text", "Start from this run", "--timeout", "15000");
+  browser("wait", "[data-action=\"move\"]", "--timeout", "15000");
+  browser("focus", "button:not([disabled])[aria-label^=\"Move \"][aria-label$=\" later\"]");
+  const moved = evalValue("document.activeElement?.dataset.visit ?? ''");
+  browser("press", "Enter");
+  expect(evalValue("document.activeElement?.dataset.visit ?? ''") === moved, "Focus did not stay on the moved stop after a keyboard reorder.");
+  browser("find", "role", "button", "click", "--name", "Reset", "--exact");
+  // Builder yard (4 pallets) onto the other 10-pallet shipment overloads it: 5,600 > 5,300.
+  const trucks = run.summary.trucks;
+  const from = trucks.findIndex((t) => t.visits.some((v) => v.location_id === "MR-04"));
+  const to = trucks.findIndex((t, i) => i !== from && t.load === 4000);
+  expect(from >= 0 && to >= 0, "Lesson run has no 10-pallet shipment to overload.");
+  browser("focus", "button[aria-label=\"Move Builder yard to another shipment\"]");
+  browser("press", "Enter");
+  browser("find", "role", "menuitem", "click", "--name", `To Shipment ${to + 1}`, "--exact");
+  browser("focus", "button:not([disabled])[aria-label^=\"Move \"]");
+  browser("find", "role", "button", "click", "--name", "Evaluate", "--exact");
+  browser("wait", "--text", "Over trailer capacity", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes(`truck ${to + 1} load 5600 > capacity 5300`) && page.includes("Optimized (this run)"), `Manual plan tab does not show the over-capacity violation on shipment ${to + 1}.`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  browser("find", "role", "button", "click", "--name", "Reset", "--exact");
+  expect(!String(parsedText()).includes("Over trailer capacity"), "Reset did not clear the evaluation.");
+  browser("find", "role", "button", "click", "--name", "Evaluate", "--exact");
+  browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
+  checkBrowserDiagnostics("manual plan");
+  console.log(`  passed: run ${runId.slice(0, 8)} 3 trucks/273 mi; order-sequence plan valid at 714 mi; east-west plan over capacity; keyboard edit overloads shipment ${to + 1}`);
+}
+
 async function stop() {
   if (stopping) return stopping;
   stopping = (async () => {
@@ -1021,7 +1123,7 @@ process.once("SIGTERM", () => void stop().finally(() => process.exit(143)));
 
 try {
   expect(existsSync(join(appDir, ".next/standalone/apps/web/server.js")), "Production standalone build is missing; run bun run build first.");
-  const [webPort, internalPort] = await Promise.all([freePort(), freePort()]);
+  const [webPort, internalPort, optimizerPort] = await Promise.all([freePort(), freePort(), freePort()]);
   const workerToken = randomBytes(32).toString("hex");
   const runKey = randomUUID();
   const scenarioKey = randomBytes(32).toString("hex");
@@ -1039,6 +1141,7 @@ try {
     DATA_DIR: dataDir,
     WORKER_TOKEN: workerToken,
     INTERNAL_PORT: String(internalPort),
+    OPTIMIZER_URL: `http://127.0.0.1:${optimizerPort}`,
     RUN_KEY: runKey,
     SCENARIO_KEY: scenarioKey,
     NEXT_TELEMETRY_DISABLED: "1",
@@ -1046,9 +1149,10 @@ try {
   const web = launch(process.execPath, [join(standaloneAppDir, "server.js")], { cwd: standaloneAppDir, env: { ...commonEnv, PORT: String(webPort), HOSTNAME: "127.0.0.1" } });
   const baseURL = `http://127.0.0.1:${webPort}`;
   await waitForWeb(`${baseURL}/learn/fulfillment-pipeline?key=${encodeURIComponent(runKey)}`, web);
-  const worker = launch("uv", ["run", "--locked", "fillrate-worker"], {
+  // The optimizer as the container runs it: FastAPI on loopback (manual plan evaluation) with the worker supervisor.
+  launch("uv", ["run", "--locked", "fillrate-optimizer"], {
     cwd: optimizerDir,
-    env: { ...commonEnv, UV_PYTHON: "3.13", FILLRATE_INTERNAL_URL: `http://127.0.0.1:${internalPort}`, WORKER_ID: `browser-smoke-${process.pid}`, WORKER_POLL_SECONDS: "0.2" },
+    env: { ...commonEnv, UV_PYTHON: "3.13", FILLRATE_WORKER: "1", OPTIMIZER_PORT: String(optimizerPort), FILLRATE_INTERNAL_URL: `http://127.0.0.1:${internalPort}`, WORKER_ID: `browser-smoke-${process.pid}`, WORKER_POLL_SECONDS: "0.2" },
   });
   for (const flow of flows) {
     if (flow === "lesson") await lessonFlow(baseURL, runKey);
@@ -1057,6 +1161,7 @@ try {
     if (flow === "experiment") await experimentFlow(baseURL, runKey);
     if (flow === "lessons") await lessonsFlow(baseURL, runKey);
     if (flow === "time-windows") await timeWindowsFlow(baseURL, scenarioKey);
+    if (flow === "manual-plan") await manualPlanFlow(baseURL, runKey);
     if (flow === "cancel") await cancelFlow(baseURL, scenarioKey);
     if (flow === "edit") await editFlow(baseURL, scenarioKey);
   }

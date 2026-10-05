@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation"
 
 import { initializeDatabase } from "@/lib/server/database"
 import { assertRunRead, canCancel, pagePrincipal } from "@/lib/server/access"
-import { ApiError, runDetail } from "@/lib/server/runs"
+import { ApiError, canStartRuns, runDetail } from "@/lib/server/runs"
 
 import { RunView } from "../run-view"
 
@@ -30,7 +30,7 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
     <div className="flex min-h-dvh flex-col">
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
-        <RunView initial={detail} canCancel={cancellable} runKey={typeof key === "string" ? key : undefined} />
+        <RunView initial={detail} canCancel={cancellable} canEvaluate={canStartRuns(who, key)} runKey={typeof key === "string" ? key : undefined} />
       </main>
     </div>
   )
