@@ -4,7 +4,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appDir = join(root, "apps/web");
@@ -444,6 +444,28 @@ async function matrixFlow(baseURL, scenarioKey) {
     }
   }
   expect(checked >= 3, `Expected every stop leg to be checked; checked ${checked}.`);
+  // Exports: schematic GeoJSON without the synthetic return, and the imported matrix with its node binding.
+  const exportGet = (query, key = scenarioKey) => fetch(new URL(`/api/v1/runs/${runId}/export?${query}`, baseURL), { headers: key ? { "x-scenario-key": key } : {}, signal: AbortSignal.timeout(15_000) });
+  const geoResponse = await exportGet("format=geojson");
+  expect(geoResponse.status === 200 && geoResponse.headers.get("content-type")?.startsWith("application/geo+json") && /filename="fillrate-run-[0-9a-f]{8}\.geojson"/.test(geoResponse.headers.get("content-disposition") ?? ""), "GeoJSON export headers are wrong.");
+  const geo = await geoResponse.json();
+  const routes = geo.features.filter((f) => f.geometry.type === "LineString");
+  expect(geo.type === "FeatureCollection" && routes.length === detail.summary.trucks.length && geo.fillrate?.travel?.snapshot_id === snapshotId, "GeoJSON export is missing routes or the snapshot hash.");
+  for (const route of routes) {
+    const truck = detail.summary.trucks.find((t) => t.id === route.properties.truck_id);
+    expect(route.properties.geometry === "schematic_straight_line" && route.geometry.coordinates.length === truck.visits.length + 1, "GeoJSON route must be the depot plus physical visits, with no return leg.");
+    expect(route.geometry.coordinates[0][0] === depot.lon && route.geometry.coordinates[0][1] === depot.lat, "GeoJSON coordinates must be [lon, lat] starting at the depot.");
+  }
+  expect(geo.features.filter((f) => f.properties?.role === "stop").length === 3, "GeoJSON export should list the three planned stops.");
+  const matrixExport = await (await exportGet("format=matrix&as=json")).json();
+  expect(matrixExport.snapshot_id === snapshotId && matrixExport.snapshot?.distances?.[0]?.[1] === km[0][1] && matrixExport.snapshot.distances[1][0] === km[1][0] && matrixExport.binding?.every((b) => b.in_snapshot && b.coordinates_match), "Matrix JSON export does not match the imported snapshot.");
+  const matrixCsv = (await (await exportGet("format=matrix&as=csv")).text()).trim().split(/\r?\n/);
+  expect(matrixCsv[0] === "from_id,to_id,distance_m,duration_s" && matrixCsv.length === 17 && matrixCsv.includes(`${nodes[0].id},${nodes[1].id},${meters[0][1]},${Math.round(km[0][1] * 60)}`) && !matrixCsv.includes(`${nodes[1].id},${nodes[0].id},${meters[0][1]},${Math.round(km[0][1] * 60)}`), "Matrix CSV is not the directed imported matrix.");
+  expect((await exportGet("format=geojson", "")).status === 404 && (await exportGet("format=matrix", "")).status === 404, "Keyless exports of a saved run must be refused.");
+  const keyless = await fetch(new URL(`/api/v1/travel-snapshots/${snapshotId}?format=csv`, baseURL), { signal: AbortSignal.timeout(8_000) });
+  expect(keyless.status >= 400, "Keyless snapshot download must be refused.");
+  const snapshotJson = await (await fetch(new URL(`/api/v1/travel-snapshots/${snapshotId}?format=json`, baseURL), { headers: { "x-scenario-key": scenarioKey }, signal: AbortSignal.timeout(15_000) })).text();
+  expect(createHash("sha256").update(snapshotJson).digest("hex") === snapshotId, "Downloaded snapshot JSON must hash to its identity.");
   browser("wait", "--text", "Validated, complete", "--timeout", "20000");
   assertViewport(1440, 900);
   assertViewport(393, 852);

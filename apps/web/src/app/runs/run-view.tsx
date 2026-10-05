@@ -110,7 +110,7 @@ export function RunView({ initial, canCancel, runKey }: { initial: PipelineDetai
               <Button variant="outline" size="sm" render={<Link href={`/runs/${run.id}/sheet`} />}>
                 <Printer aria-hidden /> Shipment sheets
               </Button>
-              <ExportMenu id={run.id} />
+              <ExportMenu id={run.id} hasMatrix={run.summary?.travel?.mode === "snapshot"} />
             </>
           )}
         </div>
@@ -144,7 +144,7 @@ export function RunView({ initial, canCancel, runKey }: { initial: PipelineDetai
   )
 }
 
-function ExportMenu({ id }: { id: string }) {
+function ExportMenu({ id, hasMatrix }: { id: string; hasMatrix: boolean }) {
   const href = (q: string) => `/api/v1/runs/${id}/export?${q}`
   return (
     <Menu>
@@ -159,6 +159,8 @@ function ExportMenu({ id }: { id: string }) {
           ["format=csv&table=unplanned", "Unshipped lines CSV (unplanned)"],
           ["format=csv&table=clusters", "Clusters CSV"],
           ["format=csv&table=products", "Stock reconciliation CSV"],
+          ["format=geojson", "GeoJSON routes (schematic lines)"],
+          ...(hasMatrix ? [["format=matrix&as=csv", "Travel matrix CSV"], ["format=matrix&as=json", "Travel matrix JSON (with node binding)"]] : []),
           ["format=python", "Python replay bundle (.zip)"],
         ].map(([q, label]) => (
           <MenuItem key={q} render={<a href={href(q)} download />}>
