@@ -92,6 +92,9 @@ export function quotaConfig(env: Env, mode: DeploymentMode["mode"]) {
     savesPerDay: int("QUOTA_SAVES_PER_DAY", 100),
     uploadsPerDay: int("QUOTA_UPLOADS_PER_DAY", 20),
     uploadBytes: int("MAX_UPLOAD_BYTES", 10 * 1024 * 1024),
+    // Manual plan evaluations: synchronous optimizer calls, not queued jobs (spec §10).
+    evaluationsPerDay: int("QUOTA_EVALUATIONS_PER_DAY", 200),
+    publicEvaluationsPerHour: int("PUBLIC_EVALUATIONS_PER_HOUR", 300),
     publicRunsPerHour: int("PUBLIC_RUNS_PER_HOUR", 60),
     publicRunsPerDay: int("PUBLIC_RUNS_PER_DAY", 300),
   };

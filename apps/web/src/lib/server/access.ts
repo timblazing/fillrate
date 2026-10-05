@@ -184,6 +184,23 @@ export function workAdmission(who: Principal, kind: "geocode" | "lookup" | "save
   return { ownerId: who.ownerId!, ...(kind === "geocode" ? { maxActive: q.activeJobs } : {}), buckets: [day(`${kind}:${who.ownerId}`, limit, label)] }
 }
 
+/**
+ * Manual plan evaluation (spec §10): bounded synchronous optimizer work on a run the caller can read, never a
+ * queued job. Accounts spend a daily bucket; the operator, local mode and the run key are unmetered; anonymous
+ * callers only on bundled-example runs with PUBLIC_SYNTHETIC_RUNS=1, against a global hourly budget.
+ */
+export function evaluationAdmission(who: Principal, onExample: boolean): Admission | undefined {
+  const q = quotas()
+  if (who.kind === "user") return { ownerId: who.ownerId!, buckets: [day(`evaluate:${who.ownerId}`, q.evaluationsPerDay, "daily plan evaluations")] }
+  if (who.ownerId || who.runKey) return undefined
+  if (onExample && process.env.PUBLIC_SYNTHETIC_RUNS === "1")
+    return { ownerId: PUBLIC_OWNER, buckets: [{ bucket: "public:evaluate:hour", limit: q.publicEvaluationsPerHour, windowMs: 3_600_000, label: "hourly public plan evaluations" }] }
+  if (who.kind === "pending") throw accessError(who)
+  if (mode().mode === "hosted") throw new ApiError(401, "sign_in_required", "Sign in to evaluate plans.")
+  if (!process.env.RUN_KEY) throw new ApiError(503, "runs_disabled", "Plan evaluation is not enabled on this server.")
+  throw new ApiError(403, "forbidden", "A valid run key is required.")
+}
+
 /** Quota status for the account page and `GET /api/v1/me`. */
 export function usage(store: Store, who: Principal) {
   if (who.kind !== "user") return null
@@ -196,6 +213,7 @@ export function usage(store: Store, who: Principal) {
     lookups: read("lookup", q.addressLookupsPerDay),
     saves: read("save", q.savesPerDay),
     uploads: read("upload", q.uploadsPerDay),
+    evaluations: read("evaluate", q.evaluationsPerDay),
     upload_bytes: q.uploadBytes,
     max_sweep_runs: q.maxSweepRuns,
   }

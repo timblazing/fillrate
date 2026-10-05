@@ -21,6 +21,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Evaluate
+         * @description Manual plan evaluation (spec §10): bounded, synchronous CPU work in FastAPI's thread
+         *     pool, never on the event loop. Only Next.js calls it, with the worker bearer token.
+         */
+        post: operations["post_evaluate_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -156,6 +177,16 @@ export interface components {
             fold: (0 | 1) | null;
             /** Latest */
             latest: string;
+        };
+        /**
+         * ClusterPlan
+         * @description Ordered visit IDs per truck for one cluster; the shape of a solve artifact's routes.
+         */
+        ClusterPlan: {
+            /** Cluster Id */
+            cluster_id: string;
+            /** Routes */
+            routes: string[][];
         };
         /** ClusterSummary */
         ClusterSummary: {
@@ -300,6 +331,64 @@ export interface components {
              * @enum {string}
              */
             severity: "info" | "warning" | "error";
+        };
+        /**
+         * EvaluateRequest
+         * @description One cluster of a completed run, as its artifacts recorded it, plus the plans to evaluate.
+         *
+         *     ``cluster``, ``problem`` and ``travel`` are that cluster's entries of the clustering, problem
+         *     and (decoded) travel artifacts; ``visits`` are the aggregation's visits of the cluster.
+         *     ``reference`` is normally the run's optimized routes, evaluated alongside for comparison.
+         */
+        EvaluateRequest: {
+            /** Cluster */
+            cluster: {
+                [key: string]: unknown;
+            };
+            plan: components["schemas"]["ClusterPlan"];
+            /** Problem */
+            problem: {
+                [key: string]: unknown;
+            };
+            reference?: components["schemas"]["ClusterPlan"] | null;
+            scenario: components["schemas"]["ScenarioDocument"];
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            settings: components["schemas"]["RunSettings"];
+            /** Travel */
+            travel: {
+                [key: string]: unknown;
+            };
+            /** Travel Snapshot */
+            travel_snapshot?: {
+                [key: string]: unknown;
+            } | null;
+            /** Visits */
+            visits: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** EvaluateResponse */
+        EvaluateResponse: {
+            /** Cluster Id */
+            cluster_id: string;
+            /**
+             * Evaluator Version
+             * @default fillrate-evaluate/1
+             */
+            evaluator_version: string;
+            manual: components["schemas"]["PlanEvaluation"];
+            reference?: components["schemas"]["PlanEvaluation"] | null;
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
         };
         /** ExplorerH3 */
         ExplorerH3: {
@@ -1066,6 +1155,73 @@ export interface components {
             /** Product Id */
             product_id: string;
         };
+        /** PlanEvaluation */
+        PlanEvaluation: {
+            metrics: components["schemas"]["PlanMetrics"];
+            /** Trucks */
+            trucks: components["schemas"]["TruckSummary"][];
+            /** Valid */
+            valid: boolean;
+            /** Violations */
+            violations: components["schemas"]["PlanViolation"][];
+        };
+        /**
+         * PlanMetrics
+         * @description The run's cluster metrics for this plan, under the run's objective definition.
+         */
+        PlanMetrics: {
+            /** Avg Fill */
+            avg_fill: number | null;
+            /** Capacity Lower Bound */
+            capacity_lower_bound: number;
+            /** Distance Cost */
+            distance_cost: number;
+            /** Drive S */
+            drive_s: number | null;
+            /** Load */
+            load: number;
+            /** Loaded Distance M */
+            loaded_distance_m: number | null;
+            /** Min Fill */
+            min_fill: number | null;
+            /** Objective */
+            objective: number | null;
+            /** Objective Cents */
+            objective_cents?: number | null;
+            /** Objective Mode */
+            objective_mode: string;
+            /** Planned Amount Cents */
+            planned_amount_cents: number;
+            /** Planned Visit Count */
+            planned_visit_count: number;
+            /** Truck Penalty */
+            truck_penalty: number;
+            /** Trucks */
+            trucks: number;
+            /**
+             * Unmeasured Trucks
+             * @default 0
+             */
+            unmeasured_trucks: number;
+            /** Visit Count */
+            visit_count: number;
+            /** Wait S */
+            wait_s: number | null;
+        };
+        /** PlanViolation */
+        PlanViolation: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "unknown_visit" | "unreachable_visit" | "duplicate_visit" | "missing_visit" | "empty_truck" | "over_capacity" | "leg_missing" | "leg_over_limit" | "leg_mismatch" | "leg_no_duration" | "window_late" | "horizon_exceeded" | "cluster_diameter";
+            /** Message */
+            message: string;
+            /** Truck */
+            truck?: number | null;
+            /** Visit Id */
+            visit_id?: string | null;
+        };
         /**
          * PreflightFinding
          * @description One preflight check that found something. `action` is what the run did about it.
@@ -1705,6 +1861,46 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Capabilities"];
                 };
+            };
+        };
+    };
+    post_evaluate_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluateResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

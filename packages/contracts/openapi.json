@@ -275,6 +275,40 @@
         "title": "ClockWindow",
         "type": "object"
       },
+      "ClusterPlan": {
+        "additionalProperties": false,
+        "description": "Ordered visit IDs per truck for one cluster; the shape of a solve artifact's routes.",
+        "properties": {
+          "cluster_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Cluster Id",
+            "type": "string"
+          },
+          "routes": {
+            "items": {
+              "items": {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 10000,
+              "minItems": 1,
+              "type": "array"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Routes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "routes"
+        ],
+        "title": "ClusterPlan",
+        "type": "object"
+      },
       "ClusterSummary": {
         "additionalProperties": false,
         "properties": {
@@ -705,6 +739,122 @@
           "message"
         ],
         "title": "Diagnostic",
+        "type": "object"
+      },
+      "EvaluateRequest": {
+        "additionalProperties": false,
+        "description": "One cluster of a completed run, as its artifacts recorded it, plus the plans to evaluate.\n\n``cluster``, ``problem`` and ``travel`` are that cluster's entries of the clustering, problem\nand (decoded) travel artifacts; ``visits`` are the aggregation's visits of the cluster.\n``reference`` is normally the run's optimized routes, evaluated alongside for comparison.",
+        "properties": {
+          "cluster": {
+            "additionalProperties": true,
+            "title": "Cluster",
+            "type": "object"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ClusterPlan"
+          },
+          "problem": {
+            "additionalProperties": true,
+            "title": "Problem",
+            "type": "object"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClusterPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scenario": {
+            "$ref": "#/components/schemas/ScenarioDocument"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/RunSettings"
+          },
+          "travel": {
+            "additionalProperties": true,
+            "title": "Travel",
+            "type": "object"
+          },
+          "travel_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travel Snapshot"
+          },
+          "visits": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Visits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenario",
+          "settings",
+          "cluster",
+          "problem",
+          "travel",
+          "visits",
+          "plan"
+        ],
+        "title": "EvaluateRequest",
+        "type": "object"
+      },
+      "EvaluateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "cluster_id": {
+            "title": "Cluster Id",
+            "type": "string"
+          },
+          "evaluator_version": {
+            "default": "fillrate-evaluate/1",
+            "title": "Evaluator Version",
+            "type": "string"
+          },
+          "manual": {
+            "$ref": "#/components/schemas/PlanEvaluation"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanEvaluation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "manual"
+        ],
+        "title": "EvaluateResponse",
         "type": "object"
       },
       "ExplorerH3": {
@@ -2578,6 +2728,255 @@
         "title": "OrderLine",
         "type": "object"
       },
+      "PlanEvaluation": {
+        "additionalProperties": false,
+        "properties": {
+          "metrics": {
+            "$ref": "#/components/schemas/PlanMetrics"
+          },
+          "trucks": {
+            "items": {
+              "$ref": "#/components/schemas/TruckSummary"
+            },
+            "title": "Trucks",
+            "type": "array"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/PlanViolation"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "valid",
+          "violations",
+          "metrics",
+          "trucks"
+        ],
+        "title": "PlanEvaluation",
+        "type": "object"
+      },
+      "PlanMetrics": {
+        "additionalProperties": false,
+        "description": "The run's cluster metrics for this plan, under the run's objective definition.",
+        "properties": {
+          "avg_fill": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Fill"
+          },
+          "capacity_lower_bound": {
+            "title": "Capacity Lower Bound",
+            "type": "integer"
+          },
+          "distance_cost": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Distance Cost",
+            "type": "integer"
+          },
+          "drive_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive S"
+          },
+          "load": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Load",
+            "type": "integer"
+          },
+          "loaded_distance_m": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loaded Distance M"
+          },
+          "min_fill": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Fill"
+          },
+          "objective": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective"
+          },
+          "objective_cents": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Cents"
+          },
+          "objective_mode": {
+            "title": "Objective Mode",
+            "type": "string"
+          },
+          "planned_amount_cents": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Planned Amount Cents",
+            "type": "integer"
+          },
+          "planned_visit_count": {
+            "title": "Planned Visit Count",
+            "type": "integer"
+          },
+          "truck_penalty": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Truck Penalty",
+            "type": "integer"
+          },
+          "trucks": {
+            "title": "Trucks",
+            "type": "integer"
+          },
+          "unmeasured_trucks": {
+            "default": 0,
+            "title": "Unmeasured Trucks",
+            "type": "integer"
+          },
+          "visit_count": {
+            "title": "Visit Count",
+            "type": "integer"
+          },
+          "wait_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wait S"
+          }
+        },
+        "required": [
+          "trucks",
+          "visit_count",
+          "planned_visit_count",
+          "load",
+          "capacity_lower_bound",
+          "avg_fill",
+          "min_fill",
+          "loaded_distance_m",
+          "drive_s",
+          "wait_s",
+          "planned_amount_cents",
+          "objective_mode",
+          "truck_penalty",
+          "distance_cost",
+          "objective"
+        ],
+        "title": "PlanMetrics",
+        "type": "object"
+      },
+      "PlanViolation": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "unknown_visit",
+              "unreachable_visit",
+              "duplicate_visit",
+              "missing_visit",
+              "empty_truck",
+              "over_capacity",
+              "leg_missing",
+              "leg_over_limit",
+              "leg_mismatch",
+              "leg_no_duration",
+              "window_late",
+              "horizon_exceeded",
+              "cluster_diameter"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "truck": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Truck"
+          },
+          "visit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Id"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "PlanViolation",
+        "type": "object"
+      },
       "PreflightFinding": {
         "additionalProperties": false,
         "description": "One preflight check that found something. `action` is what the run did about it.",
@@ -4168,6 +4567,59 @@
           }
         },
         "summary": "Get Capabilities"
+      }
+    },
+    "/evaluate": {
+      "post": {
+        "description": "Manual plan evaluation (spec \u00a710): bounded, synchronous CPU work in FastAPI's thread\npool, never on the event loop. Only Next.js calls it, with the worker bearer token.",
+        "operationId": "post_evaluate_evaluate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Post Evaluate"
       }
     },
     "/health": {

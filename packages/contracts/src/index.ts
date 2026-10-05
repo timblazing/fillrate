@@ -12,6 +12,12 @@ export type RunSettings = components["schemas"]["RunSettings"];
 export type RunSummary = components["schemas"]["RunSummary"];
 export type ExplorerSettings = components["schemas"]["ExplorerSettings"];
 export type ExplorerSummary = components["schemas"]["ExplorerSummary"];
+// Manual plan evaluation (FastAPI /evaluate, spec §10); Next.js assembles the request from a run's artifacts.
+export type ClusterPlan = components["schemas"]["ClusterPlan"];
+export type EvaluateRequest = components["schemas"]["EvaluateRequest"];
+export type EvaluateResponse = components["schemas"]["EvaluateResponse"];
+export type PlanEvaluation = components["schemas"]["PlanEvaluation"];
+export type PlanViolation = components["schemas"]["PlanViolation"];
 export type LabInstance = components["schemas"]["LabInstance"];
 export type LabResult = components["schemas"]["LabResult"];
 export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary" | "ExplorerSettings" | "ExplorerSummary" | "LabInstance" | "LabResult";

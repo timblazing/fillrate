@@ -144,6 +144,10 @@ try {
     check("anonymous cannot read A's run (404)", (await call(b, `/api/v1/runs/${runId}`)).status === 404);
     check("B cannot export A's run (404)", (await call(b, `/api/v1/runs/${runId}/export?format=json`, as(B))).status === 404);
     check("B cannot cancel A's run (404)", (await call(b, `/api/v1/runs/${runId}/cancel`, as(B, { method: "POST" }))).status === 404);
+    check("B cannot read A's manual plan context (404)", (await call(b, `/api/v1/runs/${runId}/evaluate?cluster=C1`, as(B))).status === 404);
+    check("B cannot evaluate a plan on A's run (404)", (await call(b, `/api/v1/runs/${runId}/evaluate`, as(B, { method: "POST", body: { cluster_id: "C1", routes: [["x"]] } }))).status === 404);
+    check("anonymous cannot evaluate a plan on A's run (404)", (await call(b, `/api/v1/runs/${runId}/evaluate`, { method: "POST", body: { cluster_id: "C1", routes: [["x"]] } })).status === 404);
+    check("A's unfinished run has no plan to evaluate (409)", (await call(b, `/api/v1/runs/${runId}/evaluate?cluster=C1`, as(A))).body?.error?.code === "run_not_finished");
     check("B's run list omits A's run", !(await call(b, "/api/v1/runs", as(B))).body?.runs?.some(r => r.id === runId));
     check("A's run list has it", (await call(b, "/api/v1/runs", as(A))).body?.runs?.some(r => r.id === runId));
     check("A's run page opens", (await fetch(`${b}/runs/${runId}`, as(A))).status === 200);

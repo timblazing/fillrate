@@ -197,6 +197,28 @@ BEHAVIORS = [
         ),
         fixture="tests/test_pipeline.py::test_validator_rejects_solver_feasible_missing_edge_candidate",
     ),
+    Behavior(
+        id="manual_evaluator",
+        provided_by="validation",
+        description=(
+            "A hand-edited plan for one cluster of a completed pipeline run (ordered visit IDs "
+            "per truck: reorder visits, move them between trucks, add or remove trucks) is "
+            "checked by the same independent validator against the run's recorded travel "
+            "artifact, problem, visit lineage and, for snapshot runs, the selected snapshot. "
+            "It reports concrete violations and the run's cluster metrics and objective for "
+            "both the manual and the optimized plan; the optimized plan reproduces the run."
+        ),
+        restrictions=[
+            "One cluster at a time, within that cluster's visits; visits cannot move between "
+            "clusters.",
+            "Evaluation only: a valid manual plan is a baseline, not a solver result, and is "
+            "not saved or used as a warm start.",
+        ],
+        fixture=(
+            "tests/test_evaluate.py::"
+            "test_evaluating_the_optimized_routes_reproduces_the_recorded_metrics"
+        ),
+    ),
     # ---- Solver Lab (M6): generic normalized routing instances, not the fulfillment pipeline ----
     Behavior(
         id="solver_lab",

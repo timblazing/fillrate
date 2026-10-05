@@ -27,6 +27,7 @@ import { METERS_PER_MILE } from "@/lib/shipment-sheet"
 import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, formatPercent, plural } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
+import { ManualPlanPanel } from "./manual-plan"
 import { TimelinePanel } from "./timeline-panel"
 
 const RunMap = dynamic(() => import("./run-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
@@ -70,7 +71,7 @@ function useRun(initial: PipelineDetail) {
   return [run, setRun] as const
 }
 
-export function RunView({ initial, canCancel, runKey }: { initial: PipelineDetail; canCancel: boolean; runKey?: string }) {
+export function RunView({ initial, canCancel, canEvaluate = false, runKey }: { initial: PipelineDetail; canCancel: boolean; canEvaluate?: boolean; runKey?: string }) {
   const [run, setRun] = useRun(initial)
   const [cancelling, setCancelling] = useState(false)
   const active = ACTIVE.has(run.status)
@@ -139,7 +140,7 @@ export function RunView({ initial, canCancel, runKey }: { initial: PipelineDetai
           <AlertDescription>The worker stopped responding on every attempt ({run.max_attempts}). Start a new run.</AlertDescription>
         </Alert>
       )}
-      {run.summary && <Results summary={run.summary} run={run} />}
+      {run.summary && <Results summary={run.summary} run={run} runKey={runKey} canEvaluate={canEvaluate} />}
     </>
   )
 }
@@ -225,7 +226,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   )
 }
 
-function Results({ summary, run }: { summary: RunSummary; run: PipelineDetail }) {
+function Results({ summary, run, runKey, canEvaluate }: { summary: RunSummary; run: PipelineDetail; runKey?: string; canEvaluate: boolean }) {
   const [cluster, setCluster] = useState<string | null>(null)
   const [hexes, setHexes] = useState(false)
   const [truck, setTruck] = useState<string | null>(null)
@@ -280,6 +281,7 @@ function Results({ summary, run }: { summary: RunSummary; run: PipelineDetail })
             <TabsTab value="map">Map</TabsTab>
             <TabsTab value="shipments">Shipments ({summary.trucks.length})</TabsTab>
             <TabsTab value="timeline">Timeline</TabsTab>
+            <TabsTab value="manual">Manual plan</TabsTab>
             <TabsTab value="unshipped">
               Unshipped{unshippedAmount ? ` (${formatMoney(unshippedAmount, { compact: true })})` : ""}
             </TabsTab>
@@ -306,6 +308,9 @@ function Results({ summary, run }: { summary: RunSummary; run: PipelineDetail })
         </TabsPanel>
         <TabsPanel value="timeline" className="pt-3">
           <TimelinePanel summary={summary} />
+        </TabsPanel>
+        <TabsPanel value="manual" className="pt-3">
+          <ManualPlanPanel summary={summary} runId={run.id} runKey={runKey} canEvaluate={canEvaluate} />
         </TabsPanel>
         <TabsPanel value="unshipped" className="pt-3">
           <UnshippedTable summary={summary} />

@@ -75,6 +75,29 @@ def elapsed_s(
     return int((instant - midnight).total_seconds())
 
 
+class Finding(str):
+    """One validator violation: its message text, plus a machine code and where it occurred.
+
+    A ``str`` subclass, so the validation artifact and ``ClusterSummary.violations`` keep the plain
+    messages byte for byte while the manual evaluator (spec §10) reads ``code``, ``truck`` (1-based
+    position in the plan) and ``visit_id``.
+    """
+
+    code: str
+    truck: int | None
+    visit_id: str | None
+
+    def __new__(
+        cls, code: str, message: str, truck: int | None = None, visit_id: str | None = None
+    ):
+        finding = super().__new__(cls, message)
+        finding.code, finding.truck, finding.visit_id = code, truck, visit_id
+        return finding
+
+    def at(self, truck: int) -> Finding:
+        return Finding(self.code, str(self), truck, self.visit_id)
+
+
 @dataclass(frozen=True)
 class VisitTime:
     """Normalized time attributes of one visit; None bounds are open (limited by the horizon)."""
@@ -101,7 +124,8 @@ def recompute_route(
     labels: list[str],
     depot_open_s: int,
     horizon_end_s: int,
-) -> tuple[list[StopTiming], list[str]]:
+    visit_ids: list[str] | None = None,
+) -> tuple[list[StopTiming], list[Finding]]:
     """Recompute one open route from raw leg durations (the synthetic return costs nothing).
 
     arrival = previous departure + leg; start = max(arrival, earliest); wait = start - arrival;
@@ -109,15 +133,20 @@ def recompute_route(
     is after the horizon end. The truck leaves the depot at ``depot_open_s``.
     """
     timings: list[StopTiming] = []
-    violations: list[str] = []
+    violations: list[Finding] = []
     clock = depot_open_s
-    for leg, visit, label in zip(legs_s, visits, labels, strict=True):
+    ids = visit_ids or [None] * len(visits)
+    for leg, visit, label, vid in zip(legs_s, visits, labels, ids, strict=True):
         arrival = clock + leg
         start = max(arrival, visit.earliest_s if visit.earliest_s is not None else arrival)
         if visit.latest_s is not None and start > visit.latest_s:
             violations.append(
-                f"{label}: service would start at {start} s, after its window end "
-                f"{visit.latest_s} s"
+                Finding(
+                    "window_late",
+                    f"{label}: service would start at {start} s, after its window end "
+                    f"{visit.latest_s} s",
+                    visit_id=vid,
+                )
             )
         clock = start + visit.service_s
         timings.append(
@@ -127,5 +156,10 @@ def recompute_route(
             )
         )  # fmt: skip
     if clock > horizon_end_s:
-        violations.append(f"route ends at {clock} s, after the horizon end {horizon_end_s} s")
+        violations.append(
+            Finding(
+                "horizon_exceeded",
+                f"route ends at {clock} s, after the horizon end {horizon_end_s} s",
+            )
+        )
     return timings, violations

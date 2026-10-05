@@ -12,7 +12,7 @@ import { labExportResponse } from "@/lib/server/lab"
 
 export const dynamic = "force-dynamic"
 
-// ?format=json (default), ?format=python (replay bundle .zip) or ?format=csv&table=loads|unplanned|clusters|products|sheet
+// ?format=json (default), ?format=python (replay bundle .zip; also for succeeded k explorer jobs) or ?format=csv&table=loads|unplanned|clusters|products|sheet
 // ?format=geojson (schematic truck routes) and ?format=matrix&as=csv|json (the travel snapshot the run used; estimated
 // runs have no recorded matrix, so they answer 409 matrix_not_recorded). The sheet table takes optional &truck=<truck id> and &columns=location,pieces.
 export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]/export">) {
@@ -72,7 +72,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
         zip = replayBundle(store, id, process.env.OPTIMIZER_SOURCE_DIR ?? join(process.cwd(), "../../services/optimizer"))
       } catch (error) {
         const code = error instanceof Error ? error.message : "error"
-        if (code === "run_not_replayable") throw new ApiError(409, code, "Only succeeded pipeline runs can be replayed.")
+        if (code === "run_not_replayable") throw new ApiError(409, code, "Only succeeded pipeline runs and k explorer jobs can be replayed.")
         if (code === "bundle_too_large") throw new ApiError(413, code, "This run is too large for a replay bundle; use the JSON export.")
         throw error
       }
