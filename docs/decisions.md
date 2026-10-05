@@ -2,6 +2,10 @@
 
 Append-only. Each entry: date, decision, reason, session tool.
 
+## 2026-10-05: Separate app shell from the public and /dev navbars (Claude Code)
+**Decision:** The product pages (`/scenarios`, `/runs`, `/experiments`, `/explore`, `/learn`, `/account`, `/admin`) live in an `(app)` route group (URLs unchanged) with an icon-rail dashboard shell modelled on the workbench block: Scenarios, Experiments, Learn and Settings (`/account`), plus Admin for admins. Runs and the k explorer have no rail item of their own (spec §4 lists none); they highlight Scenarios and are reached from `/scenarios` ("View pipeline runs"). The old top navbar (`DevHeader`) is now only for `/dev` (Progress, Design system). Signed-out visitors on open pages (lessons, examples) and the `privacy` and `request-access` pages get a `PublicHeader`. The landing page keeps its own header. No Workbench or Labs rail item yet: spec §4 allows nav items only for destinations that exist.
+**Reason:** The owner wants the application to use dashboard navigation like the design-system blocks, with the top navbar limited to the landing page, `/dev` and unauthenticated users. Follow-up: turn `/scenarios` into the spec §4 Workbench (section tabs, map first, Run pipeline).
+
 ## 2026-10-05: Expand the public landing page (Codex)
 **Decision:** The public home page has a navbar, hero, about section and FAQ. Keep the hero's existing globe, direct visitors to Scenarios, and explain the actual Allocate → Cluster → Solve workflow. The copy must distinguish planning from dispatch/navigation and identify estimated travel as estimated.
 **Reason:** Give new visitors a concise explanation of Fillrate while keeping the workbench's application navigation separate from the public landing page.
