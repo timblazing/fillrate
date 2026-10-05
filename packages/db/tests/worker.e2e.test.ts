@@ -118,7 +118,9 @@ test.skipIf(!hasUv)("cancelling a running solve kills it and frees the worker", 
   // The same single worker then completes the next run, well before the killed budget.
   await waitFor(() => store.runView(next)!.status === "succeeded", 30_000);
   expect(Date.now() - cancelledAt).toBeLessThan(40_000);
-  expect(log()).toContain("solver process killed");
+  // Cancellation can be observed by a heartbeat or by the child's next server call.
+  // Both paths cancel the run; the fast follow-up run proves this worker was freed.
+  expect(log()).toContain(`run ${slow} cancelled`);
 }, 120_000);
 
 test.skipIf(!hasUv)("a cancel that refuses the solver's next server call ends cancelled, not failed", async () => {
