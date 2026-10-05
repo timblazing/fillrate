@@ -11,8 +11,8 @@ const appDir = join(root, "apps/web");
 const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
-const flows = selected === "all" ? ["lesson", "import", "matrix", "experiment"] : [selected];
-if (flows.some((flow) => !["lesson", "import", "matrix", "experiment"].includes(flow))) throw new Error("Use --flow=lesson, --flow=import, --flow=matrix, --flow=experiment, or --flow=all.");
+const flows = selected === "all" ? ["lesson", "import", "matrix", "experiment", "time-windows"] : [selected];
+if (flows.some((flow) => !["lesson", "import", "matrix", "experiment", "time-windows"].includes(flow))) throw new Error("Use --flow=lesson, --flow=import, --flow=matrix, --flow=experiment, --flow=time-windows, or --flow=all.");
 
 const dataDir = mkdtempSync(join(tmpdir(), "fillrate-browser-smoke-"));
 const downloadDir = join(dataDir, "downloads");
@@ -82,6 +82,7 @@ function stable(value) { return JSON.stringify(value, (_key, item) => item && ty
 function snapshot() { return browser("snapshot", "-i"); }
 function open(url) { browser("open", url); }
 function clickButton(name) { browser("find", "role", "button", "click", "--name", name, "--exact"); }
+function clickTab(name) { browser("find", "role", "tab", "click", "--name", name, "--exact"); }
 function clickMenuItem(name) { browser("find", "role", "menuitem", "click", "--name", name, "--exact"); }
 function fillCss(css, value) { browser("fill", css, value); }
 function fillLabel(label, value) { browser("find", "label", label, "fill", value); }
@@ -422,6 +423,47 @@ async function matrixFlow(baseURL, scenarioKey) {
   console.log(`  passed: snapshot ${snapshotId.slice(0, 10)}, ${checked} directed legs match the matrix, stale edit refused (travel_snapshot_stale)`);
 }
 
+async function timeWindowsFlow(baseURL, scenarioKey) {
+  console.log("Browser smoke: time windows and service durations");
+  beginBrowserFlow("time-windows");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const fixture = JSON.parse(readFileSync(join(root, "examples/m6-time-windows.json"), "utf8"));
+  const saved = await postJson(baseURL, "/api/v1/imports/commit", scenarioKey, {
+    format: "json",
+    scenarioJson: JSON.stringify(fixture.scenario),
+    author: "Browser smoke",
+    metadata: { timezone: "America/Chicago", planningDate: "2026-10-06", browserId: `time-windows-${process.pid}` },
+  });
+  expect(saved.response.status === 201 && saved.body?.versionId, `Time-window fixture import failed: ${JSON.stringify(saved.body)}`);
+  // Submit from the browser so the operator-key response can set its scoped run cookie.
+  open(`${baseURL}/`);
+  const request = { versionId: saved.body.versionId, settings: fixture.settings };
+  const output = browser("eval", `(async()=>{const r=await fetch("/api/v1/scenarios/runs",{method:"POST",headers:{"content-type":"application/json","x-scenario-key":${JSON.stringify(scenarioKey)},"idempotency-key":${JSON.stringify(randomUUID())}},body:${JSON.stringify(JSON.stringify(request))}});return JSON.stringify({status:r.status,body:await r.json()})})()`);
+  let queued;
+  try { queued = JSON.parse(JSON.parse(output)); } catch { queued = JSON.parse(output); }
+  expect(queued.status === 201 && queued.body?.id, `Time-window fixture run was not queued: ${JSON.stringify(queued)}`);
+  const runId = queued.body.id;
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}?key=${encodeURIComponent(scenarioKey)}`, scenarioKey), (body) => ["succeeded", "failed"].includes(body?.status), "Time-window run");
+  checkRun(detail, "time-window");
+  expect(detail.summary.time?.timezone === "America/Chicago", "Time-window result lost the scenario timezone.");
+  expect(detail.summary.trucks.some((truck) => truck.visits.some((visit) => visit.wait_s > 0)), "Time-window fixture did not produce a waiting stop.");
+  expect(detail.summary.trucks.some((truck) => truck.visits.some((visit) => visit.service_s > 0)), "Time-window fixture did not produce service time.");
+  browser("open", `${baseURL}/runs/${runId}?key=${encodeURIComponent(scenarioKey)}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  clickTab("Timeline");
+  browser("wait", "--text", "service durations and windows from the scenario", "--timeout", "15000");
+  clickButton("Next stop");
+  const timeline = browser("read");
+  expect(timeline.includes("Waiting at stop") && timeline.includes("until the window opens"), "Timeline did not show the scheduled wait state.");
+  expect(timeline.includes("Wait") && timeline.includes("Service") && timeline.includes("Window"), "Timeline is missing wait, service or window rows.");
+  expect(timeline.includes("America/Chicago") && timeline.includes("Return to Memphis DC: not planned"), "Timeline is missing timezone or open-route semantics.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("time windows");
+  console.log(`  passed: run ${runId.slice(0, 8)}, ${detail.summary.trucks.length} shipments, wait/service states on Timeline`);
+}
+
 async function experimentFlow(baseURL, runKey) {
   console.log("Browser smoke: bounded synthetic experiment");
   beginBrowserFlow("experiment");
@@ -518,6 +560,7 @@ try {
     if (flow === "import") await importFlow(baseURL, scenarioKey);
     if (flow === "matrix") await matrixFlow(baseURL, scenarioKey);
     if (flow === "experiment") await experimentFlow(baseURL, runKey);
+    if (flow === "time-windows") await timeWindowsFlow(baseURL, scenarioKey);
   }
   await stop();
 } catch (error) {

@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-05",
   "focus": "M6",
-  "productBehavior": 62,
+  "productBehavior": 63,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -35,15 +35,15 @@
     },
     "M6": {
       "weight": 12,
-      "done": 30,
+      "done": 34,
       "state": "active",
-      "notes": "Done: typed directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, stale-coordinate refusal, directed preflight/worker reachability, browser preview/selection/inspector, and repeatable browser acceptance (`test:browser --flow=matrix`) proving directed worker legs and stale refusal. Remaining: durable Valhalla snapshot jobs, pinned live deployment, route geometry and the capability-gated fleet/window/depot/group/shipment/reload adapters, manual evaluator and warm starts. `directed_road_travel` stays planned until deployment evidence passes."
+      "notes": "Done: typed directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, stale-coordinate refusal, directed preflight/worker reachability, browser preview/selection/inspector, repeatable imported-matrix browser acceptance, durable Valhalla snapshot jobs, and a DST-aware time-window/service-duration adapter with independent validation and Timeline states. Remaining: pinned live deployment, route geometry and the capability-gated fleet/depot/group/shipment/reload adapters, manual evaluator and warm starts. `directed_road_travel` stays planned until deployment evidence passes."
     },
     "M7": {
       "weight": 6,
-      "done": 50,
+      "done": 52,
       "state": "active",
-      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity and seed/runtime sensitivity lessons with pytest-asserted observations; /learn index; per-leg drive seconds (`leg_s`, `drive_s`) and a planned-route timeline on /runs/<id> with schematic paths labeled; `leg_s` in the loads CSV. Remaining: lessons that need M6 adapters, timeline on road geometry with service/wait states, GeoJSON route geometry, explorer replay and road-matrix export."
+      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity and seed/runtime sensitivity lessons with pytest-asserted observations; /learn index; per-leg drive seconds (`leg_s`, `drive_s`) and a planned-route timeline with schematic paths, service and wait states; `leg_s` in the loads CSV; browser acceptance for the Timeline. Remaining: lessons that need M6 adapters, verified road geometry, GeoJSON route geometry, explorer replay and road-matrix export."
     },
     "M8": {
       "weight": 7,
