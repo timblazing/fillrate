@@ -221,6 +221,9 @@ class TruckVisit(Doc):
     location_id: Id
     sequence: int
     leg_m: Count
+    # Drive seconds for the same directed leg from the selected provider's duration matrix.
+    # None on results persisted before M7 (timing unavailable, never inferred).
+    leg_s: Count | None = None
     load: Count
     lines: list[LineOnBoard]
 
@@ -231,6 +234,8 @@ class TruckSummary(Doc):
     load: Count
     fill: float
     distance_m: Count
+    # Sum of leg_s; like distance_m it excludes the zero-cost synthetic return to the depot.
+    drive_s: Count | None = None
     amount_cents: Count
     visits: list[TruckVisit]
 

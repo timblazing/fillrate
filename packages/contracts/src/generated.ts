@@ -1066,6 +1066,11 @@ export interface components {
             cluster_id: string;
             /** Distance M */
             distance_m: number;
+            /**
+             * Drive S
+             * @default null
+             */
+            drive_s: number | null;
             /** Fill */
             fill: number;
             /** Id */
@@ -1079,6 +1084,11 @@ export interface components {
         TruckVisit: {
             /** Leg M */
             leg_m: number;
+            /**
+             * Leg S
+             * @default null
+             */
+            leg_s: number | null;
             /** Lines */
             lines: components["schemas"]["LineOnBoard"][];
             /** Load */

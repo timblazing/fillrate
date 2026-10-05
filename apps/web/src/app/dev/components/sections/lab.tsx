@@ -25,6 +25,7 @@ import { SettingRow, SettingSourceBadge } from "@/components/lab/setting-source"
 import { StockTable } from "@/components/lab/stock-table"
 import { FillBandLegend, FillMeter, FillPercent, ShipmentFill, TrailerFill } from "@/components/lab/trailer-fill"
 import { TruckLoad } from "@/components/lab/truck-load"
+import { TruckRouteTimeline } from "@/components/lab/truck-route-timeline"
 import { UnshippedLines } from "@/components/lab/unshipped-lines"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,12 +40,14 @@ import { cn } from "@/lib/utils"
 
 import { baseline, depot, iterations, lookups, settingsDiff, stockRows } from "../fixtures"
 import { orderRows } from "../fixtures/order-rows"
+import { depotLabel as timelineDepot, estimatedSource, importedSource, timedTruck, untimedTruck } from "../fixtures/truck-timeline"
 import { planFlowSteps, useSimulatedRun } from "../fixtures/stages"
 import { orderColumns } from "../order-columns"
 import { Group, Row, Specimen } from "../specimen"
 import { importPreview, lineFilterItems, pythonExport, runEvents, strategyItems } from "./lab-data"
 
 export function Lab() {
+  const [timelineCursor, setTimelineCursor] = useState(0)
   const run = baseline()
   const look = lookups(run)
   const sweep = iterations()
@@ -310,6 +313,17 @@ export function Lab() {
               defaultExpanded={i === 0 ? t.stops[0] : undefined}
             />
           ))}
+        </div>
+      </Specimen>
+
+      <Specimen
+        id="truck-timeline"
+        title="Truck route timeline"
+        description="Planned-route playback for one shipment: arrival times from cumulative leg durations, service shown as 0 s (not modeled), load before and after each stop, and a keyboard cursor (arrows, Page Up/Down, Home/End). Labeled fixture, not solver output. Left: imported matrix durations. Right: a result saved without leg durations, where timing is unavailable."
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <TruckRouteTimeline timeline={timedTruck} source={importedSource} cursor={timelineCursor} onCursorChange={setTimelineCursor} depotLabel={timelineDepot} />
+          <TruckRouteTimeline timeline={untimedTruck} source={estimatedSource} cursor={0} onCursorChange={() => {}} depotLabel={timelineDepot} />
         </div>
       </Specimen>
 

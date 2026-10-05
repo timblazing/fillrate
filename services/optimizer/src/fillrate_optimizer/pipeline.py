@@ -54,7 +54,12 @@ from .model import (
 )
 from .preflight import preflight_checks
 from .travel import distance_matrix_m, haversine_m, reachable
-from .travel_provider import SnapshotBindingError, TravelSnapshot, stop_nodes
+from .travel_provider import (
+    ESTIMATED_SPEED_M_PER_S,
+    SnapshotBindingError,
+    TravelSnapshot,
+    stop_nodes,
+)
 
 PRODUCER_VERSION = "fillrate-pipeline/3"
 ADAPTER_VERSION = "pyvrp-partition/1"
@@ -567,10 +572,13 @@ def run_pipeline(
     # A compact global reachability graph is computed once. On a cache hit it is
     # recovered with the exact matrices, not silently recalculated.
     raw_meters = None
+    raw_seconds = None
     if snapshot:
         stops = {i: (locations[i].lat, locations[i].lon) for i in loc_ids}
         try:
-            raw_meters = snapshot.effective(stop_nodes(depot.id, (depot.lat, depot.lon), stops))[0]
+            raw_meters, raw_seconds = snapshot.effective(
+                stop_nodes(depot.id, (depot.lat, depot.lon), stops)
+            )
         except SnapshotBindingError as error:
             raise PipelineError("travel_snapshot_mismatch", str(error)) from error
         global_matrix = raw_meters
@@ -778,9 +786,16 @@ def run_pipeline(
         )
     validations = []
     raw_leg = snapshot_leg_reader(raw_meters, loc_ids)
+    leg_seconds = duration_leg_reader(
+        raw_seconds,
+        loc_ids,
+        depot,
+        {i: (locations[i].lat, locations[i].lon) for i in loc_ids},
+        settings.travel_circuity,
+    )
     for meta, prob, trav, solve in zip(clusters_meta, problems, travel, solves, strict=True):
         validations.append(
-            validate_cluster(meta, prob, trav, solve, visits, lines, settings, raw_leg)
+            validate_cluster(meta, prob, trav, solve, visits, lines, settings, raw_leg, leg_seconds)
         )
     stages.add(
         "validation",
@@ -802,8 +817,8 @@ def run_pipeline(
         if valid:
             for t, truck in enumerate(check["trucks"]):
                 tv = []
-                for seq, (vid, leg) in enumerate(
-                    zip(truck["visits"], truck["legs_m"], strict=True), 1
+                for seq, (vid, leg, leg_s) in enumerate(
+                    zip(truck["visits"], truck["legs_m"], truck["legs_s"], strict=True), 1
                 ):
                     v = visits[vid]
                     on_board = [
@@ -825,6 +840,7 @@ def run_pipeline(
                             location_id=v["location_id"],
                             sequence=seq,
                             leg_m=leg,
+                            leg_s=leg_s,
                             load=v["load"],
                             lines=on_board,
                         )
@@ -836,6 +852,7 @@ def run_pipeline(
                         load=truck["load"],
                         fill=truck["load"] / cap,
                         distance_m=truck["distance_m"],
+                        drive_s=truck["drive_s"],
                         amount_cents=sum(lob.amount_cents for x in tv for lob in x.lines),
                         visits=tv,
                     )
@@ -1281,8 +1298,26 @@ def mean_centroid_distance(lat_lon: np.ndarray, circuity: float) -> float:
     return round(float(d.mean()), 1)
 
 
+def duration_leg_reader(raw_seconds, loc_ids, depot, stops, circuity):
+    """`leg_s(a, b)` drive seconds by travel-node name ("depot" or a location ID), from the
+    selected snapshot's duration matrix or, for estimated travel, the estimated provider's
+    haversine x circuity / constant speed."""
+    index = {"depot": 0, **{loc: i + 1 for i, loc in enumerate(loc_ids)}}
+    if raw_seconds is not None:
+        return lambda a, b: int(raw_seconds[index[a], index[b]])
+    coords = {"depot": (depot.lat, depot.lon), **stops}
+
+    def leg(a: str, b: str) -> int:
+        if a == b:
+            return 0
+        meters = haversine_m(np.array([coords[a], coords[b]]))[0, 1] * circuity
+        return round(meters / ESTIMATED_SPEED_M_PER_S)
+
+    return leg
+
+
 def validate_cluster(
-    meta, prob, trav, solve, visits, lines, settings, raw_leg=None
+    meta, prob, trav, solve, visits, lines, settings, raw_leg=None, leg_seconds=None
 ) -> dict[str, Any]:
     """Checks coverage, lineage load, capacity, physical legs, membership and, when the
     optional policy is on, cluster diameter. With a selected travel snapshot, `raw_leg(a, b)`
@@ -1311,6 +1346,7 @@ def validate_cluster(
             continue
         load = 0
         legs = []
+        legs_s = []
         prev = 0
         for vid in route:
             if vid not in expected:
@@ -1338,10 +1374,25 @@ def validate_cluster(
                         f"{recorded} m in the travel snapshot"
                     )
             legs.append(leg)
+            if leg_seconds is not None:
+                seconds = leg_seconds(trav["nodes"][prev], trav["nodes"][node])
+                if seconds < 0:
+                    violations.append(f"leg to {v['location_id']} has no duration in the provider")
+                legs_s.append(seconds)
             prev = node
         if load > settings.trailer_capacity:
             violations.append(f"truck {t + 1} load {load} > capacity {settings.trailer_capacity}")
-        trucks.append({"visits": route, "load": load, "legs_m": legs, "distance_m": sum(legs)})
+        timed = leg_seconds is not None and len(legs_s) == len(legs)
+        trucks.append(
+            {
+                "visits": route,
+                "load": load,
+                "legs_m": legs,
+                "legs_s": legs_s if timed else [None] * len(legs),
+                "distance_m": sum(legs),
+                "drive_s": sum(legs_s) if timed else None,
+            }
+        )
     for vid in sorted(expected - set(seen)):
         violations.append(f"{vid} is not on any truck")
     limit = settings.max_cluster_diameter_m

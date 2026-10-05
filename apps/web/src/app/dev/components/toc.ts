@@ -36,6 +36,7 @@ export const toc = [
       ["run-metrics", "Run metrics"],
       ["cluster-cards", "Cluster cards"],
       ["truck-loads", "Shipment detail"],
+      ["truck-timeline", "Truck route timeline"],
       ["unshipped", "Unshipped lines"],
       ["stock", "Stock coverage"],
       ["orders", "Order lines table"],

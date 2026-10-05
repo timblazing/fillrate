@@ -2407,6 +2407,20 @@
           "title": "Distance M",
           "type": "integer"
         },
+        "drive_s": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Drive S"
+        },
         "fill": {
           "title": "Fill",
           "type": "number"
@@ -2449,6 +2463,20 @@
           "minimum": 0,
           "title": "Leg M",
           "type": "integer"
+        },
+        "leg_s": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leg S"
         },
         "lines": {
           "items": {

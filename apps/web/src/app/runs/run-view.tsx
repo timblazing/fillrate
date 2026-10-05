@@ -27,6 +27,8 @@ import { METERS_PER_MILE } from "@/lib/shipment-sheet"
 import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, formatPercent, plural } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
+import { TimelinePanel } from "./timeline-panel"
+
 const RunMap = dynamic(() => import("./run-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
 const STAGES = ["preflight", "allocation", "aggregation", "clustering", "travel", "solve", "validation", "summary"] as const
@@ -275,6 +277,7 @@ function Results({ summary, run }: { summary: RunSummary; run: PipelineDetail })
           <TabsList>
             <TabsTab value="map">Map</TabsTab>
             <TabsTab value="shipments">Shipments ({summary.trucks.length})</TabsTab>
+            <TabsTab value="timeline">Timeline</TabsTab>
             <TabsTab value="unshipped">
               Unshipped{unshippedAmount ? ` (${formatMoney(unshippedAmount, { compact: true })})` : ""}
             </TabsTab>
@@ -298,6 +301,9 @@ function Results({ summary, run }: { summary: RunSummary; run: PipelineDetail })
         </TabsPanel>
         <TabsPanel value="shipments" className="pt-3">
           <ShipmentTable summary={summary} clusterIndex={clusterIndex} truck={truck} onSelect={selectTruck} cluster={cluster} onClearCluster={() => setCluster(null)} runId={run.id} />
+        </TabsPanel>
+        <TabsPanel value="timeline" className="pt-3">
+          <TimelinePanel summary={summary} />
         </TabsPanel>
         <TabsPanel value="unshipped" className="pt-3">
           <UnshippedTable summary={summary} />
