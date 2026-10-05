@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-05",
   "focus": "M6",
-  "productBehavior": 64,
+  "productBehavior": 72,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -13,7 +13,7 @@
       "weight": 10,
       "done": 100,
       "state": "done",
-      "notes": "Complete for the accepted scope: round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01); applied ★ = Best trade-off, far-via-stop warning, oversize-stop split default, and no cost rates. The owner deferred the optional fillrate.fig/OpenPencil follow-up (2026-10-05); it does not block M2."
+      "notes": "Complete for the accepted scope: round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01); applied \u2605 = Best trade-off, far-via-stop warning, oversize-stop split default, and no cost rates. The owner deferred the optional fillrate.fig/OpenPencil follow-up (2026-10-05); it does not block M2."
     },
     "M3": {
       "weight": 20,
@@ -35,26 +35,27 @@
     },
     "M6": {
       "weight": 12,
-      "done": 39,
+      "done": 62,
       "state": "active",
-      "notes": "Done: typed directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, stale-coordinate refusal, directed preflight/worker reachability, browser preview/selection/inspector, repeatable imported-matrix browser acceptance, durable Valhalla snapshot jobs with browser-to-worker fixture verification, and a DST-aware time-window/service-duration adapter with independent validation and Timeline states. Remaining: pinned live deployment, route geometry and the capability-gated fleet/depot/group/shipment/reload adapters, manual evaluator and warm starts. `directed_road_travel` stays planned until deployment evidence passes."
+      "notes": "Done: directed travel snapshots, imported/Valhalla providers (Valhalla verified against fixtures only), browser matrix workflows, durable Valhalla snapshot jobs, time windows and service durations, a manual plan evaluator using the pipeline's own validator, verified warm starts with exact compatibility rules, and the Solver Lab (/labs, `lab` job kind, independent validator) with native multiple load dimensions and heterogeneous fleets. Remaining: pinned live Valhalla deployment and road geometry (owner hardware); Lab increments for multiple depots, reloads, optional clients, client groups and paired shipments; fleet types in the fulfillment pipeline; saved manual baselines. `directed_road_travel` stays planned until deployment evidence passes."
     },
     "M7": {
       "weight": 6,
-      "done": 66,
+      "done": 80,
       "state": "active",
-      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity, seed/runtime sensitivity and time windows/waiting lessons; /learn index; per-leg drive seconds and planned-route timeline; GeoJSON route export and owner-only snapshot matrix downloads; browser acceptance for Timeline, lessons, matrix exports, time-window waiting and service. Remaining: lessons needing further M6 adapters, verified Valhalla road geometry and explorer replay."
+      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, truck capacity, seed sensitivity, time windows, manual versus optimized routes, and Haversine versus recorded (synthetic) road matrix lessons; /learn index; planned-route timeline with service/wait states; GeoJSON route export; snapshot matrix downloads; k explorer replay bundle. Remaining: lessons that follow the Lab increments (load dimensions, fleets, depots, reloads, optional visits, groups, paired shipments) and road-geometry timelines (needs Valhalla)."
     },
     "M8": {
       "weight": 7,
-      "done": 60,
+      "done": 85,
       "state": "active",
-      "notes": "Done: pinned local agent-browser production smokes for lesson/result/export, imported directed matrix/stale refusal, protected CSV preview/save/preflight/result/reload/scenario-matching export with keyless denials, and a two-run comparable ranked allocation experiment. Desktop/iPhone 16 and browser diagnostics pass. Hosted/local production acceptance passes 82 checks; image target/recovery evidence covers VPS/Pi 5. Remaining: native Bun/npm distribution, broader cancellation/edit/branch browser coverage and reproducible handoff. No live second-account or new Linux CI/image evidence is claimed."
+      "notes": "Done: agent-browser production flows for the lesson, import, matrix, experiment, lessons, time windows, manual plans, cancellation (queued and running), scenario edit/conflict/branch/discard, Solver Lab and warm starts, at desktop and iPhone 16; hosted/local production acceptance (105 checks); npm-compatible scripts with an aligned package-lock and a Node 24 npm CI job; docs/local.md and docs/handoff.md; image target/recovery evidence on VPS and Pi 5. Remaining: Node 24 + npm CI evidence, native timings on the targets, optional /request-access and /admin phone review."
     }
   },
   "nextUp": [
-    "M6: pinned Valhalla Compose deployment evidence needs owner hardware; route geometry follows verification.",
-    "M7: Haversine vs recorded road-matrix lesson; road geometry after a verified Valhalla deployment; explorer replay.",
-    "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff."
+    "M6: Solver Lab increments, one PR each: multiple depots, reloads, optional clients/prizes, client groups, paired shipments (see docs/solver-lab.md).",
+    "M7: lesson pages for each Lab increment plus load dimensions and fleets.",
+    "M6: heterogeneous fleet in the fulfillment pipeline; saved manual baselines as warm-start sources.",
+    "Owner: pinned Valhalla deployment (unblocks road geometry), image release dispatch, native timings on VPS/Pi 5."
   ]
 }
