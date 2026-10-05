@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-10-05: Public landing page (Codex)
+- Expanded `/` with a responsive navbar, hero, workflow overview and FAQ. The page retains the existing globe and links to Scenarios, GitHub and project progress.
+- Copy follows current behavior: Allocate → Cluster → Solve, estimated travel is labeled as estimated, and the product is described as a planning workbench rather than a dispatch or navigation system.
+- Visual review passed at 1440×900 and 393×852 in the collaborative preview; both sizes have no page-level horizontal overflow. Lint, typecheck and production build passed; lint reports only the existing `globe.tsx` effect-dependency warning. No browser acceptance test was added or run for this page.
+
 ## 2026-10-05: M2 design file deferred by owner (Codex)
 - The owner does not want to work on `fillrate.fig` or OpenPencil for now. Defer the coss Components page and additional Foundations tokens until the owner chooses to resume that work; they no longer block M2 completion.
 - Round-two review acceptance, implementation, and recorded verification are complete. M2 is now complete for the accepted scope. The design file remains a future optional follow-up, not an outstanding milestone gate.

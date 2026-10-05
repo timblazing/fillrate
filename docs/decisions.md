@@ -2,6 +2,10 @@
 
 Append-only. Each entry: date, decision, reason, session tool.
 
+## 2026-10-05: Expand the public landing page (Codex)
+**Decision:** The public home page has a navbar, hero, about section and FAQ. Keep the hero's existing globe, direct visitors to Scenarios, and explain the actual Allocate → Cluster → Solve workflow. The copy must distinguish planning from dispatch/navigation and identify estimated travel as estimated.
+**Reason:** Give new visitors a concise explanation of Fillrate while keeping the workbench's application navigation separate from the public landing page.
+
 ## 2026-10-05: Defer the M2 OpenPencil design-file follow-up (Codex)
 **Decision:** The owner does not want to work on OpenPencil or `fillrate.fig` for now. Defer the coss Components page and additional Foundations tokens until the owner chooses to resume; this follow-up is not an M2 completion gate. M2 is complete for the already accepted and implemented scope.
 **Reason:** The remaining design-file work should not hold the progress page or subsequent product work at 95% while the owner is intentionally deferring it. No design-file changes or OpenPencil review are claimed.
