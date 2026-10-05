@@ -1,9 +1,10 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowRight, Plus, Truck } from "lucide-react"
+import { ArrowRight, ArrowUpRight, Plus } from "lucide-react"
 
 import HeroGlobe from "@/components/animated/hero-globe"
-import { GitHubMark } from "@/components/brand/github-mark"
+import { BrandLink } from "@/components/brand/brand-link"
+import { LandingHeader } from "@/components/landing/landing-header"
 import { Button } from "@/components/ui/button"
 
 const REPO_URL = "https://github.com/timblazing/fillrate"
@@ -14,26 +15,11 @@ export const metadata: Metadata = {
     "An open-source planning workbench for allocating limited inventory, grouping delivery stops, and building truckloads with PyVRP.",
 }
 
-const steps = [
-  {
-    title: "Allocate",
-    description: "Match limited inventory to open orders and see what can ship.",
-  },
-  {
-    title: "Cluster",
-    description: "Group nearby stops into a manageable set of delivery areas.",
-  },
-  {
-    title: "Solve",
-    description: "Build capacity-aware truckloads and inspect the result.",
-  },
-]
-
 const questions = [
   {
     question: "What is Fillrate?",
     answer:
-      "Fillrate is an open-source planning workbench for exploring how available inventory can fulfill open orders and how those deliveries can be grouped into truckloads.",
+      "An open-source planning workbench for exploring how available inventory can fulfill open orders and how those deliveries can be grouped into truckloads.",
   },
   {
     question: "Does it provide live tracking or turn-by-turn directions?",
@@ -46,126 +32,119 @@ const questions = [
       "The default is an estimated distance based on straight-line distance and a configurable circuity factor. Fillrate labels estimated travel clearly. Imported directed travel matrices are also supported.",
   },
   {
+    question: "Can I use my own orders and inventory?",
+    answer:
+      "Yes. Import orders, stock, and vehicles as a scenario, or start from one of the bundled synthetic examples to see how a plan comes together.",
+  },
+  {
     question: "Where can I see the code and project progress?",
     answer:
       "The source code is on GitHub. The progress page shows the project milestones and recorded evidence.",
   },
 ]
 
+const linkRing = "rounded-sm transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+
 export default function Home() {
   return (
-    <main className="min-h-dvh">
-      <header className="border-b">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" aria-label="Fillrate home" className="flex shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-            <Truck aria-hidden="true" className="size-5" />
-            <span className="text-lg font-semibold tracking-tight">Fillrate</span>
-          </Link>
+    <div className="flex min-h-dvh flex-col">
+      <LandingHeader repoUrl={REPO_URL} />
 
-          <nav aria-label="Main navigation" className="flex items-center gap-4 sm:gap-7">
-            <Link href="#about" className="text-muted-foreground rounded-sm text-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-              About
-            </Link>
-            <Link href="#faq" className="text-muted-foreground rounded-sm text-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-              FAQ
-            </Link>
-            <Button size="sm" render={<Link href="/scenarios" />}>
-              Open Fillrate
-            </Button>
-          </nav>
-        </div>
-      </header>
-
-      <section aria-labelledby="hero-title" className="mx-auto grid min-h-[calc(100svh-4rem)] w-full max-w-6xl items-center gap-2 px-4 py-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-4 lg:px-8 lg:py-16">
-        <div className="relative z-10 max-w-2xl py-4 lg:py-10">
-          <p className="text-muted-foreground mb-6 flex items-center gap-2 text-sm">
-            <span className="bg-primary size-1.5 rounded-full" aria-hidden="true" />
-            Open-source fulfillment planning
-          </p>
-          <h1 id="hero-title" className="text-5xl leading-[1.04] font-semibold tracking-[-0.045em] text-balance sm:text-6xl lg:text-7xl">
-            Make more of every truckload.
-          </h1>
-          <p className="text-muted-foreground mt-6 max-w-xl text-lg leading-8 text-pretty">
-            Plan how limited stock can fulfill open orders, then turn those deliveries into capacity-aware routes you can inspect and compare.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button size="lg" render={<Link href="/scenarios" />}>
-              Explore Fillrate <ArrowRight aria-hidden="true" />
-            </Button>
-            <Button size="lg" variant="outline" render={<a href={REPO_URL} target="_blank" rel="noopener noreferrer" />}>
-              <GitHubMark className="size-4" />
-              View on GitHub
-            </Button>
-          </div>
-          <p className="text-muted-foreground mt-5 text-sm">A planning workbench for learning, testing, and comparing fulfillment plans.</p>
-        </div>
-        <div className="-my-8 flex min-w-0 justify-center lg:my-0 lg:justify-end">
-          <HeroGlobe />
-        </div>
-      </section>
-
-      <section id="about" aria-labelledby="about-title" className="scroll-mt-20 border-y bg-muted/40">
-        <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8">
-          <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
-            <div>
-              <h2 id="about-title" className="max-w-md text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-                From available stock to a plan you can inspect.
-              </h2>
-              <p className="text-muted-foreground mt-5 max-w-md leading-7">
-                Fillrate brings inventory allocation and vehicle routing into one research workbench. Follow the decisions through each stage, then review what shipped and what did not.
+      <main className="flex-1 overflow-x-clip">
+        <section aria-labelledby="hero-title" className="relative">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_70%_at_75%_45%,black,transparent)] bg-size-[22px_22px]"
+          />
+          <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-4 pt-16 pb-20 sm:px-6 sm:pt-20 lg:pt-20 lg:pb-28 xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] xl:gap-12">
+            <div className="max-w-3xl">
+              <h1 id="hero-title" className="text-foreground text-[3.25rem] leading-[0.95] font-semibold tracking-[-0.06em] text-balance sm:text-7xl xl:text-[clamp(4.5rem,6.4vw,5.25rem)]">
+                Make more of <br className="hidden xl:block" />
+                every truckload.
+              </h1>
+              <p className="text-muted-foreground mt-7 max-w-lg text-base leading-relaxed text-pretty sm:text-lg">
+                Plan how limited stock can fulfill open orders, then turn those deliveries into capacity-aware routes you can inspect and compare.
               </p>
+              <div className="mt-9 flex flex-wrap items-center gap-3">
+                <Button size="lg" className="h-11 gap-3 rounded-full pr-2 pl-5 text-sm" render={<Link href="/scenarios" />}>
+                  Open Fillrate
+                  <span className="bg-primary-foreground/10 flex size-7 items-center justify-center rounded-full">
+                    <ArrowRight aria-hidden="true" className="size-3.5" />
+                  </span>
+                </Button>
+                <Button size="lg" variant="ghost" className="text-muted-foreground h-11 rounded-full px-4 text-sm" render={<a href="#about" />}>
+                  How it works
+                </Button>
+              </div>
             </div>
-            <ol className="grid divide-y border-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-              {steps.map((step, index) => (
-                <li key={step.title} className="py-5 sm:px-5 sm:py-2 first:sm:pl-0 last:sm:pr-0">
-                  <div className="text-muted-foreground mb-5 flex items-center gap-2 text-sm">
-                    <span className="bg-background flex size-7 items-center justify-center rounded-full border text-xs tabular-nums" aria-hidden="true">
-                      {index + 1}
-                    </span>
-                    <span>{step.title}</span>
-                  </div>
-                  <p className="text-muted-foreground text-sm leading-6">{step.description}</p>
-                </li>
+
+            <div className="-my-8 flex min-w-0 justify-center xl:my-0 xl:justify-end">
+              <HeroGlobe />
+            </div>
+          </div>
+        </section>
+
+        <section id="about" aria-labelledby="about-title" className="mx-auto max-w-7xl scroll-mt-20 border-t px-4 py-24 sm:px-6 sm:py-32">
+          <div className="grid gap-8 md:grid-cols-[minmax(12rem,0.7fr)_minmax(0,1.3fr)] md:gap-16">
+            <h2 id="about-title" className="text-foreground text-3xl font-medium tracking-tight sm:text-4xl">About</h2>
+            <div className="max-w-2xl">
+              <p className="text-foreground text-xl leading-snug font-medium tracking-tight text-pretty sm:text-[1.625rem]">
+                Fillrate brings inventory allocation and vehicle routing into one workbench.{" "}
+                <span className="text-muted-foreground">
+                  Match limited stock to open orders, group nearby stops into delivery areas, then build capacity-aware truckloads and follow every decision through to what shipped and what didn&rsquo;t.
+                </span>
+              </p>
+              <p className="text-muted-foreground mt-8 max-w-xl text-sm leading-relaxed">
+                Routes are solved with PyVRP, and travel is an estimate unless you import your own matrix. Fillrate is for planning and comparison. It doesn&rsquo;t dispatch drivers, track vehicles, or give turn-by-turn directions.
+              </p>
+              <a
+                href={REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group text-foreground decoration-foreground/30 hover:decoration-foreground mt-8 inline-flex items-center gap-1 text-sm font-medium underline underline-offset-4 transition-colors focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                View the source on GitHub
+                <ArrowUpRight aria-hidden="true" className="size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section id="faq" aria-labelledby="faq-title" className="mx-auto max-w-7xl scroll-mt-20 border-t px-4 py-24 sm:px-6 sm:py-32">
+          <div className="grid gap-8 md:grid-cols-[minmax(12rem,0.7fr)_minmax(0,1.3fr)] md:gap-16">
+            <h2 id="faq-title" className="text-foreground text-3xl font-medium tracking-tight sm:text-4xl">FAQ</h2>
+            <div className="border-t">
+              {questions.map((item) => (
+                <details key={item.question} className="faq-item group border-b">
+                  <summary className="text-foreground hover:text-foreground/80 flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-base font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+                    {item.question}
+                    <Plus aria-hidden="true" className="text-muted-foreground group-open:text-foreground size-4 shrink-0 transition-transform duration-200 group-open:rotate-45" />
+                  </summary>
+                  <p className="text-muted-foreground max-w-xl pb-6 text-sm leading-relaxed">{item.answer}</p>
+                </details>
               ))}
-            </ol>
+            </div>
           </div>
-          <p className="text-muted-foreground mt-10 border-t pt-5 text-sm leading-6">
-            Fillrate is for planning and comparison. It does not dispatch drivers, track vehicles, or provide turn-by-turn navigation.
-          </p>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      <section id="faq" aria-labelledby="faq-title" className="scroll-mt-20">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 sm:px-6 sm:py-24 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20 lg:px-8">
-          <div>
-            <h2 id="faq-title" className="text-3xl font-semibold tracking-tight sm:text-4xl">Questions, answered.</h2>
-            <p className="text-muted-foreground mt-4 max-w-sm leading-7">
-              A little more about what Fillrate does and how to follow the project.
+      <footer>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="flex flex-col gap-6 py-10 sm:flex-row sm:items-center sm:justify-between">
+            <BrandLink className="[&>span]:text-sm" />
+            <nav aria-label="Footer" className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <Link href="/dev" className={linkRing}>Project progress</Link>
+              <Link href="/privacy" className={linkRing}>Privacy</Link>
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={linkRing}>GitHub</a>
+            </nav>
+          </div>
+          <div className="border-t py-6">
+            <p className="text-muted-foreground max-w-2xl text-xs leading-relaxed text-pretty">
+              Fillrate is an open-source planning workbench. Example scenarios use synthetic data, and estimated travel is labeled as an estimate.
             </p>
-          </div>
-          <div className="divide-y border-y">
-            {questions.map((item) => (
-              <details key={item.question} className="group py-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-                  {item.question}
-                  <Plus aria-hidden="true" className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-45" />
-                </summary>
-                <p className="text-muted-foreground max-w-2xl pt-3 pr-8 text-sm leading-6">{item.answer}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <footer className="border-t">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <Link href="/" className="font-medium tracking-tight">Fillrate</Link>
-          <div className="text-muted-foreground flex flex-wrap items-center gap-x-5 gap-y-2">
-            <Link href="/dev" className="hover:text-foreground">Project progress</Link>
-            <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">GitHub</a>
           </div>
         </div>
       </footer>
-    </main>
+    </div>
   )
 }
