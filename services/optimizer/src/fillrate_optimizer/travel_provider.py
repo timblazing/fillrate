@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .canonical import content_hash
 from .travel import METERS_PER_MILE, haversine_m
 
+ESTIMATED_SPEED_M_PER_S = 11.176
 MAX_MATRIX_NODES = 1001
 MAX_TRAVEL_VALUE = 2**40
 Value = Annotated[float, Field(strict=True, ge=0, le=MAX_TRAVEL_VALUE, allow_inf_nan=False)]
@@ -156,7 +157,7 @@ def validate_nodes(nodes: list[TravelNode]) -> None:
 
 
 class EstimatedTravel:
-    def __init__(self, circuity: float = 1.2, speed_m_per_s: float = 11.176):
+    def __init__(self, circuity: float = 1.2, speed_m_per_s: float = ESTIMATED_SPEED_M_PER_S):
         if not np.isfinite(circuity) or not 1 <= circuity <= 5:
             raise ValueError("circuity must be finite and between 1 and 5")
         if not np.isfinite(speed_m_per_s) or speed_m_per_s <= 0:

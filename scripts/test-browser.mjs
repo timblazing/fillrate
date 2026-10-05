@@ -11,8 +11,8 @@ const appDir = join(root, "apps/web");
 const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
-const flows = selected === "all" ? ["lesson", "import", "experiment"] : [selected];
-if (flows.some((flow) => !["lesson", "import", "experiment"].includes(flow))) throw new Error("Use --flow=lesson, --flow=import, --flow=experiment, or --flow=all.");
+const flows = selected === "all" ? ["lesson", "import", "matrix", "experiment"] : [selected];
+if (flows.some((flow) => !["lesson", "import", "matrix", "experiment"].includes(flow))) throw new Error("Use --flow=lesson, --flow=import, --flow=matrix, --flow=experiment, or --flow=all.");
 
 const dataDir = mkdtempSync(join(tmpdir(), "fillrate-browser-smoke-"));
 const downloadDir = join(dataDir, "downloads");
@@ -264,6 +264,164 @@ async function importFlow(baseURL, scenarioKey) {
   console.log(`  passed: unkeyed reads denied, saved scenario ${version.body.scenarioId.slice(0, 8)} matches export, revenue ${detail.summary.totals.planned_cents} cents, ${detail.summary.totals.trucks} shipments`);
 }
 
+function roundHalfEven(x) {
+  const floor = Math.floor(x), diff = x - floor;
+  if (diff < 0.5) return floor;
+  if (diff > 0.5) return floor + 1;
+  return floor % 2 === 0 ? floor : floor + 1;
+}
+function haversineM(a, b) {
+  const rad = (d) => d * Math.PI / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
+  return 2 * 6_371_008.8 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, h))));
+}
+function clickButtonStartingWith(prefix) { browser("find", "role", "button", "click", "--name", prefix); }
+async function postJson(baseURL, path, key, body) {
+  const response = await fetch(new URL(path, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-scenario-key": key, "idempotency-key": randomUUID() }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+  return { response, body: await response.json().catch(() => null) };
+}
+
+async function matrixFlow(baseURL, scenarioKey) {
+  console.log("Browser smoke: imported directed travel matrix");
+  beginBrowserFlow("matrix");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  open(`${baseURL}/scenarios`);
+  expect(snapshot().includes("Scenarios"), "Scenario workbench did not load.");
+  fillLabel("Operator key", scenarioKey);
+  fillLabel("Display name", "Matrix smoke");
+  fillLabel("Scenario name", "Directed matrix import");
+  fillLabel("Depot label", "Memphis depot");
+  // Three stops near the depot (all within ~15 km), so any imported leg of 40+ km is clearly not the estimate.
+  const header = "order_id,line_id,order_date,customer_id,location_id,location_label,latitude,longitude,product,ordered_pieces,net_value_per_piece,linear_feet_per_piece,priority";
+  const orders = [header,
+    "MX-1,MX-L1,2026-10-01,Cust A,MX-A,Stop A,35.10,-90.00,MX-SKU,10,25.00,1.00,1",
+    "MX-2,MX-L2,2026-10-01,Cust B,MX-B,Stop B,35.20,-90.10,MX-SKU,10,25.00,1.00,1",
+    "MX-3,MX-L3,2026-10-01,Cust C,MX-C,Stop C,35.25,-89.95,MX-SKU,10,25.00,1.00,1",
+  ].join("\n");
+  fillCss('textarea[aria-label="orders CSV content"]', orders);
+  fillCss('textarea[aria-label="inventory CSV content"]', "product,available_pieces\nMX-SKU,100\n");
+  clickButton("Preview import");
+  browser("wait", "--text", "ready to save", "--timeout", "20000");
+  expect(/3 orders? ready to save/.test(browser("read")), "CSV preview did not report three orders.");
+  clickButton("Save import");
+  browser("wait", "--text", "Import saved as version 1.", "--timeout", "25000");
+
+  // Read the saved version to build a matrix over exactly its depot + stop nodes (depot first, then stops by ID).
+  // Other flows may share this database, so find the scenario by its name.
+  const matrixScenario = async () => (await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey)).scenarios?.filter((s) => s.name === "Directed matrix import") ?? [];
+  const created = await matrixScenario();
+  expect(created.length === 1, "Expected exactly one saved matrix scenario.");
+  const scenarioId = created[0].id;
+  const versionId = created[0].versionId;
+  const saved = await fetchOkJson(baseURL, `/api/v1/scenarios/${scenarioId}?version=${encodeURIComponent(versionId)}`, scenarioKey);
+  const depot = saved.document.depot;
+  const stops = saved.document.locations.map((l) => ({ id: l.id, lat: l.lat, lon: l.lon })).sort((a, b) => (a.id < b.id ? -1 : 1));
+  expect(stops.length === 3, `Expected three stop locations, got ${stops.length}.`);
+  const nodes = [{ id: depot.id, lat: depot.lat, lon: depot.lon }, ...stops];
+  // Strongly asymmetric kilometers; the .xx5 fractions land on exact .5 meters, exercising ties-to-even rounding.
+  const km = nodes.map((_, i) => nodes.map((__, j) => i === j ? 0 : i < j ? 40 + 3 * i + 5 * j + 0.4375 : 90 + 3 * i + 5 * j + 0.1875));
+  const matrix = {
+    schema_version: 1, nodes, provider: "imported", provider_version: "smoke-import/1", dataset_revision: "smoke-2026-10", profile: "truck", options: {},
+    distance_units: "kilometers", duration_units: "seconds", distances: km, durations: km.map((row) => row.map((v) => v === 0 ? 0 : Math.round(v * 60))), warnings: [], conversion: "nearest-integer-ties-to-even/v1",
+  };
+  const meters = km.map((row) => row.map((v) => roundHalfEven(v * 1000)));
+  expect(meters[0][1] !== meters[1][0], "Test matrix must be asymmetric.");
+
+  // Preview, save and select it in the panel.
+  browser("find", "text", "Import a directed matrix", "click");
+  fillCss('textarea[aria-label="Travel matrix JSON content"]', JSON.stringify(matrix));
+  clickButton("Preview matrix");
+  browser("wait", "--text", "Valid snapshot", "--timeout", "20000");
+  const previewText = browser("read");
+  expect(previewText.includes("Valid snapshot · 4 nodes · 12 / 12 directed edges present") && previewText.includes("imported smoke-import/1") && previewText.includes("kilometers / seconds"),
+    `Matrix preview is missing provider, units or full coverage:\n${previewText.slice(-1800)}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  clickButton("Save matrix");
+  browser("wait", "--text", "Matrix saved and selected for this scenario.", "--timeout", "20000");
+  const snapshotId = (await fetchOkJson(baseURL, "/api/v1/travel-snapshots", scenarioKey)).snapshots?.[0]?.id;
+  expect(/^[0-9a-f]{64}$/.test(snapshotId ?? ""), "Saved matrix did not list a content-hash identity.");
+  browser("wait", "--text", "Directed coverage", "--timeout", "20000");
+  const panel = browser("read");
+  for (const needle of ["imported · truck", "smoke-import/1", "smoke-2026-10", "12 / 12 edges", "kilometers; seconds", "4 of 4 match exactly", snapshotId])
+    expect(panel.includes(needle), `Travel matrix panel is missing "${needle}":\n${panel.slice(-2500)}`);
+  expect(browser("eval", 'document.querySelector(\'select[aria-label="Run travel mode"]\').value').includes(snapshotId), "Saved matrix is not the selected run travel mode.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+
+  // Run with the selected snapshot; the worker must use its directed legs.
+  clickButton("Review and run saved version");
+  browser("wait", "--url", "**/runs/**", "--timeout", "25000");
+  const runId = browser("get", "url").match(/\/runs\/([0-9a-f-]+)/i)?.[1];
+  expect(runId, "Matrix run result URL is unexpected.");
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey), (body) => ["succeeded", "failed"].includes(body?.status), "Matrix-backed run");
+  checkRun(detail, "matrix-backed");
+  expect(detail.settings?.travel_snapshot_id === snapshotId, "Run settings did not record the selected snapshot.");
+  const travel = detail.summary.travel;
+  expect(travel?.mode === "snapshot" && travel.provider === "imported" && travel.provider_version === "smoke-import/1" && travel.snapshot_id === snapshotId && travel.node_count === 4,
+    `Run summary does not name the imported provider and snapshot hash: ${JSON.stringify(travel)}`);
+  const index = new Map(nodes.map((n, i) => [n.id, i]));
+  let checked = 0;
+  for (const truck of detail.summary.trucks) {
+    let previous = depot.id;
+    for (const visit of [...truck.visits].sort((a, b) => a.sequence - b.sequence)) {
+      const from = index.get(previous), to = index.get(visit.location_id);
+      expect(visit.leg_m === meters[from][to], `Leg ${previous} -> ${visit.location_id} is ${visit.leg_m} m, expected directed matrix value ${meters[from][to]} m.`);
+      expect(visit.leg_m !== meters[to][from], `Leg ${previous} -> ${visit.location_id} equals the reverse direction.`);
+      expect(visit.leg_m !== Math.round(haversineM(nodes[from], nodes[to]) * 1.2), "Leg equals the haversine estimate instead of the matrix.");
+      checked += 1; previous = visit.location_id;
+    }
+  }
+  expect(checked >= 3, `Expected every stop leg to be checked; checked ${checked}.`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+
+  // Edit a stop's coordinates in the browser, save a new version and try to run against the same snapshot.
+  const runsBefore = (await fetchOkJson(baseURL, "/api/v1/runs", scenarioKey)).runs.length;
+  open(`${baseURL}/scenarios`);
+  fillLabel("Operator key", scenarioKey);
+  fillLabel("Display name", "Matrix smoke");
+  clickButton("Load scenarios");
+  browser("wait", "--text", "Directed matrix import · v1", "--timeout", "20000");
+  clickButtonStartingWith("Directed matrix import");
+  browser("wait", "--text", "Run settings", "--timeout", "20000");
+  // Saved matrices load shortly after the operator key settles; wait for the option before selecting it.
+  browser("wait", "--fn", `[...document.querySelectorAll('select[aria-label="Run travel mode"] option')].some(o => o.value === ${JSON.stringify(snapshotId)})`, "--timeout", "20000");
+  browser("select", 'select[aria-label="Run travel mode"]', snapshotId);
+  try { browser("wait", "--text", "4 of 4 match exactly", "--timeout", "20000"); }
+  catch (error) { throw new Error(`${error.message}\n${browser("read").slice(0, 2500)}`); }
+  clickButtonStartingWith("Coordinates");
+  fillLabel("Latitude Stop B", String(stops[1].lat + 0.01));
+  browser("press", "Enter");
+  browser("wait", "--text", "Unsaved changes", "--timeout", "10000");
+  browser("wait", "--text", "3 of 4 match exactly", "--timeout", "10000");
+  const stale = browser("read");
+  expect(stale.includes(`Changed: ${stops[1].id}`) && stale.includes("enqueue will be refused until they match"), `Stale-coordinate warning is missing from the panel:\n${stale.slice(-2500)}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  clickButton("Save version");
+  browser("wait", "--text", "Version saved.", "--timeout", "20000");
+  clickButton("Review and run saved version");
+  browser("wait", "--text", "coordinates changed since the snapshot", "--timeout", "20000");
+  expect(browser("get", "url").includes("/scenarios"), "A stale-coordinate run must not leave the workbench.");
+  // The same refusal straight from the server, with its error code.
+  const [latest] = await matrixScenario();
+  expect(latest.versionId !== versionId, "Edited scenario should be a new saved version.");
+  const refused = await postJson(baseURL, "/api/v1/scenarios/runs", scenarioKey, { versionId: latest.versionId, settings: { ...detail.settings } });
+  expect(refused.response.status === 422 && refused.body?.error?.code === "travel_snapshot_stale", `Stale run should be refused with travel_snapshot_stale; got ${refused.response.status} ${JSON.stringify(refused.body)}`);
+  const runsAfter = (await fetchOkJson(baseURL, "/api/v1/runs", scenarioKey)).runs.length;
+  expect(runsAfter === runsBefore, `No run should be enqueued for stale coordinates (${runsBefore} -> ${runsAfter}).`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("directed matrix");
+  console.log(`  passed: snapshot ${snapshotId.slice(0, 10)}, ${checked} directed legs match the matrix, stale edit refused (travel_snapshot_stale)`);
+}
+
 async function experimentFlow(baseURL, runKey) {
   console.log("Browser smoke: bounded synthetic experiment");
   beginBrowserFlow("experiment");
@@ -358,6 +516,7 @@ try {
   for (const flow of flows) {
     if (flow === "lesson") await lessonFlow(baseURL, runKey);
     if (flow === "import") await importFlow(baseURL, scenarioKey);
+    if (flow === "matrix") await matrixFlow(baseURL, scenarioKey);
     if (flow === "experiment") await experimentFlow(baseURL, runKey);
   }
   await stop();

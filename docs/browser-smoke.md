@@ -16,9 +16,10 @@ CI installs the same pinned CLI and its browser runtime with `bunx --no-install 
 
 | Command | Acceptance scope |
 | --- | --- |
-| `bun run test:browser` | All three flows in sequence. |
+| `bun run test:browser` | All four flows in sequence. |
 | `bun run test:browser --flow=lesson` | Public fulfillment lesson → persisted valid, complete result with positive revenue/shipments → downloaded and parsed JSON export. |
 | `bun run test:browser --flow=import` | Protected synthetic CSV preview → save → preflight → real worker result → browser reload and JSON export matching the saved scenario. Keyless listing, run and export reads are refused. |
+| `bun run test:browser --flow=matrix` | Protected tiny import → asymmetric imported directed matrix preview/save/select (provider, units, coverage shown) → real worker run whose persisted legs equal the directed matrix values and name the imported provider and snapshot hash → coordinate edit saved as a new version shows the stale warning and the run is refused (`travel_snapshot_stale`, no run enqueued). |
 | `bun run test:browser --flow=experiment` | Small allocation-example sweep → preview of two combinations → both completed valid plans → ranked Best option with meaningful comparison metrics. |
 
 Browser actions go through agent-browser; direct HTTP reads are used only for persisted-outcome polling and access assertions. Layout checks cover desktop 1440×900 and the iPhone 16 profile at 393×852, including the scenario workbench, experiment builder and their result screens. A scrollable table is allowed; page-level horizontal overflow fails acceptance.

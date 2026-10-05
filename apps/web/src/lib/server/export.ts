@@ -20,7 +20,7 @@ export function exportJson(store: Store, runId: string) {
     settings: detail.settings,
     stages: view.artifacts,
     summary: detail.summary,
-    units: { distance: "meters", linear_feet: "hundredths of a foot", money: "cents" },
+    units: { distance: "meters", duration: "seconds", linear_feet: "hundredths of a foot", money: "cents" },
   };
 }
 
@@ -40,9 +40,9 @@ export function exportCsv(store: Store, runId: string, table: CsvTable, sheet: S
   if (!summary) throw new ApiError(409, "no_result", "This run has no result to export yet.");
   if (table === "loads") {
     return csv(
-      ["truck_id", "cluster_id", "sequence", "visit_id", "location_id", "order_id", "line_id", "product_id", "pieces", "linear_feet_hundredths", "amount_cents", "leg_m", "truck_load_hundredths", "truck_fill", "validated"],
+      ["truck_id", "cluster_id", "sequence", "visit_id", "location_id", "order_id", "line_id", "product_id", "pieces", "linear_feet_hundredths", "amount_cents", "leg_m", "leg_s", "truck_load_hundredths", "truck_fill", "validated"],
       summary.trucks.flatMap(t => t.visits.flatMap(v => v.lines.map(l => [
-        t.id, t.cluster_id, v.sequence, v.visit_id, v.location_id, l.order_id, l.line_id, l.product_id, l.pieces, l.linear_feet, l.amount_cents, v.leg_m, t.load, t.fill.toFixed(4), true,
+        t.id, t.cluster_id, v.sequence, v.visit_id, v.location_id, l.order_id, l.line_id, l.product_id, l.pieces, l.linear_feet, l.amount_cents, v.leg_m, v.leg_s ?? "", t.load, t.fill.toFixed(4), true,
       ]))),
     );
   }
