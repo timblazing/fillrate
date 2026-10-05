@@ -41,9 +41,9 @@
     },
     "M7": {
       "weight": 6,
-      "done": 62,
+      "done": 66,
       "state": "active",
-      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity and seed/runtime sensitivity lessons; /learn index; per-leg drive seconds and planned-route timeline; GeoJSON route export and owner-only snapshot matrix downloads; browser acceptance for Timeline, lessons, matrix exports, time-window waiting and service. Remaining: lessons needing M6 adapters, verified Valhalla road geometry and explorer replay."
+      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity, seed/runtime sensitivity and time windows/waiting lessons; /learn index; per-leg drive seconds and planned-route timeline; GeoJSON route export and owner-only snapshot matrix downloads; browser acceptance for Timeline, lessons, matrix exports, time-window waiting and service. Remaining: lessons needing further M6 adapters, verified Valhalla road geometry and explorer replay."
     },
     "M8": {
       "weight": 7,
@@ -53,7 +53,6 @@
     }
   },
   "nextUp": [
-    "M6/M7: add the time-windows lesson using the new capability and browser fixture.",
     "M6: pinned Valhalla Compose deployment evidence needs owner hardware; route geometry follows verification.",
     "M7: Haversine vs recorded road-matrix lesson; road geometry after a verified Valhalla deployment; explorer replay.",
     "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff."
