@@ -1,7 +1,7 @@
 {
-  "updated": "2026-10-02",
+  "updated": "2026-10-05",
   "focus": "M6",
-  "productBehavior": 59,
+  "productBehavior": 62,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -13,7 +13,7 @@
       "weight": 10,
       "done": 95,
       "state": "waiting",
-      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: \u2605 = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
+      "notes": "Round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01). Applied: ★ = Best trade-off, far stops reachable through another stop only warn, oversize stops split by default, no cost rates. /dev/review removed. Only fillrate.fig remains (needs the OpenPencil app)."
     },
     "M3": {
       "weight": 20,
@@ -35,27 +35,28 @@
     },
     "M6": {
       "weight": 12,
-      "done": 20,
+      "done": 30,
       "state": "active",
-      "notes": "Done: typed raw directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, server stale-coordinate refusal, and directed preflight/worker reachability with independent leg validation. `/scenarios` now previews matrices before save, lists owner-linked snapshots, selects a snapshot and inspects provider metadata, units, directed coverage and a bounded heatmap sample. Remaining: repeatable browser/worker stale-coordinate acceptance, durable Valhalla snapshot jobs, pinned live deployment and geometry. `directed_road_travel` stays planned until browser and deployment evidence pass."
+      "notes": "Done: typed directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, stale-coordinate refusal, directed preflight/worker reachability, browser preview/selection/inspector, and repeatable browser acceptance (`test:browser --flow=matrix`) proving directed worker legs and stale refusal. Remaining: durable Valhalla snapshot jobs, pinned live deployment, route geometry and the capability-gated fleet/window/depot/group/shipment/reload adapters, manual evaluator and warm starts. `directed_road_travel` stays planned until deployment evidence passes."
     },
     "M7": {
       "weight": 6,
-      "done": 25,
+      "done": 50,
       "state": "active",
-      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle (M4); allocation lesson (/learn/allocation-policies, 90-order scarce-stock scenario, every observation asserted in pytest), /learn index, replay checks as tested Python (CP-SAT runtime false-difference fixed), allocation and estimated-travel provenance in expected.json. Remaining: other lessons, timeline/playback, route-geometry and explorer exports; road-matrix export waits for M6."
+      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity and seed/runtime sensitivity lessons with pytest-asserted observations; /learn index; per-leg drive seconds (`leg_s`, `drive_s`) and a planned-route timeline on /runs/<id> with schematic paths labeled; `leg_s` in the loads CSV. Remaining: lessons that need M6 adapters, timeline on road geometry with service/wait states, GeoJSON route geometry, explorer replay and road-matrix export."
     },
     "M8": {
       "weight": 7,
       "done": 60,
       "state": "active",
-      "notes": "Done: pinned local agent-browser production smokes for lesson/result/export, protected CSV preview/save/preflight/result/reload/scenario-matching export with keyless denials, and a two-run comparable ranked allocation experiment. Desktop/iPhone 16 and browser diagnostics pass. Hosted/local production acceptance passes 82 checks; image target/recovery evidence covers VPS/Pi 5. Remaining: native Bun/npm distribution, broader cancellation/edit/branch browser coverage and reproducible handoff. No live second-account or new Linux CI/image evidence is claimed."
+      "notes": "Done: pinned local agent-browser production smokes for lesson/result/export, imported directed matrix/stale refusal, protected CSV preview/save/preflight/result/reload/scenario-matching export with keyless denials, and a two-run comparable ranked allocation experiment. Desktop/iPhone 16 and browser diagnostics pass. Hosted/local production acceptance passes 82 checks; image target/recovery evidence covers VPS/Pi 5. Remaining: native Bun/npm distribution, broader cancellation/edit/branch browser coverage and reproducible handoff. No live second-account or new Linux CI/image evidence is claimed."
     }
   },
   "nextUp": [
-    "M6: add repeatable browser acceptance for imported-matrix stale-coordinate refusal and a directed worker run; keep capability planned until pinned Valhalla deployment evidence.",
+    "M6: durable Valhalla snapshot job (fixtures) and pinned Compose deployment evidence (owner hardware); then route geometry.",
+    "M6: first capability-gated routing adapter (time windows + service durations, or heterogeneous fleet) with independent validator fixtures, unlocking matching lessons and timeline service/wait states.",
+    "M7: browser assertions for the timeline and new lessons; GeoJSON route export and road-matrix export; Haversine vs recorded road-matrix lesson.",
     "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff.",
-    "M2: fillrate.fig Components/Foundations with local OpenPencil when available.",
-    "M6/M7: durable Valhalla snapshot job and pinned deployment before geometry/playback/advanced lessons; independent lessons only for already-supported behavior."
+    "M2: fillrate.fig Components/Foundations with local OpenPencil when available."
   ]
 }

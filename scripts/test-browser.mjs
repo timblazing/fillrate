@@ -308,10 +308,12 @@ async function matrixFlow(baseURL, scenarioKey) {
   browser("wait", "--text", "Import saved as version 1.", "--timeout", "25000");
 
   // Read the saved version to build a matrix over exactly its depot + stop nodes (depot first, then stops by ID).
-  const list = await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey);
-  expect(list.scenarios?.length === 1, "Expected exactly one saved scenario.");
-  const scenarioId = list.scenarios[0].id;
-  const versionId = list.scenarios[0].versionId;
+  // Other flows may share this database, so find the scenario by its name.
+  const matrixScenario = async () => (await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey)).scenarios?.filter((s) => s.name === "Directed matrix import") ?? [];
+  const created = await matrixScenario();
+  expect(created.length === 1, "Expected exactly one saved matrix scenario.");
+  const scenarioId = created[0].id;
+  const versionId = created[0].versionId;
   const saved = await fetchOkJson(baseURL, `/api/v1/scenarios/${scenarioId}?version=${encodeURIComponent(versionId)}`, scenarioKey);
   const depot = saved.document.depot;
   const stops = saved.document.locations.map((l) => ({ id: l.id, lat: l.lat, lon: l.lon })).sort((a, b) => (a.id < b.id ? -1 : 1));
@@ -408,7 +410,7 @@ async function matrixFlow(baseURL, scenarioKey) {
   browser("wait", "--text", "coordinates changed since the snapshot", "--timeout", "20000");
   expect(browser("get", "url").includes("/scenarios"), "A stale-coordinate run must not leave the workbench.");
   // The same refusal straight from the server, with its error code.
-  const latest = (await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey)).scenarios[0];
+  const [latest] = await matrixScenario();
   expect(latest.versionId !== versionId, "Edited scenario should be a new saved version.");
   const refused = await postJson(baseURL, "/api/v1/scenarios/runs", scenarioKey, { versionId: latest.versionId, settings: { ...detail.settings } });
   expect(refused.response.status === 422 && refused.body?.error?.code === "travel_snapshot_stale", `Stale run should be refused with travel_snapshot_stale; got ${refused.response.status} ${JSON.stringify(refused.body)}`);
