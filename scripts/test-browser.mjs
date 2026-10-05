@@ -611,10 +611,10 @@ const pageNumber = (text, pattern, label) => {
 const milesOf = (summary) => Math.round(summary.totals.loaded_distance_m / 1609.344);
 const partitionOf = (summary) => JSON.stringify(summary.clusters.map((c) => [...c.location_ids].sort()).sort((a, b) => (a.join() < b.join() ? -1 : 1)));
 
-// The two M7 lessons: each page's actions start real runs, and the observations it prints are checked
+// The M7 lessons (capacity, seeds, time windows): each page's actions start real runs, and the observations it prints are checked
 // against the persisted results (the stable facts services/optimizer/tests/test_lesson_*.py also assert).
 async function lessonsFlow(baseURL, runKey) {
-  console.log("Browser smoke: truck capacity and seed sensitivity lessons");
+  console.log("Browser smoke: truck capacity, seed sensitivity and time windows lessons");
   beginBrowserFlow("lessons");
   browser("errors", "--clear");
   browser("console", "--clear");
@@ -713,7 +713,45 @@ async function lessonsFlow(baseURL, runKey) {
   assertViewport(1440, 900);
   assertViewport(393, 852);
   checkBrowserDiagnostics("seed sensitivity lesson");
-  console.log(`  passed: capacity ${bound} trucks at the bound, split stop on 3 shipments, inventory sweep 13/9/7/4; seeds give 6 partitions, ${Math.min(...miles)}-${Math.max(...miles)} loaded miles`);
+
+  // Time windows and waiting
+  open(`${baseURL}/learn/time-windows${access}`);
+  expect(snapshot().includes('heading "Time windows and waiting"'), "Time windows lesson did not load.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  page = String(parsedText());
+  expect(page.includes("America/Chicago") && page.includes("13:00–15:00") && page.includes("any time"), "Time windows lesson does not list the timezone and customer windows.");
+  clickButton("Run the pipeline");
+  browser("wait", "--text", "Open run", "--timeout", "20000");
+  const windowsRunId = hrefIdOf("/runs");
+  const windowsRun = await doneRun(windowsRunId, "Time windows lesson run");
+  checkRun(windowsRun, "time windows lesson");
+  const windowVisits = windowsRun.summary.trucks.flatMap((t) => t.visits);
+  expect(windowsRun.summary.totals.trucks === 2 && windowsRun.summary.totals.capacity_lower_bound === 1 && milesOf(windowsRun.summary) === 225, `Windows run should use 2 trucks against a lower bound of 1 and about 225 loaded miles: ${windowsRun.summary.totals.trucks} trucks, ${milesOf(windowsRun.summary)} mi.`);
+  expect(windowVisits.every((v) => v.window_earliest_s == null || (v.start_s >= v.window_earliest_s && v.start_s <= v.window_latest_s)), "A windows-run service start is outside its window.");
+  const bakery = windowVisits.find((v) => v.location_id === "TW-01");
+  expect(bakery && Math.floor(bakery.wait_s / 60) === 137, `The bakery supply should wait 2 h 17 min; waited ${bakery?.wait_s} s.`);
+  clickButton("Run without windows");
+  browser("wait", "--text", "Open run without windows", "--timeout", "20000");
+  const openRunId = evalValue(`[...document.querySelectorAll('a[href^="/runs/"]')].map((a) => a.getAttribute('href')).find((h) => !h.includes(${JSON.stringify(windowsRunId)})) ?? ''`).split("/").pop().split("?")[0];
+  expect(/^[0-9a-f-]{36}$/.test(openRunId), `Run-without-windows link is unexpected: ${openRunId}`);
+  const openRun = await doneRun(openRunId, "Time windows lesson run without windows");
+  checkRun(openRun, "time windows lesson without windows");
+  expect(openRun.summary.totals.trucks === 1 && milesOf(openRun.summary) === 177 && openRun.summary.trucks[0].wait_s_total === 0, `Run without windows should use 1 truck, about 177 loaded miles and no waiting: ${openRun.summary.totals.trucks} trucks, ${milesOf(openRun.summary)} mi.`);
+  open(`${baseURL}/runs/${windowsRunId}${access}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  browser("find", "role", "tab", "click", "--name", "Timeline", "--exact");
+  browser("wait", "--text", "service durations and windows from the scenario", "--timeout", "15000");
+  const windowsTimeline = String(parsedText());
+  expect(windowsTimeline.includes("Wait") && windowsTimeline.includes("Service") && windowsTimeline.includes("Window") && windowsTimeline.includes("America/Chicago"), "Windows-run Timeline is missing wait, service, window or timezone content.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  open(`${baseURL}/learn/time-windows${access}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("time windows lesson");
+  console.log(`  passed: capacity ${bound} trucks at the bound, split stop on 3 shipments, inventory sweep 13/9/7/4; seeds give 6 partitions, ${Math.min(...miles)}-${Math.max(...miles)} loaded miles; windows 2 trucks/225 mi vs 1 truck/177 mi without`);
 }
 
 async function stop() {
