@@ -1178,6 +1178,985 @@
         "type": "object"
       },
       "JsonValue": {},
+      "LabClient": {
+        "additionalProperties": false,
+        "description": "A visit created directly (spec \u00a75: no order needed). Delivery is per dimension id; a\ndimension left out delivers 0.",
+        "properties": {
+          "delivery": {
+            "additionalProperties": {
+              "maximum": 1000000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "title": "Delivery",
+            "type": "object"
+          },
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Label",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "maximum": 90,
+                "minimum": -90,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "maximum": 180,
+                "minimum": -180,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lon"
+          },
+          "service_duration": {
+            "default": 0,
+            "maximum": 1000000000,
+            "minimum": 0,
+            "title": "Service Duration",
+            "type": "integer"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": -1000000,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": -1000000,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Y"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "LabClient",
+        "type": "object"
+      },
+      "LabDepot": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Label",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "maximum": 90,
+                "minimum": -90,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "maximum": 180,
+                "minimum": -180,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lon"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": -1000000,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": -1000000,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Y"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "LabDepot",
+        "type": "object"
+      },
+      "LabDimension": {
+        "additionalProperties": false,
+        "description": "A named load dimension (units, weight, volume or any user-defined resource).",
+        "properties": {
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Label",
+            "type": "string"
+          },
+          "unit": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "unit"
+        ],
+        "title": "LabDimension",
+        "type": "object"
+      },
+      "LabFleetUse": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "vehicle_type": {
+            "title": "Vehicle Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vehicle_type",
+          "available",
+          "used"
+        ],
+        "title": "LabFleetUse",
+        "type": "object"
+      },
+      "LabInstance": {
+        "additionalProperties": false,
+        "properties": {
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/LabClient"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Clients",
+            "type": "array"
+          },
+          "coordinates": {
+            "enum": [
+              "planar",
+              "geographic"
+            ],
+            "title": "Coordinates",
+            "type": "string"
+          },
+          "cost_unit": {
+            "default": "cost units",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Cost Unit",
+            "type": "string"
+          },
+          "depots": {
+            "items": {
+              "$ref": "#/components/schemas/LabDepot"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "title": "Depots",
+            "type": "array"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "dimensions": {
+            "items": {
+              "$ref": "#/components/schemas/LabDimension"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "kind": {
+            "const": "lab_instance",
+            "default": "lab_instance",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "solver": {
+            "$ref": "#/components/schemas/LabSolver"
+          },
+          "travel": {
+            "$ref": "#/components/schemas/LabTravel"
+          },
+          "vehicle_types": {
+            "items": {
+              "$ref": "#/components/schemas/LabVehicleType"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Vehicle Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "coordinates",
+          "dimensions",
+          "depots",
+          "clients",
+          "vehicle_types"
+        ],
+        "title": "LabInstance",
+        "type": "object"
+      },
+      "LabObjective": {
+        "additionalProperties": false,
+        "description": "Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle\nits fixed cost, plus unit_distance_cost \u00d7 route distance and unit_duration_cost \u00d7 route\nduration. Infeasibility penalties are never part of it.",
+        "properties": {
+          "distance_cost": {
+            "title": "Distance Cost",
+            "type": "integer"
+          },
+          "duration_cost": {
+            "title": "Duration Cost",
+            "type": "integer"
+          },
+          "fixed_cost": {
+            "title": "Fixed Cost",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fixed_cost",
+          "distance_cost",
+          "duration_cost",
+          "total"
+        ],
+        "title": "LabObjective",
+        "type": "object"
+      },
+      "LabResult": {
+        "additionalProperties": false,
+        "properties": {
+          "coordinates": {
+            "enum": [
+              "planar",
+              "geographic"
+            ],
+            "title": "Coordinates",
+            "type": "string"
+          },
+          "fleet": {
+            "items": {
+              "$ref": "#/components/schemas/LabFleetUse"
+            },
+            "title": "Fleet",
+            "type": "array"
+          },
+          "instance_name": {
+            "title": "Instance Name",
+            "type": "string"
+          },
+          "kind": {
+            "const": "lab_result",
+            "default": "lab_result",
+            "title": "Kind",
+            "type": "string"
+          },
+          "objective": {
+            "$ref": "#/components/schemas/LabObjective"
+          },
+          "problem_fingerprint": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Problem Fingerprint",
+            "type": "string"
+          },
+          "proof": {
+            "const": "heuristic",
+            "default": "heuristic",
+            "title": "Proof",
+            "type": "string"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/LabRoute"
+            },
+            "title": "Routes",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "solver": {
+            "$ref": "#/components/schemas/LabSolverInfo"
+          },
+          "solver_feasible": {
+            "title": "Solver Feasible",
+            "type": "boolean"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/LabTotals"
+          },
+          "units": {
+            "$ref": "#/components/schemas/LabUnits"
+          },
+          "validated_feasible": {
+            "title": "Validated Feasible",
+            "type": "boolean"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/LabViolation"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instance_name",
+          "coordinates",
+          "problem_fingerprint",
+          "units",
+          "solver_feasible",
+          "validated_feasible",
+          "violations",
+          "objective",
+          "totals",
+          "fleet",
+          "routes",
+          "solver"
+        ],
+        "title": "LabResult",
+        "type": "object"
+      },
+      "LabRoute": {
+        "additionalProperties": false,
+        "properties": {
+          "cost": {
+            "title": "Cost",
+            "type": "integer"
+          },
+          "distance": {
+            "title": "Distance",
+            "type": "integer"
+          },
+          "distance_cost": {
+            "title": "Distance Cost",
+            "type": "integer"
+          },
+          "duration": {
+            "title": "Duration",
+            "type": "integer"
+          },
+          "duration_cost": {
+            "title": "Duration Cost",
+            "type": "integer"
+          },
+          "fixed_cost": {
+            "title": "Fixed Cost",
+            "type": "integer"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "load": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Load",
+            "type": "object"
+          },
+          "service_duration": {
+            "title": "Service Duration",
+            "type": "integer"
+          },
+          "travel_duration": {
+            "title": "Travel Duration",
+            "type": "integer"
+          },
+          "utilization": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Utilization",
+            "type": "object"
+          },
+          "vehicle_type": {
+            "title": "Vehicle Type",
+            "type": "string"
+          },
+          "visits": {
+            "items": {
+              "$ref": "#/components/schemas/LabVisit"
+            },
+            "title": "Visits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "index",
+          "vehicle_type",
+          "visits",
+          "load",
+          "utilization",
+          "distance",
+          "duration",
+          "travel_duration",
+          "service_duration",
+          "fixed_cost",
+          "distance_cost",
+          "duration_cost",
+          "cost"
+        ],
+        "title": "LabRoute",
+        "type": "object"
+      },
+      "LabSolver": {
+        "additionalProperties": false,
+        "description": "Seed and stopping criteria. With ``max_iterations`` the run stops after that many\niterations (reproducible across machines) unless the runtime cap is hit first; without it,\nthe runtime alone stops the search (machine dependent).",
+        "properties": {
+          "max_iterations": {
+            "anyOf": [
+              {
+                "maximum": 50000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 2000,
+            "title": "Max Iterations"
+          },
+          "max_runtime_s": {
+            "default": 30,
+            "exclusiveMinimum": 0,
+            "maximum": 30,
+            "title": "Max Runtime S",
+            "type": "number"
+          },
+          "seed": {
+            "default": 0,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "title": "LabSolver",
+        "type": "object"
+      },
+      "LabSolverInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter_version": {
+            "title": "Adapter Version",
+            "type": "string"
+          },
+          "excess_distance": {
+            "title": "Excess Distance",
+            "type": "integer"
+          },
+          "excess_load": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Excess Load",
+            "type": "object"
+          },
+          "iterations": {
+            "title": "Iterations",
+            "type": "integer"
+          },
+          "max_iterations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Iterations"
+          },
+          "max_runtime_s": {
+            "title": "Max Runtime S",
+            "type": "number"
+          },
+          "name": {
+            "const": "pyvrp",
+            "default": "pyvrp",
+            "title": "Name",
+            "type": "string"
+          },
+          "nominal_cost": {
+            "title": "Nominal Cost",
+            "type": "integer"
+          },
+          "runtime_s": {
+            "title": "Runtime S",
+            "type": "number"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "stopped_by": {
+            "enum": [
+              "iterations",
+              "runtime"
+            ],
+            "title": "Stopped By",
+            "type": "string"
+          },
+          "time_warp": {
+            "title": "Time Warp",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "adapter_version",
+          "seed",
+          "max_iterations",
+          "max_runtime_s",
+          "iterations",
+          "runtime_s",
+          "stopped_by",
+          "nominal_cost",
+          "excess_load",
+          "excess_distance",
+          "time_warp"
+        ],
+        "title": "LabSolverInfo",
+        "type": "object"
+      },
+      "LabTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "clients_served": {
+            "title": "Clients Served",
+            "type": "integer"
+          },
+          "clients_total": {
+            "title": "Clients Total",
+            "type": "integer"
+          },
+          "distance": {
+            "title": "Distance",
+            "type": "integer"
+          },
+          "duration": {
+            "title": "Duration",
+            "type": "integer"
+          },
+          "load": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Load",
+            "type": "object"
+          },
+          "routes": {
+            "title": "Routes",
+            "type": "integer"
+          },
+          "service_duration": {
+            "title": "Service Duration",
+            "type": "integer"
+          },
+          "travel_duration": {
+            "title": "Travel Duration",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "routes",
+          "clients_total",
+          "clients_served",
+          "distance",
+          "duration",
+          "travel_duration",
+          "service_duration",
+          "load"
+        ],
+        "title": "LabTotals",
+        "type": "object"
+      },
+      "LabTravel": {
+        "additionalProperties": false,
+        "description": "Geographic only: haversine \u00d7 circuity meters, and seconds at a constant speed.",
+        "properties": {
+          "circuity": {
+            "default": 1.2,
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Circuity",
+            "type": "number"
+          },
+          "speed_m_per_s": {
+            "default": 11.176,
+            "exclusiveMinimum": 0,
+            "maximum": 100,
+            "title": "Speed M Per S",
+            "type": "number"
+          }
+        },
+        "title": "LabTravel",
+        "type": "object"
+      },
+      "LabUnits": {
+        "additionalProperties": false,
+        "properties": {
+          "cost": {
+            "title": "Cost",
+            "type": "string"
+          },
+          "dimensions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Dimensions",
+            "type": "object"
+          },
+          "distance": {
+            "title": "Distance",
+            "type": "string"
+          },
+          "duration": {
+            "title": "Duration",
+            "type": "string"
+          }
+        },
+        "required": [
+          "distance",
+          "duration",
+          "cost",
+          "dimensions"
+        ],
+        "title": "LabUnits",
+        "type": "object"
+      },
+      "LabVehicleType": {
+        "additionalProperties": false,
+        "description": "A vehicle type with a finite count. Every vehicle starts and ends at the single depot\n(closed routes; PyVRP-native, no open-route workaround). Capacity names every dimension.",
+        "properties": {
+          "capacity": {
+            "additionalProperties": {
+              "maximum": 1000000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "title": "Capacity",
+            "type": "object"
+          },
+          "count": {
+            "maximum": 500,
+            "minimum": 1,
+            "title": "Count",
+            "type": "integer"
+          },
+          "fixed_cost": {
+            "default": 0,
+            "maximum": 1000000000,
+            "minimum": 0,
+            "title": "Fixed Cost",
+            "type": "integer"
+          },
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Label",
+            "type": "string"
+          },
+          "max_distance": {
+            "anyOf": [
+              {
+                "maximum": 1000000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Distance"
+          },
+          "shift_duration": {
+            "anyOf": [
+              {
+                "maximum": 1000000000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Shift Duration"
+          },
+          "unit_distance_cost": {
+            "default": 1,
+            "maximum": 1000000000,
+            "minimum": 0,
+            "title": "Unit Distance Cost",
+            "type": "integer"
+          },
+          "unit_duration_cost": {
+            "default": 0,
+            "maximum": 1000000000,
+            "minimum": 0,
+            "title": "Unit Duration Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "count",
+          "capacity"
+        ],
+        "title": "LabVehicleType",
+        "type": "object"
+      },
+      "LabViolation": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Client Id"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "dimension": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Dimension"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Route"
+          },
+          "vehicle_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Vehicle Type"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "LabViolation",
+        "type": "object"
+      },
+      "LabVisit": {
+        "additionalProperties": false,
+        "properties": {
+          "arrival": {
+            "title": "Arrival",
+            "type": "integer"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "departure": {
+            "title": "Departure",
+            "type": "integer"
+          },
+          "leg_distance": {
+            "title": "Leg Distance",
+            "type": "integer"
+          },
+          "leg_duration": {
+            "title": "Leg Duration",
+            "type": "integer"
+          },
+          "load_after": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Load After",
+            "type": "object"
+          },
+          "load_before": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Load Before",
+            "type": "object"
+          },
+          "service_duration": {
+            "title": "Service Duration",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_id",
+          "load_before",
+          "load_after",
+          "leg_distance",
+          "leg_duration",
+          "arrival",
+          "service_duration",
+          "departure"
+        ],
+        "title": "LabVisit",
+        "type": "object"
+      },
       "Lease": {
         "additionalProperties": false,
         "properties": {
@@ -2452,7 +3431,8 @@
               "solve",
               "validation",
               "summary",
-              "explorer"
+              "explorer",
+              "lab"
             ],
             "title": "Stage Type",
             "type": "string"
