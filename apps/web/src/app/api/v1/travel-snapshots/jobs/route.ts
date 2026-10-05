@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const who = await principal(request)
-    const body = (await boundedJson(request, 64 * 1024).catch(() => ({}))) as { versionId?: unknown; idempotencyKey?: unknown }
+    const body = (await boundedJson(request, 64 * 1024)) as { versionId?: unknown; idempotencyKey?: unknown }
     const key = typeof body?.idempotencyKey === "string" ? body.idempotencyKey : request.headers.get("idempotency-key") ?? ""
     const store = initializeDatabase()
     const id = createTravelJob(store, who, body?.versionId, key)
