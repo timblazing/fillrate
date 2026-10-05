@@ -24,37 +24,39 @@
 - Verification: `uv run pytest` (291), `ruff check` and `ruff format --check`, `bun run lint` (existing `globe.tsx` warning), `bun run typecheck`, `bun run build`, `bun run test:hosted` (82), contract regeneration (no drift), the real-worker explorer e2e (passed, not skipped) and `bun run test:browser --flow=experiment` (local agent-browser run with the basemap CDN blocked; desktop and iPhone 16 screenshots reviewed). Full `bun run test` at the final commit: 139 of 142 passed under heavy shared CPU load (load average about 12 on 4 cores); the 3 failures, and 2–5 in earlier runs, were 5 s timeouts in multi-process race tests in `store.test.ts`/`isolation.test.ts` (different tests each run), which this change does not touch.
 - Gaps: cross-platform bit-identity is not claimed; only the same-machine replay was exercised. The image smoke change runs only in `image.yml`. Explorer JSON/CSV exports do not exist (only the replay bundle).
 
-## 2026-10-05: Parallel M6/M7/M8 batch, open PRs and handoff (Claude Code)
-- Reconciled the records with `origin/main` (f82922f, then cf3368e) and split the remaining spec work that needs no owner input into PR-sized tasks. Each task got its own worktree and branch from `origin/main`. Every PR below carries its own progress and decision entries; this entry is the batch index and handoff. `docs/status.json` is unchanged because nothing in this batch has merged yet. Update it once the batch merges.
-- **Open PRs:**
-  - [#48](https://github.com/timblazing/fillrate/pull/48) M7 k explorer replay bundle. CI passed on its first head; it was re-queued after main was merged in.
+## 2026-10-05: Parallel M6/M7/M8 batch merged (Claude Code)
+- Split the remaining spec work that needs no owner input into PR-sized tasks, each with its own worktree and branch from `origin/main`. Seven PRs merged; each carries its own progress and decision entries:
+  - [#48](https://github.com/timblazing/fillrate/pull/48) M7 k explorer replay bundle.
+  - [#53](https://github.com/timblazing/fillrate/pull/53) M6 manual plan evaluator and the M7 manual vs optimized routes lesson.
   - [#49](https://github.com/timblazing/fillrate/pull/49) M8 browser cancellation and scenario edit/branch flows, with workbench fixes.
-  - [#50](https://github.com/timblazing/fillrate/pull/50) M6 Solver Lab foundation (multiple load dimensions, heterogeneous fleet, `/labs`, `lab` job kind).
-  - [#51](https://github.com/timblazing/fillrate/pull/51) M8 npm compatibility (`package-lock.json`, lock-parity check, Node 24 npm CI job), `docs/local.md` and `docs/handoff.md`. **The lockfile policy needs owner review.**
+  - [#50](https://github.com/timblazing/fillrate/pull/50) M6 Solver Lab foundation: multiple load dimensions, heterogeneous fleet, `/labs`, `lab` job kind.
   - [#52](https://github.com/timblazing/fillrate/pull/52) M6 verified warm starts.
-  - [#53](https://github.com/timblazing/fillrate/pull/53) M6 manual plan evaluator and the M7 manual-vs-optimized lesson.
-  - [#54](https://github.com/timblazing/fillrate/pull/54) **draft:** M7 Haversine vs recorded (synthetic) matrix lesson. Its new browser flow failed once on the merged head (matrix export fetch); `test:hosted` was not run.
-- **Merge order and conflicts to expect:**
-  - #52 and #53 both edit `pipeline.py`, `/runs/<id>` and `scripts/test-browser.mjs`.
-  - #50, #53 and #54 add example ids, browser flows and `smoke_experiments.py` entries.
-  - Generated contracts: rerun `bun run contracts:generate` after each merge rather than hand-resolving them.
-- **Local verification boundaries:**
-  - The container has Node 22, not 24, and 4 shared cores.
-  - With up to seven agents running, the full `bun run test` hit 5 s timeouts in multi-process race tests (`store`, `isolation`) and occasionally a `travel-job`/`worker` e2e lease retry. Those tests passed alone or with longer timeouts, and CI passed #48 on its first head. Treat CI as the authority until a quiet full run is observed.
-  - Browser flows ran locally through agent-browser with the pre-installed Chromium. The sandbox egress policy blocks `basemaps.cartocdn.com`, so the local runner ignored exactly that console error and MapLibre's follow-on "Worker failed to load". CI runs the unmodified flows.
-  - No image was built or smoke-tested.
+  - [#51](https://github.com/timblazing/fillrate/pull/51) M8 npm compatibility, `docs/local.md` and `docs/handoff.md`. It adds a committed `package-lock.json` beside the canonical `bun.lock` (see its decision entry; the owner may revisit this policy).
+  - [#54](https://github.com/timblazing/fillrate/pull/54) M7 Haversine vs recorded (synthetic) road matrices lesson.
+- **How the batch was verified:**
+  - GitHub-hosted runners were scarce. Queued jobs were cancelled after 15 minutes without running a step; those were cancellations, not test failures.
+  - #48 passed CI before merging.
+  - #53, #49, #50, #52 and #51 were merged in that order into one local integration branch. Conflicts were resolved by keeping both sides; contracts were regenerated from the combined models.
+  - The full `ci.yml` sequence then ran once on the combined tree, on an otherwise idle container: Ruff, pytest 376, contracts without drift, lint, typecheck, Vitest 157/157 with the real worker, build, `test:hosted` 105/105 and all 11 browser flows.
+  - Each PR was then landed with its branch tree set to exactly the tested integration step, so every squash put that verified tree on `main`.
+  - #54 was merged with that `main` and verified the same way: pytest 388, Vitest 160/160, `test:hosted` 105/105 and all 12 browser flows.
+- **Verification boundaries:**
+  - The container has Node 22, not 24.
+  - Local browser flows ran with one sandbox allowance: the egress policy blocks `basemaps.cartocdn.com`, so the local runner ignored exactly that console error and MapLibre's follow-on "Worker failed to load". Every other assertion ran.
+  - `main`'s own CI run (Node 24, unmodified flows, and the new `npm` job) is the authority.
+  - No image was built or smoke-tested, and the image smoke additions have not run.
+- **Harness fix found along the way:** every browser flow's direct HTTP reads now go through `localFetch`, which yields one tick and retries once on a closed keep-alive socket. Blocking `spawnSync` agent-browser calls had caused intermittent `fetch failed` errors.
 - **Still needs the owner:**
-  - the pinned Valhalla Compose deployment, live coverage evidence and road geometry (which also blocks route-geometry timelines and GeoJSON road geometry);
+  - the pinned Valhalla Compose deployment, live coverage evidence and road geometry (which also block road-geometry timelines and GeoJSON route geometry);
   - image release dispatches for these runtime changes;
-  - the optional fillrate.fig alignment;
+  - native timings on the VPS and Pi 5;
   - real sample order/inventory rows and cost rates;
-  - Node 24 + npm evidence (comes from the new CI job once #51 merges);
-  - native timings on the VPS and Pi 5.
-- **Not started:**
-  - Solver Lab features after #50: multiple depots, reloads, optional visits/prizes, client groups, paired shipments (PyVRP 0.14.0 has `Shipment`, `ClientGroup`, `reload_depots`, prizes and multiple depots natively);
-  - their lessons, plus lessons for load dimensions and fleets;
+  - the optional fillrate.fig alignment and the optional `/request-access` and `/admin` phone review.
+- **Next increments:**
+  - Solver Lab capabilities, one PR each with fixtures and a lesson: multiple depots, reloads, optional clients/prizes, client groups, paired shipments;
+  - lesson pages for load dimensions and fleets;
   - a heterogeneous fleet in the fulfillment pipeline;
-  - saved manual baselines (needs a migration) and warm starts from them.
+  - saved manual baselines (needs a migration) as a warm-start source.
 
 ## 2026-10-05: M8 browser cancellation and scenario edit/branch coverage (Claude Code)
 - `bun run test:browser` has two new flows, both in the default run after the existing ones (the import flow expects the first protected scenario). Browser actions use agent-browser only; direct HTTP is used for persisted-state polling, access/export assertions and, in the edit flow, one "other editor" save that creates the conflict.
@@ -285,15 +287,12 @@
   - [x] Imported-matrix preview before save, owner-scoped browser snapshot selection, metadata/coverage inspector and coordinate-match status; the heatmap samples the first 12 nodes and labels origin rows, destination columns, units and unreachable edges
   - [x] Repeatable browser acceptance (`test:browser --flow=matrix`, 2026-10-05): directed legs from an asymmetric imported snapshot reach persisted results; a browser coordinate edit is refused with `travel_snapshot_stale`. `directed_road_travel` stays `planned` until the pinned Valhalla deployment is verified
   - [x] Durable Valhalla snapshot-building job with progress, failure and cancellation; immutable provider/version/extract/config identity; fake-provider worker and storage tests plus browser-to-worker run verified (2026-10-05)
-  - [ ] Pinned Valhalla Compose deployment, extract metadata and live coverage/configuration evidence; inspected-route geometry
   - [x] Manual evaluator (2026-10-05): a hand-edited plan for one cluster of a completed run is checked by the pipeline's own validator (`check_routes`) against the run's recorded travel artifact, problem, visit lineage and snapshot via FastAPI `/evaluate`; concrete violations, side-by-side metrics and the run's objective; the optimized routes reproduce the run exactly. `/runs/<id>` Manual plan tab. Saving named manual baselines is not implemented
-  - [ ] Capability-gated fleet/window/depot/group/pickup-delivery/reload increments and verified warm starts
-
   - [x] Solver Lab foundation (`/labs`, run kind `lab`, independent validator, fingerprint) with native multiple load dimensions and heterogeneous fleet, capability fixtures and bundled examples (2026-10-05, `docs/solver-lab.md`)
-  - [ ] Capability-gated depot/group/pickup-delivery/shipment/reload/optional-client increments (Solver Lab first), manual evaluator and verified warm starts
-
   - [x] Verified warm starts (2026-10-05): capability fixtures, exact compatibility rule, validator gate, per-cluster provenance, owner-checked sources, replay and browser rerun (`docs/m6-warm-starts.md`)
-  - [ ] Capability-gated fleet/window/depot/group/pickup-delivery/reload increments and manual evaluator
+  - [ ] Pinned Valhalla Compose deployment, extract metadata and live coverage/configuration evidence; inspected-route geometry
+  - [ ] Solver Lab capability increments, one PR each with fixtures, validation and a lesson: multiple depots, reloads, optional clients/prizes, client groups, paired shipments (PyVRP 0.14.0 provides each natively; see `docs/solver-lab.md`)
+  - [ ] Heterogeneous fleet and further load dimensions in the fulfillment pipeline; saved manual baselines (needs a migration) as a warm-start source
 - [ ] M7 Learning and exports (spec §13, §15; independent of M6 road selection)
   - [x] Second lesson `/learn/allocation-policies` (scarce stock; piece-level versus whole-order allocation) on the new 90-order `allocation` example (`examples/lesson-allocation.json`, generated by `fillrate_optimizer.lesson_allocation`); `/learn` index, header link "Lessons"; shared `learn/lesson-kit.tsx` (per-browser state, Step)
   - [x] `POST /api/v1/runs` accepts `allocation_strategy` and `fulfillment_policy` overrides; the `allocation` example works on `/runs`, `/experiments` and the sweep API
@@ -303,26 +302,20 @@
   - [x] Basic capacity (`/learn/truck-capacity`) and seed/runtime sensitivity (`/learn/seed-sensitivity`) lessons with pytest-asserted observations (2026-10-05)
   - [x] Time windows and waiting lesson (`/learn/time-windows`) on the `windows` / `windows_off` examples with pytest-asserted observations (2026-10-05)
   - [x] Haversine versus recorded road matrices lesson (`/learn/road-matrices`) on the `matrix_estimated` / `matrix_recorded` examples and a bundled synthetic recorded matrix, with pytest-asserted observations and replay (2026-10-05)
-  - [ ] Remaining verified lessons (spec §13): multiple load dimensions, heterogeneous fleets, multiple depots, reloads, optional visits, alternative groups, paired shipments and manual vs optimized routes. Most wait for M6 adapters
-
   - [x] Manual versus optimized routes lesson (`/learn/manual-routes`) on the `manual` example: two stored dispatcher plans evaluated against a real run, pytest-asserted (2026-10-05)
-  - [ ] Remaining verified lessons (spec §13): multiple load dimensions, heterogeneous fleets, multiple depots, reloads, optional visits, alternative groups, paired shipments and Haversine vs recorded road matrices. Most wait for M6 adapters
   - [x] Planned-route timeline on `/runs/<id>` from persisted per-leg drive seconds, with schematic straight-line paths labeled (2026-10-05)
-  - [ ] Timeline on verified road geometry, plus service/wait states once M6 adds service durations and time windows
   - [x] Explorer replay (2026-10-05): `/explore/<id>` and `GET /api/v1/runs/<id>/export?format=python` give a k explorer job its own bundle; `fillrate_optimizer.explorer_replay` recomputes it offline and compares every statistic (exact counts/labels, floats within relative 1e-9); spatial metric only, other providers refused
   - [x] Road-matrix export (verified 2026-10-05): stored snapshots, including Valhalla-job snapshots, download as canonical JSON hashing to their id with provider/version metadata, or long-form CSV; runs on a snapshot export it with the node binding
-  - [ ] GeoJSON route geometry from validated provider route data (needs a verified Valhalla deployment); export only implemented adapters and validated provider data
+  - [ ] Remaining verified lessons (spec §13): multiple load dimensions, heterogeneous fleets, multiple depots, reloads, optional visits, alternative groups, paired shipments (the first two run in the Solver Lab examples; lesson pages follow the lab increments)
+  - [ ] Timeline and GeoJSON route geometry on verified road geometry (needs the pinned Valhalla deployment)
 - [ ] M8 Verification and handoff
   - [x] Production local agent-browser smoke for the public synthetic fulfillment lesson, using the real Python worker and an isolated temporary database; validates result, revenue, shipments and JSON export at desktop and iPhone 16
   - [x] Protected scenario/import → validated result, browser reload and scenario-matching JSON export; keyless reads denied; desktop and iPhone 16 checks (2026-10-02)
   - [x] Bounded experiment → exact two-run preview → successful valid comparable results → ranked Best option; desktop and iPhone 16 checks (2026-10-02)
   - [x] Image target-hardware timings/recovery on VPS and Pi 5, and accepted hosted access gates (records below)
-  - [ ] Account-free native Bun/npm distribution and reproducible handoff
   - [x] Browser cancellation (queued and running runs) and scenario edit/version-conflict/branch/discard coverage at desktop and iPhone 16 (`--flow=cancel`, `--flow=edit`, 2026-10-05)
-  - [ ] Optional request-access/admin iPhone review
-
   - [x] Account-free native Bun/npm distribution and reproducible handoff: `docs/local.md`, `docs/handoff.md`, aligned `package-lock.json`, CI `npm` job (2026-10-05; Node 24 + npm pending the job's first run)
-  - [ ] Broader browser cancellation and scenario edit/branch coverage; optional request-access/admin iPhone review
+  - [ ] Node 24 + npm evidence from the CI `npm` job; native timings on the VPS and Pi 5; optional request-access/admin iPhone review
 
 ## Current state
 
