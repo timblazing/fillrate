@@ -84,6 +84,11 @@ function stable(value) { return JSON.stringify(value, (_key, item) => item && ty
 function snapshot() { return browser("snapshot", "-i"); }
 function open(url) { browser("open", url); }
 function clickButton(name) { browser("find", "role", "button", "click", "--name", name, "--exact"); }
+// Centers the named button first so a sticky app header cannot cover its click point.
+function clickButtonCentered(name) {
+  browser("eval", `[...document.querySelectorAll("button")].find((b) => b.innerText.trim() === ${JSON.stringify(name)})?.scrollIntoView({ block: "center" })`);
+  clickButton(name);
+}
 function clickMenuItem(name) { browser("find", "role", "menuitem", "click", "--name", name, "--exact"); }
 function fillCss(css, value) { browser("fill", css, value); }
 function fillLabel(label, value) { browser("find", "label", label, "fill", value); }
@@ -665,7 +670,7 @@ async function cancelFlow(baseURL, scenarioKey) {
   assertViewport(1440, 900);
   assertViewport(393, 852);
   setViewport(1440, 900);
-  clickButton("Cancel");
+  clickButtonCentered("Cancel");
   browser("wait", "--text", "Nothing from this run is counted as planned.", "--timeout", "15000");
   const queued = await detailOf(queuedId);
   expect(queued.status === "cancelled" && queued.cancel_requested === true && queued.attempts.length === 0 && queued.summary === null, `A queued run should be cancelled at once without an attempt: ${JSON.stringify({ status: queued.status, cancel: queued.cancel_requested, attempts: queued.attempts })}`);
@@ -676,7 +681,7 @@ async function cancelFlow(baseURL, scenarioKey) {
   browser("wait", "--fn", "[...document.querySelectorAll('button')].some((b) => b.innerText.trim() === 'Cancel')", "--timeout", "15000");
   expect((await detailOf(longId)).status === "running", "The long run finished before it could be cancelled.");
   const requested = Date.now();
-  clickButton("Cancel");
+  clickButtonCentered("Cancel");
   browser("wait", "--text", "Nothing from this run is counted as planned.", "--timeout", "60000");
   const stopped = await poll(() => detailOf(longId), (body) => !ACTIVE_RUN.has(body?.status), "Running-run cancellation", 60_000);
   const waited = Date.now() - requested;
