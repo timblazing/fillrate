@@ -173,7 +173,7 @@ export function CoordinateReview({ doc, canFind, busy, undoLabel, onPlace, onAxi
         {undoLabel && <Button size="sm" variant="ghost" className="ml-auto" onClick={onUndo}><Undo2 aria-hidden /> Undo {undoLabel}</Button>}
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-2">
+        <div className="flex min-w-0 flex-col gap-2">
           <div className="overflow-x-auto rounded-xl border">
             <Table>
               <TableHeader><TableRow><TableHead>Location</TableHead><TableHead>Latitude</TableHead><TableHead>Longitude</TableHead><TableHead>Source</TableHead><TableHead /></TableRow></TableHeader>
