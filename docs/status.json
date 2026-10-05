@@ -47,9 +47,9 @@
     },
     "M8": {
       "weight": 7,
-      "done": 85,
+      "done": 88,
       "state": "active",
-      "notes": "Done: agent-browser production flows for the lesson, import, matrix, experiment, lessons, time windows, manual plans, cancellation (queued and running), scenario edit/conflict/branch/discard, Solver Lab and warm starts, at desktop and iPhone 16; hosted/local production acceptance (105 checks); npm-compatible scripts with an aligned package-lock and a Node 24 npm CI job; docs/local.md and docs/handoff.md; image target/recovery evidence on VPS and Pi 5. Remaining: Node 24 + npm CI evidence, native timings on the targets, optional /request-access and /admin phone review."
+      "notes": "Done: agent-browser production flows for the lesson, import, matrix, experiment, lessons, time windows, manual plans, cancellation (queued and running), scenario edit/conflict/branch/discard, Solver Lab and warm starts, at desktop and iPhone 16; hosted/local production acceptance (105 checks); npm-compatible scripts with an aligned package-lock and a Node 24 npm CI job; docs/local.md and docs/handoff.md; image target/recovery evidence on VPS and Pi 5. Node 24 + npm passed in main CI (run 37376574336). Remaining: native timings on the targets, optional /request-access and /admin phone review."
     }
   },
   "nextUp": [

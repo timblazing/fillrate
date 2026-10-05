@@ -40,6 +40,7 @@
   - The full `ci.yml` sequence then ran once on the combined tree, on an otherwise idle container: Ruff, pytest 376, contracts without drift, lint, typecheck, Vitest 157/157 with the real worker, build, `test:hosted` 105/105 and all 11 browser flows.
   - Each PR was then landed with its branch tree set to exactly the tested integration step, so every squash put that verified tree on `main`.
   - #54 was merged with that `main` and verified the same way: pytest 388, Vitest 160/160, `test:hosted` 105/105 and all 12 browser flows.
+- **CI on `main`:** run 37376574336 on `edd4d83` (all seven PRs) passed both `checks` and the new `npm` job on Node 24.18.1, including the unmodified browser smoke with the real basemap.
 - **Verification boundaries:**
   - The container has Node 22, not 24.
   - Local browser flows ran with one sandbox allowance: the egress policy blocks `basemaps.cartocdn.com`, so the local runner ignored exactly that console error and MapLibre's follow-on "Worker failed to load". Every other assertion ran.
@@ -315,7 +316,8 @@
   - [x] Image target-hardware timings/recovery on VPS and Pi 5, and accepted hosted access gates (records below)
   - [x] Browser cancellation (queued and running runs) and scenario edit/version-conflict/branch/discard coverage at desktop and iPhone 16 (`--flow=cancel`, `--flow=edit`, 2026-10-05)
   - [x] Account-free native Bun/npm distribution and reproducible handoff: `docs/local.md`, `docs/handoff.md`, aligned `package-lock.json`, CI `npm` job (2026-10-05; Node 24 + npm pending the job's first run)
-  - [ ] Node 24 + npm evidence from the CI `npm` job; native timings on the VPS and Pi 5; optional request-access/admin iPhone review
+  - [x] Node 24 + npm evidence: `main` CI run 37376574336 (commit `edd4d83`) passed both the `checks` job (full suite, including the unmodified browser smoke) and the new `npm` job (`npm ci`, lock check, typecheck, Vitest, build) on Node 24.18.1 (2026-10-05)
+  - [ ] Native timings on the VPS and Pi 5; optional request-access/admin iPhone review
 
 ## Current state
 
