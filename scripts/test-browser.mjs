@@ -600,6 +600,33 @@ async function experimentFlow(baseURL, runKey) {
   assertViewport(393, 852);
   checkBrowserDiagnostics("experiment comparison");
   console.log(`  passed: 2 combinations, Best option ${best.metrics.planned_cents} cents, ${best.metrics.trucks} shipments`);
+  await explorerReplayStep(baseURL, runKey);
+}
+
+// A small k explorer job on the same example, then its Python replay bundle from /explore/<id> (spec §13, M7).
+async function explorerReplayStep(baseURL, runKey) {
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const created = await fetch(new URL("/api/v1/explorer", baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "allocation", settings: { ks: [2, 3], seeds: [0, 1], selected_k: 3, h3_resolutions: [] } }), signal: AbortSignal.timeout(8_000) });
+  const job = await created.json().catch(() => null);
+  expect(created.status === 201 && job?.id, `Explorer job was not created: HTTP ${created.status} ${JSON.stringify(job)}`);
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${job.id}${access}`, runKey, "x-run-key"), (body) => body && !["queued", "claimed", "running"].includes(body.status), "Explorer job");
+  expect(detail.status === "succeeded" && detail.explorer?.per_k?.length === 2, `Explorer job did not succeed with two k rows: ${JSON.stringify(detail.failure ?? detail.status)}`);
+  open(`${baseURL}/explore/${job.id}${access}`);
+  browser("wait", "--text", "Python replay bundle", "--timeout", "20000");
+  const href = evalValue("document.querySelector('a[download][href*=\"format=python\"]')?.getAttribute('href') ?? ''");
+  expect(href === `/api/v1/runs/${job.id}/export?format=python`, `Explorer replay link is unexpected: ${href}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  const file = join(downloadDir, `fillrate-run-${job.id.slice(0, 8)}-replay.zip`);
+  expect(!existsSync(file), "Explorer replay bundle should be a new download.");
+  browser("find", "role", "link", "click", "--name", "Python replay bundle");
+  await poll(() => existsSync(file) && readFileSync(file).length > 0, Boolean, "Explorer replay bundle download", 15_000);
+  const zip = readFileSync(file);
+  const names = zip.toString("latin1");
+  expect(zip.subarray(0, 2).toString() === "PK" && ["replay.py", "expected.json", "settings.json", "optimizer/uv.lock", "optimizer/src/fillrate_optimizer/explorer_replay.py"].every((name) => names.includes(name)), "Explorer replay bundle lacks its replay files.");
+  checkBrowserDiagnostics("explorer replay");
+  console.log(`  passed: explorer ${job.id.slice(0, 8)} (k 2, 3 × seeds 0, 1), replay bundle ${zip.length} bytes`);
 }
 
 function clickLink(name) { browser("find", "role", "link", "click", "--name", name, "--exact"); }
