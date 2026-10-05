@@ -1,6 +1,6 @@
 "use client"
 
-import { FlaskConical, GraduationCap, LayoutGrid, Settings, Shield, Truck } from "lucide-react"
+import { FlaskConical, GraduationCap, LayoutGrid, Route, Settings, Shield, Truck } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
@@ -14,6 +14,8 @@ const nav = [
   { href: "/scenarios", label: "Scenarios", icon: LayoutGrid },
   { href: "/experiments", label: "Experiments", icon: FlaskConical },
   { href: "/learn", label: "Learn", icon: GraduationCap },
+  // Solver Lab (spec §4 "Progressive depth"): a working lower-level tool, so it gets a destination (M6).
+  { href: "/labs", label: "Labs", icon: Route },
 ] as const
 
 const footer = [

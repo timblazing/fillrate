@@ -10,8 +10,8 @@ import { assertWarmStartSource, warmStartError } from "./warm-start";
 
 /** Runs on bundled examples plus the caller's own scenarios. */
 export function visibleRuns(store: Store, who: Principal) {
-  // Matrix builds are listed in the scenario matrix panel, not as runs.
-  return store.listRuns(50, who.ownerId).filter(run => run.kind !== "travel_snapshot");
+  // Matrix builds are listed in the scenario matrix panel and lab runs on /labs, not as pipeline runs.
+  return store.listRuns(50, who.ownerId).filter(run => run.kind !== "travel_snapshot" && run.kind !== "lab");
 }
 export async function boundedJson(request: Request, limit = 10 * 1024 * 1024) {
   const reader = request.body?.getReader();

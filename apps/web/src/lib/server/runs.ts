@@ -10,6 +10,7 @@ import { assertWarmStartSource, parseWarmStart, warmStartError } from "./warm-st
 import allocation from "../../../../../examples/lesson-allocation.json";
 import capacity from "../../../../../examples/lesson-capacity.json";
 import lesson from "../../../../../examples/lesson-fulfillment.json";
+import manual from "../../../../../examples/lesson-manual.json";
 import seeds from "../../../../../examples/lesson-seeds.json";
 import windowsOff from "../../../../../examples/lesson-windows-off.json";
 import windows from "../../../../../examples/lesson-windows.json";
@@ -20,7 +21,7 @@ import m1 from "../../../../../examples/m1-synthetic.json";
 // sweeps never rank); `lesson` is the 2,000-order flagship lesson scenario; `allocation` is the small
 // scarce-stock scenario for the allocation lesson; `capacity` and `seeds` are the small truck-capacity and
 // seed-sensitivity lesson scenarios; `windows` and `windows_off` are the time-window lesson's stops with
-// and without their delivery windows (spec §13).
+// and without their delivery windows; `manual` is the manual versus optimized routes lesson (spec §13).
 export const EXAMPLES = {
   m1: { id: "m1", scenario: m1.scenario as ScenarioDocument, settings: m1.settings as RunSettings, blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop" },
   lesson: { id: "lesson", scenario: lesson.scenario as ScenarioDocument, settings: lesson.settings as RunSettings, blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete" },
@@ -29,10 +30,13 @@ export const EXAMPLES = {
   seeds: { id: "seeds", scenario: seeds.scenario as ScenarioDocument, settings: seeds.settings as RunSettings, blurb: "Seed lesson: 60 evenly spread stops, so the k-means seed changes the clusters, trucks and miles" },
   windows: { id: "windows", scenario: windows.scenario as ScenarioDocument, settings: windows.settings as RunSettings, blurb: "Time-window lesson: nine stops with service durations and delivery windows, so trucks wait and the windows set the truck count" },
   windows_off: { id: "windows_off", scenario: windowsOff.scenario as ScenarioDocument, settings: windowsOff.settings as RunSettings, blurb: "Time-window lesson without windows: the same nine stops and service durations, no delivery windows" },
+  manual: { id: "manual", scenario: manual.scenario as ScenarioDocument, settings: manual.settings as RunSettings, blurb: "Manual routes lesson: ten stops around Memphis on three trucks, to compare a dispatcher's plan with the optimized one" },
 } as const;
 export type ExampleId = keyof typeof EXAMPLES;
 export type Example = (typeof EXAMPLES)[ExampleId];
 export const exampleScenario = EXAMPLES.m1.scenario;
+/** The manual routes lesson's dispatcher plans: location IDs per truck, in visit order. */
+export const MANUAL_LESSON_PLANS = manual.plans as { in_order: string[][]; east_west: string[][] };
 export const exampleSettings = EXAMPLES.m1.settings;
 
 /** The example a page's `?example=` names; anything else is the flagship lesson. */
@@ -44,7 +48,7 @@ export function parseExample(input: unknown, fallback: ExampleId): Example {
   throw new ApiError(400, "unknown_example", `Unknown example; use one of ${Object.keys(EXAMPLES).join(", ")}.`, ["example"]);
 }
 
-const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", seeds: "Seed lesson", windows: "Time-window lesson", windows_off: "Time-window lesson, no windows" };
+const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", seeds: "Seed lesson", windows: "Time-window lesson", windows_off: "Time-window lesson, no windows", manual: "Manual routes lesson" };
 
 /** Small listing for pages and `GET /api/v1/examples`. */
 export function exampleInfo(example: Example) {
@@ -157,6 +161,8 @@ export function explorerSummary(store: Store, runId: string): ExplorerSummary | 
 export function runDetail(store: Store, runId: string) {
   const view = store.runView(runId);
   if (!view) throw new ApiError(404, "run_not_found", "No run with this ID.");
+  // Lab runs have their own detail (lib/server/lab.ts, /labs/<id>); here they carry only the shared fields.
+  if (view.kind === "lab") return { ...baseDetail(view), kind: "lab" as const, explorer_settings: null, settings: null, summary: null, explorer: null };
   if (view.kind === "travel_snapshot") return { ...baseDetail(view), kind: "travel_snapshot" as const, explorer_settings: null, settings: null, summary: null, explorer: null, travel_snapshot: travelJobResult(view) };
   if (view.kind === "explorer") return { ...baseDetail(view), kind: "explorer" as const, explorer_settings: view.settings.document, settings: null, summary: null, explorer: view.status === "succeeded" ? explorerSummary(store, runId) : null };
   return { ...baseDetail(view), kind: "pipeline" as const, explorer_settings: null, settings: view.settings.document as unknown as RunSettings, summary: view.status === "succeeded" ? runSummary(store, runId) : null, explorer: null };
@@ -168,7 +174,7 @@ function travelJobResult(view: NonNullable<ReturnType<Store["runView"]>>) {
   return done?.snapshot_id ? { snapshot_id: done.snapshot_id, node_count: done.node_count ?? null, blocks: done.blocks ?? null } : null;
 }
 
-function baseDetail(view: NonNullable<ReturnType<Store["runView"]>>) {
+export function baseDetail(view: NonNullable<ReturnType<Store["runView"]>>) {
   const failure = view.events.find(e => e.kind === "failed")?.payload ?? null;
   const progress = [...view.events].reverse().find(e => e.kind === "progress")?.payload ?? null;
   return {

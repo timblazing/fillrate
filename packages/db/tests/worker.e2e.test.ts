@@ -193,7 +193,34 @@ test.skipIf(!hasUv)("a k explorer job runs clustering only and stores one explor
   expect(summary.selected_k).toBe(4);
   // Location-level statistics, no dense pairwise array: one row per clustered location.
   expect(summary.locations).toHaveLength(summary.locations_clustered);
-}, 120_000);
+
+  // The explorer replay bundle recomputes every statistic offline and compares it with the recording (M7).
+  const out = join(dir, "explorer-bundle"); const file = join(dir, "explorer-bundle.zip");
+  writeFileSync(file, replayBundle(store, runId, optimizer));
+  expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
+  const expected = JSON.parse(readFileSync(join(out, "expected.json"), "utf8"));
+  expect(expected.kind).toBe("explorer");
+  expect(expected.output_hash).toBe(view.artifacts[0].output_hash);
+  expect(expected.travel).toEqual({ provider: "estimated", metric: "spatial", circuity: 1.2 });
+  expect(canonical(expected.summary)).toBe(canonical(summary));
+  const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  for (const section of ["population", "selection", "settings", "per_k", "h3", "locations"]) expect(replay.stdout).toMatch(new RegExp(`${section}\\s+reproduced`));
+  expect(replay.stdout).toMatch(/explorer\s+bit-identical to the recorded artifact/);
+  expect(replay.stdout).toContain("REPLAY OK");
+  expect(replay.status).toBe(0);
+  // A tampered statistic is reported by name; another travel provider is refused before any rerun.
+  const tampered = structuredClone(expected);
+  tampered.summary.per_k[1].stability_raw = -0.5;
+  writeFileSync(join(out, "expected.json"), JSON.stringify(tampered));
+  const differs = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(differs.status).toBe(1);
+  expect(differs.stdout).toContain("DIFFERS: per_k[k=4].stability_raw recorded -0.5");
+  expect(differs.stdout).toContain("REPLAY FAILED: per_k");
+  writeFileSync(join(out, "expected.json"), JSON.stringify({ ...expected, travel: { provider: "valhalla" } }));
+  const refused = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(refused.status).toBe(1);
+  expect(refused.stdout).toContain("cannot be replayed");
+}, 180_000);
 
 test.skipIf(!hasUv)("sweep runs are independent solves, ranked within one cohort, and replay from a bundle", async () => {
   const runs = expandSweep(example.settings, { kmeans_seed: [0, 1], inventory_percent: [100, 60] });

@@ -27,6 +27,7 @@ class StageManifest(Contract):
         "validation",
         "summary",
         "explorer",
+        "lab",
     ]
     input_hash: Hash
     output_hash: Hash
