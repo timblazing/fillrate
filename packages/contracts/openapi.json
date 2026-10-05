@@ -237,6 +237,44 @@
         "title": "Capabilities",
         "type": "object"
       },
+      "ClockWindow": {
+        "additionalProperties": false,
+        "description": "Service-start window in local clock time. `fold` picks the occurrence of an ambiguous\n(fall-back) time and applies to both ends. earliest > latest is a preflight finding.",
+        "properties": {
+          "earliest": {
+            "pattern": "^\\d{2}:[0-5]\\d$",
+            "title": "Earliest",
+            "type": "string"
+          },
+          "fold": {
+            "anyOf": [
+              {
+                "enum": [
+                  0,
+                  1
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fold"
+          },
+          "latest": {
+            "pattern": "^\\d{2}:[0-5]\\d$",
+            "title": "Latest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "earliest",
+          "latest"
+        ],
+        "title": "ClockWindow",
+        "type": "object"
+      },
       "ClusterSummary": {
         "additionalProperties": false,
         "properties": {
@@ -1336,6 +1374,29 @@
               }
             ],
             "default": null
+          },
+          "service_minutes": {
+            "anyOf": [
+              {
+                "maximum": 2880,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Minutes"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClockWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1556,7 +1617,9 @@
               "far_from_depot",
               "oversize_stop",
               "far_via_stop",
-              "approximate_coordinates"
+              "approximate_coordinates",
+              "window_empty",
+              "window_unreachable"
             ],
             "title": "Check",
             "type": "string"
@@ -2145,6 +2208,16 @@
           "settings": {
             "$ref": "#/components/schemas/RunSettings"
           },
+          "time": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "totals": {
             "$ref": "#/components/schemas/Totals"
           },
@@ -2251,6 +2324,16 @@
             "default": 1,
             "title": "Schema Version",
             "type": "integer"
+          },
+          "time_model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2387,6 +2470,80 @@
           "execution_id"
         ],
         "title": "StageManifest",
+        "type": "object"
+      },
+      "TimeModel": {
+        "additionalProperties": false,
+        "description": "Single-day time model (spec \u00a75): clock strings are local to `timezone` on `planning_date`\nand normalize to elapsed integer seconds from local midnight. `horizon_end` may pass 24:00\n(late shifts), at most 48:00. `depot_open` is when trucks leave the depot.",
+        "properties": {
+          "depot_open": {
+            "default": "00:00",
+            "pattern": "^\\d{2}:[0-5]\\d$",
+            "title": "Depot Open",
+            "type": "string"
+          },
+          "horizon_end": {
+            "default": "24:00",
+            "pattern": "^\\d{2}:[0-5]\\d$",
+            "title": "Horizon End",
+            "type": "string"
+          },
+          "planning_date": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "title": "Planning Date",
+            "type": "string"
+          },
+          "timezone": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone",
+          "planning_date"
+        ],
+        "title": "TimeModel",
+        "type": "object"
+      },
+      "TimeSummary": {
+        "additionalProperties": false,
+        "description": "The time model a time-window run used; `*_s` values are seconds from local midnight.",
+        "properties": {
+          "depot_open_s": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Depot Open S",
+            "type": "integer"
+          },
+          "horizon_end_s": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Horizon End S",
+            "type": "integer"
+          },
+          "midnight_epoch_s": {
+            "title": "Midnight Epoch S",
+            "type": "integer"
+          },
+          "planning_date": {
+            "title": "Planning Date",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone",
+          "planning_date",
+          "midnight_epoch_s",
+          "depot_open_s",
+          "horizon_end_s"
+        ],
+        "title": "TimeSummary",
         "type": "object"
       },
       "Totals": {
@@ -2624,6 +2781,19 @@
             "default": null,
             "title": "Drive S"
           },
+          "end_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End S"
+          },
           "fill": {
             "title": "Fill",
             "type": "number"
@@ -2638,12 +2808,51 @@
             "title": "Load",
             "type": "integer"
           },
+          "service_s_total": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service S Total"
+          },
+          "shift_start_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shift Start S"
+          },
           "visits": {
             "items": {
               "$ref": "#/components/schemas/TruckVisit"
             },
             "title": "Visits",
             "type": "array"
+          },
+          "wait_s_total": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wait S Total"
           }
         },
         "required": [
@@ -2661,6 +2870,32 @@
       "TruckVisit": {
         "additionalProperties": false,
         "properties": {
+          "arrival_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arrival S"
+          },
+          "departure_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Departure S"
+          },
           "leg_m": {
             "maximum": 9007199254740991,
             "minimum": 0,
@@ -2704,9 +2939,74 @@
             "title": "Sequence",
             "type": "integer"
           },
+          "service_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service S"
+          },
+          "start_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start S"
+          },
           "visit_id": {
             "title": "Visit Id",
             "type": "string"
+          },
+          "wait_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wait S"
+          },
+          "window_earliest_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Earliest S"
+          },
+          "window_latest_s": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Latest S"
           }
         },
         "required": [

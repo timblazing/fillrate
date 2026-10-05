@@ -29,6 +29,7 @@ from .canonical import content_hash
 from .clustering import Clusterer, centroid
 from .loads import (
     PartitionProblem,
+    PartitionTime,
     PartitionVisit,
     monetary_objective,
     solve_partition,
@@ -46,6 +47,7 @@ from .model import (
     RunSettings,
     RunSummary,
     ScenarioDocument,
+    TimeSummary,
     Totals,
     TravelSummary,
     TruckSummary,
@@ -53,9 +55,15 @@ from .model import (
     UnplannedLine,
 )
 from .preflight import preflight_checks
+from .timeplan import (
+    TimeContext,
+    duration_leg_reader,
+    estimated_seconds,
+    time_context,
+)
+from .timewin import VisitTime, recompute_route
 from .travel import distance_matrix_m, haversine_m, reachable
 from .travel_provider import (
-    ESTIMATED_SPEED_M_PER_S,
     SnapshotBindingError,
     TravelSnapshot,
     stop_nodes,
@@ -219,6 +227,7 @@ def run_pipeline(
         checkpoint,
     )
     cap = settings.trailer_capacity
+    tctx = time_context(scenario)  # None: the time-window adapter is off and nothing changes
     diagnostics: list[Diagnostic] = []
     unplanned: list[UnplannedLine] = []
 
@@ -537,6 +546,17 @@ def run_pipeline(
                     ),
                 )
             )
+    if tctx:
+        diagnostics.append(
+            Diagnostic(
+                code="clustering_ignores_windows",
+                severity="info",
+                message=(
+                    "Clustering ignores time windows and service durations; they are enforced "
+                    "per cluster when solving, so a window can leave a stop unplanned."
+                ),
+            )
+        )
     stages.add(
         "clustering",
         {
@@ -594,6 +614,19 @@ def run_pipeline(
         reachable_global = reachable(global_matrix, settings.max_leg_m)
         globally_reachable = {loc_ids[i - 1] for i in reachable_global if i > 0}
     position = {loc: i for i, loc in enumerate(loc_ids)}
+    leg_seconds = duration_leg_reader(
+        raw_seconds,
+        loc_ids,
+        depot,
+        {i: (locations[i].lat, locations[i].lon) for i in loc_ids},
+        settings.travel_circuity,
+    )
+
+    def seconds_matrix(idx: list[int]) -> np.ndarray:
+        if raw_seconds is not None:
+            return raw_seconds[np.ix_(idx, idx)]
+        return estimated_seconds(np.array(global_nodes)[idx], settings.travel_circuity)
+
     travel = []
     problems = []
     for meta in clusters_meta:
@@ -665,6 +698,11 @@ def run_pipeline(
                 ),
                 "distance_bound_m": bound,
                 "vehicles_available": n,
+                **(
+                    {"time": time_payload(tctx, visits, solve_visits, seconds_matrix(idx))}
+                    if tctx
+                    else {}
+                ),
             }
         )
     if settings.objective == "weighted_distance" and settings.weighted_truck_penalty_m is None:
@@ -737,6 +775,7 @@ def run_pipeline(
                     seed=settings.solver_seed,
                     max_iterations=settings.solver_max_iterations,
                     max_runtime_s=min(settings.solver_time_limit_s, remaining - 0.5),
+                    time=partition_time(prob, pvisits),
                 )
             )
         except Exception as error:  # noqa: BLE001 - one cluster's failure must not hide the others
@@ -786,13 +825,6 @@ def run_pipeline(
         )
     validations = []
     raw_leg = snapshot_leg_reader(raw_meters, loc_ids)
-    leg_seconds = duration_leg_reader(
-        raw_seconds,
-        loc_ids,
-        depot,
-        {i: (locations[i].lat, locations[i].lon) for i in loc_ids},
-        settings.travel_circuity,
-    )
     for meta, prob, trav, solve in zip(clusters_meta, problems, travel, solves, strict=True):
         validations.append(
             validate_cluster(meta, prob, trav, solve, visits, lines, settings, raw_leg, leg_seconds)
@@ -834,6 +866,7 @@ def run_pipeline(
                     ]
                     for p in v["lines"]:
                         planned_pieces[p["line_id"]] += p["pieces"]
+                    stop_time = truck["timing"][seq - 1] if "timing" in truck else None
                     tv.append(
                         TruckVisit(
                             visit_id=vid,
@@ -843,6 +876,19 @@ def run_pipeline(
                             leg_s=leg_s,
                             load=v["load"],
                             lines=on_board,
+                            **(
+                                {
+                                    "arrival_s": stop_time["arrival_s"],
+                                    "wait_s": stop_time["wait_s"],
+                                    "service_s": stop_time["service_s"],
+                                    "start_s": stop_time["start_s"],
+                                    "departure_s": stop_time["departure_s"],
+                                    "window_earliest_s": stop_time["earliest_s"],
+                                    "window_latest_s": stop_time["latest_s"],
+                                }
+                                if stop_time
+                                else {}
+                            ),
                         )
                     )
                 cluster_trucks.append(
@@ -855,6 +901,16 @@ def run_pipeline(
                         drive_s=truck["drive_s"],
                         amount_cents=sum(lob.amount_cents for x in tv for lob in x.lines),
                         visits=tv,
+                        **(
+                            {
+                                "shift_start_s": truck["shift_start_s"],
+                                "service_s_total": sum(x.service_s for x in tv),
+                                "wait_s_total": sum(x.wait_s for x in tv),
+                                "end_s": tv[-1].departure_s,
+                            }
+                            if "timing" in truck
+                            else {}
+                        ),
                     )
                 )
         # Unplanned visits in this cluster, by reason.
@@ -890,8 +946,9 @@ def run_pipeline(
                 else (
                     "no_valid_candidate",
                     "solve",
-                    "PyVRP returned no feasible candidate within its budget; "
-                    "not proof of infeasibility.",
+                    "PyVRP returned no feasible candidate within its budget"
+                    + (" under the time windows and service durations" if prob.get("time") else "")
+                    + "; not proof of infeasibility.",
                 )
                 if not solve.get("solver_feasible")
                 else (
@@ -1059,6 +1116,17 @@ def run_pipeline(
         preflight=findings,
         allocation=allocation_summary,
         travel=travel_summary(snapshot, settings),
+        time=(
+            TimeSummary(
+                timezone=tctx.timezone,
+                planning_date=tctx.planning_date,
+                midnight_epoch_s=tctx.midnight_epoch_s,
+                depot_open_s=tctx.depot_open_s,
+                horizon_end_s=tctx.horizon_end_s,
+            )
+            if tctx
+            else None
+        ),
         diagnostics=diagnostics,
         versions=versions(),
     )
@@ -1298,22 +1366,31 @@ def mean_centroid_distance(lat_lon: np.ndarray, circuity: float) -> float:
     return round(float(d.mean()), 1)
 
 
-def duration_leg_reader(raw_seconds, loc_ids, depot, stops, circuity):
-    """`leg_s(a, b)` drive seconds by travel-node name ("depot" or a location ID), from the
-    selected snapshot's duration matrix or, for estimated travel, the estimated provider's
-    haversine x circuity / constant speed."""
-    index = {"depot": 0, **{loc: i + 1 for i, loc in enumerate(loc_ids)}}
-    if raw_seconds is not None:
-        return lambda a, b: int(raw_seconds[index[a], index[b]])
-    coords = {"depot": (depot.lat, depot.lon), **stops}
+def time_payload(tctx: TimeContext, visits, solve_visits, seconds: np.ndarray) -> dict[str, Any]:
+    """Time data of one cluster problem: solver durations plus each visit's inherited service
+    duration and window (seconds from local midnight; None = open)."""
+    rows = {}
+    for vid in solve_visits:
+        vt = tctx.locations.get(visits[vid]["location_id"], VisitTime())
+        rows[vid] = [vt.service_s, vt.earliest_s, vt.latest_s]
+    return {
+        "depot_open_s": tctx.depot_open_s,
+        "horizon_end_s": tctx.horizon_end_s,
+        "seconds": seconds.tolist(),
+        "visits": rows,
+    }
 
-    def leg(a: str, b: str) -> int:
-        if a == b:
-            return 0
-        meters = haversine_m(np.array([coords[a], coords[b]]))[0, 1] * circuity
-        return round(meters / ESTIMATED_SPEED_M_PER_S)
 
-    return leg
+def partition_time(prob: dict[str, Any], pvisits: list[PartitionVisit]) -> PartitionTime | None:
+    t = prob.get("time")
+    if t is None:
+        return None
+    return PartitionTime(
+        duration=np.array(t["seconds"], dtype=np.int64),
+        visits=[VisitTime(*t["visits"][pv.id]) for pv in pvisits],
+        depot_open_s=t["depot_open_s"],
+        horizon_end_s=t["horizon_end_s"],
+    )
 
 
 def validate_cluster(
@@ -1383,16 +1460,31 @@ def validate_cluster(
         if load > settings.trailer_capacity:
             violations.append(f"truck {t + 1} load {load} > capacity {settings.trailer_capacity}")
         timed = leg_seconds is not None and len(legs_s) == len(legs)
-        trucks.append(
-            {
-                "visits": route,
-                "load": load,
-                "legs_m": legs,
-                "legs_s": legs_s if timed else [None] * len(legs),
-                "distance_m": sum(legs),
-                "drive_s": sum(legs_s) if timed else None,
-            }
-        )
+        entry = {
+            "visits": route,
+            "load": load,
+            "legs_m": legs,
+            "legs_s": legs_s if timed else [None] * len(legs),
+            "distance_m": sum(legs),
+            "drive_s": sum(legs_s) if timed else None,
+        }
+        clock = prob.get("time")
+        if clock and len(legs) == len(route):
+            # Independent recomputation from the raw provider durations, never the solver's.
+            if not timed or min(legs_s) < 0:
+                violations.append(f"truck {t + 1} has legs without a provider duration")
+            else:
+                timings, found = recompute_route(
+                    legs_s,
+                    [VisitTime(*clock["visits"][vid]) for vid in route],
+                    [f"truck {t + 1} {visits[vid]['location_id']}" for vid in route],
+                    clock["depot_open_s"],
+                    clock["horizon_end_s"],
+                )
+                violations.extend(found)
+                entry["timing"] = [vars(x) for x in timings]
+                entry["shift_start_s"] = clock["depot_open_s"]
+        trucks.append(entry)
     for vid in sorted(expected - set(seen)):
         violations.append(f"{vid} is not on any truck")
     limit = settings.max_cluster_diameter_m

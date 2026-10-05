@@ -23,6 +23,7 @@ import pyvrp
 from pyvrp.constants import MAX_VALUE
 from pyvrp.stop import MaxIterations, MaxRuntime, MultipleCriteria
 
+from .timewin import VisitTime
 from .travel import DEFAULT_CIRCUITY, DEFAULT_MAX_LEG_M, distance_matrix_m, prohibited_legs
 
 TRAILER_53FT = 5_300  # hundredths of a foot
@@ -245,6 +246,22 @@ class PartitionVisit:
 
 
 @dataclass(frozen=True)
+class PartitionTime:
+    """Time-window adapter input (M6). Present only when windows or service durations exist.
+
+    ``duration`` is the raw directed duration matrix in seconds (-1 = missing), same node order
+    as the distance matrix. ``visits`` is parallel to ``PartitionProblem.visits``. Trucks leave
+    the depot at ``depot_open_s`` and must be done by ``horizon_end_s``. Synthetic return edges
+    have zero duration, so the route end equals the last departure.
+    """
+
+    duration: np.ndarray
+    visits: list[VisitTime]
+    depot_open_s: int
+    horizon_end_s: int
+
+
+@dataclass(frozen=True)
 class PartitionProblem:
     distance: np.ndarray  # raw directed meters, (m + 1) × (m + 1)
     visits: list[PartitionVisit]
@@ -255,6 +272,7 @@ class PartitionProblem:
     seed: int = 0
     max_iterations: int | None = None
     max_runtime_s: float = 10.0
+    time: PartitionTime | None = None
 
 
 @dataclass
@@ -314,6 +332,64 @@ def check_objective_range(
         )
 
 
+def build_partition_model(problem: PartitionProblem) -> pyvrp.Model:
+    """The PyVRP model for one partition (inputs already validated by ``solve_partition``).
+
+    Without ``problem.time`` the model carries no time data. With it: client ``tw_early`` /
+    ``tw_late`` / ``service_duration`` and edge durations are native; the vehicle shift is
+    [depot_open, horizon_end] and ``start_late`` pins the departure to depot_open. Depot windows
+    stay open and return edges have zero duration, so the end depot never constrains and the
+    route end equals the last departure. Time never enters the cost (unit_duration_cost 0).
+    """
+    distance, time = problem.distance, problem.time
+    nodes = distance.shape[0]
+    model = pyvrp.Model()
+    locations = [model.add_location(0, i, name=f"node-{i}") for i in range(nodes)]
+    depot = model.add_depot(locations[0], name="depot")
+    for k, visit in enumerate(problem.visits):
+        window: dict[str, int] = {}
+        if time:
+            vt = time.visits[k]
+            window = {
+                "service_duration": vt.service_s,
+                "tw_early": vt.earliest_s if vt.earliest_s is not None else 0,
+                "tw_late": vt.latest_s if vt.latest_s is not None else time.horizon_end_s,
+            }
+        model.add_client(locations[visit.node], delivery=[visit.load], name=visit.id, **window)
+    shift: dict[str, int] = {}
+    if time:
+        shift = {
+            "tw_early": time.depot_open_s,
+            "tw_late": time.horizon_end_s,
+            "start_late": time.depot_open_s,
+        }
+    model.add_vehicle_type(
+        num_available=len(problem.visits),
+        capacity=[problem.capacity],
+        start_depot=depot,
+        end_depot=depot,
+        fixed_cost=problem.truck_penalty,
+        unit_distance_cost=problem.distance_cost,
+        name="53ft",
+        **shift,
+    )
+    for i in range(nodes):
+        for j in range(nodes):
+            if i == j:
+                continue
+            if j == 0:
+                model.add_edge(locations[i], locations[0], 0)  # open-route workaround
+            elif 0 <= distance[i, j] <= problem.max_leg_m:
+                if time is None:
+                    model.add_edge(locations[i], locations[j], int(distance[i, j]))
+                elif time.duration[i, j] >= 0:  # a leg without a duration is as good as missing
+                    model.add_edge(
+                        locations[i], locations[j], int(distance[i, j]), int(time.duration[i, j])
+                    )
+            # Missing/long legs are omitted. Independent validation rejects their use.
+    return model
+
+
 def solve_partition(problem: PartitionProblem) -> PartitionResult:
     if not problem.visits:
         return PartitionResult([], True, 0, 0.0, 0)
@@ -340,29 +416,13 @@ def solve_partition(problem: PartitionProblem) -> PartitionResult:
         not 0 < visit.node < nodes for visit in problem.visits
     ):
         raise ValueError("partition visits must have unique IDs and valid non-depot matrix nodes")
-    model = pyvrp.Model()
-    locations = [model.add_location(0, i, name=f"node-{i}") for i in range(nodes)]
-    depot = model.add_depot(locations[0], name="depot")
-    for visit in problem.visits:
-        model.add_client(locations[visit.node], delivery=[visit.load], name=visit.id)
-    model.add_vehicle_type(
-        num_available=len(problem.visits),
-        capacity=[problem.capacity],
-        start_depot=depot,
-        end_depot=depot,
-        fixed_cost=problem.truck_penalty,
-        unit_distance_cost=problem.distance_cost,
-        name="53ft",
-    )
-    for i in range(nodes):
-        for j in range(nodes):
-            if i == j:
-                continue
-            if j == 0:
-                model.add_edge(locations[i], locations[0], 0)  # open-route workaround
-            elif 0 <= distance[i, j] <= problem.max_leg_m:
-                model.add_edge(locations[i], locations[j], int(distance[i, j]))
-            # Missing/long legs are omitted. Independent validation rejects their use.
+    if problem.time and (
+        problem.time.duration.shape != distance.shape
+        or len(problem.time.visits) != len(problem.visits)
+        or not 0 <= problem.time.depot_open_s < problem.time.horizon_end_s
+    ):
+        raise ValueError("time data must match the partition matrix and visits")
+    model = build_partition_model(problem)
 
     stop = MaxRuntime(problem.max_runtime_s)
     if problem.max_iterations is not None:

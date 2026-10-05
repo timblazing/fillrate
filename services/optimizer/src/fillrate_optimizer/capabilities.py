@@ -148,12 +148,50 @@ BEHAVIORS = [
         fixture="tests/test_pipeline.py::test_trucks_first_vs_weighted_zero_counterexample",
     ),
     Behavior(
+        id="time_windows",
+        provided_by="native",
+        description=(
+            "Per-visit service-start windows on a single-day horizon in the scenario's IANA "
+            "timezone, normalized to integer seconds from local midnight. PyVRP client "
+            "tw_early/tw_late and edge durations are native; trucks leave at depot_open "
+            "(vehicle tw_early = start_late) and finish by horizon_end (vehicle tw_late). "
+            "The validator recomputes arrival, wait, start and departure from the raw "
+            "durations; preflight blocks empty and provably unreachable windows."
+        ),
+        restrictions=[
+            "Single planning day; the horizon ends at 24:00 by default and at most 48:00.",
+            "Nonexistent local times are rejected; ambiguous ones need an explicit fold.",
+            "No release times.",
+            "Clustering ignores windows; each cluster enforces them when solved.",
+            "Open routes: synthetic return edges have zero duration and the end depot is "
+            "unconstrained, so the route ends at its last departure "
+            "(tests/test_time_windows.py terminal fixture).",
+            "Estimated durations use the constant provider speed.",
+        ],
+        fixture="tests/test_time_windows.py::test_native_fields_wait_for_the_window_and_pay_service",
+    ),
+    Behavior(
+        id="service_durations",
+        provided_by="native",
+        description=(
+            "Per-visit service minutes (defaulted from the location) become PyVRP client "
+            "service_duration; the truck is busy for that long before the next leg."
+        ),
+        restrictions=[
+            "Single planning day, no release times; clustering ignores service durations.",
+            "Every visit of a location split across trucks inherits the location's service "
+            "duration and window.",
+        ],
+        fixture="tests/test_time_windows.py::test_service_duration_changes_feasibility_and_truck_count",
+    ),
+    Behavior(
         id="independent_validation",
         provided_by="validation",
         description=(
             "Coverage, piece lineage, capacity, physical legs, cluster membership and (when "
-            "enabled) diameter are rechecked from the raw travel artifact; solver feasibility "
-            "is never trusted alone."
+            "enabled) diameter are rechecked from the raw travel artifact; with the time-window "
+            "adapter, window and horizon feasibility are recomputed from raw durations. "
+            "Solver feasibility is never trusted alone."
         ),
         fixture="tests/test_pipeline.py::test_validator_rejects_solver_feasible_missing_edge_candidate",
     ),

@@ -1,0 +1,258 @@
+{
+ "scenario": {
+  "schema_version": 1,
+  "name": "M6 time windows: Memphis DC",
+  "depot": {
+   "id": "DEPOT",
+   "label": "Memphis DC",
+   "lat": 35.1495,
+   "lon": -90.049
+  },
+  "products": [
+   {
+    "id": "P-PALLET",
+    "label": "Full pallet",
+    "linear_feet_per_piece": 400
+   }
+  ],
+  "locations": [
+   {
+    "id": "TW-A",
+    "label": "Time-window customer A",
+    "lat": 35.1495,
+    "lon": -89.78349,
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null,
+    "service_minutes": 30,
+    "window": {
+     "earliest": "09:00",
+     "latest": "10:00",
+     "fold": null
+    }
+   },
+   {
+    "id": "TW-B",
+    "label": "Time-window customer B",
+    "lat": 35.22187,
+    "lon": -89.51797,
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null,
+    "service_minutes": 45,
+    "window": {
+     "earliest": "10:30",
+     "latest": "12:00",
+     "fold": null
+    }
+   },
+   {
+    "id": "TW-C",
+    "label": "Time-window customer C",
+    "lat": 35.29423,
+    "lon": -89.25246,
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null,
+    "service_minutes": 30,
+    "window": {
+     "earliest": "13:00",
+     "latest": "15:00",
+     "fold": null
+    }
+   },
+   {
+    "id": "TW-D",
+    "label": "Time-window customer D",
+    "lat": 35.51133,
+    "lon": -89.69498,
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null,
+    "service_minutes": 60
+   },
+   {
+    "id": "TW-E",
+    "label": "Time-window customer E",
+    "lat": 35.22187,
+    "lon": -90.58003,
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null,
+    "service_minutes": 20,
+    "window": {
+     "earliest": "07:00",
+     "latest": "08:00",
+     "fold": null
+    }
+   },
+   {
+    "id": "TW-F",
+    "label": "Time-window customer F",
+    "lat": 35.00477,
+    "lon": -90.75703,
+    "coordinate_source": "imported",
+    "address": null,
+    "geocode": null,
+    "original": null,
+    "service_minutes": 15,
+    "window": {
+     "earliest": "11:00",
+     "latest": "17:00",
+     "fold": null
+    }
+   }
+  ],
+  "orders": [
+   {
+    "id": "TW-O1",
+    "customer_id": null,
+    "location_id": "TW-A",
+    "order_date": "2026-10-05",
+    "priority": 1,
+    "lines": [
+     {
+      "id": "TW-O1-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "TW-O2",
+    "customer_id": null,
+    "location_id": "TW-B",
+    "order_date": "2026-10-05",
+    "priority": 1,
+    "lines": [
+     {
+      "id": "TW-O2-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "TW-O3",
+    "customer_id": null,
+    "location_id": "TW-C",
+    "order_date": "2026-10-05",
+    "priority": 1,
+    "lines": [
+     {
+      "id": "TW-O3-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "TW-O4",
+    "customer_id": null,
+    "location_id": "TW-D",
+    "order_date": "2026-10-05",
+    "priority": 1,
+    "lines": [
+     {
+      "id": "TW-O4-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 3,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "TW-O5",
+    "customer_id": null,
+    "location_id": "TW-E",
+    "order_date": "2026-10-05",
+    "priority": 1,
+    "lines": [
+     {
+      "id": "TW-O5-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 4,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   },
+   {
+    "id": "TW-O6",
+    "customer_id": null,
+    "location_id": "TW-F",
+    "order_date": "2026-10-05",
+    "priority": 1,
+    "lines": [
+     {
+      "id": "TW-O6-1",
+      "product_id": "P-PALLET",
+      "ordered_pieces": 2,
+      "net_value_per_piece_cents": 42000,
+      "linear_feet_per_piece": null
+     }
+    ]
+   }
+  ],
+  "inventory": [
+   {
+    "product_id": "P-PALLET",
+    "available_pieces": 100
+   }
+  ],
+  "time_model": {
+   "timezone": "America/Chicago",
+   "planning_date": "2026-10-06",
+   "horizon_end": "20:00",
+   "depot_open": "06:00"
+  }
+ },
+ "settings": {
+  "schema_version": 1,
+  "trailer_capacity": 5300,
+  "travel_circuity": 1.2,
+  "travel_snapshot_id": null,
+  "cluster_circuity": 1.2,
+  "max_leg_m": 804672,
+  "max_cluster_diameter_m": null,
+  "cluster_strategy": "none",
+  "h3_resolution": 2,
+  "k": null,
+  "auto_k_cap": 25,
+  "kmeans_seed": 0,
+  "kmeans_n_init": 10,
+  "max_stops": 500,
+  "solver_seed": 0,
+  "solver_max_iterations": 1500,
+  "solver_time_limit_s": 10.0,
+  "objective": "trucks_then_distance",
+  "weighted_truck_penalty_m": null,
+  "preflight": {
+   "missing_coordinates": "block",
+   "far_from_depot": "block",
+   "oversize_stop": "warn",
+   "approximate_coordinates": "warn"
+  },
+  "inventory_percent": 100,
+  "excluded_line_ids": [],
+  "cost_per_truck_cents": null,
+  "cost_per_mile_cents": null,
+  "allocation_strategy": "order_date_then_value",
+  "fulfillment_policy": "piece",
+  "allocation_objective": "revenue",
+  "respect_order_date": false,
+  "allocation_time_limit_s": 10.0
+ }
+}

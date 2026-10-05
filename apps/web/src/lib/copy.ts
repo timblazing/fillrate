@@ -79,6 +79,8 @@ export const preflightChecks: Record<PreflightCheck, { title: string; blocking: 
   oversize_stop: { title: "A stop larger than one trailer (split across shipments)", blocking: false },
   far_via_stop: { title: "Over 500 mi from the depot, reached through another stop", blocking: false },
   approximate_coordinates: { title: "Placed by ZIP code only", blocking: false },
+  window_empty: { title: "A time window that ends before it opens", blocking: true },
+  window_unreachable: { title: "A time window or horizon no route can meet", blocking: true },
 }
 
 // ---- Allocation (spec §8, M5) -------------------------------------------------------------------------

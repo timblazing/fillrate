@@ -20,7 +20,7 @@ export function TimelinePanel({ summary }: { summary: RunSummary }) {
   const [cursor, setCursor] = useState(0)
   const places = useMemo(() => new globalThis.Map(summary.locations.map((l) => [l.id, l])), [summary])
   const truck = trucks.find((t) => t.id === truckId) ?? trucks[0]
-  const timeline = useMemo(() => (truck ? buildTimeline(truck, summary.depot, places) : null), [truck, summary.depot, places])
+  const timeline = useMemo(() => (truck ? buildTimeline(truck, summary.depot, places, summary.time) : null), [truck, summary.depot, places, summary.time])
   const source = timingSource(summary.travel)
 
   if (summary.validity === "invalid") {
@@ -78,7 +78,8 @@ export function TimelinePanel({ summary }: { summary: RunSummary }) {
           )}
           <span className="text-muted-foreground text-xs tabular-nums">
             {timeline.stops.length} {timeline.stops.length === 1 ? "stop" : "stops"} · {formatFeet(truck.load)} loaded
-            {timeline.totalS != null && ` · ${formatDriveTime(timeline.totalS)} driving`}
+            {timeline.driveS != null && ` · ${formatDriveTime(timeline.driveS)} driving`}
+            {timeline.scheduled && ` · ${formatDriveTime(timeline.waitS)} waiting · ${formatDriveTime(timeline.serviceS)} service`}
           </span>
         </div>
         <div className="h-[320px] overflow-hidden rounded-xl border sm:h-[400px] xl:h-auto xl:min-h-[440px] xl:flex-1">
@@ -89,7 +90,7 @@ export function TimelinePanel({ summary }: { summary: RunSummary }) {
           )}
         </div>
       </div>
-      <TruckRouteTimeline timeline={timeline} source={source} cursor={cursor} onCursorChange={setCursor} depotLabel={summary.depot.label} />
+      <TruckRouteTimeline timeline={timeline} source={source} cursor={cursor} onCursorChange={setCursor} depotLabel={summary.depot.label} clock={summary.time} />
     </div>
   )
 }

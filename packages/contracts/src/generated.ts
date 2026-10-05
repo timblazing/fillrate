@@ -141,6 +141,22 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * ClockWindow
+         * @description Service-start window in local clock time. `fold` picks the occurrence of an ambiguous
+         *     (fall-back) time and applies to both ends. earliest > latest is a preflight finding.
+         */
+        ClockWindow: {
+            /** Earliest */
+            earliest: string;
+            /**
+             * Fold
+             * @default null
+             */
+            fold: (0 | 1) | null;
+            /** Latest */
+            latest: string;
+        };
         /** ClusterSummary */
         ClusterSummary: {
             /** Avg Fill */
@@ -548,6 +564,9 @@ export interface components {
             lon: number | null;
             /** @default null */
             original: components["schemas"]["CoordinateOrigin"] | null;
+            /** Service Minutes */
+            service_minutes?: number | null;
+            window?: components["schemas"]["ClockWindow"] | null;
         };
         /** MapLocation */
         MapLocation: {
@@ -623,7 +642,7 @@ export interface components {
              * Check
              * @enum {string}
              */
-            check: "missing_coordinates" | "far_from_depot" | "oversize_stop" | "far_via_stop" | "approximate_coordinates";
+            check: "missing_coordinates" | "far_from_depot" | "oversize_stop" | "far_via_stop" | "approximate_coordinates" | "window_empty" | "window_unreachable";
             /** Line Ids */
             line_ids: string[];
             /** Location Ids */
@@ -898,6 +917,7 @@ export interface components {
              */
             schema_version: 1;
             settings: components["schemas"]["RunSettings"];
+            time?: components["schemas"]["TimeSummary"] | null;
             totals: components["schemas"]["Totals"];
             /** @default null */
             travel: components["schemas"]["TravelSummary"] | null;
@@ -934,6 +954,7 @@ export interface components {
              * @constant
              */
             schema_version: 1;
+            time_model?: components["schemas"]["TimeModel"] | null;
         };
         /** Snapshot */
         Snapshot: {
@@ -987,6 +1008,44 @@ export interface components {
              * @enum {string}
              */
             stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "solve" | "validation" | "summary" | "explorer";
+        };
+        /**
+         * TimeModel
+         * @description Single-day time model (spec §5): clock strings are local to `timezone` on `planning_date`
+         *     and normalize to elapsed integer seconds from local midnight. `horizon_end` may pass 24:00
+         *     (late shifts), at most 48:00. `depot_open` is when trucks leave the depot.
+         */
+        TimeModel: {
+            /**
+             * Depot Open
+             * @default 00:00
+             */
+            depot_open: string;
+            /**
+             * Horizon End
+             * @default 24:00
+             */
+            horizon_end: string;
+            /** Planning Date */
+            planning_date: string;
+            /** Timezone */
+            timezone: string;
+        };
+        /**
+         * TimeSummary
+         * @description The time model a time-window run used; `*_s` values are seconds from local midnight.
+         */
+        TimeSummary: {
+            /** Depot Open S */
+            depot_open_s: number;
+            /** Horizon End S */
+            horizon_end_s: number;
+            /** Midnight Epoch S */
+            midnight_epoch_s: number;
+            /** Planning Date */
+            planning_date: string;
+            /** Timezone */
+            timezone: string;
         };
         /** Totals */
         Totals: {
@@ -1071,17 +1130,29 @@ export interface components {
              * @default null
              */
             drive_s: number | null;
+            /** End S */
+            end_s?: number | null;
             /** Fill */
             fill: number;
             /** Id */
             id: string;
             /** Load */
             load: number;
+            /** Service S Total */
+            service_s_total?: number | null;
+            /** Shift Start S */
+            shift_start_s?: number | null;
             /** Visits */
             visits: components["schemas"]["TruckVisit"][];
+            /** Wait S Total */
+            wait_s_total?: number | null;
         };
         /** TruckVisit */
         TruckVisit: {
+            /** Arrival S */
+            arrival_s?: number | null;
+            /** Departure S */
+            departure_s?: number | null;
             /** Leg M */
             leg_m: number;
             /**
@@ -1097,8 +1168,18 @@ export interface components {
             location_id: string;
             /** Sequence */
             sequence: number;
+            /** Service S */
+            service_s?: number | null;
+            /** Start S */
+            start_s?: number | null;
             /** Visit Id */
             visit_id: string;
+            /** Wait S */
+            wait_s?: number | null;
+            /** Window Earliest S */
+            window_earliest_s?: number | null;
+            /** Window Latest S */
+            window_latest_s?: number | null;
         };
         /** Units */
         Units: {

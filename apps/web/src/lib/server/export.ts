@@ -3,6 +3,7 @@ import "server-only";
 import type { Store } from "@fillrate/db";
 
 import { EXPORT_NOTE } from "../copy";
+import { localClock } from "../timeline";
 import { type SheetColumn, sheetCsvRows, shipmentSheets } from "../shipment-sheet";
 import { ApiError, runDetail } from "./runs";
 
@@ -39,10 +40,15 @@ export function exportCsv(store: Store, runId: string, table: CsvTable, sheet: S
   const summary = runDetail(store, runId).summary;
   if (!summary) throw new ApiError(409, "no_result", "This run has no result to export yet.");
   if (table === "loads") {
+    // Time-window runs (M6) add seconds from local midnight on the planning date plus local clock times.
+    const timed = !!summary.time && summary.trucks.some(t => t.visits.some(v => v.arrival_s != null));
+    const clock = summary.time;
     return csv(
-      ["truck_id", "cluster_id", "sequence", "visit_id", "location_id", "order_id", "line_id", "product_id", "pieces", "linear_feet_hundredths", "amount_cents", "leg_m", "leg_s", "truck_load_hundredths", "truck_fill", "validated"],
+      ["truck_id", "cluster_id", "sequence", "visit_id", "location_id", "order_id", "line_id", "product_id", "pieces", "linear_feet_hundredths", "amount_cents", "leg_m", "leg_s", "truck_load_hundredths", "truck_fill", "validated",
+        ...(timed ? ["arrival_s", "wait_s", "start_s", "service_s", "departure_s", "arrival_local", "start_local", "departure_local", "window_earliest_s", "window_latest_s"] : [])],
       summary.trucks.flatMap(t => t.visits.flatMap(v => v.lines.map(l => [
         t.id, t.cluster_id, v.sequence, v.visit_id, v.location_id, l.order_id, l.line_id, l.product_id, l.pieces, l.linear_feet, l.amount_cents, v.leg_m, v.leg_s ?? "", t.load, t.fill.toFixed(4), true,
+        ...(timed ? [v.arrival_s ?? "", v.wait_s ?? "", v.start_s ?? "", v.service_s ?? "", v.departure_s ?? "", localClock(clock, v.arrival_s) ?? "", localClock(clock, v.start_s) ?? "", localClock(clock, v.departure_s) ?? "", v.window_earliest_s ?? "", v.window_latest_s ?? ""] : []),
       ]))),
     );
   }
