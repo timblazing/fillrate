@@ -138,6 +138,12 @@ and preflight findings). Regenerate it with `uv run python -m tests.travel_parit
   (deflated); `replay.py` loads it offline, refuses a file that does not hash to the recorded
   identity, and checks that the travel provenance reproduces. Bundles are bounded to 16 MiB
   excluding the snapshot, which has its own 64 MiB bound.
+- **Exports (M7).** `GET /api/v1/travel-snapshots/<id>?format=json|csv` downloads the canonical JSON
+  (its sha256 is the identity) or a long-form `from_id,to_id,distance_m,duration_s` CSV (integer meters
+  as the run uses them, seconds, node order, empty cells for missing edges). `GET /api/v1/runs/<id>/export`
+  adds `?format=geojson` (schematic straight-line routes, no synthetic return) and
+  `?format=matrix&as=csv|json` (the snapshot the run used; JSON adds the node binding). Estimated runs
+  answer 409 `matrix_not_recorded`: no deterministic TypeScript reproduction of the worker's estimate exists.
 
 Next M6 increments:
 

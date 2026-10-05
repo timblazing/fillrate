@@ -115,6 +115,24 @@ export function TravelMatrixPanel({
     return { required, nodes }
   }, [document, excludedLineIds, inspected])
 
+  /** Downloads through fetch so the operator key header travels with the request. */
+  async function downloadSnapshot(id: string, format: "json" | "csv") {
+    setLoadError("")
+    try {
+      const response = await fetch(`/api/v1/travel-snapshots/${id}?format=${format}`, {
+        headers: accessMode === "operator" && operatorKey ? { "x-scenario-key": operatorKey } : {},
+        cache: "no-store",
+      })
+      if (!response.ok) throw new Error(errorMessage(await response.json(), `Download failed (${response.status}).`))
+      const url = URL.createObjectURL(await response.blob())
+      const link = window.document.createElement("a")
+      link.href = url
+      link.download = `fillrate-travel-${id.slice(0, 12)}.${format}`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) { setLoadError(error instanceof Error ? error.message : "Could not download the matrix.") }
+  }
+
   async function inspectFile() {
     setBusy(true); setMessage(""); setLoadError(""); setPreview(null)
     try {
@@ -193,6 +211,10 @@ export function TravelMatrixPanel({
         {(missing.length > 0 || moved.length > 0) && <p role="alert" className="text-destructive">This matrix cannot run against the current coordinates. Update the scenario or choose a matching snapshot; enqueue will be refused until they match.</p>}
         {currentPreview.warningCount > 0 && <p className="text-warning-foreground">The imported snapshot contains {currentPreview.warningCount} provider warning{currentPreview.warningCount === 1 ? "" : "s"}. Review the source file before running.</p>}
         <p className="break-all font-mono text-xs text-muted-foreground">Snapshot {currentPreview.id}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => void downloadSnapshot(currentPreview.id, "csv")}>Download CSV</Button>
+          <Button variant="outline" size="sm" onClick={() => void downloadSnapshot(currentPreview.id, "json")}>Download JSON</Button>
+        </div>
       </div>
       <div className="overflow-x-auto rounded-md border p-3">
         <p className="mb-3 text-sm font-medium">Directed distance sample · rows are origins, columns are destinations</p>

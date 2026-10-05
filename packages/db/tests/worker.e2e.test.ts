@@ -15,6 +15,8 @@ import { parseContract, type RunSummary } from "@fillrate/contracts";
 import { sheetCsvRows, shipmentSheets } from "../../../apps/web/src/lib/shipment-sheet";
 import { compareRuns, expandSweep } from "../src/experiments";
 import { replayBundle } from "../src/replay";
+import { runMatrixJson, snapshotCsv } from "../src/travel-export";
+import { buildRouteGeoJson } from "../../../apps/web/src/lib/geojson";
 import { writeFileSync } from "node:fs";
 
 const optimizer = resolve("services/optimizer");
@@ -315,6 +317,33 @@ test.skipIf(!hasUv)("a run on a stored directed snapshot routes over its legs, r
   expect(bad.status).not.toBe(0);
   expect(bad.stdout + bad.stderr).toMatch(/IDENTITY DIFFERS|identity/);
 }, 180_000);
+
+test.skipIf(!hasUv)("an imported-snapshot run exports GeoJSON routes without the return leg and its recorded matrix", async () => {
+  const road = store.createScenario("Parity", { schema_version: 1, document: parity.scenario }, "e2e").versionId;
+  const snapshotId = store.saveTravelSnapshot(parity.snapshot).id;
+  const run = store.enqueue(road, { schema_version: 1, document: roadSettings({ travel_snapshot_id: snapshotId }) as never }, "export-road");
+  startWorker("export");
+  await finished(run);
+  const summary = summaryOf(run);
+  const geo = buildRouteGeoJson(run, summary);
+  const lines = geo.features.filter(f => f.geometry.type === "LineString");
+  expect(lines).toHaveLength(summary.trucks.length);
+  const depot: [number, number] = [summary.depot.lon, summary.depot.lat];
+  for (const [i, line] of lines.entries()) {
+    const coordinates = line.geometry.coordinates as [number, number][];
+    expect(coordinates[0]).toEqual(depot);
+    expect(coordinates).toHaveLength(1 + summary.trucks[i].visits.length); // depot + physical visits: no synthetic return
+    expect(coordinates.at(-1)).not.toEqual(depot);
+  }
+  expect(geo.fillrate.travel).toMatchObject({ mode: "snapshot", provider: "imported", snapshot_id: snapshotId });
+  expect(geo.fillrate.omitted.planned_locations_without_coordinates).toBe(0);
+
+  const matrix = runMatrixJson(run, store.travelSnapshot(snapshotId), summary.depot, summary.locations);
+  expect(matrix.snapshot_id).toBe(snapshotId);
+  expect(matrix.snapshot.distances[0][2]).toBe(804672.5); // raw provider value, not the rounded meters
+  expect(matrix.binding.every(b => b.in_snapshot && b.coordinates_match)).toBe(true);
+  expect(snapshotCsv(store.travelSnapshot(snapshotId))).toContain("D,B,804672,80467.25");
+}, 120_000);
 
 test.skipIf(!hasUv)("a worker refuses a snapshot it cannot use and fails the run permanently", async () => {
   const snapshotId = store.saveTravelSnapshot(parity.snapshot).id;
