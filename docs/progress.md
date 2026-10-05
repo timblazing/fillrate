@@ -5,6 +5,10 @@
 - Verification: typecheck, lint (only the existing vendored `globe.tsx` warning), production build, and a local synthetic browser walkthrough covering scenario import, matrix preview, save, selection, directed values and exact coordinate coverage. Desktop viewport was 1168×730 with no page overflow. A phone resize was attempted in the collaborative preview but timed out; no mobile result is claimed.
 - Remaining M6 evidence: add the flow to `bun run test:browser`, verify stale-coordinate refusal and directed worker use, and keep `directed_road_travel` planned until the pinned Valhalla deployment is verified. The durable Valhalla job, deployment and route geometry remain open.
 
+## 2026-10-02: Center header navigation and update account menu (Codex)
+- Replaced icon navigation with centered line tabs, removed the theme switcher from the shared header, and renamed the signed-in account menu item to Settings with a cog icon. Admin now has a shield icon.
+- Verification: lint and typecheck pass (lint reports the existing `globe.tsx` hook-dependency warning). Desktop preview shows centered tabs; phone preview resize timed out.
+
 ## 2026-10-02: GitHub issue queue and browser CI recovery (Codex)
 - GitHub Issues now have templates for spec/documentation gaps and blocked-session handoffs. The linked [Fillrate work project](https://github.com/users/timblazing/projects/2) is the visual triage board; repository docs remain the source of truth for spec, decisions, milestone evidence and estimates. See `docs/issues-and-work.md`.
 - CI runs #41 (`04c2879`) and #42 (`41cd980`) failed at the same step: Chromium could not start its sandbox on the GitHub-hosted Ubuntu runner because unprivileged user namespaces are unavailable. The failure was in browser startup, before page assertions; it was unrelated to the `/dev` change.
