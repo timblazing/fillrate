@@ -36,6 +36,12 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
   const settings = view.settings.document;
   // A run on a stored directed travel snapshot replays from that exact snapshot, offline.
   const snapshotId = (settings as { travel_snapshot_id?: string | null }).travel_snapshot_id ?? null;
+  // A warm-started run ships the exact source plan its solve stage recorded; replay checks its identity and
+  // refuses the bundle without it (fillrate_optimizer.replay).
+  const warmManifest = view.artifacts.find(a => a.stage_type === "warm_start");
+  const warm = summary.warm_start
+    ? { source: summary.warm_start.source, plan_id: summary.warm_start.plan_id, outcomes: Object.fromEntries(summary.clusters.filter(c => c.warm_start).map(c => [c.id, [c.warm_start!.status, c.warm_start!.reason ?? null]])) }
+    : undefined;
   const deterministic = Object.fromEntries(DETERMINISTIC.map(stage => [stage, view.artifacts.find(a => a.stage_type === stage)?.output_hash ?? null]));
   const expected = {
     run_id: runId,
@@ -50,15 +56,17 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
     allocation: summary.allocation ? { strategy: summary.allocation.strategy, fulfillment_policy: summary.allocation.fulfillment_policy, kind: summary.allocation.kind } : undefined,
     travel: snapshotId ? { provider: "snapshot", snapshot_id: snapshotId, summary: summary.travel ?? null } : { provider: "estimated", circuity: (settings as { travel_circuity?: number }).travel_circuity ?? 1.2 },
     iteration_based: Boolean((settings as { solver_max_iterations?: number | null }).solver_max_iterations),
+    ...(warm ? { warm_start: warm } : {}),
   };
   const json = (value: unknown) => Buffer.from(JSON.stringify(value, null, 1) + "\n");
   const files: [string, Buffer, boolean?][] = [
-    ["README.md", Buffer.from(readme(runId, expected.iteration_based, snapshotId))],
+    ["README.md", Buffer.from(readme(runId, expected.iteration_based, snapshotId, warm?.source.run_id ?? null))],
     ["replay.py", Buffer.from(REPLAY_PY)],
     ["scenario.json", json(scenario)],
     ["settings.json", json(settings)],
     ["expected.json", json(expected)],
     // Compact canonical JSON, deflated: a 1,000-node matrix is millions of numbers.
+    ...(warmManifest ? [["warm-start.json", json(store.readArtifact(warmManifest.output_hash))] as [string, Buffer]] : []),
     ...(snapshotId ? [["travel-snapshot.json", Buffer.from(canonical(store.travelSnapshot(snapshotId))), true] as [string, Buffer, boolean]] : []),
     ...DETERMINISTIC.flatMap(stage => {
       const manifest = view.artifacts.find(a => a.stage_type === stage);
@@ -158,7 +166,7 @@ if __name__ == "__main__":
     raise SystemExit(main(root=ROOT))
 `;
 
-function readme(runId: string, iterationBased: boolean, snapshotId: string | null) {
+function readme(runId: string, iterationBased: boolean, snapshotId: string | null, warmSource: string | null) {
   return `# Fillrate replay: run ${runId}
 
 Reproduces this pipeline run offline from the files in this folder: \`scenario.json\` (the saved
@@ -169,6 +177,11 @@ ${snapshotId ? `
 This run selected the directed travel snapshot \`${snapshotId}\` (\`travel-snapshot.json\`). The script loads it
 from the bundle, checks that its content hash equals that identity and routes over its recorded legs; it
 never calls a routing service.
+` : ""}${warmSource ? `
+This run was warm-started from the validated plan of run \`${warmSource}\`. That plan ships as
+\`warm-start.json\`; the script checks that it hashes to the recorded plan identity, starts the same
+clusters from it and requires each cluster's warm-start outcome (used, or skipped with its reason) to
+reproduce. Without the file the replay is refused, never run cold.
 ` : ""}
     uv run --project optimizer python replay.py
 

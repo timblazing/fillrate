@@ -1,9 +1,10 @@
 "use client"
 
 import type { RunSummary } from "@fillrate/contracts"
-import { ArrowLeft, Ban, Check, Download, Printer } from "lucide-react"
+import { ArrowLeft, Ban, Check, Download, Printer, RotateCcw } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
@@ -38,6 +39,11 @@ const miles = (m: number) => formatMiles(m / METERS_PER_MILE)
 
 type PipelineDetail = Extract<RunDetail, { kind: "pipeline" }>
 
+/** How the page can start this run again warm-started from it (computed on the server; null when the caller cannot). */
+export type WarmRerun =
+  | { kind: "example"; example: string; overrides: Record<string, unknown> }
+  | { kind: "scenario"; versionId: string; settings: Omit<RunSummary["settings"], "warm_start"> }
+
 const strategyLabel = (summary: RunSummary) =>
   summary.clustering.strategy === "h3" ? `H3 cells · resolution ${summary.clustering.h3_resolution}`
   : summary.clustering.strategy === "none" ? "No clustering (baseline)"
@@ -71,7 +77,7 @@ function useRun(initial: PipelineDetail) {
   return [run, setRun] as const
 }
 
-export function RunView({ initial, canCancel, canEvaluate = false, runKey }: { initial: PipelineDetail; canCancel: boolean; canEvaluate?: boolean; runKey?: string }) {
+export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun }: { initial: PipelineDetail; canCancel: boolean; canEvaluate?: boolean; runKey?: string; rerun?: WarmRerun | null }) {
   const [run, setRun] = useRun(initial)
   const [cancelling, setCancelling] = useState(false)
   const active = ACTIVE.has(run.status)
@@ -100,7 +106,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey }: { i
           Attempt {run.attempt} of {run.max_attempts} · {run.settings.cluster_strategy === "kmeans" ? `k ${run.settings.k ?? "auto"}` : run.settings.cluster_strategy === "h3" ? `H3 r${run.settings.h3_resolution}` : "no clustering"} · solver seed {run.settings.solver_seed}
           {run.settings.inventory_percent !== 100 && ` · inventory ${run.settings.inventory_percent}%`}
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {active && canCancel && !run.cancel_requested && (
             <Button variant="destructive-outline" size="sm" onClick={cancel} loading={cancelling}>
               <Ban aria-hidden /> Cancel
@@ -112,6 +118,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey }: { i
                 <Printer aria-hidden /> Shipment sheets
               </Button>
               <ExportMenu id={run.id} hasMatrix={run.summary?.travel?.mode === "snapshot"} />
+              {rerun && <WarmRerunButton runId={run.id} rerun={rerun} runKey={runKey} />}
             </>
           )}
         </div>
@@ -142,6 +149,89 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey }: { i
       )}
       {run.summary && <Results summary={run.summary} run={run} runKey={runKey} canEvaluate={canEvaluate} />}
     </>
+  )
+}
+
+/** Same scenario and settings, each cluster's solve started from this run's validated plan where it still fits (M6). */
+function WarmRerunButton({ runId, rerun, runKey }: { runId: string; rerun: WarmRerun; runKey?: string }) {
+  const router = useRouter()
+  const [pending, setPending] = useState(false)
+  async function start() {
+    setPending(true)
+    const warm_start = { kind: "run", run_id: runId }
+    const [url, body] = rerun.kind === "example"
+      ? ["/api/v1/runs", { example: rerun.example, settings: { ...rerun.overrides, warm_start } }]
+      : ["/api/v1/scenarios/runs", { versionId: rerun.versionId, settings: { ...rerun.settings, warm_start } }]
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
+        body: JSON.stringify(body),
+      })
+      const created = await res.json()
+      if (!res.ok) throw new Error(created.error?.message ?? "Could not start the run.")
+      router.push(`/runs/${created.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
+    } catch (error) {
+      toastManager.add({ type: "error", title: "Run not started", description: error instanceof Error ? error.message : undefined })
+      setPending(false)
+    }
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={start} loading={pending} title="Same scenario and settings; each cluster starts from this run's validated plan when it still matches">
+      <RotateCcw aria-hidden /> Re-run warm-started
+    </Button>
+  )
+}
+
+const WARM_REASON: Record<string, string> = {
+  travel_changed: "travel data changed",
+  visit_set_changed: "different stops in this cluster",
+  demand_changed: "a stop's load or location changed",
+  source_invalid: "source cluster had no validated plan",
+  invalid_on_new_problem: "source plan fails validation here",
+  solver_rejected: "PyVRP rejected the start",
+}
+
+/** Per-cluster warm-start outcome of a warm-started run: used (with the objective it started from) or skipped with the reason. */
+function WarmStartNotes({ summary }: { summary: RunSummary }) {
+  const warm = summary.warm_start
+  if (!warm) return null
+  const rows = summary.clusters.map((c, i) => ({ c, i })).filter(({ c }) => c.warm_start)
+  return (
+    <section className="bg-card rounded-xl border p-3 text-sm" aria-label="Warm start">
+      <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
+        <span className="font-medium">Warm start</span>
+        <span className="text-muted-foreground text-xs">
+          From run{" "}
+          <Link className="font-mono underline-offset-2 hover:underline" href={`/runs/${warm.source.run_id}`}>
+            {warm.source.run_id.slice(0, 8)}
+          </Link>
+          : {warm.used} of {warm.used + warm.skipped} solved {warm.used + warm.skipped === 1 ? "cluster" : "clusters"} started from its validated plan. The objective never rises from a validated start; results stay heuristic.
+        </span>
+      </div>
+      <ul className="flex flex-col gap-1">
+        {rows.map(({ c, i }) => {
+          const w = c.warm_start!
+          return (
+            <li key={c.id} className="flex flex-wrap items-center gap-2 text-xs" data-cluster={c.id} data-warm={w.status}>
+              <ClusterSwatch cluster={i + 1} size="sm" />
+              <Badge variant={w.status === "used" ? "success" : "warning"} size="sm">
+                {w.status === "used" ? "Used" : "Skipped"}
+              </Badge>
+              {w.status === "used" ? (
+                <span className="text-muted-foreground tabular-nums">
+                  objective {formatCount(w.initial_cost ?? 0)} → {formatCount(w.final_cost ?? 0)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground" title={w.detail ?? undefined}>
+                  {WARM_REASON[w.reason ?? ""] ?? w.reason}
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -269,6 +359,7 @@ function Results({ summary, run, runKey, canEvaluate }: { summary: RunSummary; r
       </div>
 
       <PreflightNotes summary={summary} />
+      <WarmStartNotes summary={summary} />
 
       <StepsPanel>
         <CompletedSteps summary={summary} />
@@ -755,7 +846,7 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
     ],
     ["Excluded by user", s.excluded_line_ids?.length ? plural(s.excluded_line_ids.length, "line") : "none"],
     ["Clustering", `k-means on 3D unit vectors, seed ${s.kmeans_seed}, n_init ${s.kmeans_n_init}; ${summary.clustering.fits} fits${summary.clustering.repairs.length ? `, ${summary.clustering.repairs.length} repairs` : ""}`],
-    ["Solver", `PyVRP ${summary.versions.pyvrp}, seed ${s.solver_seed}, ${s.solver_max_iterations ? `${s.solver_max_iterations} iterations or ` : ""}${s.solver_time_limit_s} s per cluster`],
+    ["Solver", `PyVRP ${summary.versions.pyvrp}, seed ${s.solver_seed}, ${s.solver_max_iterations ? `${s.solver_max_iterations} iterations or ` : ""}${s.solver_time_limit_s} s per cluster${s.warm_start ? `, warm-started from run ${s.warm_start.run_id.slice(0, 8)}` : ""}`],
     ["Display", `Low fill under ${formatPercent(FILL_LOW)} (display setting, never sent to the solver)`],
     ["Versions", Object.entries(summary.versions).map(([k, v]) => `${k} ${v}`).join(" · ")],
   ]

@@ -187,6 +187,32 @@ BEHAVIORS = [
         fixture="tests/test_time_windows.py::test_service_duration_changes_feasibility_and_truck_count",
     ),
     Behavior(
+        id="warm_start",
+        provided_by="native",
+        description=(
+            "Run setting warm_start {kind: run, run_id}: each cluster starts PyVRP's search from "
+            "the source run's validated plan (pyvrp.solve initial_solution). With a feasible "
+            "initial solution the pinned search keeps it as the incumbent, so the returned "
+            "objective is never higher. Fillrate passes a plan only after the independent "
+            "validator accepts it on the new problem; every cluster records used or skipped "
+            "with a reason, and the plan is a recorded input of the solve stage."
+        ),
+        restrictions=[
+            "Compatibility rule: same travel identity (estimated circuity or snapshot), a "
+            "validated source cluster that planned exactly the same visit IDs, and the same "
+            "location and load for every visit; otherwise the cluster is solved cold "
+            "(travel_changed, visit_set_changed, source_invalid, demand_changed).",
+            "The mapped plan must pass the independent validator on the new problem "
+            "(invalid_on_new_problem) and be complete and feasible to PyVRP (solver_rejected). "
+            "Pinned PyVRP accepts infeasible, incomplete or mismatched initial solutions without "
+            "an error (tests/test_warm_start.py), so Fillrate refuses them instead.",
+            "Sources are succeeded pipeline runs the submitter can read; manual baselines are "
+            "not a source yet.",
+            "Warm starts change solver provenance only, never the comparison signature.",
+        ],
+        fixture="tests/test_warm_start.py::test_feasible_initial_solution_is_never_worsened",
+    ),
+    Behavior(
         id="independent_validation",
         provided_by="validation",
         description=(

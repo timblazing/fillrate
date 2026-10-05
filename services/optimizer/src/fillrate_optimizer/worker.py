@@ -120,6 +120,7 @@ def child_main(
     from .model import RunSettings, ScenarioDocument
     from .pipeline import Limits, PipelineError, run_pipeline
     from .travel_job import TravelJobError
+    from .warmstart import plan_from_summary
 
     watch_parent(os.getppid())
 
@@ -177,6 +178,15 @@ def child_main(
             # its identity, so the transport is not trusted for content.
             snapshot_loader=(
                 lambda snapshot_id: rpc("snapshot", snapshot_id=snapshot_id)["snapshot"]
+            )
+            if transport
+            else None,
+            # The validated plan of the warm-start source run. The server owner-checks the source
+            # against this run before answering; Python never opens SQLite.
+            warm_start_loader=(
+                lambda source: plan_from_summary(rpc("warm_start")["summary"], source).model_dump(
+                    mode="json"
+                )
             )
             if transport
             else None,

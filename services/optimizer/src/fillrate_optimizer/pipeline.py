@@ -31,6 +31,7 @@ from .loads import (
     PartitionProblem,
     PartitionTime,
     PartitionVisit,
+    WarmStartRejected,
     monetary_objective,
     solve_partition,
     truck_count_first_penalty,
@@ -53,6 +54,8 @@ from .model import (
     TruckSummary,
     TruckVisit,
     UnplannedLine,
+    WarmStartPlan,
+    WarmStartSummary,
 )
 from .preflight import preflight_checks
 from .timeplan import (
@@ -68,6 +71,7 @@ from .travel_provider import (
     TravelSnapshot,
     stop_nodes,
 )
+from .warmstart import match_cluster, travel_identity
 
 PRODUCER_VERSION = "fillrate-pipeline/3"
 ADAPTER_VERSION = "pyvrp-partition/1"
@@ -208,12 +212,15 @@ def run_pipeline(
     cluster_task: Callable | None = None,
     travel_snapshot: TravelSnapshot | None = None,
     snapshot_loader: Callable[[str], dict[str, Any]] | None = None,
+    warm_start_plan: WarmStartPlan | None = None,
+    warm_start_loader: Callable[[Any], dict[str, Any]] | None = None,
     clock: Callable[[], float] = time.monotonic,
     now_ms: Callable[[], int] = lambda: int(time.time() * 1000),
 ) -> PipelineOutput:
     limits = limits or Limits()
     report = progress or (lambda stage, detail: None)
     snapshot = resolve_snapshot(settings, travel_snapshot, snapshot_loader)
+    warm_plan = resolve_warm_start(settings, warm_start_plan, warm_start_loader)
     # With a selected snapshot, preflight and the travel stage depend on its identity instead of
     # the estimating circuity (which is then unused for travel).
     travel_keys = ["travel_snapshot_id"] if snapshot else ["travel_circuity"]
@@ -717,6 +724,19 @@ def run_pipeline(
     )
 
     # ---- 6. Solve one PyVRP problem per cluster (§8b) -----------------------------------------
+    raw_leg = snapshot_leg_reader(raw_meters, loc_ids)
+    solve_parents = ["problem"]
+    solve_keys = ["solver_seed", "solver_max_iterations", "solver_time_limit_s"]
+    plan_id = None
+    if warm_plan:
+        # The source plan is a recorded input of the solve stage (spec §10: provenance and part of
+        # the solve-stage identity, never of the comparison signature).
+        plan_payload = warm_plan.model_dump(mode="json")
+        plan_id = content_hash(plan_payload)
+        stages.add("warm_start", plan_payload, [], ["warm_start"])
+        solve_parents.append("warm_start")
+        solve_keys.append("warm_start")
+    run_travel = travel_identity(settings)
     solves = []
     for i, (meta, prob, trav) in enumerate(zip(clusters_meta, problems, travel, strict=True)):
         report("solve", {"cluster": meta["id"], "index": i + 1, "of": len(problems)})
@@ -727,6 +747,7 @@ def run_pipeline(
                 "visits": visits,
                 "settings": settings.model_dump(mode="json"),
                 "versions": versions(),
+                **({"warm_start": plan_id} if plan_id else {}),
             }
         )
         task = cluster_task("claim", meta["id"], task_hash, None) if cluster_task else None
@@ -751,21 +772,35 @@ def run_pipeline(
             if cluster_task:
                 cluster_task("complete", meta["id"], task_hash, solves[-1])
             continue
+        partition = PartitionProblem(
+            distance=np.array(trav["matrix"], dtype=np.int64),
+            visits=pvisits,
+            capacity=cap,
+            max_leg_m=settings.max_leg_m,
+            truck_penalty=prob["truck_penalty"],
+            distance_cost=prob["distance_cost"],
+            seed=settings.solver_seed,
+            max_iterations=settings.solver_max_iterations,
+            max_runtime_s=min(settings.solver_time_limit_s, remaining - 0.5),
+            time=partition_time(prob, pvisits),
+        )
+        warm, initial = None, None
+        if warm_plan:
+            warm, initial = warm_start_for(
+                warm_plan, run_travel, meta, prob, trav, visits, lines, settings, raw_leg,
+                leg_seconds,
+            )  # fmt: skip
         try:
-            result = solve_partition(
-                PartitionProblem(
-                    distance=np.array(trav["matrix"], dtype=np.int64),
-                    visits=pvisits,
-                    capacity=cap,
-                    max_leg_m=settings.max_leg_m,
-                    truck_penalty=prob["truck_penalty"],
-                    distance_cost=prob["distance_cost"],
-                    seed=settings.solver_seed,
-                    max_iterations=settings.solver_max_iterations,
-                    max_runtime_s=min(settings.solver_time_limit_s, remaining - 0.5),
-                    time=partition_time(prob, pvisits),
+            try:
+                result = (
+                    solve_partition(partition, initial) if initial else solve_partition(partition)
                 )
-            )
+            except WarmStartRejected as rejected:
+                warm = {**warm, "status": "skipped", "reason": "solver_rejected"}
+                warm["detail"] = str(rejected)
+                result = solve_partition(partition)
+            if warm and warm["status"] == "used":
+                warm["initial_cost"], warm["final_cost"] = result.initial_cost, result.cost
         except Exception as error:  # noqa: BLE001 - one cluster's failure must not hide the others
             # Spec §9: a failed cluster invalidates the plan; other clusters stay inspectable.
             # Not checkpointed, so a retried attempt solves this cluster again.
@@ -787,16 +822,12 @@ def run_pipeline(
                 "iterations": result.iterations,
                 "runtime_s": round(result.runtime_s, 3),
                 "cost": result.cost,
+                **({"warm_start": warm} if warm else {}),
             }
         )
         if cluster_task:
             cluster_task("complete", meta["id"], task_hash, solves[-1])
-    stages.add(
-        "solve",
-        {"clusters": solves},
-        ["problem"],
-        ["solver_seed", "solver_max_iterations", "solver_time_limit_s"],
-    )
+    stages.add("solve", {"clusters": solves}, solve_parents, solve_keys)
 
     # ---- 7. Validate independently from raw travel and lineage (§16) ---------------------------
     report("validation", {})
@@ -812,7 +843,6 @@ def run_pipeline(
             )
         )
     validations = []
-    raw_leg = snapshot_leg_reader(raw_meters, loc_ids)
     for meta, prob, trav, solve in zip(clusters_meta, problems, travel, solves, strict=True):
         validations.append(
             validate_cluster(meta, prob, trav, solve, visits, lines, settings, raw_leg, leg_seconds)
@@ -924,6 +954,7 @@ def run_pipeline(
                 iterations=solve.get("iterations", 0),
                 runtime_s=solve.get("runtime_s", 0.0),
                 violations=check["violations"],
+                warm_start=solve.get("warm_start"),
             )
         )
         trucks_out.extend(cluster_trucks)
@@ -981,6 +1012,22 @@ def run_pipeline(
         location_state[loc.id] = state
     cluster_of = {loc: c["id"] for c in clusters_meta for loc in c["locations"]}
 
+    if warm_plan:
+        outcomes = [c.warm_start for c in cluster_out if c.warm_start]
+        used = sum(o.status == "used" for o in outcomes)
+        reasons = sorted({o.reason.replace("_", " ") for o in outcomes if o.reason})
+        diagnostics.append(
+            Diagnostic(
+                code="warm_start",
+                severity="info",
+                message=(
+                    f"Warm start from run {settings.warm_start.run_id}: {used} of {len(outcomes)} "
+                    "solved cluster(s) started from the source plan after independent validation"
+                    + (f"; skipped: {', '.join(reasons)}" if reasons else "")
+                    + ". Shipments and miles remain heuristic best-found values."
+                ),
+            )
+        )
     if not all_valid:
         diagnostics.append(
             Diagnostic(
@@ -1054,6 +1101,18 @@ def run_pipeline(
             if tctx
             else None
         ),
+        warm_start=(
+            WarmStartSummary(
+                source=settings.warm_start,
+                plan_id=plan_id,
+                used=sum(1 for c in cluster_out if c.warm_start and c.warm_start.status == "used"),
+                skipped=sum(
+                    1 for c in cluster_out if c.warm_start and c.warm_start.status == "skipped"
+                ),
+            )
+            if warm_plan
+            else None
+        ),
         diagnostics=diagnostics,
         versions=versions(),
     )
@@ -1109,6 +1168,79 @@ def resolve_snapshot(
             f"{wanted[:12]}.",
         )
     return snapshot
+
+
+def resolve_warm_start(
+    settings: RunSettings,
+    provided: WarmStartPlan | None,
+    loader: Callable[[Any], dict[str, Any]] | None,
+) -> WarmStartPlan | None:
+    """The source plan the settings name. The loader is the worker transport (the web resolved
+    the source with owner checks) or a replay bundle; its document must name the same source."""
+    wanted = settings.warm_start
+    if wanted is None:
+        if provided is not None:
+            raise PipelineError(
+                "warm_start_unbound",
+                "A warm-start plan was supplied but the run settings do not select one.",
+            )
+        return None
+    plan = provided
+    if plan is None:
+        if loader is None:
+            raise PipelineError(
+                "warm_start_missing",
+                f"A warm start from run {wanted.run_id} is selected but no source was provided.",
+            )
+        try:
+            plan = WarmStartPlan.model_validate(loader(wanted))
+        except Exception as error:  # noqa: BLE001 - transport, missing run and invalid document
+            raise PipelineError(
+                "warm_start_unavailable",
+                f"The warm-start source run {wanted.run_id} could not be loaded: {error}"[:500],
+            ) from error
+    if plan.source != wanted:
+        raise PipelineError(
+            "warm_start_source_mismatch",
+            "The warm-start plan comes from a different source than the settings select.",
+        )
+    return plan
+
+
+def warm_start_for(
+    plan, run_travel, meta, prob, trav, visits, lines, settings, raw_leg, leg_seconds
+) -> tuple[dict[str, Any], list[list[int]] | None]:
+    """Rules 1–4 of `warmstart.py` for one cluster: the recorded outcome and, when every rule
+    passed, the initial routes as visit indices for `solve_partition` (which checks rule 5)."""
+    source, routes, reason, detail = match_cluster(
+        plan, run_travel, prob["visits"], meta["locations"], visits
+    )
+    outcome: dict[str, Any] = {
+        "status": "skipped",
+        "reason": reason,
+        "source_cluster_id": source.cluster_id if source else None,
+        "detail": detail,
+    }
+    if routes is None:
+        return outcome, None
+    check = validate_cluster(
+        meta,
+        prob,
+        trav,
+        {"status": "solved", "solver_feasible": True, "routes": routes},
+        visits,
+        lines,
+        settings,
+        raw_leg,
+        leg_seconds,
+    )
+    if not check["valid"]:
+        outcome["reason"] = "invalid_on_new_problem"
+        outcome["detail"] = "; ".join(check["violations"][:5])[:1000]
+        return outcome, None
+    index = {vid: k for k, vid in enumerate(prob["visits"])}
+    outcome.update(status="used", reason=None, detail=None)
+    return outcome, [[index[vid] for vid in route] for route in routes]
 
 
 def snapshot_leg_reader(raw_meters: np.ndarray | None, loc_ids: list[str]):

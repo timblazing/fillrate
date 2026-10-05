@@ -5,6 +5,7 @@ import { EXAMPLES_OWNER, type Store } from "@fillrate/db";
 import { quotas, syntheticAdmission, type Principal } from "./access";
 import { mode } from "./auth";
 import { ApiError } from "./errors";
+import { assertWarmStartSource, parseWarmStart, warmStartError } from "./warm-start";
 
 import allocation from "../../../../../examples/lesson-allocation.json";
 import capacity from "../../../../../examples/lesson-capacity.json";
@@ -95,7 +96,7 @@ export function exampleForVersion(store: Store, versionId: string): ExampleId | 
 const ALLOCATION_STRATEGIES = ["order_date_then_value", "first_come", "priority", "proportional", "optimized"] as const;
 const FULFILLMENT_POLICIES = ["piece", "whole_order"] as const;
 
-/** Only these settings are overridable on `/api/v1/runs`; the rest come from the bundled example. */
+/** Only these settings are overridable on `/api/v1/runs`; the rest come from the bundled example. `warm_start` names a run to start each cluster's solve from (M6). */
 export function parseOverrides(input: unknown): Partial<RunSettings> {
   if (input === undefined || input === null) return {};
   if (typeof input !== "object" || Array.isArray(input)) throw new ApiError(400, "invalid_settings", "Settings must be an object.");
@@ -121,6 +122,8 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
       if (!FULFILLMENT_POLICIES.includes(value as never))
         throw new ApiError(400, "invalid_settings", `fulfillment_policy must be one of ${FULFILLMENT_POLICIES.join(", ")}.`, ["settings.fulfillment_policy"]);
       out.fulfillment_policy = value as RunSettings["fulfillment_policy"];
+    } else if (key === "warm_start") {
+      out.warm_start = parseWarmStart(value);
     } else {
       throw new ApiError(400, "invalid_settings", `Setting ${key} cannot be changed in this version.`, [`settings.${key}`]);
     }
@@ -131,6 +134,8 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
 export function createRun(store: Store, who: Principal, idempotencyKey: string, overrides: Partial<RunSettings>, example: Example = EXAMPLES.m1) {
   if (!idempotencyKey || idempotencyKey.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
   const settings = parseContract("RunSettings", { ...example.settings, ...overrides });
+  if (settings.warm_start === null) delete settings.warm_start;
+  assertWarmStartSource(store, who, settings);
   const snapshot: Snapshot = { schema_version: 1, document: settings as unknown as Snapshot["document"] };
   const { ownerId, admission } = syntheticAdmission(who);
   try {
@@ -138,7 +143,7 @@ export function createRun(store: Store, who: Principal, idempotencyKey: string, 
   } catch (error) {
     if (error instanceof Error && error.message === "idempotency_conflict")
       throw new ApiError(409, "idempotency_conflict", "This Idempotency-Key was already used with different settings.");
-    throw error;
+    throw warmStartError(error);
   }
 }
 

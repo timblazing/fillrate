@@ -81,6 +81,7 @@ export class Store {
         if (existing.requestHash !== requestHash || existing.ownerId !== ownerId) throw new Error("idempotency_conflict");
         return existing.id;
       }
+      if (kind === "pipeline") this.warmStartSummary(settings, ownerId);
       if (options.admission) admit(tx, options.admission, 1, now);
       return insertRun(tx, versionId, settings, idempotencyKey, requestHash, now, maxAttempts, kind, ownerId);
     }, { behavior: "immediate" });
@@ -99,6 +100,39 @@ export class Store {
       snapshot = this.travelSnapshot(document.travel_snapshot_id); loaded.set(document.travel_snapshot_id, snapshot);
     }
     assertSnapshotBinding(this.versionDocument(versionId).document as unknown as ScenarioDocument, document.excluded_line_ids ?? [], snapshot);
+  }
+
+  /**
+   * The validated plan source a run's `warm_start` names (spec §10, M6): a succeeded pipeline run whose scenario
+   * `ownerId` can read (theirs or a bundled example). Another owner's run reads as missing. Returns the source run's
+   * summary, which the worker turns into the warm-start plan; null when the settings select no warm start.
+   */
+  warmStartSummary(settings: Snapshot, ownerId: string) {
+    const source = (settings.document as { warm_start?: { kind?: string; run_id?: unknown } | null }).warm_start;
+    if (!source) return null;
+    const missing = new Error("warm_start_source_not_found: no run you can read has this ID");
+    if (source.kind !== "run" || typeof source.run_id !== "string") throw missing;
+    const run = this.db.select({ id: s.runs.id, kind: s.runs.kind, status: s.runs.status, owner: s.scenarios.ownerId })
+      .from(s.runs).innerJoin(s.versions, eq(s.versions.id, s.runs.versionId)).innerJoin(s.scenarios, eq(s.scenarios.id, s.versions.scenarioId))
+      .where(eq(s.runs.id, source.run_id)).get();
+    if (!run || (run.owner !== EXAMPLES_OWNER && run.owner !== ownerId)) throw missing;
+    const summary = run.kind === "pipeline" && run.status === "succeeded"
+      ? this.db.select({ manifest: s.runArtifacts.manifest, hash: s.runArtifacts.artifactHash }).from(s.runArtifacts).where(eq(s.runArtifacts.runId, run.id)).all()
+        .find(a => (JSON.parse(a.manifest) as StageManifest).stage_type === "summary")
+      : undefined;
+    if (!summary) throw new Error("warm_start_source_not_ready: the source must be a succeeded pipeline run with results");
+    return this.readArtifact(summary.hash);
+  }
+
+  /** The warm-start source summary for a leased run's worker, re-checked against the run's owner. */
+  leaseWarmStartSummary(lease: Lease, now = Date.now()) {
+    parseContract("Lease", lease);
+    const job = this.db.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get();
+    assertLease(job, lease, now);
+    const run = this.db.select().from(s.runs).where(eq(s.runs.id, job!.runId)).get()!;
+    const summary = this.warmStartSummary(JSON.parse(run.settings) as Snapshot, run.ownerId);
+    if (!summary) throw new Error("warm_start_not_selected: this run did not select a warm start");
+    return summary;
   }
 
   /** Stores a validated snapshot under its content hash. Saving the same document again is a no-op. */
@@ -203,6 +237,7 @@ export class Store {
         return existing.id;
       }
       // A sweep is one submission for the active limit, but every child run is a solve admission.
+      for (const run of input.runs) this.warmStartSummary(run.settings, ownerId);
       if (input.admission) admit(tx, input.admission, input.runs.length, now);
       const id = randomUUID();
       tx.insert(s.experiments).values({ id, versionId: input.versionId, name: input.name, spec: canonical(input.spec), comparison: canonical(input.comparison), idempotencyKey, requestHash, createdAt: now, ownerId }).run();

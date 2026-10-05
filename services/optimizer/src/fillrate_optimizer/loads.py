@@ -282,6 +282,12 @@ class PartitionResult:
     iterations: int
     runtime_s: float
     cost: int | None
+    # Warm start only: PyVRP's objective of the initial solution on this problem.
+    initial_cost: int | None = None
+
+
+class WarmStartRejected(ValueError):
+    """The initial routes are not a complete, PyVRP-feasible solution of this exact problem."""
 
 
 def truck_count_first_penalty(num_visits: int, max_leg_m: int) -> tuple[int, int]:
@@ -390,7 +396,31 @@ def build_partition_model(problem: PartitionProblem) -> pyvrp.Model:
     return model
 
 
-def solve_partition(problem: PartitionProblem) -> PartitionResult:
+def initial_solution(
+    data: pyvrp.ProblemData, routes: list[list[int]]
+) -> tuple[pyvrp.Solution, int]:
+    """A warm start on exactly `data`, with its objective (spec §3, §10).
+
+    Pinned PyVRP 0.14.0 accepts an incomplete or infeasible initial solution, and even one built
+    on different problem data, without complaint (tests/test_warm_start.py). Fillrate refuses those
+    instead: every client exactly once, built on the same data, complete and feasible.
+    """
+    visited = sorted(k for route in routes for k in route)
+    if visited != list(range(data.num_clients)) or any(not route for route in routes):
+        raise WarmStartRejected("initial routes must visit every client exactly once")
+    solution = pyvrp.Solution(data, routes)
+    if not solution.is_complete() or not solution.is_feasible():
+        raise WarmStartRejected("PyVRP reports the initial solution incomplete or infeasible")
+    cost = pyvrp.CostEvaluator([0] * len(solution.excess_load()), 0, 0).cost(solution)
+    return solution, int(cost)
+
+
+def solve_partition(
+    problem: PartitionProblem, initial_routes: list[list[int]] | None = None
+) -> PartitionResult:
+    """Solve one partition; `initial_routes` (visit indices) warm-starts PyVRP from a plan that
+    the caller has already validated independently. It raises ``WarmStartRejected`` before any
+    search when PyVRP does not see that plan as complete and feasible."""
     if not problem.visits:
         return PartitionResult([], True, 0, 0.0, 0)
     for visit in problem.visits:
@@ -422,12 +452,17 @@ def solve_partition(problem: PartitionProblem) -> PartitionResult:
         or not 0 <= problem.time.depot_open_s < problem.time.horizon_end_s
     ):
         raise ValueError("time data must match the partition matrix and visits")
-    model = build_partition_model(problem)
+    # `Model.solve` is `pyvrp.solve(model.data())`; one data object keeps the initial solution
+    # on exactly the problem that is solved.
+    data = build_partition_model(problem).data()
+    initial, initial_cost = (
+        initial_solution(data, initial_routes) if initial_routes is not None else (None, None)
+    )
 
     stop = MaxRuntime(problem.max_runtime_s)
     if problem.max_iterations is not None:
         stop = MultipleCriteria([MaxIterations(problem.max_iterations), stop])
-    result = model.solve(stop, seed=problem.seed, display=False)
+    result = pyvrp.solve(data, stop, seed=problem.seed, display=False, initial_solution=initial)
     routes = [[a.idx for a in route if a.is_client()] for route in result.best.routes()]
     return PartitionResult(
         routes=routes,
@@ -435,4 +470,5 @@ def solve_partition(problem: PartitionProblem) -> PartitionResult:
         iterations=result.num_iterations,
         runtime_s=result.runtime,
         cost=int(result.cost()) if result.is_feasible() else None,
+        initial_cost=initial_cost,
     )

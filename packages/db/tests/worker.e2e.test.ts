@@ -389,3 +389,42 @@ test.skipIf(!hasUv)("a worker refuses a snapshot it cannot use and fails the run
   expect(failure(missingRun)).toMatchObject({ status: "failed", attempt: 1, code: "travel_snapshot_unavailable" });
   expect(String(failure(missingRun).message)).toContain("travel_snapshot_not_found");
 }, 120_000);
+
+test.skipIf(!hasUv)("a warm-started rerun starts each cluster from the source's validated plan and replays from its bundle", async () => {
+  const source = enqueue({}, "cold");
+  startWorker("warm");
+  await waitFor(() => ["succeeded", "failed"].includes(store.runView(source)!.status));
+  expect(store.runView(source)!.status).toBe("succeeded");
+  const rerun = enqueue({ warm_start: { kind: "run", run_id: source } }, "warm");
+  await waitFor(() => ["succeeded", "failed"].includes(store.runView(rerun)!.status));
+  const view = store.runView(rerun)!;
+  expect(view.status).toBe("succeeded");
+  expect(view.artifacts.map(a => a.stage_type)).toEqual(["preflight", "allocation", "aggregation", "clustering", "travel", "problem", "warm_start", "solve", "validation", "summary"]);
+  const warmManifest = view.artifacts.find(a => a.stage_type === "warm_start")!;
+  expect(view.artifacts.find(a => a.stage_type === "solve")!.parent_hashes).toContain(warmManifest.output_hash);
+  const plan = parseContract("WarmStartPlan", store.readArtifact(warmManifest.output_hash));
+  expect(plan.source).toEqual({ kind: "run", run_id: source });
+  const summary = parseContract("RunSummary", store.readArtifact(view.artifacts.at(-1)!.output_hash)) as RunSummary;
+  const sourceSummary = store.readArtifact(store.runView(source)!.artifacts.at(-1)!.output_hash) as RunSummary;
+  expect(summary.warm_start).toMatchObject({ source: { kind: "run", run_id: source }, plan_id: warmManifest.output_hash, skipped: 0 });
+  const used = summary.clusters.filter(c => c.warm_start);
+  expect(used.length).toBe(summary.warm_start!.used);
+  expect(used.length).toBeGreaterThan(0);
+  for (const c of used) {
+    expect(c.warm_start!.status).toBe("used");
+    expect(c.warm_start!.final_cost!).toBeLessThanOrEqual(c.warm_start!.initial_cost!);
+  }
+  expect(summary.validity).toBe(sourceSummary.validity);
+  expect(summary.totals.trucks).toBeLessThanOrEqual(sourceSummary.totals.trucks);
+
+  const out = join(dir, "bundle"); const file = join(dir, "bundle.zip");
+  writeFileSync(file, replayBundle(store, rerun, optimizer));
+  expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
+  const expected = JSON.parse(readFileSync(join(out, "expected.json"), "utf8"));
+  expect(expected.warm_start.plan_id).toBe(warmManifest.output_hash);
+  const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
+  expect(replay.stdout).toContain("plan identity verified");
+  expect(replay.stdout).toMatch(/warm outcomes reproduced/);
+  expect(replay.stdout).toContain("REPLAY OK");
+  expect(replay.status).toBe(0);
+}, 180_000);

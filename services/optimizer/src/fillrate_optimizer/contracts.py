@@ -22,6 +22,7 @@ class StageManifest(Contract):
         "clustering",
         "travel",
         "problem",
+        "warm_start",
         "solve",
         "validation",
         "summary",

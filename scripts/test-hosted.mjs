@@ -152,6 +152,10 @@ try {
     check("A's run list has it", (await call(b, "/api/v1/runs", as(A))).body?.runs?.some(r => r.id === runId));
     check("A's run page opens", (await fetch(`${b}/runs/${runId}`, as(A))).status === 200);
     check("B's run page is not found", (await fetch(`${b}/runs/${runId}`, as(B))).status === 404);
+    const warmFromA = await call(b, "/api/v1/runs", as(B, { method: "POST", body: { settings: { warm_start: { run_id: runId } } }, headers: { "idempotency-key": randomUUID() } }));
+    check("B cannot warm-start from A's run (404)", warmFromA.status === 404 && warmFromA.body?.error?.code === "warm_start_source_not_found", JSON.stringify(warmFromA.body));
+    const warmEarly = await call(b, "/api/v1/scenarios/runs", as(A, { method: "POST", body: { versionId, settings: { ...settings, warm_start: { run_id: runId } } }, headers: { "idempotency-key": randomUUID() } }));
+    check("A cannot warm-start from an unfinished run (409)", warmEarly.status === 409 && warmEarly.body?.error?.code === "warm_start_source_not_ready", JSON.stringify(warmEarly.body));
     check("operator key does not open A's data", (await call(b, `/api/v1/runs/${runId}`, { headers: { "x-scenario-key": "operator-check" } })).status === 404);
 
     const second = await call(b, "/api/v1/runs", as(A, { method: "POST", body: {}, headers: { "idempotency-key": randomUUID() } }));

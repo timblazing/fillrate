@@ -20,7 +20,9 @@ export type PlanEvaluation = components["schemas"]["PlanEvaluation"];
 export type PlanViolation = components["schemas"]["PlanViolation"];
 export type LabInstance = components["schemas"]["LabInstance"];
 export type LabResult = components["schemas"]["LabResult"];
-export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary" | "ExplorerSettings" | "ExplorerSummary" | "LabInstance" | "LabResult";
+export type WarmStartSource = components["schemas"]["WarmStartSource"];
+export type WarmStartPlan = components["schemas"]["WarmStartPlan"];
+export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary" | "ExplorerSettings" | "ExplorerSummary" | "LabInstance" | "LabResult" | "WarmStartPlan";
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
