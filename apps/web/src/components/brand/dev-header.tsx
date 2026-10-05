@@ -3,9 +3,9 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
+import { Truck } from "lucide-react"
 
 import { AccountButton } from "@/components/account/account-button"
-import { AppIcon } from "@/components/brand/app-icon"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const links = [
@@ -22,7 +22,7 @@ export function DevHeader({ children }: { children?: ReactNode }) {
   return (
     <header className="bg-background/80 sticky top-0 z-30 grid h-14 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b px-4 backdrop-blur-md sm:px-6">
       <Link href="/" aria-label="Fillrate home" className="flex items-center gap-2.5 rounded-md">
-        <AppIcon />
+        <Truck aria-hidden="true" className="size-7 shrink-0" />
         <span className="sr-only font-semibold tracking-tight sm:not-sr-only">Fillrate</span>
       </Link>
       <nav aria-label="Development" className="absolute left-1/2 max-w-[calc(100%-7rem)] -translate-x-1/2 overflow-x-auto overflow-y-hidden">
