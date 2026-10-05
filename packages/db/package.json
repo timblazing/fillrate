@@ -13,6 +13,7 @@
     "./travel-job": "./src/travel-job.ts",
     "./travel-export": "./src/travel-export.ts",
     "./experiments": "./src/experiments.ts",
+    "./evaluate": "./src/evaluate.ts",
     "./canonical": "./src/canonical.ts",
     "./replay": "./src/replay.ts",
     "./geocode": "./src/geocode.ts",
