@@ -24,6 +24,8 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
     if (error instanceof ApiError && [403, 404].includes(error.status)) notFound()
     throw error
   }
+  // Matrix builds have no run view; their progress and result live in the scenario matrix panel.
+  if (detail.kind === "travel_snapshot") redirect("/scenarios")
   if (detail.kind === "explorer") redirect(`/explore/${id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`)
   return (
     <div className="flex min-h-dvh flex-col">

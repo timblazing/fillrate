@@ -10,6 +10,7 @@
     "./imports": "./src/imports.ts",
     "./preflight": "./src/preflight.ts",
     "./travel": "./src/travel.ts",
+    "./travel-job": "./src/travel-job.ts",
     "./travel-export": "./src/travel-export.ts",
     "./experiments": "./src/experiments.ts",
     "./canonical": "./src/canonical.ts",

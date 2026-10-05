@@ -437,3 +437,7 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-05: Route GeoJSON is schematic; only recorded matrices are exported (Claude Code)
 - **Decision:** Run GeoJSON draws straight lines from the depot through physical visits, labeled `schematic_straight_line`, and never the synthetic return. Matrix exports serve only stored travel snapshots (canonical JSON hashing to the id, or long-form CSV with empty cells for missing edges). Estimated-travel runs return 409 `matrix_not_recorded`.
 - **Reason:** Spec §7/§13 require road geometry only "where available", raw matrices preserved and road and estimated distances kept distinct. Regenerating the estimated matrix in TypeScript could drift from the worker's values, so exporting it would present an approximation as the matrix the run used.
+
+## 2026-10-05: Durable Valhalla snapshot jobs are fixture-verified only (Codex)
+- **Decision:** Build one immutable directed snapshot per saved scenario version through the durable worker queue. The worker reads endpoint, costing and provider identity only from deployment configuration; the server revalidates the snapshot, checks its lease and coordinate binding, then stores it for the run owner. No partial result or estimated-travel fallback is accepted.
+- **Verification boundary:** Pytest/Vitest fake-provider coverage and a browser-to-worker run pass. The pinned Valhalla Compose deployment and live coverage/configuration checks remain open, so `directed_road_travel` remains planned.

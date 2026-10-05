@@ -7,9 +7,9 @@ import { and, eq, asc, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { parseContract, type Lease, type ScenarioDocument, type StageManifest, type Snapshot, type WorkerEvent } from "@fillrate/contracts";
-import { assertSnapshotBinding } from "./preflight";
+import { assertSnapshotBinding, demandStops } from "./preflight";
 import * as s from "./schema";
-import { MAX_SNAPSHOT_BYTES, normalizeSnapshot, rememberIdentity, type TravelSnapshot } from "./travel";
+import { bindingMessage, bindNodes, MAX_SNAPSHOT_BYTES, normalizeSnapshot, rememberIdentity, stopNodes, type TravelSnapshot } from "./travel";
 
 export const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export const MAX_COMPLETION_BYTES = 16 * 1024 * 1024;
@@ -138,6 +138,40 @@ export class Store {
     const snapshot = JSON.parse(bytes.toString("utf8")) as TravelSnapshot;
     rememberIdentity(snapshot, id);
     return snapshot;
+  }
+
+  /** Nodes a travel snapshot job must cover for this version: the depot and every stop with demand, in pipeline order. */
+  travelSnapshotNodes(versionId: string) {
+    const document = this.versionDocument(versionId).document as unknown as ScenarioDocument;
+    return stopNodes(document.depot, demandStops(document));
+  }
+
+  /**
+   * Stores the snapshot a leased `travel_snapshot` run built, for the run's owner. The server re-validates and
+   * re-hashes it (the claimed identity must match), requires it to bind to the run's version without missing
+   * or moved nodes, and refuses once cancellation was requested, all in the write transaction, so a cancelled
+   * build never leaves a snapshot behind.
+   */
+  storeLeaseTravelSnapshot(lease: Lease, input: unknown, claimedId: string, now = Date.now()) {
+    parseContract("Lease", lease);
+    const snapshot = normalizeSnapshot(input);
+    const bytes = Buffer.from(canonical(snapshot));
+    if (bytes.length > MAX_SNAPSHOT_BYTES) throw new Error(`travel_snapshot_too_large: ${bytes.length} bytes exceed ${MAX_SNAPSHOT_BYTES}`);
+    const id = contentHash(bytes);
+    if (id !== claimedId) throw new Error("travel_snapshot_hash_mismatch: the snapshot does not match its claimed identity");
+    if (snapshot.provider !== "valhalla") throw new Error("invalid_travel_snapshot: provider must be valhalla");
+    return this.db.transaction(tx => {
+      const job = tx.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get();
+      assertLease(job, lease, now);
+      if (job!.cancelRequested) throw new Error("cancel_requested");
+      const run = tx.select().from(s.runs).where(eq(s.runs.id, job!.runId)).get()!;
+      if (run.kind !== "travel_snapshot") throw new Error("travel_snapshot_not_job: this run does not build a travel snapshot");
+      const binding = bindNodes(snapshot, this.travelSnapshotNodes(run.versionId));
+      if (binding.missing.length || binding.moved.length) throw new Error(`travel_snapshot_stale: ${bindingMessage(binding)}`);
+      const created = tx.insert(s.travelSnapshots).values({ id, compressed: gzipSync(bytes), byteLength: bytes.length, nodeCount: snapshot.nodes.length, provider: snapshot.provider, providerVersion: snapshot.provider_version, datasetRevision: snapshot.dataset_revision, profile: snapshot.profile, createdAt: now }).onConflictDoNothing().run().changes > 0;
+      tx.insert(s.travelSnapshotOwners).values({ snapshotId: id, ownerId: run.ownerId, createdAt: now }).onConflictDoNothing().run();
+      return { id, created };
+    }, { behavior: "immediate" });
   }
 
   /** The snapshot a leased run selected, for its worker; any other identity is refused. */
@@ -541,7 +575,7 @@ export class Store {
     return JSON.parse(bytes.toString("utf8"));
   }
 }
-export type RunKind = "pipeline" | "explorer";
+export type RunKind = "pipeline" | "explorer" | "travel_snapshot";
 export const OPERATOR = "operator", EXAMPLES_OWNER = "examples", PUBLIC_OWNER = "public";
 
 /**

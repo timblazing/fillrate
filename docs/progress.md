@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-10-05: M6 Valhalla snapshot job completion (Codex)
+- PR #41 adds the durable `travel_snapshot` job: owner-scoped admission/idempotency, progress, failure and cancellation, lease-checked snapshot storage, and a `/scenarios` build action that never exposes deployment settings.
+- Verification: `bun run lint` (existing `globe.tsx` warning), `bun run typecheck`, `bun run test` (137), `bun run build`, `bun run test:browser` (all five flows), `bun run test:hosted` (82), `uv run pytest` (243), and `uv run ruff check .` passed. A synthetic local Valhalla service completed the job from the browser; the selected 2-node directed snapshot matched the saved scenario. UI reviewed at 1440×900 and 393×852, with no page-level horizontal overflow.
+- This verifies the fixture/local job path only. No pinned Valhalla image or live coverage is verified, so `directed_road_travel` stays planned. PR #42 remains the next M6 increment.
+
 ## 2026-10-05: M2 design file deferred by owner (Codex)
 - The owner does not want to work on `fillrate.fig` or OpenPencil for now. Defer the coss Components page and additional Foundations tokens until the owner chooses to resume that work; they no longer block M2 completion.
 - Round-two review acceptance, implementation, and recorded verification are complete. M2 is now complete for the accepted scope. The design file remains a future optional follow-up, not an outstanding milestone gate.
@@ -8,8 +13,8 @@
 - PR #37 (matrix browser acceptance, route timeline, capacity and seed lessons) was squash-merged as `88f37e5`.
 - PR #39 (GeoJSON route export and travel matrix downloads) was squash-merged as `a555470`; its CI passed on the PR and merged `main`.
 - PR #40 (Timeline and lesson browser acceptance) was squash-merged as `1f7f1c8`; after resolving overlap with #39, full CI passed on the combined change.
-- Draft, not ready to merge: [#41](https://github.com/timblazing/fillrate/pull/41) durable Valhalla travel-snapshot job (final full verification was not confirmed); [#42](https://github.com/timblazing/fillrate/pull/42) time windows + service durations adapter (stopped mid-implementation; contracts/tests may be incomplete). Their PR bodies list next steps.
-- `directed_road_travel` stays planned: no pinned Valhalla deployment is verified (needs owner hardware). M7 progress/status now includes the merged export and browser-acceptance work; M6 estimates remain unchanged while #41 and #42 are drafts.
+- [#41](https://github.com/timblazing/fillrate/pull/41) durable Valhalla travel-snapshot job is implemented and verified against fixtures and a local fake service; no live deployment is claimed. [#42](https://github.com/timblazing/fillrate/pull/42) time windows + service durations remains a draft stopped mid-implementation.
+- `directed_road_travel` stays planned until a pinned Valhalla deployment is verified on target hardware. M7 progress/status includes the merged export and browser-acceptance work.
 
 ## 2026-10-05: M7 browser acceptance for the route timeline and two lessons (Claude Code)
 - `bun run test:browser` now asserts the `/runs/<id>` Timeline tab in the lesson, matrix and capacity-lesson runs: stop rows equal the truck's visits, Next/Previous and slider Home/End move the active stop, each stop shows an arrival clock and load before/after, and the duration source, "service time not modeled (0 s)", "return not planned" and "schematic straight-line" labels are visible. The matrix flow asserts persisted `leg_s` equals the imported directed durations (not the reverse) and the first rendered drive time matches.
@@ -161,7 +166,7 @@
   - [x] Edited coordinates are refused before enqueue (`travel_snapshot_stale`); submission preflight (TypeScript) and the Python worker read the selected directed matrix for reachability; the validator cross-checks every leg against the snapshot
   - [x] Imported-matrix preview before save, owner-scoped browser snapshot selection, metadata/coverage inspector and coordinate-match status; the heatmap samples the first 12 nodes and labels origin rows, destination columns, units and unreachable edges
   - [x] Repeatable browser acceptance (`test:browser --flow=matrix`, 2026-10-05): directed legs from an asymmetric imported snapshot reach persisted results; a browser coordinate edit is refused with `travel_snapshot_stale`. `directed_road_travel` stays `planned` until the pinned Valhalla deployment is verified
-  - [ ] Durable Valhalla snapshot-building job with progress, failure and cancellation; immutable provider/version/extract/config identity
+  - [x] Durable Valhalla snapshot-building job with progress, failure and cancellation; immutable provider/version/extract/config identity; fake-provider worker and storage tests plus browser-to-worker run verified (2026-10-05)
   - [ ] Pinned Valhalla Compose deployment, extract metadata and live coverage/configuration evidence; inspected-route geometry
   - [ ] Capability-gated fleet/window/depot/group/pickup-delivery/reload increments, manual evaluator and verified warm starts
 - [ ] M7 Learning and exports (spec §13, §15; independent of M6 road selection)

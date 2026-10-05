@@ -35,9 +35,9 @@
     },
     "M6": {
       "weight": 12,
-      "done": 30,
+      "done": 35,
       "state": "active",
-      "notes": "Done: typed directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, stale-coordinate refusal, directed preflight/worker reachability, browser preview/selection/inspector, and repeatable browser acceptance (`test:browser --flow=matrix`) proving directed worker legs and stale refusal. Remaining: durable Valhalla snapshot jobs, pinned live deployment, route geometry and the capability-gated fleet/window/depot/group/shipment/reload adapters, manual evaluator and warm starts. `directed_road_travel` stays planned until deployment evidence passes."
+      "notes": "Done: typed directed travel snapshots, estimated/imported providers, bounded Valhalla truck matrix assembly (fixtures only), immutable content-hash storage, run/cache/comparison/replay binding, stale-coordinate refusal, directed preflight/worker reachability, browser preview/selection/inspector, repeatable imported-matrix browser acceptance, and the durable Valhalla snapshot job with progress/failure/cancellation, owner-scoped storage and browser-to-worker fixture verification. Remaining: pinned live deployment, route geometry and the capability-gated fleet/window/depot/group/shipment/reload adapters, manual evaluator and warm starts. `directed_road_travel` stays planned until deployment evidence passes."
     },
     "M7": {
       "weight": 6,
@@ -53,8 +53,8 @@
     }
   },
   "nextUp": [
-    "M6: finish draft #41 (durable Valhalla snapshot job, fixture and full verification); pinned Compose deployment evidence needs owner hardware.",
-    "M6: finish draft #42 (time windows + service durations adapter, validator fixtures, timeline wait/service states), then a time-windows lesson.",
+    "M6: resume draft #42 (time windows + service durations adapter, validator fixtures, timeline wait/service states), then a time-windows lesson.",
+    "M6: pinned Valhalla Compose deployment evidence needs owner hardware; route geometry follows verification.",
     "M7: Haversine vs recorded road-matrix lesson; road geometry after a verified Valhalla deployment; explorer replay.",
     "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff."
   ]

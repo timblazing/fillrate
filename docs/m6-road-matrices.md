@@ -155,3 +155,32 @@ Next M6 increments:
    A worker job that builds a Valhalla snapshot (the provider exists; nothing calls it yet).
 3. Fetch geometry only for inspected routes, with independent chunk/segment checks.
 4. Add advanced fleet/window/depot features, manual evaluation and warm starts one at a time.
+
+## Durable Valhalla snapshot job (fixture-verified)
+
+A run of kind `travel_snapshot` builds one directed snapshot for a saved scenario version. It is
+verified against loopback fake Valhalla servers only; no live Valhalla has been run, and
+`directed_road_travel` stays `planned`.
+
+- `POST /api/v1/travel-snapshots/jobs` with `{versionId, idempotencyKey}` (an `Idempotency-Key`
+  header also works) queues the job for a version you own. It is admitted and charged in the
+  same transaction as any run; a replay returns the same run. If the server lacks the
+  `VALHALLA_*` settings above the answer is `409 valhalla_not_configured` and nothing is queued.
+  `GET` on the same path returns `{valhalla: {configured}}` for the browser; it never echoes the
+  endpoint or options. Status and cancellation reuse `GET /api/v1/runs/{id}` (progress
+  `blocks_done`/`blocks_total`, result `travel_snapshot.snapshot_id`) and
+  `POST /api/v1/runs/{id}/cancel`.
+- Nodes are the depot plus every located stop with demand, in the exact IDs and order the pipeline
+  binds, so the result attaches to that version with no missing or moved nodes. Costing and every
+  option come only from the deployment settings.
+- The worker calls the lease-checked `store_snapshot` transport RPC. The server re-validates and
+  re-hashes the document (it must equal the claimed identity), requires it to bind to the run's
+  version, and refuses once cancellation was requested, all in the insert transaction, then links
+  the snapshot to the run's owner. The run summary is
+  `{kind: "travel_snapshot", snapshot_id, node_count, blocks}`.
+- Failures are permanent (not retried) with stable codes: `valhalla_not_configured`,
+  `valhalla_config_invalid`, `valhalla_request_rejected` (HTTP 4xx, malformed response, extent over
+  `max_matrix_distance`), `valhalla_unavailable` (transient errors after the retry budget) and
+  `travel_snapshot_nodes`. A worker crash expires the lease and the usual bounded attempts apply.
+  Cancellation kills the worker child and stores nothing. There is never a haversine fallback.
+- Tests: `services/optimizer/tests/test_travel_job.py` and `packages/db/tests/travel-job.e2e.test.ts`.
