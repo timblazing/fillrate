@@ -12,6 +12,7 @@ const links = [
   { href: "/dev", label: "Progress" },
   { href: "/runs", label: "Runs" },
   { href: "/learn", label: "Lessons" },
+  { href: "/labs", label: "Labs" },
   { href: "/dev/components", label: "Design system" },
 ] as const
 

@@ -369,3 +369,27 @@ def test_lab_job_returns_one_hash_checked_artifact():
     assert artifact["manifest"]["output_hash"] == content_hash(artifact["payload"])
     assert out["summary"]["kind"] == "lab" and out["summary"]["validated_feasible"] is True
     assert [e["stage"] for e in events] == ["build", "solve", "validate"]
+
+
+def test_reproduction_checks_iteration_runs_exactly():
+    from fillrate_optimizer.lab.replay import differences
+
+    instance = two_dimension_instance()
+    result = run_lab(instance)
+    expected = {
+        "problem_fingerprint": result.problem_fingerprint,
+        "validated_feasible": result.validated_feasible,
+        "stopped_by": result.solver.stopped_by,
+        "objective_total": result.objective.total,
+        "routes": [
+            {"vehicle_type": r.vehicle_type, "client_ids": [v.client_id for v in r.visits]}
+            for r in result.routes
+        ],
+    }
+    document = instance.model_dump(mode="json")
+    assert differences(document, expected) == []
+    assert differences(document, expected | {"objective_total": 1}) == ["objective 68 ≠ 1"]
+    # A runtime-limited run compares only identity and feasibility.
+    assert differences(document, expected | {"stopped_by": "runtime", "objective_total": 1}) == []
+    changed = two_dimension_instance(weight_capacity=99).model_dump(mode="json")
+    assert differences(changed, expected)[0].startswith("problem fingerprint differs")

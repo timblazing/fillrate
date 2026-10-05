@@ -72,6 +72,7 @@ export class Store {
     if (!idempotencyKey || idempotencyKey.length > 300) throw new Error("invalid_idempotency_key");
     const ownerId = options.ownerId ?? OPERATOR;
     this.assertSubmitter(versionId, ownerId);
+    this.assertVersionKind(versionId, kind);
     if (kind === "pipeline") this.checkTravel(versionId, settings, new Map());
     const requestHash = contentHash(canonical({ versionId, settings, ...(kind === "pipeline" ? {} : { kind }) }));
     return this.db.transaction(tx => {
@@ -190,6 +191,7 @@ export class Store {
     if (!input.runs.length) throw new Error("empty_sweep");
     const ownerId = input.ownerId ?? OPERATOR;
     this.assertSubmitter(input.versionId, ownerId);
+    this.assertVersionKind(input.versionId, "pipeline");
     for (const run of input.runs) parseContract("Snapshot", run.settings);
     const loaded = new Map<string, TravelSnapshot>();
     for (const run of input.runs) this.checkTravel(input.versionId, run.settings, loaded);
@@ -279,6 +281,18 @@ export class Store {
     const row = this.db.select({ ownerId: s.scenarios.ownerId }).from(s.versions).innerJoin(s.scenarios, eq(s.scenarios.id, s.versions.scenarioId)).where(eq(s.versions.id, versionId)).get();
     if (!row) return; // the insert's foreign key reports a missing version
     if (row.ownerId !== EXAMPLES_OWNER && row.ownerId !== ownerId) throw new Error("version_not_found");
+  }
+
+  /**
+   * Solver Lab instances (`kind: "lab_instance"` documents) run only as `lab` runs, and lab runs only on them, so a
+   * lab version never reaches the fulfillment pipeline and a scenario never reaches the lab solver.
+   */
+  private assertVersionKind(versionId: string, kind: RunKind) {
+    const row = this.sqlite.prepare("SELECT json_extract(document, '$.document.kind') AS kind FROM scenario_versions WHERE id=?").get(versionId) as { kind: string | null } | undefined;
+    if (!row) return; // the insert's foreign key reports a missing version
+    const lab = row.kind === "lab_instance";
+    if (kind === "lab" && !lab) throw new Error("lab_version_required");
+    if (kind !== "lab" && lab) throw new Error("version_not_found");
   }
 
   /**
@@ -575,7 +589,7 @@ export class Store {
     return JSON.parse(bytes.toString("utf8"));
   }
 }
-export type RunKind = "pipeline" | "explorer" | "travel_snapshot";
+export type RunKind = "pipeline" | "explorer" | "travel_snapshot" | "lab";
 export const OPERATOR = "operator", EXAMPLES_OWNER = "examples", PUBLIC_OWNER = "public";
 
 /**
