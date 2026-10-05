@@ -82,8 +82,8 @@ export function SeedSteps({ open, closedNote = "Starting runs is disabled on thi
         n={2}
         title="Sweep several seeds"
         observe={[
-          "Each seed is a fresh run. K-means seed is a method choice, not a changed assumption, so all runs share one cohort and are ranked: fewest shipments, then fewest loaded miles.",
-          `With seeds 0 to 5, seed 4 is the best option (19 shipments, about 3,545 miles) and seed 1 the worst (20 shipments). Six seeds give six different partitions.`,
+          "Each seed is a fresh run. K-means seed is a method choice, not a changed assumption, so all runs share one cohort and are ranked by the sweep's visible order (best trade-off, planned revenue, fewest shipments, then fewest loaded miles).",
+          `With seeds 0 to 5, seed 4 loads the fewest miles (19 shipments, about 3,545 miles) and seed 1 is the only one needing 20 shipments. Six seeds give six different partitions.`,
           "Picking a seed after seeing the results is a choice you make; the plan itself does not prove that seed 4 is a better way to cluster, only a better draw for this freight.",
         ]}
       >

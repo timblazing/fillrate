@@ -11,8 +11,8 @@ const appDir = join(root, "apps/web");
 const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
-const flows = selected === "all" ? ["lesson", "import", "matrix", "experiment"] : [selected];
-if (flows.some((flow) => !["lesson", "import", "matrix", "experiment"].includes(flow))) throw new Error("Use --flow=lesson, --flow=import, --flow=matrix, --flow=experiment, or --flow=all.");
+const flows = selected === "all" ? ["lesson", "import", "matrix", "experiment", "lessons"] : [selected];
+if (flows.some((flow) => !["lesson", "import", "matrix", "experiment", "lessons"].includes(flow))) throw new Error("Use --flow=lesson, --flow=import, --flow=matrix, --flow=experiment, --flow=lessons, or --flow=all.");
 
 const dataDir = mkdtempSync(join(tmpdir(), "fillrate-browser-smoke-"));
 const downloadDir = join(dataDir, "downloads");
@@ -86,6 +86,8 @@ function clickMenuItem(name) { browser("find", "role", "menuitem", "click", "--n
 function fillCss(css, value) { browser("fill", css, value); }
 function fillLabel(label, value) { browser("find", "label", label, "fill", value); }
 function setViewport(width, height) { browser("set", "viewport", String(width), String(height)); }
+// Optional visual review: SMOKE_SHOTS=<dir> saves a full-page screenshot at every viewport check.
+let shotCount = 0;
 function assertViewport(width, height) {
   if (width === 393) {
     browser("set", "device", "iPhone 16");
@@ -94,6 +96,7 @@ function assertViewport(width, height) {
   const output = browser("eval", "JSON.stringify({width:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth,height:document.documentElement.clientHeight})");
   let dims;
   try { dims = JSON.parse(JSON.parse(output)); } catch { try { dims = JSON.parse(output); } catch { throw new Error(`Could not read browser viewport dimensions: ${output}`); } }
+  if (process.env.SMOKE_SHOTS) { mkdirSync(process.env.SMOKE_SHOTS, { recursive: true }); browser("screenshot", "--full", join(process.env.SMOKE_SHOTS, `${String(++shotCount).padStart(2, "0")}-${width}.png`)); }
   expect(dims.width === width && dims.height === height && dims.scroll <= dims.width, `Page has horizontal overflow or incorrect viewport at ${width}x${height}: ${JSON.stringify(dims)}`);
 }
 
@@ -186,6 +189,8 @@ async function lessonFlow(baseURL, runKey) {
   const exported = await downloadRunJson(runId);
   expect(exported.run.status === "succeeded" && exported.summary.validity === "valid" && exported.summary.coverage === "complete", "Lesson JSON export did not contain its valid complete run.");
   expect(exported.summary.totals.planned_cents > 0 && exported.summary.totals.trucks > 0, "Lesson JSON export has empty revenue or shipment totals.");
+  expect(detail.summary.travel?.mode === "estimated" && detail.summary.trucks.every((t) => t.visits.every((v) => typeof v.leg_s === "number" && v.leg_s > 0)), "Lesson run should carry estimated travel with a duration on every leg.");
+  await checkTimeline(detail, "public lesson", { timing: "Estimated drive time (constant speed)" });
   checkBrowserDiagnostics("public lesson");
   console.log(`  passed: run ${runId.slice(0, 8)}, revenue ${exported.summary.totals.planned_cents} cents, ${exported.summary.totals.trucks} shipments, JSON export`);
 }
@@ -194,6 +199,66 @@ function checkRun(detail, label) {
   expect(detail?.status === "succeeded", `${label} run failed: ${detail?.error ?? detail?.status}`);
   expect(detail?.summary?.validity === "valid" && detail?.summary?.coverage === "complete", `${label} run was not valid and complete: ${JSON.stringify(detail?.summary)}`);
   expect(detail?.summary?.totals?.planned_cents > 0 && detail?.summary?.totals?.trucks > 0, `${label} run has no meaningful revenue or shipments.`);
+}
+
+const pageText = () => browser("eval", "document.body.innerText");
+const parsedText = () => { const raw = pageText(); try { return JSON.parse(raw); } catch { return raw; } };
+const evalValue = (js) => { const raw = browser("eval", js); try { return JSON.parse(raw); } catch { return raw; } };
+
+// Replays one succeeded run's Timeline tab (spec §13, M7). The browser must already be on /runs/<id>.
+// Asserts the selector, stop controls, arrival/load rendering and the explicit model limits, then bounds at both viewports.
+async function checkTimeline(detail, label, { timing }) {
+  const summary = detail.summary;
+  setViewport(1440, 900);
+  browser("find", "role", "tab", "click", "--name", "Timeline", "--exact");
+  browser("wait", "--fn", "!!document.querySelector('ol[aria-label=\"Planned route timeline\"]')", "--timeout", "20000");
+  const rows = () => evalValue("document.querySelectorAll('ol[aria-label=\"Planned route timeline\"] > li button').length");
+  const stopCount = summary.trucks[0].visits.length;
+  expect(Number(rows()) === stopCount, `${label}: expected ${stopCount} stop rows for ${summary.trucks[0].id}, got ${rows()}.`);
+  // Truck selector: a combobox only when the run has more than one shipment, otherwise the shipment id is shown plainly.
+  const selectors = Number(evalValue("document.querySelectorAll('[aria-label=\"Shipment\"]').length"));
+  if (summary.trucks.length > 1) expect(selectors >= 1, `${label}: Timeline has no shipment selector for ${summary.trucks.length} shipments.`);
+  else expect(parsedText().includes(summary.trucks[0].id), `${label}: Timeline does not name its only shipment.`);
+  // Fixed explanations of what the timeline is and is not.
+  const text = String(parsedText());
+  expect(text.includes(timing), `${label}: Timeline duration source should read "${timing}".`);
+  expect(text.includes("Schematic straight-line path"), `${label}: Timeline is missing the schematic straight-line label.`);
+  expect(text.includes("service time not modeled (0 s)") && text.includes("not modeled (0 s)"), `${label}: Timeline is missing the "not modeled" service text.`);
+  expect(/Return to .+: not planned/.test(text), `${label}: Timeline is missing the "not planned" return text.`);
+  expect(/\d+:\d\d/.test(text), `${label}: Timeline shows no arrival clock times.`);
+  // Stop controls: Next/Previous move the active row; the slider moves by keyboard.
+  const active = () => Number(evalValue("[...document.querySelectorAll('ol[aria-label=\"Planned route timeline\"] > li button')].findIndex(b => b.getAttribute('aria-current') === 'step')"));
+  expect(active() === -1, `${label}: cursor should start at departure (active row ${active()}).`);
+  browser("find", "role", "button", "click", "--name", "Next stop", "--exact");
+  expect(active() === 0, `${label}: Next stop should activate the first stop (active row ${active()}).`);
+  const afterNext = String(parsedText());
+  expect(/At stop 1, .+: service time not modeled \(0 s\), .+ on board after delivery/.test(afterNext), `${label}: stop status did not describe the first arrival.`);
+  expect(/\d+:\d\d\s+of\s+\d+:\d\d/.test(afterNext), `${label}: current time of total is not shown.`);
+  if (stopCount > 1) {
+    browser("find", "role", "button", "click", "--name", "Next stop", "--exact");
+    expect(active() === 1, `${label}: Next stop did not advance to the second stop.`);
+    browser("find", "role", "button", "click", "--name", "Previous stop", "--exact");
+    expect(active() === 0, `${label}: Previous stop did not return to the first stop.`);
+  }
+  browser("focus", 'input[type="range"]');
+  browser("press", "Home");
+  expect(active() === -1, `${label}: Home on the slider should return to departure (active row ${active()}).`);
+  browser("press", "End");
+  expect(active() === stopCount - 1, `${label}: End on the slider should reach the last stop (active row ${active()}).`);
+  // Row text: arrival clock plus load before -> after.
+  const rowText = String(evalValue("document.querySelector('ol[aria-label=\"Planned route timeline\"] button').innerText"));
+  expect(/\d+:\d\d/.test(rowText) && /Load/.test(rowText) && /→/.test(rowText) && /Service\s+not modeled \(0 s\)/.test(rowText), `${label}: first stop row lacks arrival time, load before/after or service text: ${rowText}`);
+  // Switch shipment when there is more than one: the stop list follows the selection.
+  if (summary.trucks.length > 1) {
+    browser("find", "role", "combobox", "click", "--name", "Shipment");
+    browser("find", "role", "option", "click", "--name", summary.trucks[1].id, "--exact");
+    const second = summary.trucks[1].visits.length;
+    browser("wait", "--fn", `document.querySelectorAll('ol[aria-label="Planned route timeline"] > li button').length === ${second}`, "--timeout", "10000");
+  }
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics(`${label} timeline`);
+  setViewport(1440, 900);
 }
 
 async function importFlow(baseURL, scenarioKey) {
@@ -325,6 +390,7 @@ async function matrixFlow(baseURL, scenarioKey) {
     schema_version: 1, nodes, provider: "imported", provider_version: "smoke-import/1", dataset_revision: "smoke-2026-10", profile: "truck", options: {},
     distance_units: "kilometers", duration_units: "seconds", distances: km, durations: km.map((row) => row.map((v) => v === 0 ? 0 : Math.round(v * 60))), warnings: [], conversion: "nearest-integer-ties-to-even/v1",
   };
+  const durations = matrix.durations;
   const meters = km.map((row) => row.map((v) => roundHalfEven(v * 1000)));
   expect(meters[0][1] !== meters[1][0], "Test matrix must be asymmetric.");
 
@@ -370,6 +436,8 @@ async function matrixFlow(baseURL, scenarioKey) {
     for (const visit of [...truck.visits].sort((a, b) => a.sequence - b.sequence)) {
       const from = index.get(previous), to = index.get(visit.location_id);
       expect(visit.leg_m === meters[from][to], `Leg ${previous} -> ${visit.location_id} is ${visit.leg_m} m, expected directed matrix value ${meters[from][to]} m.`);
+      expect(visit.leg_s === durations[from][to], `Leg ${previous} -> ${visit.location_id} lasts ${visit.leg_s} s, expected directed matrix duration ${durations[from][to]} s.`);
+      expect(visit.leg_s !== durations[to][from], `Leg ${previous} -> ${visit.location_id} duration equals the reverse direction.`);
       expect(visit.leg_m !== meters[to][from], `Leg ${previous} -> ${visit.location_id} equals the reverse direction.`);
       expect(visit.leg_m !== Math.round(haversineM(nodes[from], nodes[to]) * 1.2), "Leg equals the haversine estimate instead of the matrix.");
       checked += 1; previous = visit.location_id;
@@ -401,6 +469,12 @@ async function matrixFlow(baseURL, scenarioKey) {
   browser("wait", "--text", "Validated, complete", "--timeout", "20000");
   assertViewport(1440, 900);
   assertViewport(393, 852);
+  await checkTimeline(detail, "directed matrix", { timing: "Imported matrix durations" });
+  // The rendered first-stop drive time is the matrix duration of the depot leg, not an estimate.
+  const firstLeg = [...detail.summary.trucks[0].visits].sort((a, b) => a.sequence - b.sequence)[0];
+  const firstSeconds = durations[0][index.get(firstLeg.location_id)];
+  const rendered = String(evalValue("document.querySelector('ol[aria-label=\"Planned route timeline\"] button dd').innerText"));
+  expect(rendered.includes(`${Math.floor(firstSeconds / 60)}`), `Timeline first drive "${rendered}" does not reflect matrix duration ${firstSeconds} s.`);
 
   // Edit a stop's coordinates in the browser, save a new version and try to run against the same snapshot.
   const runsBefore = (await fetchOkJson(baseURL, "/api/v1/runs", scenarioKey)).runs.length;
@@ -487,6 +561,120 @@ async function experimentFlow(baseURL, runKey) {
   console.log(`  passed: 2 combinations, Best option ${best.metrics.planned_cents} cents, ${best.metrics.trucks} shipments`);
 }
 
+function clickLink(name) { browser("find", "role", "link", "click", "--name", name, "--exact"); }
+const pageNumber = (text, pattern, label) => {
+  const match = text.match(pattern);
+  expect(match, `Lesson page does not show ${label}.`);
+  return Number(match[1].replaceAll(",", ""));
+};
+const milesOf = (summary) => Math.round(summary.totals.loaded_distance_m / 1609.344);
+const partitionOf = (summary) => JSON.stringify(summary.clusters.map((c) => [...c.location_ids].sort()).sort((a, b) => (a.join() < b.join() ? -1 : 1)));
+
+// The two M7 lessons: each page's actions start real runs, and the observations it prints are checked
+// against the persisted results (the stable facts services/optimizer/tests/test_lesson_*.py also assert).
+async function lessonsFlow(baseURL, runKey) {
+  console.log("Browser smoke: truck capacity and seed sensitivity lessons");
+  beginBrowserFlow("lessons");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const runDetail = (id) => fetchOkJson(baseURL, `/api/v1/runs/${id}${access}`, runKey, "x-run-key");
+  const doneRun = (id, label) => poll(() => runDetail(id), (body) => ["succeeded", "failed"].includes(body?.status), label);
+  const doneSweep = (id, count, label) => poll(() => fetchOkJson(baseURL, `/api/v1/experiments/${id}${access}`, runKey, "x-run-key"),
+    (body) => body?.runs?.length === count && body.runs.every((r) => !["queued", "claimed", "running"].includes(r.status)), label);
+  const hrefIdOf = (prefix) => evalValue(`document.querySelector('a[href^="${prefix}/"]')?.getAttribute('href') ?? ''`).split("/").pop().split("?")[0];
+
+  // Truck capacity
+  open(`${baseURL}/learn/truck-capacity${access}`);
+  expect(snapshot().includes('heading "Truck capacity"'), "Truck capacity lesson did not load.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  let page = String(parsedText());
+  const bound = pageNumber(page, /so at least (\d+) trucks are needed/, "its capacity lower bound");
+  expect(/more than two trailers by itself/.test(page), "Capacity lesson does not name the oversize stop.");
+  clickButton("Run the pipeline");
+  browser("wait", "--text", "Open run", "--timeout", "20000");
+  const capacityRunId = hrefIdOf("/runs");
+  expect(/^[0-9a-f-]{36}$/.test(capacityRunId), `Capacity run link is unexpected: ${capacityRunId}`);
+  const capacityRun = await doneRun(capacityRunId, "Capacity lesson run");
+  checkRun(capacityRun, "capacity lesson");
+  const totals = capacityRun.summary.totals;
+  expect(bound === totals.capacity_lower_bound && totals.trucks === bound, `Capacity lesson shows a lower bound of ${bound}; run used ${totals.trucks} trucks against ${totals.capacity_lower_bound}.`);
+  expect(capacityRun.summary.trucks.every((t) => t.load <= 5300) && capacityRun.summary.unplanned.length === 0, "Capacity run has an overloaded truck or unplanned lines.");
+  const byLocation = new Map();
+  for (const truck of capacityRun.summary.trucks) for (const visit of truck.visits) byLocation.set(visit.location_id, [...(byLocation.get(visit.location_id) ?? []), truck.id]);
+  const split = [...byLocation].filter(([, trucks]) => new Set(trucks).size > 1);
+  expect(split.length === 1 && new Set(split[0][1]).size === 3, `Exactly one stop should be split across three shipments: ${JSON.stringify(split)}`);
+  clickLink("Open run");
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  await checkTimeline(capacityRun, "capacity lesson run", { timing: "Estimated drive time (constant speed)" });
+  open(`${baseURL}/learn/truck-capacity${access}`);
+  browser("wait", "--text", "Compare how much freight there is", "--timeout", "20000");
+  clickButton("Start 4 runs");
+  browser("wait", "--text", "Open sweep", "--timeout", "20000");
+  const capacitySweepId = hrefIdOf("/experiments");
+  const capacitySweep = await doneSweep(capacitySweepId, 4, "Capacity inventory sweep");
+  const byPercent = [...capacitySweep.runs].sort((a, b) => b.varied.inventory_percent - a.varied.inventory_percent);
+  expect(stable(byPercent.map((r) => r.varied.inventory_percent)) === "[100,70,50,25]", `Unexpected sweep inventory percents: ${JSON.stringify(byPercent.map((r) => r.varied))}`);
+  expect(byPercent.every((r) => r.status === "succeeded" && r.validity === "valid"), "Every inventory sweep run must be valid.");
+  expect(stable(byPercent.map((r) => r.metrics.trucks)) === "[13,9,7,4]", `Inventory sweep should need 13, 9, 7 and 4 trucks; got ${byPercent.map((r) => r.metrics.trucks)}.`);
+  expect(byPercent.every((r) => r.metrics.trucks === r.capacity_lower_bound), "Each inventory run should use exactly its capacity lower bound.");
+  expect(new Set(byPercent.map((r) => r.signature)).size === 4, "Changed inventory assumptions should form separate cohorts.");
+  page = String(parsedText());
+  expect(page.includes("13, 9, 7 and 4"), "Capacity lesson no longer documents the 13, 9, 7 and 4 shipment counts.");
+  clickLink("Open sweep");
+  browser("wait", "--url", "**/experiments/**", "--timeout", "20000");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  open(`${baseURL}/learn/truck-capacity${access}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("truck capacity lesson");
+
+  // Seed sensitivity
+  open(`${baseURL}/learn/seed-sensitivity${access}`);
+  expect(snapshot().includes('heading "Seeds and solver budgets"'), "Seed lesson did not load.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  page = String(parsedText());
+  const seedBound = pageNumber(page, /at least (\d+) trucks, whatever the seed/, "its capacity lower bound");
+  const lessonLow = pageNumber(page, /from about ([\d,]+) \(seed \d\)/, "its lowest loaded miles");
+  const lessonHigh = pageNumber(page, /to about ([\d,]+) \(seed \d\)/, "its highest loaded miles");
+  clickButton("Run the pipeline");
+  browser("wait", "--text", "Open run", "--timeout", "20000");
+  const seedRun = await doneRun(hrefIdOf("/runs"), "Seed lesson run");
+  checkRun(seedRun, "seed lesson");
+  expect(seedRun.summary.totals.capacity_lower_bound === seedBound && seedRun.summary.totals.trucks >= seedBound, `Seed run has ${seedRun.summary.totals.trucks} trucks against a displayed lower bound of ${seedBound}.`);
+  expect(stable(seedRun.summary.clusters.map((c) => c.location_ids.length).sort((a, b) => a - b)) === "[8,11,13,13,15]", "Seed 0 should cut the stops into clusters of 8, 11, 13, 13 and 15.");
+  clickButton("Start 6 runs");
+  browser("wait", "--text", "Open sweep", "--timeout", "20000");
+  const seedSweep = await doneSweep(hrefIdOf("/experiments"), 6, "Seed sweep");
+  expect(seedSweep.runs.every((r) => r.status === "succeeded" && r.validity === "valid" && r.coverage === "complete"), "Every seed run must be valid and complete.");
+  expect(new Set(seedSweep.runs.map((r) => r.signature)).size === 1 && seedSweep.runs.every((r) => r.eligible), "Seed runs are a method choice and must share one ranked cohort.");
+  const seedRuns = await Promise.all(seedSweep.runs.map(async (r) => ({ seed: r.varied.kmeans_seed, ...(await runDetail(r.id)).summary, rank: r.rank })));
+  expect(stable(seedRuns.map((r) => r.seed).sort((a, b) => a - b)) === "[0,1,2,3,4,5]", "Sweep should cover seeds 0 to 5.");
+  expect(new Set(seedRuns.map(partitionOf)).size === 6, "Six seeds should give six distinct partitions.");
+  const miles = seedRuns.map(milesOf);
+  expect(Math.min(...miles) === lessonLow && Math.max(...miles) === lessonHigh, `Loaded miles range ${Math.min(...miles)} to ${Math.max(...miles)} differs from the lesson's ${lessonLow} to ${lessonHigh}.`);
+  expect(seedRuns.every((r) => r.totals.trucks >= seedBound), "No seed may use fewer trucks than the lower bound.");
+  const fewest = seedRuns.filter((r) => r.totals.trucks === Math.min(...seedRuns.map((x) => x.totals.trucks))).sort((a, b) => milesOf(a) - milesOf(b))[0];
+  expect(fewest.seed === 4 && seedRuns.filter((r) => r.totals.trucks === 20).map((r) => r.seed).join() === "1", "Seed 4 should load the fewest miles at the fewest shipments and seed 1 alone needs 20.");
+  expect(seedRuns.some((r) => r.rank === 1), "The sweep should name a Best option.");
+  clickLink("Open sweep");
+  browser("wait", "--url", "**/experiments/**", "--timeout", "20000");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  open(`${baseURL}/learn/seed-sensitivity${access}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("seed sensitivity lesson");
+  console.log(`  passed: capacity ${bound} trucks at the bound, split stop on 3 shipments, inventory sweep 13/9/7/4; seeds give 6 partitions, ${Math.min(...miles)}-${Math.max(...miles)} loaded miles`);
+}
+
 async function stop() {
   if (stopping) return stopping;
   stopping = (async () => {
@@ -540,6 +728,7 @@ try {
     if (flow === "import") await importFlow(baseURL, scenarioKey);
     if (flow === "matrix") await matrixFlow(baseURL, scenarioKey);
     if (flow === "experiment") await experimentFlow(baseURL, runKey);
+    if (flow === "lessons") await lessonsFlow(baseURL, runKey);
   }
   await stop();
 } catch (error) {
