@@ -130,6 +130,7 @@ Address geocoding sends addresses to the U.S. Census Bureau batch geocoder. `FIL
 - **Port already in use**: change `--port` and `INTERNAL_PORT`/`FILLRATE_INTERNAL_URL` as above.
 - **Startup refuses with exit status 78**: auth settings (`BETTER_AUTH_*`, `GITHUB_*`) are set without `FILLRATE_MODE`, or the mode value is neither `local` nor `hosted`. The message names the setting. Set `FILLRATE_MODE=local` (auth settings are then unused) or remove them.
 - **npm warns `EBADENGINE` for agent-browser** on Node 22: agent-browser (browser tests only) declares Node 24. Use Node 24.
+- **Typecheck or build fails with `Cannot find module '../../../src/app/…/page.js'` in `.next/dev/types`** after pulling a change that moved routes: delete `apps/web/.next` (stale generated types) and run again.
 - **`better-sqlite3` fails to load** after switching Node versions: reinstall (`npm ci` or `bun install`) so the native module matches the runtime.
 
 ## Lockfiles
