@@ -1,5 +1,12 @@
 # Progress
 
+## 2026-10-05: M6/M7 batch integration handoff (Codex)
+- PR #37 (matrix browser acceptance, route timeline, capacity and seed lessons) was squash-merged as `88f37e5`.
+- PR #39 (GeoJSON route export and travel matrix downloads) was squash-merged as `a555470`; its CI passed on the PR and merged `main`.
+- PR #40 (Timeline and lesson browser acceptance) was squash-merged as `1f7f1c8`; after resolving overlap with #39, full CI passed on the combined change.
+- Draft, not ready to merge: [#41](https://github.com/timblazing/fillrate/pull/41) durable Valhalla travel-snapshot job (final full verification was not confirmed); [#42](https://github.com/timblazing/fillrate/pull/42) time windows + service durations adapter (stopped mid-implementation; contracts/tests may be incomplete). Their PR bodies list next steps.
+- `directed_road_travel` stays planned: no pinned Valhalla deployment is verified (needs owner hardware). M7 progress/status now includes the merged export and browser-acceptance work; M6 estimates remain unchanged while #41 and #42 are drafts.
+
 ## 2026-10-05: M7 browser acceptance for the route timeline and two lessons (Claude Code)
 - `bun run test:browser` now asserts the `/runs/<id>` Timeline tab in the lesson, matrix and capacity-lesson runs: stop rows equal the truck's visits, Next/Previous and slider Home/End move the active stop, each stop shows an arrival clock and load before/after, and the duration source, "service time not modeled (0 s)", "return not planned" and "schematic straight-line" labels are visible. The matrix flow asserts persisted `leg_s` equals the imported directed durations (not the reverse) and the first rendered drive time matches.
 - New `--flow=lessons` (in the default run): `/learn/truck-capacity` shows the lower bound equal to the run's trucks, one oversize stop split across 3 shipments and an inventory sweep of 13/9/7/4 trucks each at its lower bound; `/learn/seed-sensitivity` shows seed-0 clusters of 8/11/13/13/15, six distinct partitions in one cohort, loaded miles 3,545–3,869, seed 4 with the fewest miles and only seed 1 needing 20 shipments. Timeline and both lessons pass bounds and console/page-error checks at 1440×900 and iPhone 16 393×852; `SMOKE_SHOTS=<dir>` saves screenshots at each check.
