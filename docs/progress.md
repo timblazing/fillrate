@@ -6,6 +6,38 @@
 - **Verification (branch merged with `origin/main` cf3368e):** `uv run pytest` 295 passed (before the merge, which changed no Python), Ruff check/format, contract regeneration without drift, `bun run lint` (existing `globe.tsx` warning), `bun run typecheck`, `bun run build`, `bun run test:hosted` 86 passed (before the merge), and local agent-browser runs with the basemap CDN blocked of every flow (`manual-plan`, `lesson`, `import`, `matrix`, `experiment`, `lessons`, `time-windows`) passed after the merge, run one flow at a time. `bun run test` (Vitest, real Python): 144/145 with `isolation.test.ts` "concurrent admissions … across processes" timing out at 5 s under load average ~13; it passed alone (11/11). An earlier all-flows run lost the web server mid-flow twice (fetch failed in `import`/`matrix`, cause not found, no OOM record); the individual reruns passed. Screenshots reviewed at 1440×900 and 393×852 (comparison table scrolls horizontally on phone).
 - **Gaps / next:** saving named manual baselines (needs an owner-scoped table and migration); moving visits between clusters; warm starts from a manual plan (separate branch). `deploy/smoke_experiments.py` expects the `manual` example id but has no evaluate check; image smoke not run.
 
+## 2026-10-05: Parallel M6/M7/M8 batch, open PRs and handoff (Claude Code)
+- Reconciled the records with `origin/main` (f82922f, then cf3368e) and split the remaining spec work that needs no owner input into PR-sized tasks. Each task got its own worktree and branch from `origin/main`. Every PR below carries its own progress and decision entries; this entry is the batch index and handoff. `docs/status.json` is unchanged because nothing in this batch has merged yet. Update it once the batch merges.
+- **Open PRs:**
+  - [#48](https://github.com/timblazing/fillrate/pull/48) M7 k explorer replay bundle. CI passed on its first head; it was re-queued after main was merged in.
+  - [#49](https://github.com/timblazing/fillrate/pull/49) M8 browser cancellation and scenario edit/branch flows, with workbench fixes.
+  - [#50](https://github.com/timblazing/fillrate/pull/50) M6 Solver Lab foundation (multiple load dimensions, heterogeneous fleet, `/labs`, `lab` job kind).
+  - [#51](https://github.com/timblazing/fillrate/pull/51) M8 npm compatibility (`package-lock.json`, lock-parity check, Node 24 npm CI job), `docs/local.md` and `docs/handoff.md`. **The lockfile policy needs owner review.**
+  - [#52](https://github.com/timblazing/fillrate/pull/52) M6 verified warm starts.
+  - [#53](https://github.com/timblazing/fillrate/pull/53) M6 manual plan evaluator and the M7 manual-vs-optimized lesson.
+  - [#54](https://github.com/timblazing/fillrate/pull/54) **draft:** M7 Haversine vs recorded (synthetic) matrix lesson. Its new browser flow failed once on the merged head (matrix export fetch); `test:hosted` was not run.
+- **Merge order and conflicts to expect:**
+  - #52 and #53 both edit `pipeline.py`, `/runs/<id>` and `scripts/test-browser.mjs`.
+  - #50, #53 and #54 add example ids, browser flows and `smoke_experiments.py` entries.
+  - Generated contracts: rerun `bun run contracts:generate` after each merge rather than hand-resolving them.
+- **Local verification boundaries:**
+  - The container has Node 22, not 24, and 4 shared cores.
+  - With up to seven agents running, the full `bun run test` hit 5 s timeouts in multi-process race tests (`store`, `isolation`) and occasionally a `travel-job`/`worker` e2e lease retry. Those tests passed alone or with longer timeouts, and CI passed #48 on its first head. Treat CI as the authority until a quiet full run is observed.
+  - Browser flows ran locally through agent-browser with the pre-installed Chromium. The sandbox egress policy blocks `basemaps.cartocdn.com`, so the local runner ignored exactly that console error and MapLibre's follow-on "Worker failed to load". CI runs the unmodified flows.
+  - No image was built or smoke-tested.
+- **Still needs the owner:**
+  - the pinned Valhalla Compose deployment, live coverage evidence and road geometry (which also blocks route-geometry timelines and GeoJSON road geometry);
+  - image release dispatches for these runtime changes;
+  - the optional fillrate.fig alignment;
+  - real sample order/inventory rows and cost rates;
+  - Node 24 + npm evidence (comes from the new CI job once #51 merges);
+  - native timings on the VPS and Pi 5.
+- **Not started:**
+  - Solver Lab features after #50: multiple depots, reloads, optional visits/prizes, client groups, paired shipments (PyVRP 0.14.0 has `Shipment`, `ClientGroup`, `reload_depots`, prizes and multiple depots natively);
+  - their lessons, plus lessons for load dimensions and fleets;
+  - a heterogeneous fleet in the fulfillment pipeline;
+  - saved manual baselines (needs a migration) and warm starts from them.
+
 ## 2026-10-05: App shell separated from public/dev navbars (Claude Code)
 - Product pages moved into an `(app)` route group with an icon-rail `AppShell`; `/dev` keeps `DevHeader` (Progress, Design system); signed-out visitors and `privacy`/`request-access` use `PublicHeader`. Header logo/title sized to match the owner's SportsCal header.
 - Verified: typecheck and lint pass; `/scenarios` screenshot checked in local mode at 1440×900. Not checked: hosted-mode signed-out header, phone width, other app pages.
@@ -386,7 +418,6 @@ M4 is complete for the owner-accepted release scope (see the dated deployment an
 - **Target hardware/recovery (done for the image, 2026-10-01):** `deploy/target_check.py` collected timings and the restart/persistence, worker-loss, cancellation and backup/restore checks on the VPS and the Pi 5 against release `fa9c0b8`; all passed (`docs/release-verification.md`). Rerun it for each release that changes the worker or storage.
 - **Account-free local distribution (after explicit mode):** prove root Bun/npm install/dev/build/worker under Node 24 + Python 3.13/uv; resolve npm workspaces and lockfile reproducibility under one dependency policy. Remove Bun-only runner assumptions without introducing Bun-only application APIs. Document supported native optimizer/SQLite platforms, data location/export/backups and loopback defaults. Both image architectures and local Compose start without auth secrets; hosted refuses missing configuration. Verify before advertising npm support; image builds/smokes stay in Actions.
 - **Reproducible handoff (after evidence):** exact commands/artifacts and supported behavior/limits for container, native development, public ingress, auth, two-user isolation, quotas, mode refusal, backup/restore, performance and recovery. Include real hardware timings and local distribution evidence; retain the accepted hosted-release evidence and its explicit live-test limits.
-
 
 ## 2026-10-01: Verification record reconciliation (Codex)
 
