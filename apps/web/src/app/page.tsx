@@ -57,9 +57,9 @@ export default function Home() {
     <main className="min-h-dvh">
       <header className="border-b">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" aria-label="Fillrate home" className="flex shrink-0 items-center gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
-            <Truck aria-hidden="true" className="size-6" />
-            <span className="font-semibold tracking-tight">Fillrate</span>
+          <Link href="/" aria-label="Fillrate home" className="flex shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+            <Truck aria-hidden="true" className="size-5" />
+            <span className="text-lg font-semibold tracking-tight">Fillrate</span>
           </Link>
 
           <nav aria-label="Main navigation" className="flex items-center gap-4 sm:gap-7">
