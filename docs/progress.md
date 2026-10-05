@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-10-05: Public landing page (Codex)
+- Expanded `/` with a responsive navbar, hero, workflow overview and FAQ. The page retains the existing globe and links to Scenarios, GitHub and project progress.
+- Copy follows current behavior: Allocate → Cluster → Solve, estimated travel is labeled as estimated, and the product is described as a planning workbench rather than a dispatch or navigation system.
+- Visual review passed at 1440×900 and 393×852 in the collaborative preview; both sizes have no page-level horizontal overflow. Lint, typecheck and production build passed; lint reports only the existing `globe.tsx` effect-dependency warning. No browser acceptance test was added or run for this page.
+
 ## 2026-10-05: M6 time windows and service-duration adapter (Codex)
 - PR #42 adds an optional scenario time model with IANA timezone and DST-aware normalization, service-start windows, per-location service durations, a native PyVRP adapter, provable window preflight findings, and an independent validator that recomputes timing from the raw directed duration matrix. Documents without active time attributes preserve their canonical hash and legacy result shape.
 - Results persist validated arrival, wait, service, start and departure values. The route Timeline now shows local clock time, waiting, service, windows and slack. Open routes still have no timed return. A deterministic six-stop synthetic example exercises two shipments and a planned wait.
