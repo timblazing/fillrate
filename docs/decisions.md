@@ -429,3 +429,7 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-05: Lessons for basic capacity and seed sensitivity; public time budgets stay fixed (Claude Code)
 - **Decision:** Add `capacity` and `seeds` examples with `/learn/truck-capacity` and `/learn/seed-sensitivity`. Pytest asserts every observation. The seeds lesson demonstrates seed and iteration-budget reproducibility interactively but explains time budgets only in text: public synthetic runs keep accepting only sweep-axis overrides, so anonymous compute stays bounded.
 - **Reason:** These are the remaining spec §13 lessons that current behavior supports. The others need M6 adapters (windows, fleets, depots, reloads, groups, shipments, manual evaluation) or road matrices in public lessons.
+
+## 2026-10-05: Route GeoJSON is schematic; only recorded matrices are exported (Claude Code)
+- **Decision:** Run GeoJSON draws straight lines from the depot through physical visits, labeled `schematic_straight_line`, and never the synthetic return. Matrix exports serve only stored travel snapshots (canonical JSON hashing to the id, or long-form CSV with empty cells for missing edges). Estimated-travel runs return 409 `matrix_not_recorded`.
+- **Reason:** Spec §7/§13 require road geometry only "where available", raw matrices preserved and road and estimated distances kept distinct. Regenerating the estimated matrix in TypeScript could drift from the worker's values, so exporting it would present an approximation as the matrix the run used.
