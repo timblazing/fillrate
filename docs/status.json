@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-05",
   "focus": "M6",
-  "productBehavior": 62,
+  "productBehavior": 63,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -41,9 +41,9 @@
     },
     "M7": {
       "weight": 6,
-      "done": 50,
+      "done": 60,
       "state": "active",
-      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity and seed/runtime sensitivity lessons with pytest-asserted observations; /learn index; per-leg drive seconds (`leg_s`, `drive_s`) and a planned-route timeline on /runs/<id> with schematic paths labeled; `leg_s` in the loads CSV. Remaining: lessons that need M6 adapters, timeline on road geometry with service/wait states, GeoJSON route geometry, explorer replay and road-matrix export."
+      "notes": "Done: flagship Fulfillment pipeline lesson and Python replay bundle; allocation, basic truck capacity and seed/runtime sensitivity lessons; /learn index; per-leg drive seconds and planned-route timeline; GeoJSON route export and owner-only snapshot matrix downloads; browser acceptance for Timeline, lessons and matrix exports. Remaining: lessons needing M6 adapters, timeline service/wait states, verified Valhalla road geometry and explorer replay."
     },
     "M8": {
       "weight": 7,
@@ -53,10 +53,9 @@
     }
   },
   "nextUp": [
-    "Review/merge #39 (GeoJSON + matrix export) and #40 (timeline + lesson browser acceptance); then update the M7 estimate.",
-    "M6: verify and finish draft #41 (durable Valhalla snapshot job, fixtures only); pinned Compose deployment evidence needs owner hardware.",
+    "M6: finish draft #41 (durable Valhalla snapshot job, fixture and full verification); pinned Compose deployment evidence needs owner hardware.",
     "M6: finish draft #42 (time windows + service durations adapter, validator fixtures, timeline wait/service states), then a time-windows lesson.",
-    "M7: Haversine vs recorded road-matrix lesson; road geometry after a verified Valhalla deployment.",
+    "M7: Haversine vs recorded road-matrix lesson; road geometry after a verified Valhalla deployment; explorer replay.",
     "M8: account-free native Bun/npm distribution, cancellation/edit/branch browser coverage and reproducible handoff.",
     "M2: fillrate.fig Components/Foundations with local OpenPencil when available."
   ]
