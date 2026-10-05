@@ -94,7 +94,25 @@ export function Step({ n, title, observe, children }: { n: number; title: string
   )
 }
 
-export const wholeNumber = (raw: string, min: number, max: number, name: string) => {
+/** The model fields a lesson relies on, and what it does not model (spec §13: documented supported fields). */
+export function ModelFields({ fields, notModeled }: { fields: readonly (readonly [string, string])[]; notModeled: string }) {
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="model-fields">
+      <h2 id="model-fields" className="text-sm font-medium">Model fields this lesson uses</h2>
+      <dl className="bg-card grid gap-x-6 gap-y-2 rounded-xl border p-4 text-sm sm:grid-cols-[max-content_minmax(0,1fr)]">
+        {fields.map(([name, text]) => (
+          <div key={name} className="contents">
+            <dt className="font-mono text-xs break-all sm:pt-0.5">{name}</dt>
+            <dd className="text-muted-foreground text-pretty">{text}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="text-muted-foreground text-xs text-pretty">Not modeled: {notModeled}</p>
+    </section>
+  )
+}
+
+export const wholeNumber =(raw: string, min: number, max: number, name: string) => {
   const n = Number(raw)
   if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${name} must be a whole number from ${min} to ${max}.`)
   return n
