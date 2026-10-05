@@ -184,3 +184,13 @@ verified against loopback fake Valhalla servers only; no live Valhalla has been 
   `travel_snapshot_nodes`. A worker crash expires the lease and the usual bounded attempts apply.
   Cancellation kills the worker child and stores nothing. There is never a haversine fallback.
 - Tests: `services/optimizer/tests/test_travel_job.py` and `packages/db/tests/travel-job.e2e.test.ts`.
+
+## Lesson matrix (synthetic, bundled)
+
+`/learn/road-matrices` runs one scenario on estimated travel and on `examples/lesson-matrix-snapshot.json`, a
+synthetic recorded directed matrix from `fillrate_optimizer.lesson_matrix` (an invented river/bridge and ridge
+network, not real roads). The web server stores it for the `examples` owner by content hash
+(`Store.seedExampleTravelSnapshot`) before the `matrix_recorded` example's first run; everything after that is the
+ordinary snapshot path above. Regenerate with `uv run python -m fillrate_optimizer.lesson_matrix`; the settings'
+`travel_snapshot_id` changes with any change to the document, and pytest and Vitest check both agree.
+

@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1067,6 +1067,77 @@ async function lessonsFlow(baseURL, runKey) {
   console.log(`  passed: capacity ${bound} trucks at the bound, split stop on 3 shipments, inventory sweep 13/9/7/4; seeds give 6 partitions, ${Math.min(...miles)}-${Math.max(...miles)} loaded miles; windows 2 trucks/225 mi vs 1 truck/177 mi without`);
 }
 
+// The road matrix lesson (M7): both runs start from the page on the bundled synthetic scenario, one on estimated travel and
+// one on the bundled synthetic recorded matrix; the page's comparison and the run page are checked against the persisted
+// runs (the facts services/optimizer/tests/test_lesson_matrix.py asserts), and the recorded run's exports carry its matrix.
+async function roadMatricesFlow(baseURL, runKey) {
+  console.log("Browser smoke: Haversine versus recorded road matrices lesson");
+  beginBrowserFlow("road-matrices");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const doneRun = (id, label) => poll(() => fetchOkJson(baseURL, `/api/v1/runs/${id}${access}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), label);
+  const runLinks = () => evalValue(`JSON.stringify([...document.querySelectorAll('a[href^="/runs/"]')].map((a) => a.getAttribute('href').split('/').pop().split('?')[0]))`);
+  const linkIds = () => { const raw = runLinks(); return typeof raw === "string" ? JSON.parse(raw) : raw; };
+  open(`${baseURL}/learn/road-matrices${access}`);
+  expect(snapshot().includes('heading "Haversine versus recorded road matrices"'), "Road matrix lesson did not load.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  let page = String(parsedText());
+  expect(page.includes("Synthetic") && page.includes("It is not real roads"), "Road matrix lesson does not label its matrix as synthetic.");
+  expect(/Memphis DC → Ridge resort\s+470 mi\s+633 mi/.test(page) && /Grocery warehouse → Hardware store\s+60 mi\s+321 mi/.test(page), "Road matrix lesson's detour table is missing the ridge or westbound pair.");
+
+  clickButton("Run on estimated travel");
+  browser("wait", "--text", "Open estimated run", "--timeout", "20000");
+  const [estimatedId] = linkIds();
+  expect(/^[0-9a-f-]{36}$/.test(estimatedId ?? ""), `Estimated run link is unexpected: ${estimatedId}`);
+  const estimated = await doneRun(estimatedId, "Road matrix lesson, estimated run");
+  checkRun(estimated, "road matrix lesson, estimated");
+  const est = estimated.summary;
+  expect(est.travel?.mode === "estimated" && estimated.settings.travel_snapshot_id === null && est.totals.trucks === 2 && milesOf(est) === 724 && est.unplanned.length === 0,
+    `Estimated run should plan every stop on 2 trucks, about 724 estimated miles: ${est.totals.trucks} trucks, ${milesOf(est)} mi.`);
+
+  clickButton("Run on the recorded matrix");
+  browser("wait", "--text", "Open recorded-matrix run", "--timeout", "20000");
+  const recordedId = linkIds().find((id) => id !== estimatedId);
+  expect(/^[0-9a-f-]{36}$/.test(recordedId ?? ""), `Recorded-matrix run link is unexpected: ${recordedId}`);
+  const recorded = await doneRun(recordedId, "Road matrix lesson, recorded-matrix run");
+  const rec = recorded.summary;
+  const snapshotId = recorded.settings.travel_snapshot_id;
+  expect(recorded.status === "succeeded" && rec.validity === "valid" && rec.coverage === "partial", `Recorded-matrix run should be valid and partial: ${recorded.status} ${rec?.validity} ${rec?.coverage}`);
+  expect(/^[0-9a-f]{64}$/.test(snapshotId ?? "") && rec.travel?.mode === "snapshot" && rec.travel.snapshot_id === snapshotId && rec.travel.provider === "imported" && rec.travel.dataset_revision.includes("not real roads"),
+    `Recorded-matrix run does not record the bundled synthetic snapshot: ${JSON.stringify(rec.travel)}`);
+  expect(stable(rec.unplanned.map((u) => [u.location_id, u.reason, u.pieces])) === stable([["RM-07", "unreachable", 4]]), `Only the ridge resort should be unshipped, as unreachable: ${JSON.stringify(rec.unplanned)}`);
+  expect(rec.totals.trucks === 1 && milesOf(rec) === 488, `Recorded-matrix run should use 1 truck and about 488 matrix miles: ${rec.totals.trucks} trucks, ${milesOf(rec)} mi.`);
+  expect(rec.trucks[0].visits.map((v) => v.location_id).join() === "RM-02,RM-01,RM-03,RM-04,RM-06,RM-05", `Recorded-matrix truck should serve the west bank first: ${rec.trucks[0].visits.map((v) => v.location_id)}`);
+  expect(stable(rec.clusters.map((c) => c.location_ids)) === stable(est.clusters.map((c) => c.location_ids)), "Travel must not change the clusters.");
+
+  // The page's side-by-side comparison reads the same persisted runs.
+  browser("wait", "--text", "Not interchangeable", "--timeout", "20000");
+  page = String(parsedText());
+  for (const needle of [`${milesOf(est)} mi (estimated miles)`, `${milesOf(rec)} mi (recorded-matrix miles)`, "Ridge resort: 4 (unreachable)", "valid, complete", "valid, partial", "Recorded matrix (imported, synthetic)"])
+    expect(page.includes(needle), `Road matrix comparison is missing "${needle}".`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("road matrix lesson");
+
+  // The recorded run's page labels its miles and drive times by the matrix, and its exports carry the matrix.
+  open(`${baseURL}/runs/${recordedId}${access}`);
+  browser("wait", "--text", "Validated, partial coverage", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes("From the recorded matrix (synthetic-lesson-network") && !page.includes("Estimated: haversine"), "Recorded-matrix run page does not label its miles by the matrix.");
+  await checkTimeline(recorded, "road matrix lesson", { timing: "Imported matrix durations" });
+  const exportGet = (query) => localFetch(new URL(`/api/v1/runs/${recordedId}/export?${query}`, baseURL), { headers: { "x-run-key": runKey }, signal: AbortSignal.timeout(15_000) });
+  const matrixExport = await (await exportGet("format=matrix&as=json")).json();
+  expect(matrixExport.snapshot_id === snapshotId && matrixExport.snapshot?.options?.synthetic === true && matrixExport.binding?.every((b) => b.in_snapshot && b.coordinates_match), "Recorded run's matrix export does not carry the bundled synthetic snapshot.");
+  const bundle = await exportGet("format=python");
+  expect(bundle.status === 200 && Buffer.from(await bundle.arrayBuffer()).includes("travel-snapshot.json"), "Recorded run's replay bundle should include travel-snapshot.json.");
+  expect((await localFetch(new URL(`/api/v1/runs/${estimatedId}/export?format=matrix`, baseURL), { headers: { "x-run-key": runKey } })).status === 409, "The estimated run has no recorded matrix to export.");
+  checkBrowserDiagnostics("road matrix lesson run");
+  console.log(`  passed: estimated 2 trucks/${milesOf(est)} mi complete; recorded matrix ${snapshotId.slice(0, 10)} 1 truck/${milesOf(rec)} mi, ridge resort unreachable; comparison, timeline and exports`);
+}
+
 // Manual plan evaluator (spec §10) and the manual versus optimized routes lesson: the lesson's dispatcher plans are
 // evaluated through the page, then the run's Manual plan tab is edited from the keyboard and evaluated. Every
 // number is checked against the persisted run and services/optimizer/tests/test_lesson_manual.py.
@@ -1267,6 +1338,7 @@ try {
     if (flow === "experiment") await experimentFlow(baseURL, runKey);
     if (flow === "lessons") await lessonsFlow(baseURL, runKey);
     if (flow === "time-windows") await timeWindowsFlow(baseURL, scenarioKey);
+    if (flow === "road-matrices") await roadMatricesFlow(baseURL, runKey);
     if (flow === "manual-plan") await manualPlanFlow(baseURL, runKey);
     if (flow === "cancel") await cancelFlow(baseURL, scenarioKey);
     if (flow === "edit") await editFlow(baseURL, scenarioKey);

@@ -25,7 +25,7 @@ import { toastManager } from "@/components/ui/toast"
 import { allocationObjectiveLabel, allocationSettingsLabel, COST_FALLBACK, cpSatStatusLabel, legRule, preflightChecks, reasonGroup, reasonLabel, shipmentLabel, shipments, type UnshippedGroup, unshippedGroups } from "@/lib/copy"
 import type { RunDetail } from "@/lib/server/runs"
 import { METERS_PER_MILE } from "@/lib/shipment-sheet"
-import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, formatPercent, plural } from "@/lib/units"
+import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, formatPercent, plural, travelBasis } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import { ManualPlanPanel } from "./manual-plan"
@@ -295,7 +295,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
     ["Allocation", `${formatCount(allocated)} of ${formatCount(ordered)}`, `pieces · ${allocationSettingsLabel(summary.settings)}`],
     ["Aggregation", formatCount(t.visits), t.visits === 1 ? "stop" : "stops"],
     ["Clustering", formatCount(summary.clustering.effective_cluster_count), `clusters · ${strategyLabel(summary)}`],
-    ["Travel", `× ${summary.settings.travel_circuity}`, "haversine miles"],
+    ["Travel", travelBasis(summary.travel, summary.settings.travel_circuity).step, travelBasis(summary.travel, summary.settings.travel_circuity).unit],
     ["Solve", formatCount(t.trucks), t.trucks === 1 ? "shipment" : "shipments"],
     ["Validation", summary.validity === "valid" ? "valid" : "invalid", `coverage ${summary.coverage}`],
     ["Summary", formatMoney(t.planned_cents, { compact: true }), "planned revenue"],
@@ -354,7 +354,7 @@ function Results({ summary, run, runKey, canEvaluate }: { summary: RunSummary; r
           value={t.avg_fill == null ? "n/a" : formatPercent(t.avg_fill)}
           footnote={t.min_fill == null ? undefined : `Lowest ${formatPercent(t.min_fill)} · ${lowCount} under ${formatPercent(FILL_LOW)}`}
         />
-        <StatTile label="Loaded miles" value={miles(t.loaded_distance_m)} footnote={`Estimated: haversine × ${summary.settings.travel_circuity}, open routes`} />
+        <StatTile label="Loaded miles" value={miles(t.loaded_distance_m)} footnote={travelBasis(summary.travel, summary.settings.travel_circuity).note} />
         <StatTile label="Clusters" value={formatCount(summary.clustering.effective_cluster_count)} footnote={strategyLabel(summary)} />
       </div>
 
@@ -836,6 +836,12 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
     ],
     ["Allocation", allocationProvenance(summary)],
     ["Trailer", `${formatFeet(s.trailer_capacity, 0)}, linear feet only, open routes`],
+    [
+      "Travel",
+      summary.travel?.mode === "snapshot"
+        ? `Directed ${summary.travel.provider} matrix ${summary.travel.snapshot_id?.slice(0, 12)} · ${summary.travel.provider_version} · ${summary.travel.dataset_revision} · ${summary.travel.profile}`
+        : `Estimated: haversine × ${s.travel_circuity} at a constant speed`,
+    ],
     ["Max single drive", `${miles(s.max_leg_m)}, including depot → first stop (not the return)`],
     ["Cluster diameter", s.max_cluster_diameter_m ? `Optional policy on: ${miles(s.max_cluster_diameter_m)} widest pair (haversine × ${s.cluster_circuity})` : "Off (optional policy)"],
     [

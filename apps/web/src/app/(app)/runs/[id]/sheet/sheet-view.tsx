@@ -20,7 +20,7 @@ export function SheetView({
   runId,
   scenario,
   depot,
-  circuity,
+  milesNote,
   capacity,
   sheets,
   total,
@@ -31,7 +31,7 @@ export function SheetView({
   runId: string
   scenario: string
   depot: string
-  circuity: number
+  milesNote: string
   capacity: number
   sheets: Sheet[]
   total: number
@@ -167,7 +167,7 @@ export function SheetView({
               </tfoot>
             </table>
             <p className="mt-3 text-xs">
-              Open route: no return to the depot. Miles are estimated (haversine × {circuity}), not road miles. Linear feet are the only load
+              Open route: no return to the depot. {milesNote} Linear feet are the only load
               dimension; this sheet is not a packing or compliance plan.
             </p>
           </article>

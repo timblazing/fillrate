@@ -9,7 +9,7 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { parseContract, type Lease, type ScenarioDocument, type StageManifest, type Snapshot, type WorkerEvent } from "@fillrate/contracts";
 import { assertSnapshotBinding, demandStops } from "./preflight";
 import * as s from "./schema";
-import { bindingMessage, bindNodes, MAX_SNAPSHOT_BYTES, normalizeSnapshot, rememberIdentity, stopNodes, type TravelSnapshot } from "./travel";
+import { bindingMessage, bindNodes, MAX_SNAPSHOT_BYTES, normalizeSnapshot, rememberIdentity, snapshotIdentity, stopNodes, type TravelSnapshot } from "./travel";
 
 export const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export const MAX_COMPLETION_BYTES = 16 * 1024 * 1024;
@@ -144,6 +144,18 @@ export class Store {
     const created = this.db.insert(s.travelSnapshots).values({ id, compressed: gzipSync(bytes), byteLength: bytes.length, nodeCount: snapshot.nodes.length, provider: snapshot.provider, providerVersion: snapshot.provider_version, datasetRevision: snapshot.dataset_revision, profile: snapshot.profile, createdAt: now }).onConflictDoNothing().run().changes > 0;
     this.db.insert(s.travelSnapshotOwners).values({ snapshotId: id, ownerId, createdAt: now }).onConflictDoNothing().run();
     return { created, ...this.travelSnapshotInfo(id, ownerId)! };
+  }
+
+  /**
+   * Stores a bundled example's recorded snapshot (from `examples/`) for the examples owner, idempotently by content
+   * hash. Its identity must be the one the example's settings select. Snapshot rows are immutable and no caller acts
+   * as the examples owner, so the example snapshot is read-only and stays out of every account's snapshot list.
+   */
+  seedExampleTravelSnapshot(input: unknown, expectedId: string, now = Date.now()) {
+    if (this.ownsTravelSnapshot(expectedId, EXAMPLES_OWNER)) return expectedId;
+    const id = snapshotIdentity(normalizeSnapshot(input));
+    if (id !== expectedId) throw new Error(`travel_snapshot_hash_mismatch: the bundled snapshot hashes to ${id.slice(0, 12)}, not the selected ${expectedId.slice(0, 12)}`);
+    return this.saveTravelSnapshot(input, now, EXAMPLES_OWNER).id;
   }
 
   ownsTravelSnapshot(id: string, ownerId: string) {

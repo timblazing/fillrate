@@ -4,6 +4,7 @@ import { initializeDatabase } from "@/lib/server/database"
 import { assertRunRead, pagePrincipal } from "@/lib/server/access"
 import { ApiError, runDetail } from "@/lib/server/runs"
 import { type SheetColumn, shipmentSheets } from "@/lib/shipment-sheet"
+import { travelBasis } from "@/lib/units"
 
 import { SheetView } from "./sheet-view"
 
@@ -36,7 +37,7 @@ export default async function SheetPage({ params, searchParams }: PageProps<"/ru
       runId={detail.id}
       scenario={detail.summary.scenario_name}
       depot={detail.summary.depot.label}
-      circuity={detail.summary.settings.travel_circuity}
+      milesNote={travelBasis(detail.summary.travel, detail.summary.settings.travel_circuity).sentence}
       capacity={detail.summary.settings.trailer_capacity}
       sheets={sheets}
       total={all.length}
