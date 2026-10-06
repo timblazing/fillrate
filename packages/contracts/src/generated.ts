@@ -2007,20 +2007,24 @@ export interface components {
         };
         /**
          * WarmStartSource
-         * @description Where a warm start's plan comes from (spec §10, M6). Today only a succeeded pipeline run the
-         *     submitter can read; the web resolves it with owner checks and the worker receives its validated
-         *     plan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)
-         *     would be a new `kind` producing the same plan document.
+         * @description Where a warm start's plan comes from (spec §10, M6). Either a succeeded pipeline run the
+         *     submitter can read (`{kind: "run", run_id}`) or one of the submitter's saved manual baselines
+         *     (`{kind: "manual_baseline", baseline_id}`). The web resolves it with owner checks and the
+         *     worker receives the source over the loopback transport; Python turns either into the same
+         *     `WarmStartPlan` document. The id field of the other kind is left out of dumps, so `run`
+         *     sources keep their original content hash.
          */
         WarmStartSource: {
+            /** Baseline Id */
+            baseline_id?: string | null;
             /**
              * Kind
              * @default run
-             * @constant
+             * @enum {string}
              */
-            kind: "run";
+            kind: "run" | "manual_baseline";
             /** Run Id */
-            run_id: string;
+            run_id?: string | null;
         };
         /** WarmStartSummary */
         WarmStartSummary: {

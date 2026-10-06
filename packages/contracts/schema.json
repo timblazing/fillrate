@@ -4327,24 +4327,44 @@
     },
     "WarmStartSource": {
       "additionalProperties": false,
-      "description": "Where a warm start's plan comes from (spec \u00a710, M6). Today only a succeeded pipeline run the\nsubmitter can read; the web resolves it with owner checks and the worker receives its validated\nplan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)\nwould be a new `kind` producing the same plan document.",
+      "description": "Where a warm start's plan comes from (spec \u00a710, M6). Either a succeeded pipeline run the\nsubmitter can read (`{kind: \"run\", run_id}`) or one of the submitter's saved manual baselines\n(`{kind: \"manual_baseline\", baseline_id}`). The web resolves it with owner checks and the\nworker receives the source over the loopback transport; Python turns either into the same\n`WarmStartPlan` document. The id field of the other kind is left out of dumps, so `run`\nsources keep their original content hash.",
       "properties": {
+        "baseline_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Baseline Id"
+        },
         "kind": {
-          "const": "run",
           "default": "run",
+          "enum": [
+            "run",
+            "manual_baseline"
+          ],
           "title": "Kind",
           "type": "string"
         },
         "run_id": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Run Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Run Id"
         }
       },
-      "required": [
-        "run_id"
-      ],
       "title": "WarmStartSource",
       "type": "object"
     },

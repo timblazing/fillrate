@@ -1,10 +1,9 @@
 "use client"
 
 import type { RunSummary } from "@fillrate/contracts"
-import { ArrowLeft, Ban, Check, Download, Printer, RotateCcw } from "lucide-react"
+import { ArrowLeft, Ban, Check, Download, Printer } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
@@ -30,6 +29,7 @@ import { cn } from "@/lib/utils"
 
 import { ManualPlanPanel } from "./manual-plan"
 import { TimelinePanel } from "./timeline-panel"
+import { type WarmRerun, WarmRerunButton } from "./warm-rerun"
 
 const RunMap = dynamic(() => import("./run-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
@@ -39,10 +39,7 @@ const miles = (m: number) => formatMiles(m / METERS_PER_MILE)
 
 type PipelineDetail = Extract<RunDetail, { kind: "pipeline" }>
 
-/** How the page can start this run again warm-started from it (computed on the server; null when the caller cannot). */
-export type WarmRerun =
-  | { kind: "example"; example: string; overrides: Record<string, unknown> }
-  | { kind: "scenario"; versionId: string; settings: Omit<RunSummary["settings"], "warm_start"> }
+export type { WarmRerun }
 
 const strategyLabel = (summary: RunSummary) =>
   summary.clustering.strategy === "h3" ? `H3 cells · resolution ${summary.clustering.h3_resolution}`
@@ -118,7 +115,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
                 <Printer aria-hidden /> Shipment sheets
               </Button>
               <ExportMenu id={run.id} hasMatrix={run.summary?.travel?.mode === "snapshot"} />
-              {rerun && <WarmRerunButton runId={run.id} rerun={rerun} runKey={runKey} />}
+              {rerun && <WarmRerunButton source={{ kind: "run", run_id: run.id }} rerun={rerun} runKey={runKey} />}
             </>
           )}
         </div>
@@ -147,39 +144,8 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
           <AlertDescription>The worker stopped responding on every attempt ({run.max_attempts}). Start a new run.</AlertDescription>
         </Alert>
       )}
-      {run.summary && <Results summary={run.summary} run={run} runKey={runKey} canEvaluate={canEvaluate} />}
+      {run.summary && <Results summary={run.summary} run={run} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun ?? null} />}
     </>
-  )
-}
-
-/** Same scenario and settings, each cluster's solve started from this run's validated plan where it still fits (M6). */
-function WarmRerunButton({ runId, rerun, runKey }: { runId: string; rerun: WarmRerun; runKey?: string }) {
-  const router = useRouter()
-  const [pending, setPending] = useState(false)
-  async function start() {
-    setPending(true)
-    const warm_start = { kind: "run", run_id: runId }
-    const [url, body] = rerun.kind === "example"
-      ? ["/api/v1/runs", { example: rerun.example, settings: { ...rerun.overrides, warm_start } }]
-      : ["/api/v1/scenarios/runs", { versionId: rerun.versionId, settings: { ...rerun.settings, warm_start } }]
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
-        body: JSON.stringify(body),
-      })
-      const created = await res.json()
-      if (!res.ok) throw new Error(created.error?.message ?? "Could not start the run.")
-      router.push(`/runs/${created.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
-    } catch (error) {
-      toastManager.add({ type: "error", title: "Run not started", description: error instanceof Error ? error.message : undefined })
-      setPending(false)
-    }
-  }
-  return (
-    <Button variant="outline" size="sm" onClick={start} loading={pending} title="Same scenario and settings; each cluster starts from this run's validated plan when it still matches">
-      <RotateCcw aria-hidden /> Re-run warm-started
-    </Button>
   )
 }
 
@@ -198,14 +164,22 @@ function WarmStartNotes({ summary }: { summary: RunSummary }) {
   if (!warm) return null
   const rows = summary.clusters.map((c, i) => ({ c, i })).filter(({ c }) => c.warm_start)
   return (
-    <section className="bg-card rounded-xl border p-3 text-sm" aria-label="Warm start">
+    <section className="bg-card rounded-xl border p-3 text-sm" aria-label="Warm start" data-warm-source={warm.source.kind}>
       <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
         <span className="font-medium">Warm start</span>
         <span className="text-muted-foreground text-xs">
-          From run{" "}
-          <Link className="font-mono underline-offset-2 hover:underline" href={`/runs/${warm.source.run_id}`}>
-            {warm.source.run_id.slice(0, 8)}
-          </Link>
+          {warm.source.kind === "manual_baseline" ? (
+            <>
+              From saved manual baseline <span className="font-mono">{warm.source.baseline_id?.slice(0, 8)}</span>
+            </>
+          ) : (
+            <>
+              From run{" "}
+              <Link className="font-mono underline-offset-2 hover:underline" href={`/runs/${warm.source.run_id}`}>
+                {warm.source.run_id?.slice(0, 8)}
+              </Link>
+            </>
+          )}
           : {warm.used} of {warm.used + warm.skipped} solved {warm.used + warm.skipped === 1 ? "cluster" : "clusters"} started from its validated plan. The objective never rises from a validated start; results stay heuristic.
         </span>
       </div>
@@ -316,7 +290,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   )
 }
 
-function Results({ summary, run, runKey, canEvaluate }: { summary: RunSummary; run: PipelineDetail; runKey?: string; canEvaluate: boolean }) {
+function Results({ summary, run, runKey, canEvaluate, rerun }: { summary: RunSummary; run: PipelineDetail; runKey?: string; canEvaluate: boolean; rerun: WarmRerun | null }) {
   const [cluster, setCluster] = useState<string | null>(null)
   const [hexes, setHexes] = useState(false)
   const [truck, setTruck] = useState<string | null>(null)
@@ -401,7 +375,7 @@ function Results({ summary, run, runKey, canEvaluate }: { summary: RunSummary; r
           <TimelinePanel summary={summary} />
         </TabsPanel>
         <TabsPanel value="manual" className="pt-3">
-          <ManualPlanPanel summary={summary} runId={run.id} runKey={runKey} canEvaluate={canEvaluate} />
+          <ManualPlanPanel summary={summary} runId={run.id} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun} />
         </TabsPanel>
         <TabsPanel value="unshipped" className="pt-3">
           <UnshippedTable summary={summary} />
@@ -852,7 +826,7 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
     ],
     ["Excluded by user", s.excluded_line_ids?.length ? plural(s.excluded_line_ids.length, "line") : "none"],
     ["Clustering", `k-means on 3D unit vectors, seed ${s.kmeans_seed}, n_init ${s.kmeans_n_init}; ${summary.clustering.fits} fits${summary.clustering.repairs.length ? `, ${summary.clustering.repairs.length} repairs` : ""}`],
-    ["Solver", `PyVRP ${summary.versions.pyvrp}, seed ${s.solver_seed}, ${s.solver_max_iterations ? `${s.solver_max_iterations} iterations or ` : ""}${s.solver_time_limit_s} s per cluster${s.warm_start ? `, warm-started from run ${s.warm_start.run_id.slice(0, 8)}` : ""}`],
+    ["Solver", `PyVRP ${summary.versions.pyvrp}, seed ${s.solver_seed}, ${s.solver_max_iterations ? `${s.solver_max_iterations} iterations or ` : ""}${s.solver_time_limit_s} s per cluster${s.warm_start ? `, warm-started from ${s.warm_start.kind === "manual_baseline" ? `manual baseline ${s.warm_start.baseline_id?.slice(0, 8)}` : `run ${s.warm_start.run_id?.slice(0, 8)}`}` : ""}`],
     ["Display", `Low fill under ${formatPercent(FILL_LOW)} (display setting, never sent to the solver)`],
     ["Versions", Object.entries(summary.versions).map(([k, v]) => `${k} ${v}`).join(" · ")],
   ]

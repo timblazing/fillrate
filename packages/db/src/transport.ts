@@ -83,7 +83,7 @@ export function createWorkerTransport(store: Store, options: WorkerTransportOpti
       }
       if (route === "/internal/worker/warm_start") {
         const { lease } = body as { lease: Lease };
-        return send(res, 200, { summary: store.leaseWarmStartSummary(lease, now()) });
+        return send(res, 200, store.leaseWarmStartSource(lease, now()));
       }
       if (route === "/internal/worker/store_snapshot") {
         const { lease, snapshot, snapshot_id } = body as { lease: Lease; snapshot: unknown; snapshot_id: string };

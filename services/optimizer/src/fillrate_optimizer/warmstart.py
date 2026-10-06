@@ -15,9 +15,9 @@ rule, and only after the independent validator accepts the mapped plan on the ne
    ``solver_rejected``.
 
 A cluster that fails any rule is solved cold with the reason recorded. The source interface is the
-`WarmStartPlan` document: today `plan_from_summary` builds it from a succeeded run's summary (the
-worker receives that summary over the loopback transport after the web's owner checks); a saved
-manual baseline could produce the same document later.
+`WarmStartPlan` document: `plan_from_summary` builds it from a succeeded run's summary and
+`plan_from_baseline` from a saved manual baseline (the worker receives either over the loopback
+transport after the web's owner checks). Both then go through the same rules.
 """
 
 from __future__ import annotations
@@ -102,3 +102,33 @@ def match_cluster(
     if same_places:
         return same_places, None, "source_invalid", "The source cluster has no validated plan."
     return None, None, "visit_set_changed", "No source cluster planned exactly these visits."
+
+
+def plan_from_baseline(baseline: dict[str, Any], source: WarmStartSource) -> WarmStartPlan:
+    """The plan of a saved manual baseline (spec §10): one cluster of the run it was made on, with
+    the routes the author saved and the location and load of each visit as the evaluator recorded
+    them. Only a baseline the evaluator found valid becomes a validated source cluster; any other
+    is refused here (the web refuses it earlier), never offered as a start. The generic rules and
+    the validator gate then judge it on the new problem exactly as they judge a run's plan."""
+    if not baseline.get("valid"):
+        raise ValueError("the baseline is invalid and cannot be a warm start")
+    known = {v["visit_id"]: v for truck in baseline["trucks"] for v in truck["visits"]}
+    routes = [
+        [
+            WarmStartVisit(
+                visit_id=vid, location_id=known[vid]["location_id"], load=known[vid]["load"]
+            )
+            for vid in route
+        ]
+        for route in baseline["routes"]
+    ]
+    locations = sorted({v.location_id for route in routes for v in route})
+    cluster = WarmStartCluster(
+        cluster_id=baseline["cluster_id"],
+        status="validated",
+        location_ids=locations,
+        routes=routes,
+    )
+    return WarmStartPlan(
+        source=source, travel=travel_identity(baseline["settings"]), clusters=[cluster]
+    )
