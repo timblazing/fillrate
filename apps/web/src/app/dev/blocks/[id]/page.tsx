@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
+import { pagePrincipal } from "@/lib/server/access"
+import { notFound, redirect } from "next/navigation"
 
 import { FullscreenBlock, type BlockId } from "../../components/sections/blocks"
 import { toc } from "../../components/toc"
@@ -17,6 +18,9 @@ export async function generateMetadata({ params }: PageProps<"/dev/blocks/[id]">
 
 // One gallery block filling the viewport, for design review and screenshots.
 export default async function FullscreenBlockPage({ params }: PageProps<"/dev/blocks/[id]">) {
+  const who = await pagePrincipal()
+  if (who.kind === "anonymous") redirect("/")
+  if (who.kind === "pending") redirect("/request-access")
   const item = block((await params).id)
   if (!item) notFound()
   return <FullscreenBlock id={item[0] as BlockId} />

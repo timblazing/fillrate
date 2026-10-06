@@ -86,6 +86,8 @@ The Python script embeds the instance and the recorded outcome and calls `fillra
 | `prizes` | `lab-prizes.json` | Planar, 8 stops: 5 required near the depot, 3 remote optional with prize 60 each. All three skipped (5 of 8 visited, 1 van): nominal cost 315 (100 + 215), uncollected prizes 180, PyVRP objective 495. Seeds 0–3 agree. |
 | `prizes_high` | `lab-prizes-high.json` | Prizes 400: all 8 visited on 2 vans, nominal cost 800, nothing uncollected, 1,200 collected. Learn: `/learn/optional-visits`. |
 
+The `dimensions`/`dimensions_volume` and `fleet`/`fleet_trucks` pairs back the lessons `/learn/load-dimensions` and `/learn/heterogeneous-fleet`, which start them from the page and compare the persisted results.
+
 ## Adding a capability
 
 Each later PR should stay small and touch only its own pieces:
