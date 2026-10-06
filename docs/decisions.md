@@ -558,3 +558,6 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-06: MIT license and public README (Codex)
 - **Decision:** License Fillrate under MIT, copyright 2026 Clay Blasingame, as requested by the owner.
 - **Decision:** Keep the README focused on product capabilities, screenshots and access. Agent guidance and development records remain in `AGENTS.md` and `docs/`.
+
+## 2026-10-06: Keep README text-only (Codex)
+- **Decision:** Owner approved the README copy and requested removing its screenshots and copied image assets, with no placeholder or future-screenshot note.

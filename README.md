@@ -9,8 +9,6 @@
   <a href="LICENSE">MIT license</a>
 </p>
 
-![Fillrate results showing planned revenue, trailer fill, shipment totals, and delivery clusters on a map](docs/images/results.png)
-
 Allocate limited inventory to open orders, group delivery stops, and build trailer loads. Compare plans by revenue, trailer fill, shipment count, and travel distance to see how different assumptions change the result.
 
 ## What you can do
@@ -25,15 +23,11 @@ Allocate limited inventory to open orders, group delivery stops, and build trail
 
 See revenue, fill, distance, and shipment counts side by side, and choose your own ranking priorities.
 
-![Two fulfillment plans compared by revenue, fleet utilization, geographic tightness, and loaded miles](docs/images/comparison.png)
-
 ## Explore delivery clusters
 
 Compare cluster counts and see how consistently locations group together across solver seeds.
 
-![Clustering explorer with a stability chart and a map of grouped delivery locations](docs/images/clusters.png)
-
-Screenshots use bundled synthetic data. Travel can use geographic estimates or a road matrix; maps and results identify the method used.
+Travel can use geographic estimates or a road matrix; maps and results identify the method used.
 
 ## Use Fillrate
 
