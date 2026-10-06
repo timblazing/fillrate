@@ -54,7 +54,7 @@
   },
   "nextUp": [
     "M8 priority: audit six gallery Blocks against the real dashboard and measure frontend performance; implement workflow/composition gaps.",
-    "Parallel release session owns the e95f3cb image run/digest record; owner deploys a tested digest. Final dashboard changes need another image release.",
+    "Image publication for e95f3cb is recorded in merged PR #72; owner deploys the tested digest. Final dashboard runtime changes need another image release.",
     "Owner: conditional VPS Valhalla coverage/timings and native VPS/Pi evidence; real sample rows and monetary rates remain optional."
   ]
 }

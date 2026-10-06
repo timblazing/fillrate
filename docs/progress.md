@@ -1,13 +1,18 @@
 # Progress
 
-Current baseline: `origin/main` at `e95f3cb`, reviewed 2026-10-06. This is the current evidence/gap record; [completion-plan.md](completion-plan.md) owns delivery order, [frontend-spec.md](frontend-spec.md) owns dashboard acceptance, and [owner-actions.md](owner-actions.md) owns deployment/input actions. The complete pre-rewrite dated log and detailed checklists are preserved in [history/progress-through-2026-10-06.md](history/progress-through-2026-10-06.md). Historical undated next steps are superseded.
+Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` (#72), reviewed 2026-10-06. This is the current evidence/gap record; [completion-plan.md](completion-plan.md) owns delivery order, [frontend-spec.md](frontend-spec.md) owns dashboard acceptance, and [owner-actions.md](owner-actions.md) owns deployment/input actions. The complete pre-rewrite dated log and detailed checklists are preserved in [history/progress-through-2026-10-06.md](history/progress-through-2026-10-06.md). Historical undated next steps are superseded.
+
+## 2026-10-06: Multi-architecture image release for `e95f3cb` (Codex)
+- Dispatched [image workflow run 37482591185](https://github.com/timblazing/fillrate/actions/runs/37482591185) for `main` commit `e95f3cb6556a52b013d318caf2f4800329970051`. CI, npm, amd64 and arm64 builds, both architecture smoke tests and benchmarks, and manifest publication succeeded.
+- Published `ghcr.io/timblazing/fillrate:sha-e95f3cb`, registry manifest digest `sha256:0b6eeac32bba5853c3d9190cc1b0bfc62c2e5edecfd29f9b213c11b84052322e`; `docker manifest inspect` confirmed the `linux/amd64` and `linux/arm64` entries. Full digest and platform digests are in `release-verification.md`.
+- This records image publication only; it does not claim a deployment or target-hardware verification.
 
 ## 2026-10-06: Completion and launch documentation rewrite (Codex)
 - Reconciled technical specification and handoff against merged routing features and current status. Removed stale draft/unbuilt claims and the obsolete direct-main brief. Stable spec section numbers and M1–M8 identifiers remain.
 - Added a documentation index, completion/launch plan, frontend/dashboard acceptance specification and consolidated owner actions. Preserved prior evidence in history rather than deleting it.
 - Owner removed design-file work from completion scope. CSS tokens and the running gallery are the design reference. Dashboard integration/performance is required M8 work; M2 review acceptance remains historical evidence.
 - Source review confirms gallery Blocks and product views are separate compositions sharing some lab components. No visual parity or performance completion is claimed by this pass. Frontend measurements and browser evidence are required next.
-- Other session owns the `e95f3cb` image release and `release-verification.md` evidence PR. This work does not dispatch images, record a new digest or alter that file.
+- PR #72 completed the other session’s `e95f3cb` image publication record. Conflict resolution preserves its dated progress entry and release-verification file unchanged; publication is complete, deployment is not claimed.
 - Planning estimates are revised for the expanded M8 scope; no new runtime behavior is claimed. Validation: the actual `parseProjectDocs` function parsed all eight spec/progress milestones and the new dated decision; new/current planning links resolve, status weights sum to 100, and `git diff --check` passes. Runtime lint/typecheck/build and browser suites were not rerun for this docs-only change.
 
 ## Milestones (spec §15)
@@ -39,19 +44,20 @@ Current baseline: `origin/main` at `e95f3cb`, reviewed 2026-10-06. This is the c
   - [ ] Six-Block production coverage audit and dashboard integration acceptance.
   - [ ] Measured 2,000-order and matrix frontend responsiveness/performance acceptance.
   - [ ] Basemap public-use terms/attribution record and final candidate verification.
-  - [ ] Current runtime image publication (other active session), then final dashboard image release and deployed-digest evidence.
+  - [x] Current runtime image publication for `e95f3cb`: run 37482591185, both architecture smokes and manifest recorded in #72.
+  - [ ] Final dashboard image release and deployed-digest evidence.
   - [ ] Native target timings on VPS/Pi for full distribution handoff.
 
 ## Current state
 
-The hosted first release is accepted, while latest source includes later routing and learning work. Current technical capabilities are determined by merged source and executable proofs, not the older release snapshot. See technical references and the dated history for per-feature tests. Publication and deployment for `e95f3cb` are not established by this documentation pass.
+The hosted first release is accepted, while latest source includes later routing and learning work. Current technical capabilities are determined by merged source and executable proofs, not the older release snapshot. See technical references and the dated history for per-feature tests. PR #72 records publication for `e95f3cb`; deployment remains unverified by these records.
 
 Gallery Blocks use illustrative fixtures; product result screens use persisted runs. Shared components exist, but full composition/interaction parity and optimization require the frontend audit. No `.fig` work is needed.
 
 ## Known gaps
 
 - Dashboard coverage, responsive/accessibility review and measured frontend performance remain open under frontend-spec.md. Matrix heatmap cell rendering needs profiling at large sizes; no optimization is claimed.
-- Latest image publication is owned by the other session. Deployment is separately owned by the user; do not infer a live upgrade from merged source or a successful image workflow.
+- The `e95f3cb` image is published (PR #72); deployment is separately owned by the user and is not inferred from a successful image workflow. Dashboard runtime changes still need a later image release.
 - VPS Valhalla coverage/timings are absent. Local pinned/provider/geometry evidence is distinct from hosted evidence.
 - Basemap public-use/provider terms record referenced by the spec is missing; create it after inspecting the shipped configuration.
 - Native timings on VPS/Pi are missing. Historical image timings/recovery remain valid for their recorded digest only.
@@ -71,4 +77,4 @@ See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for live 
 
 ## Next step
 
-Audit the six design-system Blocks against production screens, capture concrete gaps and baseline frontend measurements, then implement the highest-impact workflow/composition fixes. The current image release can proceed independently in the other session. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
+Audit the six design-system Blocks against production screens, capture concrete gaps and baseline frontend measurements, then implement the highest-impact workflow/composition fixes. The current image publication is complete in #72; owner deployment remains separate. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.

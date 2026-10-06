@@ -1,6 +1,6 @@
 # Complete Fillrate and update the live release
 
-Baseline: merged `main` at `e95f3cb` on 2026-10-06. Existing hosted/request access was accepted earlier; current source is ahead of that evidence. This plan replaces stale next-step lists while preserving the technical spec and M1–M8 history. It adds no new solver engine scope.
+Runtime baseline: `e95f3cb`; image release evidence merged in PR #72 at `4caa595` on 2026-10-06. Existing hosted/request access was accepted earlier; current source is ahead of that evidence. This plan replaces stale next-step lists while preserving the technical spec and M1–M8 history. It adds no new solver engine scope.
 
 ## Definition of complete and live
 
@@ -12,7 +12,7 @@ A hosted launch with estimated travel is supported. Road-enabled launch addition
 
 | Priority / slice | Owner | Dependencies | Exit evidence |
 | --- | --- | --- | --- |
-| P0: current image publication | Other active release session | Green `main` at `e95f3cb` | `image.yml` run ID, both architecture smokes, published manifest and digest in its docs-only PR; no duplicate dispatch here |
+| Complete: current image publication | Release session, merged #72 | Green runtime source `e95f3cb` | Run 37482591185 passed both architecture smokes; manifest/digest recorded in release-verification.md; deployment remains separate |
 | P1: dashboard coverage audit | Implementation session | Current frontend + accepted gallery Blocks | All six frontend-spec rows have observed gaps/intentional differences, production paths and desktop/phone captures; prioritize workflow defects first |
 | P1: dashboard integration | Implementation session | Audit findings | Orders/configuration → run/results → explorer/comparison delivered in scoped PRs with real data, functional and visual evidence; shared gallery/product composites where appropriate |
 | P1: frontend performance | Implementation session | Baseline measurements; integrate alongside UI fixes | Recorded 2,000-order/matrix measurements meet frontend-spec budgets; identified bottlenecks fixed; no fixture output used as product evidence |
@@ -21,7 +21,7 @@ A hosted launch with estimated travel is supported. Road-enabled launch addition
 | Conditional: VPS roads | Owner + implementation support | Valhalla host resources/dataset decision | Pinned provider/graph identity and coverage, real matrix/route checks, memory/disk and latency evidence; required for road-enabled release |
 | P2: native target handoff | Owner + implementation support | VPS/Pi access and matching source/settings | Bun/npm/uv timings and startup evidence on both targets, with runtime versions and limitations |
 
-The current release task can finish independently of dashboard work. It proves only its source image, and dashboard runtime changes will need a later image release. This session must not dispatch, invent its digest, or overwrite `release-verification.md` while the other session owns it.
+The current publication task completed in #72 independently of dashboard work. It proves only its source image; dashboard runtime changes will need a later image release. Preserve the recorded release-verification evidence and do not duplicate the completed dispatch.
 
 ## Launch checklist
 

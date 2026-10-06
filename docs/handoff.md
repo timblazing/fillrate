@@ -27,7 +27,7 @@ It runs as a free hosted site with request-only GitHub accounts (`FILLRATE_MODE=
 
 Reviewed against `main` at `e95f3cb` on 2026-10-06. M1–M5 and M7 are complete for accepted scopes. M6 implementations are merged (Valhalla snapshots/geometry, windows, manual baselines/warm starts, pipeline fleets and advanced Solver Lab adapters); VPS Valhalla coverage/timings remain. M8 now requires the production dashboard integration/performance pass plus final release/deployment evidence and native target timings. M2 review acceptance does not close that new frontend gate.
 
-Use [completion-plan.md](completion-plan.md) for delivery order, [frontend-spec.md](frontend-spec.md) for dashboard acceptance, [owner-actions.md](owner-actions.md) for owner tasks, and [progress.md](progress.md) for current evidence. Existing image/release evidence is digest-specific. Another session owns the current image publication; publication does not prove deployment. `fillrate.fig`/OpenPencil maintenance is outside completion scope.
+Use [completion-plan.md](completion-plan.md) for delivery order, [frontend-spec.md](frontend-spec.md) for dashboard acceptance, [owner-actions.md](owner-actions.md) for owner tasks, and [progress.md](progress.md) for current evidence. Existing image/release evidence is digest-specific. PR #72 records current image publication for `e95f3cb`; publication does not prove deployment. `fillrate.fig`/OpenPencil maintenance is outside completion scope.
 
 ## Architecture
 
