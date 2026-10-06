@@ -208,7 +208,7 @@ try {
     const left = db.prepare("SELECT (SELECT count(*) FROM user WHERE id=?) + (SELECT count(*) FROM session WHERE user_id=?) + (SELECT count(*) FROM access_requests WHERE user_id=?) + (SELECT count(*) FROM scenarios WHERE ownerId=?) + (SELECT count(*) FROM runs WHERE ownerId=?) AS n").get(A.userId, A.userId, A.userId, `user:${A.userId}`, `user:${A.userId}`).n;
     check("nothing of A remains", left === 0);
     check("A's old cookie no longer works", (await call(b, "/api/v1/scenarios", as(A))).status === 401);
-    check("lessons stay public", (await fetch(`${b}/learn/fulfillment-pipeline`)).status === 200);
+    check("signed-out lesson redirects home", (await fetch(`${b}/learn/fulfillment-pipeline`, { redirect: "manual" })).headers.get("location") === "/");
     db.close();
     await server.stop();
   }
@@ -236,14 +236,24 @@ try {
     check("pending run list is 403", (await call(b, "/api/v1/runs", as(user))).body?.error?.code === "access_pending");
     check("pending export is 403", (await call(b, "/api/v1/me/export", as(user))).status === 403);
     check("pending page redirects", (await fetch(`${b}/scenarios`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
-    check("lessons remain public", (await fetch(`${b}/learn/fulfillment-pipeline`)).status === 200);
+    for (const path of ["/scenarios", "/runs", "/experiments", "/labs", "/learn", "/learn/fulfillment-pipeline", "/account", "/admin", "/request-access", "/dev/blocks/app-header"]) {
+      check(`anonymous page ${path} redirects home`, (await fetch(`${b}${path}`, { redirect: "manual" })).headers.get("location") === "/");
+    }
+    for (const path of ["/", "/privacy", "/dev", "/dev/components"]) {
+      check(`public page ${path} stays available`, (await fetch(`${b}${path}`)).status === 200);
+    }
+    check("pending lesson redirects to request", (await fetch(`${b}/learn/fulfillment-pipeline`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
+    check("authenticated request form is available", (await fetch(`${b}/request-access`, { headers: user.headers })).status === 200);
+    check("approved lesson is available", (await fetch(`${b}/learn/fulfillment-pipeline`, { headers: admin.headers })).status === 200);
+    const landing = await (await fetch(`${b}/`, { headers: admin.headers })).text();
+    check("landing CTA requests access", landing.includes("Request access") && !landing.includes("Open Fillrate"));
     check("pending note saves", (await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Testing with sample orders" } }))).status === 200);
     check("note is stored", db.prepare("SELECT note FROM access_requests WHERE user_id=?").get(user.userId)?.note === "Testing with sample orders");
     for (let i = 0; i < 9; i++) await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: `Update ${i}` } }));
     const overNote = await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Too many" } }));
     check("eleventh note update is rate limited", overNote.status === 429 && overNote.body?.error?.code === "quota_exceeded", JSON.stringify(overNote.body));
     check("stranger cannot list requests", (await call(b, "/api/v1/admin/access-requests", as(stranger))).status === 404);
-    check("pending user cannot open admin page", (await fetch(`${b}/admin`, { headers: user.headers, redirect: "manual" })).status === 404);
+    check("pending admin page redirects to request", (await fetch(`${b}/admin`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
     check("stranger cannot forge approval", (await call(b, `/api/v1/admin/access-requests/${user.userId}`, as(stranger, { method: "POST", body: { action: "approve" } }))).status === 404);
     const decision = (target, action, who = admin, headers = {}) => call(b, `/api/v1/admin/access-requests/${target.userId}`, as(who, { method: "POST", body: { action }, headers }));
     check("cross-origin admin POST is refused", (await decision(user, "approve", admin, { origin: "https://evil.example" })).status === 403);
