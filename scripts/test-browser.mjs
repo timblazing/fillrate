@@ -86,6 +86,7 @@ function stable(value) { return JSON.stringify(value, (_key, item) => item && ty
 function snapshot() { return browser("snapshot", "-i"); }
 function open(url) { browser("open", url); }
 function clickButton(name) { browser("find", "role", "button", "click", "--name", name, "--exact"); }
+function clickTab(name) { browser("find", "role", "tab", "click", "--name", name, "--exact"); }
 // Centers the named button first so a sticky app header cannot cover its click point.
 function clickButtonCentered(name) {
   browser("eval", `[...document.querySelectorAll("button")].find((b) => b.innerText.trim() === ${JSON.stringify(name)})?.scrollIntoView({ block: "center" })`);
@@ -212,8 +213,73 @@ async function lessonFlow(baseURL, runKey) {
   expect(exported.summary.totals.planned_cents > 0 && exported.summary.totals.trucks > 0, "Lesson JSON export has empty revenue or shipment totals.");
   expect(detail.summary.travel?.mode === "estimated" && detail.summary.trucks.every((t) => t.visits.every((v) => typeof v.leg_s === "number" && v.leg_s > 0)), "Lesson run should carry estimated travel with a duration on every leg.");
   await checkTimeline(detail, "lesson", { timing: "Estimated drive time (constant speed)" });
+  await profileShipmentResults(baseURL, runKey, runId, detail.summary.totals.trucks);
   checkBrowserDiagnostics("lesson");
   console.log(`  passed: run ${runId.slice(0, 8)}, revenue ${exported.summary.totals.planned_cents} cents, ${exported.summary.totals.trucks} shipments, JSON export`);
+}
+
+// Records the large persisted-results tab transition at both frontend-spec viewports.
+// The observer is intentionally armed after route load so this measures steady tab interactions.
+async function profileShipmentResults(baseURL, runKey, runId, shipmentCount) {
+  expect(shipmentCount === 443, `Performance workload expected 443 shipments, got ${shipmentCount}.`);
+  open(`${baseURL}/runs/${runId}?key=${encodeURIComponent(runKey)}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  // Capture the tab click in-page so command-line startup latency is excluded.
+  const record = async (viewport, trial) => {
+    browser("eval", `window.__shipmentClickMs=null; window.__shipmentLongTasks.length=0`);
+    clickTab("Shipments (443)");
+    browser("wait", "--fn", "window.__shipmentClickMs !== null", "--timeout", "15000");
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
+    const data = evalValue(`JSON.stringify({ms:window.__shipmentClickMs,inputDelay:window.__shipmentEventTiming[0]?.delay??0,response:Math.round((window.__shipmentClickMs+(window.__shipmentEventTiming[0]?.delay??0))*10)/10,rows:Math.max(...[...document.querySelectorAll('tbody')].map((body)=>body.rows.length)),nodes:document.getElementsByTagName('*').length,longTasks:window.__shipmentLongTasks.map((task)=>({...task,offset:Math.round((task.start-window.__shipmentClickStart)*10)/10}))})`);
+    const values = typeof data === "string" ? JSON.parse(data) : data;
+    console.log(`  profile ${viewport} trial ${trial}: ${JSON.stringify(values)}`);
+    if (process.env.RESULT_PROFILE_SHOTS && trial === 1) {
+      mkdirSync(process.env.RESULT_PROFILE_SHOTS, { recursive: true });
+      browser("screenshot", "--full", join(process.env.RESULT_PROFILE_SHOTS, `run-2k-shipments-${viewport}.png`));
+      browser("screenshot", join(process.env.RESULT_PROFILE_SHOTS, `run-2k-shipments-viewport-${viewport}.png`));
+    }
+    clickTab("Map");
+    browser("wait", "--fn", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.trim()==="Map"`, "--timeout", "15000");
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 750));
+    return values;
+  };
+  browser("eval", `window.__shipmentLongTasks=[]; window.__shipmentEventTiming=[]; window.__shipmentClickMs=null; new PerformanceObserver((list)=>window.__shipmentLongTasks.push(...list.getEntries().map((e)=>({duration:Math.round(e.duration*10)/10,start:Math.round(e.startTime*10)/10})))).observe({type:"longtask",buffered:false}); new PerformanceObserver((list)=>window.__shipmentEventTiming.push(...list.getEntries().filter((e)=>e.name==='click').map((e)=>({delay:Math.round((e.processingStart-e.startTime)*10)/10,duration:Math.round(e.duration*10)/10})))).observe({type:"event",durationThreshold:16,buffered:false}); document.addEventListener('click',(event)=>{const target=event.target.closest('[role="tab"]'); if(target?.innerText.trim().startsWith('Shipments')){window.__shipmentClickStart=performance.now();window.__shipmentEventTiming.length=0;requestAnimationFrame(()=>requestAnimationFrame(()=>window.__shipmentClickMs=Math.round((performance.now()-window.__shipmentClickStart)*10)/10));}},true);`);
+  for (let trial = 1; trial <= 3; trial++) await record("1440x900", trial);
+  assertViewport(393, 852);
+  browser("eval", `window.__shipmentLongTasks=[]`);
+  for (let trial = 1; trial <= 3; trial++) await record("393x852", trial);
+  clickTab("Shipments (443)");
+  browser("wait", "--fn", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.trim().startsWith('Shipments')`, "--timeout", "15000");
+  const tableRegion = evalValue(`(()=>{const region=document.querySelector('[role="region"][aria-label="Shipment results table"]');region?.focus();return {focusable:region?.tabIndex===0,focused:document.activeElement===region,scrollable:region?.scrollWidth>region?.clientWidth}})()`);
+  expect(tableRegion.focusable && tableRegion.focused && tableRegion.scrollable, `Shipment table region should be labeled, keyboard-focusable and scrollable: ${JSON.stringify(tableRegion)}.`);
+  browser("press", "ArrowRight");
+  expect(Number(evalValue(`document.querySelector('[role="region"][aria-label="Shipment results table"]').scrollLeft`)) > 0, "Keyboard arrow navigation should horizontally scroll the shipment table region.");
+  clickButton("Next shipments");
+  let pageStatus = String(parsedText()).match(/Showing.{0,50}shipments/)?.[0] ?? "no page status";
+  expect(pageStatus === "Showing 51–100 of 443 shipments", `Next shipments should advance to rows 51–100; saw ${pageStatus}.`);
+  expect(Number(evalValue("Math.max(...[...document.querySelectorAll('tbody')].map((body)=>body.rows.length))")) === 50, "The second shipment page should keep 50 table rows mounted.");
+  browser("eval", `window.__scrollLongTasks=[]; new PerformanceObserver((list)=>window.__scrollLongTasks.push(...list.getEntries().map((e)=>Math.round(e.duration*10)/10))).observe({type:"longtask",buffered:false})`);
+  for (const direction of ["down", "up", "down"]) {
+    browser("scroll", direction, "450");
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+  }
+  const scrollTasks = evalValue("JSON.stringify(window.__scrollLongTasks)");
+  const scrollTaskValues = typeof scrollTasks === "string" ? JSON.parse(scrollTasks) : scrollTasks;
+  expect(!scrollTaskValues.some((duration) => duration > 200), `Shipment-table scrolling observed a main-thread task over 200 ms: ${JSON.stringify(scrollTaskValues)}.`);
+  console.log(`  profile steady scroll long tasks: ${JSON.stringify(scrollTaskValues)}`);
+  clickButton("Previous shipments");
+  const before = evalValue(`performance.getEntriesByType('resource').filter((e)=>new URL(e.name).pathname==='/api/v1/runs/${runId}').length`);
+  browser("eval", `[...document.querySelectorAll('button')].find((button)=>/^Shipment 1\\b/.test(button.innerText.trim()))?.click()`);
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
+  const after = evalValue(`performance.getEntriesByType('resource').filter((e)=>new URL(e.name).pathname==='/api/v1/runs/${runId}').length`);
+  expect(Number(after) === Number(before), `Selecting a shipment fetched the full run again (${before} → ${after}).`);
+  console.log(`  profile selection resource check: full-result requests unchanged (${before} → ${after})`);
+  clickButton("Next shipments");
+  pageStatus = String(parsedText()).match(/Showing.{0,50}shipments/)?.[0] ?? "no page status";
+  expect(pageStatus === "Showing 51–68 of 68 shipments", `The selected cluster should preserve its existing 68-shipment filter; saw ${pageStatus}.`);
+  expect(String(parsedText()).includes("Open route: no return to the depot."), "Selection details should remain visible after changing shipment pages.");
+  expect(Number(evalValue("Math.max(...[...document.querySelectorAll('tbody')].map((body)=>body.rows.length))")) === 18, "The selected cluster's final page should mount its remaining 18 table rows.");
+  console.log("  profile pagination check: global page 51–100; selection keeps its cluster filter and details across the 51–68 page");
 }
 
 function checkRun(detail, label) {
