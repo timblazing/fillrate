@@ -23,6 +23,8 @@ const children = new Set();
 const sessions = new Set();
 let session;
 let stopping;
+let smokeBaseURL;
+let smokeOperatorKey;
 const testSecrets = [];
 const redact = (value) => testSecrets.reduce((text, secret) => text.replaceAll(secret, "[test-key]"), String(value));
 
@@ -131,6 +133,8 @@ function beginBrowserFlow(name) {
   if (session) spawnSync(agentBrowser, ["--session", session, "close"], { stdio: "ignore", timeout: 10_000 });
   session = `fillrate-${process.pid}-${name}-${randomBytes(4).toString("hex")}`;
   sessions.add(session);
+  browser("open", smokeBaseURL);
+  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(smokeOperatorKey)}; path=/; SameSite=Lax"`);
 }
 
 async function poll(get, done, label, timeout = 150_000) {
@@ -181,7 +185,7 @@ function checkBrowserDiagnostics(flow) {
 }
 
 async function lessonFlow(baseURL, runKey) {
-  console.log("Browser smoke: public fulfillment lesson");
+  console.log("Browser smoke: fulfillment lesson");
   beginBrowserFlow("lesson");
   browser("errors", "--clear");
   browser("console", "--clear");
@@ -196,8 +200,8 @@ async function lessonFlow(baseURL, runKey) {
   const runId = path.match(/^\/runs\/([0-9a-f-]+)/i)?.[1];
   expect(runId, `Could not identify the lesson run from the rendered page: ${page.slice(-1500)}`);
   browser("open", new URL(path, baseURL).toString());
-  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, runKey, "x-run-key"), (body) => body?.status === "succeeded" || body?.status === "failed", "Public lesson run");
-  checkRun(detail, "public lesson");
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, runKey, "x-run-key"), (body) => body?.status === "succeeded" || body?.status === "failed", "Lesson run");
+  checkRun(detail, "lesson");
   browser("wait", "--text", "Validated, complete", "--timeout", "20000");
   const resultText = browser("read");
   expect(resultText.includes("Planned revenue") && resultText.includes("Shipments"), "Lesson result is missing revenue or shipment output.");
@@ -207,8 +211,8 @@ async function lessonFlow(baseURL, runKey) {
   expect(exported.run.status === "succeeded" && exported.summary.validity === "valid" && exported.summary.coverage === "complete", "Lesson JSON export did not contain its valid complete run.");
   expect(exported.summary.totals.planned_cents > 0 && exported.summary.totals.trucks > 0, "Lesson JSON export has empty revenue or shipment totals.");
   expect(detail.summary.travel?.mode === "estimated" && detail.summary.trucks.every((t) => t.visits.every((v) => typeof v.leg_s === "number" && v.leg_s > 0)), "Lesson run should carry estimated travel with a duration on every leg.");
-  await checkTimeline(detail, "public lesson", { timing: "Estimated drive time (constant speed)" });
-  checkBrowserDiagnostics("public lesson");
+  await checkTimeline(detail, "lesson", { timing: "Estimated drive time (constant speed)" });
+  checkBrowserDiagnostics("lesson");
   console.log(`  passed: run ${runId.slice(0, 8)}, revenue ${exported.summary.totals.planned_cents} cents, ${exported.summary.totals.trucks} shipments, JSON export`);
 }
 
@@ -1224,7 +1228,6 @@ async function labsFlow(baseURL, runKey, scenarioKey) {
   open(`${baseURL}/labs?example=dimensions&${keyed}`);
   const landing = snapshot();
   expect(landing.includes('heading "Solver Lab"') && /(link|tab) "Labs"/.test(landing), `Solver Lab page or its header link did not load: ${landing.slice(0, 1500)}`);
-  expect(browser("read").includes("Read-only: bundled examples run unchanged"), "A keyless visitor should see the example JSON as read-only.");
   assertViewport(1440, 900);
   assertViewport(393, 852);
   assertViewport(1440, 900);
@@ -1314,7 +1317,6 @@ try {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
     TMPDIR: process.env.TMPDIR,
-    FILLRATE_MODE: "local",
     NODE_ENV: "production",
     DATA_DIR: dataDir,
     WORKER_TOKEN: workerToken,
@@ -1326,6 +1328,8 @@ try {
   };
   const web = launch(process.execPath, [join(standaloneAppDir, "server.js")], { cwd: standaloneAppDir, env: { ...commonEnv, PORT: String(webPort), HOSTNAME: "127.0.0.1" } });
   const baseURL = `http://127.0.0.1:${webPort}`;
+  smokeBaseURL = baseURL;
+  smokeOperatorKey = scenarioKey;
   await waitForWeb(`${baseURL}/learn/fulfillment-pipeline?key=${encodeURIComponent(runKey)}`, web);
   // The optimizer as the container runs it: FastAPI on loopback (manual plan evaluation) with the worker supervisor.
   launch("uv", ["run", "--locked", "fillrate-optimizer"], {
