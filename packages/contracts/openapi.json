@@ -300,6 +300,23 @@
             "minItems": 1,
             "title": "Routes",
             "type": "array"
+          },
+          "vehicle_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 10000,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Types"
           }
         },
         "required": [
@@ -544,7 +561,8 @@
                   "demand_changed",
                   "source_invalid",
                   "invalid_on_new_problem",
-                  "solver_rejected"
+                  "solver_rejected",
+                  "fleet_changed"
                 ],
                 "type": "string"
               },
@@ -1318,6 +1336,160 @@
         "title": "ExplorerSummary",
         "type": "object"
       },
+      "FleetTypeUse": {
+        "additionalProperties": false,
+        "description": "What a fleet run used of one vehicle type, fleet-wide (all clusters).",
+        "properties": {
+          "avg_fill": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Fill"
+          },
+          "capacity": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "load": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Load",
+            "type": "integer"
+          },
+          "min_fill": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Fill"
+          },
+          "trucks": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Trucks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "capacity",
+          "count",
+          "trucks",
+          "load",
+          "avg_fill",
+          "min_fill"
+        ],
+        "title": "FleetTypeUse",
+        "type": "object"
+      },
+      "FleetVehicleType": {
+        "additionalProperties": false,
+        "description": "One vehicle type of an optional heterogeneous fleet (spec \u00a73, M6).\n\n`count` is the number of vehicles of this type available to the whole dispatch (all clusters\ntogether); null means unlimited, which is how the single trailer behaves today. `capacity` is\nin the pipeline's capacity unit, integer hundredths of a foot. The two rates are used only by\nthe `cost` objective, which requires them on every type.",
+        "properties": {
+          "capacity": {
+            "maximum": 1000000,
+            "minimum": 1,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "maximum": 100000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Count"
+          },
+          "fixed_cost_cents": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fixed Cost Cents"
+          },
+          "id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "per_mile_cents": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Per Mile Cents"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "capacity"
+        ],
+        "title": "FleetVehicleType",
+        "type": "object"
+      },
       "GeocodeMatch": {
         "additionalProperties": false,
         "description": "How an address became a coordinate (spec \u00a76). Records the match, never a confidence score.\n\nCensus matches are interpolated along address ranges, not rooftop points. ZCTA matches are\nthe Gazetteer internal point of the ZIP Code Tabulation Area with the same code as the ZIP.",
@@ -1404,6 +1576,206 @@
           "resolved_at"
         ],
         "title": "GeocodeMatch",
+        "type": "object"
+      },
+      "GeometryLeg": {
+        "additionalProperties": false,
+        "properties": {
+          "coordinates": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coordinates"
+          },
+          "delta_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta M"
+          },
+          "delta_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta S"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "from_id": {
+            "title": "From Id",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "matrix_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matrix M"
+          },
+          "matrix_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matrix S"
+          },
+          "notable": {
+            "default": false,
+            "title": "Notable",
+            "type": "boolean"
+          },
+          "relative_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relative M"
+          },
+          "relative_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relative S"
+          },
+          "route_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route M"
+          },
+          "route_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route S"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "same_location",
+              "no_route",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "to_id": {
+            "title": "To Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "from_id",
+          "to_id",
+          "status"
+        ],
+        "title": "GeometryLeg",
+        "type": "object"
+      },
+      "GeometryStop": {
+        "additionalProperties": false,
+        "description": "A node of the truck's physical sequence: the depot, then each visit's location in order.",
+        "properties": {
+          "id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "lat": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "lat",
+          "lon"
+        ],
+        "title": "GeometryStop",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
         "type": "object"
       },
       "InventoryItem": {
@@ -3377,7 +3749,10 @@
               "leg_no_duration",
               "window_late",
               "horizon_exceeded",
-              "cluster_diameter"
+              "cluster_diameter",
+              "vehicle_type_missing",
+              "unknown_vehicle_type",
+              "fleet_count_exceeded"
             ],
             "title": "Code",
             "type": "string"
@@ -3674,6 +4049,117 @@
         "title": "Repair",
         "type": "object"
       },
+      "RouteGeometryRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "snapshot": {
+            "additionalProperties": true,
+            "title": "Snapshot",
+            "type": "object"
+          },
+          "snapshot_id": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/GeometryStop"
+            },
+            "maxItems": 1000,
+            "minItems": 2,
+            "title": "Stops",
+            "type": "array"
+          },
+          "truck_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Truck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "snapshot",
+          "truck_id",
+          "stops"
+        ],
+        "title": "RouteGeometryRequest",
+        "type": "object"
+      },
+      "RouteGeometryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "chunks": {
+            "additionalProperties": true,
+            "title": "Chunks",
+            "type": "object"
+          },
+          "geometry_version": {
+            "default": "fillrate-route-geometry/1",
+            "title": "Geometry Version",
+            "type": "string"
+          },
+          "kind": {
+            "const": "valhalla_road",
+            "default": "valhalla_road",
+            "title": "Kind",
+            "type": "string"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/GeometryLeg"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "note": {
+            "default": "Valhalla's route for the same legs, shown for display. The plan was optimized on the recorded travel matrix; these paths do not prove which roads the solver used.",
+            "title": "Note",
+            "type": "string"
+          },
+          "provider": {
+            "additionalProperties": true,
+            "title": "Provider",
+            "type": "object"
+          },
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "title": "Summary",
+            "type": "object"
+          },
+          "truck_id": {
+            "title": "Truck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "truck_id",
+          "provider",
+          "legs",
+          "chunks",
+          "summary"
+        ],
+        "title": "RouteGeometryResponse",
+        "type": "object"
+      },
       "RunSettings": {
         "additionalProperties": false,
         "properties": {
@@ -3766,6 +4252,22 @@
             "maxItems": 25000,
             "title": "Excluded Line Ids",
             "type": "array"
+          },
+          "fleet": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FleetVehicleType"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet"
           },
           "fulfillment_policy": {
             "default": "piece",
@@ -3994,6 +4496,20 @@
             },
             "title": "Diagnostics",
             "type": "array"
+          },
+          "fleet_usage": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FleetTypeUse"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet Usage"
           },
           "locations": {
             "items": {
@@ -4673,6 +5189,17 @@
             ],
             "title": "Shift Start S"
           },
+          "vehicle_type_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Type Id"
+          },
           "visits": {
             "items": {
               "$ref": "#/components/schemas/TruckVisit"
@@ -4964,9 +5491,49 @@
         "title": "UnplannedLine",
         "type": "object"
       },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
       "WarmStartCluster": {
         "additionalProperties": false,
-        "description": "A source cluster: validated ones carry their routes in service order; others carry none.",
+        "description": "A source cluster: validated ones carry their routes in service order; others carry none.\nFleet plans also carry each route's vehicle type ID, parallel to `routes`.",
         "properties": {
           "cluster_id": {
             "maxLength": 200,
@@ -5002,6 +5569,22 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "vehicle_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Types"
           }
         },
         "required": [
@@ -5023,6 +5606,22 @@
             },
             "title": "Clusters",
             "type": "array"
+          },
+          "fleet": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet"
           },
           "schema_version": {
             "const": 1,
@@ -5047,24 +5646,44 @@
       },
       "WarmStartSource": {
         "additionalProperties": false,
-        "description": "Where a warm start's plan comes from (spec \u00a710, M6). Today only a succeeded pipeline run the\nsubmitter can read; the web resolves it with owner checks and the worker receives its validated\nplan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)\nwould be a new `kind` producing the same plan document.",
+        "description": "Where a warm start's plan comes from (spec \u00a710, M6). Either a succeeded pipeline run the\nsubmitter can read (`{kind: \"run\", run_id}`) or one of the submitter's saved manual baselines\n(`{kind: \"manual_baseline\", baseline_id}`). The web resolves it with owner checks and the\nworker receives the source over the loopback transport; Python turns either into the same\n`WarmStartPlan` document. The id field of the other kind is left out of dumps, so `run`\nsources keep their original content hash.",
         "properties": {
+          "baseline_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Id"
+          },
           "kind": {
-            "const": "run",
             "default": "run",
+            "enum": [
+              "run",
+              "manual_baseline"
+            ],
             "title": "Kind",
             "type": "string"
           },
           "run_id": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Run Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
           }
         },
-        "required": [
-          "run_id"
-        ],
         "title": "WarmStartSource",
         "type": "object"
       },
@@ -5309,6 +5928,117 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/route-geometry": {
+      "post": {
+        "description": "Road geometry for one inspected truck (spec \u00a74, \u00a77): bounded synchronous Valhalla `/route`\ncalls in the thread pool. Only Next.js calls it, with the worker bearer token.",
+        "operationId": "post_route_geometry_route_geometry_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RouteGeometryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteGeometryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Content"
+          },
+          "502": {
+            "description": "Bad Gateway"
+          }
+        },
+        "summary": "Post Route Geometry"
+      }
+    },
+    "/route-geometry/context": {
+      "get": {
+        "description": "This deployment's Valhalla identity (no endpoint), for the web's eligibility check.",
+        "operationId": "get_route_geometry_context_route_geometry_context_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Route Geometry Context Route Geometry Context Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Route Geometry Context"
       }
     }
   }

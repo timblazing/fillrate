@@ -40,6 +40,16 @@ const LESSONS = [
     blurb: "7 synthetic stops planned on straight-line estimates and on a synthetic recorded directed matrix: a one-way river crossing reorders the route and a ridge detour puts one stop out of reach.",
   },
   {
+    href: "/learn/load-dimensions",
+    title: "Multiple load dimensions",
+    blurb: "12 planar stops with weight and volume: weight sets the truck count, while volume alone would suggest fewer trucks. Solver Lab runs, with and without weight.",
+  },
+  {
+    href: "/learn/heterogeneous-fleet",
+    title: "Heterogeneous fleets",
+    blurb: "10 synthetic Memphis stops and 30 pallets on 3 vans and 3 box trucks: the solver uses every van and one truck; remove the vans to compare fixed and total cost.",
+  },
+  {
     href: "/learn/multiple-depots",
     title: "Multiple depots",
     blurb: "12 abstract-plane stops around two depots in the Solver Lab: vans based at each depot serve their own side; the same stops from one depot cost over 1.5 times as much.",
@@ -71,7 +81,7 @@ export default function LessonsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Lessons</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each lesson starts real runs on a synthetic scenario and lists what to look for, not fixed answers. Lessons use only features the app runs today: estimated travel,
-            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and, in the Solver Lab, vehicles based at several depots and vehicles that reload between trips and optional visits with prizes and alternative service groups.
+            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and the routing features of the Solver Lab (each lesson lists its model fields).
           </p>
         </section>
         <ul className="grid gap-3 sm:grid-cols-2">

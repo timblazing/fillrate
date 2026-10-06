@@ -1,3 +1,5 @@
+import { interpolateAlong, type LonLat } from "./road-geometry"
+
 // Planned-route timeline (spec §13, M7). Pure model: ordered arrival/service/departure, drive/wait/service
 // states and supported loads before/after each stop, from a validated persisted truck. It is planned-route
 // simulation from solver legs: not traffic, not GPS, and not solver-search history. Without time-window data
@@ -80,7 +82,13 @@ export type Timeline = {
   /** True when every stop and the depot have coordinates, so a position can be drawn. */
   located: boolean
   depot: { lat: number; lon: number }
+  /** Valhalla road line for the leg into stop i (index 0 from the depot), when road geometry was fetched; null where
+   * Valhalla found no route. Absent without road geometry: the cursor then moves along straight segments. */
+  legPaths?: (LonLat[] | null)[]
 }
+
+/** The same timeline with fetched road geometry attached; the cursor then follows the road lines. */
+export const withRoadPaths = (timeline: Timeline, legPaths: (LonLat[] | null)[]): Timeline => ({ ...timeline, legPaths })
 
 const partsOf = (epochS: number, timeZone: string) => {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(epochS * 1000))
@@ -177,6 +185,8 @@ export type CursorState = {
   /** Load on board at the cursor (hundredths of a foot). */
   load: number
   position: { lon: number; lat: number } | null
+  /** True while driving a leg whose position is interpolated along its road line. */
+  onRoad?: boolean
 }
 
 /** Where the truck is at `t` seconds, interpolating linearly along the straight segment between stops. */
@@ -206,8 +216,9 @@ export function cursorAt(timeline: Timeline, t: number): CursorState | null {
   const fraction = (clamped - departS) / ((stops[next].arrivalS as number) - departS)
   const a = place(reached)
   const b = place(next)
-  const position = a && b ? { lon: a.lon + (b.lon - a.lon) * fraction, lat: a.lat + (b.lat - a.lat) * fraction } : null
-  return { phase: "drive", stopIndex: next, fraction, load, position }
+  const road = timeline.legPaths?.[next]
+  const position = road ? interpolateAlong(road, fraction) : a && b ? { lon: a.lon + (b.lon - a.lon) * fraction, lat: a.lat + (b.lat - a.lat) * fraction } : null
+  return { phase: "drive", stopIndex: next, fraction, load, position, onRoad: !!road }
 }
 
 /** "0:00", "12:05", "1:04:09". */
@@ -232,8 +243,8 @@ export function formatDriveTime(seconds: number) {
 export type TimingSource = { timing: string; geometry: string }
 
 /** Labels for where durations and geometry come from. Road geometry is never available yet. */
-export function timingSource(travel: { mode: "estimated" | "snapshot"; provider: string } | null | undefined): TimingSource {
-  const geometry = "Schematic straight-line path — road geometry not available"
+export function timingSource(travel: { mode: "estimated" | "snapshot"; provider: string } | null | undefined, road?: string | null): TimingSource {
+  const geometry = road ? `${road} — a simulation along planned leg durations (no live traffic or GPS)` : "Schematic straight-line path — road geometry not available"
   if (!travel) return { timing: "Drive time source not recorded", geometry }
   if (travel.mode === "estimated") return { timing: "Estimated drive time (constant speed)", geometry }
   if (travel.provider === "valhalla") return { timing: "Valhalla matrix durations", geometry }

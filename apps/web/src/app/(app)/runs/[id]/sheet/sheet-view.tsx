@@ -21,7 +21,6 @@ export function SheetView({
   scenario,
   depot,
   milesNote,
-  capacity,
   sheets,
   total,
   shipment,
@@ -32,7 +31,6 @@ export function SheetView({
   scenario: string
   depot: string
   milesNote: string
-  capacity: number
   sheets: Sheet[]
   total: number
   shipment: string | null
@@ -92,19 +90,24 @@ export function SheetView({
               <h2 className="text-2xl font-semibold tracking-tight">{shipmentLabel(s.index)}</h2>
               <span className="font-mono text-sm">{s.truckId}</span>
               <span className="text-sm">Cluster {s.clusterIndex}</span>
+              {s.vehicle && (
+                <span className="text-sm" data-testid="sheet-vehicle">
+                  {s.vehicle}
+                </span>
+              )}
               <span className="ml-auto text-sm">
                 {scenario} · departs {depot}
               </span>
             </header>
             {/* Black-and-white trailer bar: one numbered segment per stop in visit order, to scale. */}
-            <div className="mb-4 flex h-6 overflow-hidden rounded-sm border border-current" role="img" aria-label={`Trailer: ${formatPercent(s.totals.fill)} of ${formatFeet(capacity, 0)}`}>
+            <div className="mb-4 flex h-6 overflow-hidden rounded-sm border border-current" role="img" aria-label={`${s.vehicle ?? "Trailer"}: ${formatPercent(s.totals.fill)} of ${formatFeet(s.capacity, 0)}`}>
               {s.stops.map((x) => (
                 <span
                   key={x.sequence}
                   className="flex items-center justify-center border-r border-current font-mono text-[10px] last:border-r-0"
-                  style={{ width: `${((x.linearFeet / capacity) * 100).toFixed(2)}%` }}
+                  style={{ width: `${((x.linearFeet / s.capacity) * 100).toFixed(2)}%` }}
                 >
-                  {x.linearFeet / capacity > 0.04 ? x.sequence : ""}
+                  {x.linearFeet / s.capacity > 0.04 ? x.sequence : ""}
                 </span>
               ))}
               <span className="flex-1 bg-[repeating-linear-gradient(135deg,transparent_0_4px,currentColor_4px_5px)] opacity-25" />
@@ -155,7 +158,7 @@ export function SheetView({
                   <td className="py-2 pr-3 text-right font-mono tabular-nums">
                     {formatFeet(s.totals.linearFeet)}
                     <span className="block text-xs font-normal">
-                      {formatPercent(s.totals.fill)} of {formatFeet(capacity, 0)}
+                      {formatPercent(s.totals.fill)} of {formatFeet(s.capacity, 0)}
                     </span>
                   </td>
                   <td className="py-2 pr-3 text-right font-mono tabular-nums">

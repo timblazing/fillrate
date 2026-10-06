@@ -89,6 +89,8 @@ The Python script embeds the instance and the recorded outcome and calls `fillra
 | `groups` | `lab-groups.json` | Planar, 6 visits: Acme can be served at its north or south dock (one required group of two optional clients); four required stops lie on the north side. One van, 5 visits, serves the north dock, nominal cost 312 (100 + 212); the south dock instead would cost more. Seeds 0–3 agree. |
 | `groups_south` | `lab-groups-south.json` | The mirror image with the stops in the south: the south dock wins, same nominal cost 312. Learn: `/learn/alternative-groups`. |
 
+The `dimensions`/`dimensions_volume` and `fleet`/`fleet_trucks` pairs back the lessons `/learn/load-dimensions` and `/learn/heterogeneous-fleet`, which start them from the page and compare the persisted results.
+
 ## Adding a capability
 
 Each later PR should stay small and touch only its own pieces:

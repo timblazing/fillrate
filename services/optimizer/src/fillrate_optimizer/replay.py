@@ -82,6 +82,17 @@ def expected_record(run_id: str, output: PipelineOutput, settings: RunSettings) 
         "travel": travel_record(output, settings),
         "iteration_based": settings.solver_max_iterations is not None,
         **({"warm_start": warm_start_record(summary)} if summary.warm_start else {}),
+        **({"fleet": fleet_record(summary)} if summary.fleet_usage else {}),
+    }
+
+
+def fleet_record(summary: RunSummary) -> dict[str, Any]:
+    """The fleet's identity (a content hash of the settings' vehicle types, which are part of
+    the problem and of the comparison signature) and trucks used per type;
+    `packages/db/src/replay.ts` writes the same shape."""
+    return {
+        "id": content_hash([t.model_dump(mode="json") for t in summary.settings.fleet]),
+        "usage": {u.id: u.trucks for u in summary.fleet_usage},
     }
 
 
@@ -219,6 +230,20 @@ def replay(
         out(f"{'warm outcomes':<12} {'reproduced' if same else 'DIFFERS'}")
         if not same:
             failures.append("warm_start_outcome")
+    if settings.fleet or expected.get("fleet"):
+        recorded_fleet = expected.get("fleet")
+        now_fleet = fleet_record(summary) if summary.fleet_usage else None
+        # The fleet is part of the problem: it must be the recorded one. Trucks per type are a
+        # solver result, required only when the run is reproducible exactly.
+        same = recorded_fleet is not None and now_fleet is not None
+        same = same and recorded_fleet["id"] == now_fleet["id"]
+        out(f"{'fleet':<12} {'identity reproduced' if same else 'DIFFERS'}")
+        if not same:
+            failures.append("fleet")
+        elif recorded_fleet["usage"] != now_fleet["usage"]:
+            out(f"fleet usage  recorded {recorded_fleet['usage']} replay {now_fleet['usage']}")
+            if exact:
+                failures.append("fleet_usage")
     recorded_allocation = expected.get("allocation")
     if recorded_allocation:
         now = {
