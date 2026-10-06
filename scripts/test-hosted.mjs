@@ -175,8 +175,8 @@ try {
     // Solver Lab (M6): an account's own instance is private and is not a scenario; anonymous callers need sign-in.
     check("anonymous lab run needs sign-in (401)", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { example: "dimensions" }, headers: { "idempotency-key": randomUUID() } })).status === 401);
     check("anonymous own lab instance needs sign-in (401)", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { instance: labInstance }, headers: { "idempotency-key": randomUUID() } })).status === 401);
-    const planned = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, depots: [...labInstance.depots, { id: "depot-2", x: 5, y: 5 }] } }, headers: { "idempotency-key": randomUUID() } }));
-    check("a planned lab capability is refused by name (422)", planned.status === 422 && planned.body?.error?.code === "planned_capability" && /multiple_depots/.test(planned.body?.error?.message ?? ""), JSON.stringify(planned.body));
+    const planned = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, shipments: [] } }, headers: { "idempotency-key": randomUUID() } }));
+    check("a planned lab capability is refused by name (422)", planned.status === 422 && planned.body?.error?.code === "planned_capability" && /paired_shipments/.test(planned.body?.error?.message ?? ""), JSON.stringify(planned.body));
     const lab = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, name: "Bob's lab" } }, headers: { "idempotency-key": randomUUID() } }));
     check("B queues a lab run on an own instance", lab.status === 201 && lab.body?.kind === "lab" && lab.body?.example === null, JSON.stringify(lab.body).slice(0, 300));
     const labId = lab.body?.id;

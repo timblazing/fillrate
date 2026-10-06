@@ -25,15 +25,19 @@ from .schema import (
     LabViolation,
     LabVisit,
 )
-from .travel import LabMatrices
+from .travel import LabMatrices, client_nodes, depot_nodes
 
 
 @dataclass(frozen=True)
 class CandidateRoute:
-    """One vehicle's ordered client IDs, from the solver or written by hand."""
+    """One vehicle's ordered client IDs, from the solver or written by hand. ``start_depot`` and
+    ``end_depot`` name the depots the route actually runs from and to; None means "its vehicle
+    type's" (a hand-written route may name others, which ``check_route_depots`` rejects)."""
 
     vehicle_type: str
     client_ids: list[str]
+    start_depot: str | None = None
+    end_depot: str | None = None
 
 
 @dataclass
@@ -64,6 +68,11 @@ def instance_problems(instance: LabInstance) -> list[str]:
     unique("dimension", dims)
     unique("location", [d.id for d in instance.depots] + [c.id for c in instance.clients])
     unique("vehicle type", [v.id for v in instance.vehicle_types])
+    depot_ids = {d.id for d in instance.depots}
+    for vt in instance.vehicle_types:
+        for role, value in (("start_depot", vt.start_depot), ("end_depot", vt.end_depot)):
+            if value is not None and value not in depot_ids:
+                problems.append(f"vehicle type {vt.id} {role} {value!r} is not a depot id")
 
     planar = instance.coordinates == "planar"
     for place in [*instance.depots, *instance.clients]:
@@ -104,23 +113,33 @@ def instance_problems(instance: LabInstance) -> list[str]:
 
 
 def preflight(instance: LabInstance, matrices: LabMatrices) -> list[str]:
-    """Visits no vehicle type can serve even alone (round trip over its distance or shift)."""
+    """Visits no vehicle type can serve even alone: out and back between the type's own start and
+    end depots, over its distance or shift limit."""
     findings: list[str] = []
     dist, dur = matrices.distance, matrices.duration
-    for i, client in enumerate(instance.clients, 1):
+    depots, clients = depot_nodes(instance), client_nodes(instance)
+    for client in instance.clients:
+        node = clients[client.id]
         demand = instance.delivery_vector(client)
-        round_trip = int(dist[0, i] + dist[i, 0])
-        busy = int(dur[0, i] + dur[i, 0]) + client.service_duration
-        if not any(
-            all(q <= c for q, c in zip(demand, instance.capacity_vector(vt), strict=True))
-            and (vt.max_distance is None or round_trip <= vt.max_distance)
-            and (vt.shift_duration is None or busy <= vt.shift_duration)
-            for vt in instance.vehicle_types
-        ):
+        trips: list[tuple[int, int]] = []  # (distance, busy time) per type that can carry it
+        servable = False
+        for vt in instance.vehicle_types:
+            if not all(q <= c for q, c in zip(demand, instance.capacity_vector(vt), strict=True)):
+                continue
+            start = depots[instance.start_depot_of(vt)]
+            end = depots[instance.end_depot_of(vt)]
+            trip = int(dist[start, node] + dist[node, end])
+            busy = int(dur[start, node] + dur[node, end]) + client.service_duration
+            trips.append((trip, busy))
+            servable |= (vt.max_distance is None or trip <= vt.max_distance) and (
+                vt.shift_duration is None or busy <= vt.shift_duration
+            )
+        if not servable:
+            trip, busy = min(trips) if trips else (0, 0)
             findings.append(
-                f"client {client.id}: no vehicle type can carry it and serve it alone within its "
-                f"max distance and shift (round trip {round_trip} {matrices.distance_unit}, "
-                f"{busy} {matrices.duration_unit} with service)"
+                f"client {client.id}: no vehicle type can carry it and serve it alone from its "
+                f"depots within its max distance and shift (shortest trip {trip} "
+                f"{matrices.distance_unit}, {busy} {matrices.duration_unit} with service)"
             )
     return findings
 
@@ -134,6 +153,7 @@ class Context:
     matrices: LabMatrices
     candidate: list[CandidateRoute]
     node: dict[str, int] = field(default_factory=dict)  # client id → matrix node
+    depot_node: dict[str, int] = field(default_factory=dict)  # depot id → matrix node
     routes: list[LabRoute] = field(default_factory=list)
     violations: list[LabViolation] = field(default_factory=list)
 
@@ -147,6 +167,30 @@ def check_route_clients(ctx: Context, index: int, route: CandidateRoute) -> None
     for cid in route.client_ids:
         if cid not in ctx.node:
             ctx.flag("unknown_client", f"Unknown client {cid}.", route=index, client_id=cid)
+
+
+def check_route_depots(ctx: Context, index: int, route: CandidateRoute) -> None:
+    """A route starts and ends at its vehicle type's depots, and those depots exist."""
+    vt = next((v for v in ctx.instance.vehicle_types if v.id == route.vehicle_type), None)
+    if vt is None:
+        return
+    expected = (ctx.instance.start_depot_of(vt), ctx.instance.end_depot_of(vt))
+    actual = (route.start_depot or expected[0], route.end_depot or expected[1])
+    for role, want, got in zip(("start", "end"), expected, actual, strict=True):
+        if got not in ctx.depot_node:
+            ctx.flag(
+                "unknown_depot",
+                f"Unknown {role} depot {got}.",
+                route=index,
+                vehicle_type=vt.id,
+            )
+        elif got != want:
+            ctx.flag(
+                "wrong_depot",
+                f"Route {role}s at {got}; vehicle type {vt.id} {role}s at {want}.",
+                route=index,
+                vehicle_type=vt.id,
+            )
 
 
 def check_route_capacity(ctx: Context, index: int, route: CandidateRoute) -> None:
@@ -219,7 +263,12 @@ def check_fleet(ctx: Context) -> None:
 
 RouteCheck = Callable[[Context, int, CandidateRoute], None]
 PlanCheck = Callable[[Context], None]
-ROUTE_CHECKS: list[RouteCheck] = [check_route_clients, check_route_capacity, check_route_limits]
+ROUTE_CHECKS: list[RouteCheck] = [
+    check_route_clients,
+    check_route_depots,
+    check_route_capacity,
+    check_route_limits,
+]
 PLAN_CHECKS: list[PlanCheck] = [check_coverage, check_fleet]
 
 
@@ -233,7 +282,11 @@ def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
     on_board = {d: sum(clients[cid].delivery.get(d, 0) for cid in ids) for d in dims}
     load = dict(on_board)
     visits: list[LabVisit] = []
-    prev, clock, distance, travel, service = 0, 0, 0, 0, 0
+    start_id = route.start_depot or (instance.start_depot_of(vt) if vt else instance.depot.id)
+    end_id = route.end_depot or (instance.end_depot_of(vt) if vt else instance.depot.id)
+    start = ctx.depot_node.get(start_id, 0)
+    end = ctx.depot_node.get(end_id, 0)
+    prev, clock, distance, travel, service = start, 0, 0, 0, 0
     for cid in ids:
         node = ctx.node[cid]
         leg_d, leg_t = int(dist[prev, node]), int(dur[prev, node])
@@ -254,10 +307,10 @@ def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
         )
         on_board, clock, prev = after, arrival + sd, node
         distance, travel, service = distance + leg_d, travel + leg_t, service + sd
-    if ids:  # closed route: return to the depot
-        distance += int(dist[prev, 0])
-        travel += int(dur[prev, 0])
-        clock += int(dur[prev, 0])
+    if ids:  # the route ends at its end depot
+        distance += int(dist[prev, end])
+        travel += int(dur[prev, end])
+        clock += int(dur[prev, end])
     capacity = vt.capacity if vt else {}
     fixed = vt.fixed_cost if vt else 0
     d_cost = (vt.unit_distance_cost if vt else 0) * distance
@@ -265,6 +318,8 @@ def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
     return LabRoute(
         index=index,
         vehicle_type=route.vehicle_type,
+        start_depot=start_id,
+        end_depot=end_id,
         visits=visits,
         load=load,
         utilization={d: round(load[d] / capacity[d], 4) if capacity.get(d) else 0.0 for d in dims},
@@ -283,7 +338,11 @@ def validate_plan(
     instance: LabInstance, matrices: LabMatrices, candidate: list[CandidateRoute]
 ) -> ValidatedPlan:
     ctx = Context(
-        instance, matrices, candidate, node={c.id: i for i, c in enumerate(instance.clients, 1)}
+        instance,
+        matrices,
+        candidate,
+        node=client_nodes(instance),
+        depot_node=depot_nodes(instance),
     )
     for index, route in enumerate(candidate):
         ctx.routes.append(build_route(ctx, index, route))

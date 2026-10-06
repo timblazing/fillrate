@@ -251,8 +251,8 @@ BEHAVIORS = [
         provided_by="native",
         description=(
             "Lab instances (fillrate_optimizer.lab) create depots, clients and vehicle types "
-            "directly and are solved by PyVRP 0.14.0 as one problem: closed routes from one "
-            "depot, every edge with its raw distance and duration, a seed and an iteration or "
+            "directly and are solved by PyVRP 0.14.0 as one problem: routes between depots, every "
+            "edge with its raw distance and duration, a seed and an iteration or "
             "runtime budget. Planar instances use rounded euclidean abstract units (never "
             "latitude/longitude); geographic ones haversine × circuity meters and "
             "constant-speed seconds. An independent validator recomputes coverage, loads, "
@@ -260,7 +260,7 @@ BEHAVIORS = [
             "any PyVRP route number that differs."
         ),
         restrictions=[
-            "Exactly one depot; no time windows, release times, pickups, prizes, groups, "
+            "No time windows, release times, pickups, prizes, groups, "
             "shipments or reloads (each is refused as a planned capability).",
             "Heuristic search: results are the best found within the budget, never proven optimal.",
             "At most 500 clients, 8 dimensions and 10 vehicle types per instance.",
@@ -290,11 +290,29 @@ BEHAVIORS = [
             "duration (PyVRP VehicleType). The validator checks counts per type."
         ),
         restrictions=[
-            "Solver Lab only; every type starts and ends at the single depot.",
+            "Solver Lab only; every type starts and ends at its own start and end depots.",
             "Max distance and shift duration are penalized in PyVRP's search; only the "
             "independent validator decides whether a route respects them.",
         ],
         fixture="tests/test_lab.py::test_mixed_fleet_uses_cheaper_type_within_its_count",
+    ),
+    Behavior(
+        id="multiple_depots",
+        provided_by="native",
+        description=(
+            "Lab instances name up to 10 depots; each vehicle type has a start depot and an end "
+            "depot (default: the first depot), which become PyVRP depots and "
+            "VehicleType start_depot/end_depot. The matrices list the depots first, then the "
+            "clients. The validator recomputes each route from its own start depot to its own "
+            "end depot and rejects a route that does not use its type's depots."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline still has one depot.",
+            "No depot capacity, stock or opening hours: a depot is a place vehicles start and end.",
+            "Every type's start and end depot is fixed in the instance; the solver does not "
+            "choose which depot a vehicle uses.",
+        ],
+        fixture="tests/test_lab.py::test_vehicles_start_and_end_at_their_types_depots",
     ),
     *[
         Behavior(
@@ -305,7 +323,6 @@ BEHAVIORS = [
             fixture=None,
         )
         for capability, text in (
-            ("multiple_depots", "several depots with per-vehicle-type start and end depots"),
             ("reloads", "reload depots and multiple trips per vehicle"),
             ("optional_clients", "optional visits with prizes"),
             ("client_groups", "mutually exclusive client groups"),

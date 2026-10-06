@@ -11,7 +11,7 @@ in abstract units, and one abstract time unit elapses per distance unit. Geograp
 haversine × circuity in meters and constant-speed durations in seconds. Costs are integers in
 `cost_unit`.
 
-Adding a capability (multiple depots, reloads, optional clients, client groups, shipments) adds
+Adding a capability (reloads, optional clients, client groups, shipments) adds
 fields here and removes their entry from ``PLANNED_FIELDS``; see docs/solver-lab.md.
 """
 
@@ -31,6 +31,7 @@ Lat = Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
 Lon = Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
 
 MAX_CLIENTS = 500
+MAX_DEPOTS = 10
 MAX_DIMENSIONS = 8
 MAX_VEHICLE_TYPES = 10
 MAX_VEHICLES_PER_TYPE = 500
@@ -48,8 +49,6 @@ PLANNED_FIELDS: dict[tuple[str, str], str] = {
     ("client", "tw_early"): "lab_time_windows",
     ("client", "tw_late"): "lab_time_windows",
     ("client", "release_time"): "lab_time_windows",
-    ("vehicle_type", "start_depot"): "multiple_depots",
-    ("vehicle_type", "end_depot"): "multiple_depots",
     ("vehicle_type", "reload_depots"): "reloads",
     ("vehicle_type", "max_reloads"): "reloads",
     ("vehicle_type", "initial_load"): "reloads",
@@ -80,9 +79,6 @@ def planned_fields(raw: object) -> list[tuple[str, str, str]]:
         }[where]
         if isinstance(items, list) and any(isinstance(i, dict) and name in i for i in items):
             found.append((where, name, capability))
-    depots = raw.get("depots")
-    if isinstance(depots, list) and len(depots) > 1:
-        found.append(("instance", "depots", "multiple_depots"))
     return found
 
 
@@ -124,8 +120,10 @@ class LabClient(LabDoc):
 
 
 class LabVehicleType(LabDoc):
-    """A vehicle type with a finite count. Every vehicle starts and ends at the single depot
-    (closed routes; PyVRP-native, no open-route workaround). Capacity names every dimension."""
+    """A vehicle type with a finite count. Every vehicle starts at ``start_depot`` and ends at
+    ``end_depot`` (depot ids; both default to the first depot, so a single-depot instance needs
+    neither). Routes are closed in the sense that every route returns to a depot; there is no open
+    route workaround. Capacity names every dimension."""
 
     id: LabId
     label: Label = ""
@@ -137,6 +135,8 @@ class LabVehicleType(LabDoc):
     # Per-route limits in distance / duration units (PyVRP max_distance, shift_duration).
     max_distance: Annotated[int, Field(strict=True, ge=1, le=1_000_000_000)] | None = None
     shift_duration: Annotated[int, Field(strict=True, ge=1, le=1_000_000_000)] | None = None
+    start_depot: LabId | None = None
+    end_depot: LabId | None = None
 
 
 class LabTravel(LabDoc):
@@ -165,8 +165,7 @@ class LabInstance(LabDoc):
     travel: LabTravel = Field(default_factory=LabTravel)
     cost_unit: Annotated[str, Field(min_length=1, max_length=40)] = "cost units"
     dimensions: Annotated[list[LabDimension], Field(min_length=1, max_length=MAX_DIMENSIONS)]
-    # Exactly one depot for now; more is the planned `multiple_depots` capability.
-    depots: Annotated[list[LabDepot], Field(min_length=1, max_length=1)]
+    depots: Annotated[list[LabDepot], Field(min_length=1, max_length=MAX_DEPOTS)]
     clients: Annotated[list[LabClient], Field(min_length=1, max_length=MAX_CLIENTS)]
     vehicle_types: Annotated[
         list[LabVehicleType], Field(min_length=1, max_length=MAX_VEHICLE_TYPES)
@@ -179,12 +178,7 @@ class LabInstance(LabDoc):
         found = planned_fields(data)
         if found:
             where, name, capability = found[0]
-            detail = (
-                "Solver Lab instances have exactly one depot for now"
-                if name == "depots"
-                else f"{where} field {name!r} is not supported yet"
-            )
-            raise PlannedCapabilityError(capability, detail)
+            raise PlannedCapabilityError(capability, f"{where} field {name!r} is not supported yet")
         return data
 
     @model_validator(mode="after")
@@ -198,7 +192,14 @@ class LabInstance(LabDoc):
 
     @property
     def depot(self) -> LabDepot:
+        """The first depot: the default start and end of every vehicle type."""
         return self.depots[0]
+
+    def start_depot_of(self, vehicle_type: LabVehicleType) -> str:
+        return vehicle_type.start_depot or self.depots[0].id
+
+    def end_depot_of(self, vehicle_type: LabVehicleType) -> str:
+        return vehicle_type.end_depot or self.depots[0].id
 
     def dimension_ids(self) -> list[str]:
         return [d.id for d in self.dimensions]
@@ -239,6 +240,9 @@ class LabVisit(LabDoc):
 class LabRoute(LabDoc):
     index: int
     vehicle_type: str
+    # Depot ids the route starts and ends at (absent in results stored before multiple depots).
+    start_depot: str | None = None
+    end_depot: str | None = None
     visits: list[LabVisit]
     load: Loads
     # load / capacity per dimension, 0–1 when feasible (above 1 means overloaded).

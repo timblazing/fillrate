@@ -15,7 +15,7 @@ const PLANNED: [where: "instance" | "client" | "vehicle_type", field: string, ca
   ["instance", "shipments", "paired_shipments"], ["instance", "groups", "client_groups"], ["instance", "client_groups", "client_groups"],
   ["client", "pickup", "pickups_and_deliveries"], ["client", "prize", "optional_clients"], ["client", "required", "optional_clients"],
   ["client", "group", "client_groups"], ["client", "tw_early", "lab_time_windows"], ["client", "tw_late", "lab_time_windows"],
-  ["client", "release_time", "lab_time_windows"], ["vehicle_type", "start_depot", "multiple_depots"], ["vehicle_type", "end_depot", "multiple_depots"],
+  ["client", "release_time", "lab_time_windows"],
   ["vehicle_type", "reload_depots", "reloads"], ["vehicle_type", "max_reloads", "reloads"], ["vehicle_type", "initial_load", "reloads"],
   ["vehicle_type", "tw_early", "lab_time_windows"], ["vehicle_type", "tw_late", "lab_time_windows"], ["vehicle_type", "profile", "routing_profiles"],
 ];
@@ -37,7 +37,6 @@ export function validateLabInstance(input: unknown): LabInstance {
     const list = items[where];
     if (Array.isArray(list) && list.some(x => isObject(x) && field in x)) throw new LabInstanceError("planned_capability", `planned capability ${capability}: ${where} field "${field}" is not supported yet.`, [where === "instance" ? field : `${where}s.${field}`]);
   }
-  if (Array.isArray(input.depots) && input.depots.length > 1) throw new LabInstanceError("planned_capability", "planned capability multiple_depots: Solver Lab instances have exactly one depot for now.", ["depots"]);
   const bytes = Buffer.byteLength(canonical(input));
   if (bytes > MAX_LAB_BYTES) throw new LabInstanceError("lab_instance_too_large", `The instance is ${bytes} bytes; the limit is ${MAX_LAB_BYTES}.`);
   // The two constants default in Pydantic, but JSON Schema validation does not fill defaults, and the stored version
@@ -61,6 +60,8 @@ export function labInstanceProblems(doc: LabInstance) {
   unique("dimension", dims);
   unique("location", [...doc.depots.map(d => d.id), ...doc.clients.map(c => c.id)]);
   unique("vehicle type", doc.vehicle_types.map(v => v.id));
+  const depotIds = new Set(doc.depots.map(d => d.id));
+  for (const v of doc.vehicle_types) for (const [role, id] of [["start_depot", v.start_depot], ["end_depot", v.end_depot]] as const) if (id != null && !depotIds.has(id)) problems.push(`vehicle type ${v.id} ${role} "${id}" is not a depot id`);
   const planar = doc.coordinates === "planar";
   for (const place of [...doc.depots, ...doc.clients]) {
     const has = (k: "x" | "y" | "lat" | "lon") => place[k] !== undefined && place[k] !== null;

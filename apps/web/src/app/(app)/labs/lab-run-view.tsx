@@ -89,7 +89,7 @@ export function LabRunView({ initial, canCancel, observations, runKey }: { initi
         <span className="font-medium">{instance.name}</span>
         <Badge variant="outline">{instance.coordinates === "planar" ? "Planar, abstract units" : "Geographic"}</Badge>
         <span className="text-muted-foreground text-xs tabular-nums">
-          {instance.clients.length} clients · {instance.dimensions.map((d) => `${d.id} (${d.unit})`).join(", ")} · {instance.vehicle_types.map((v) => `${v.count} × ${v.id}`).join(", ")}
+          {instance.depots.length > 1 ? `${instance.depots.length} depots · ` : ""}{instance.clients.length} clients · {instance.dimensions.map((d) => `${d.id} (${d.unit})`).join(", ")} · {instance.vehicle_types.map((v) => `${v.count} × ${v.id}`).join(", ")}
           {" · "}seed {instance.solver?.seed ?? 0}, {instance.solver?.max_iterations ? `${n(instance.solver.max_iterations)} iterations` : "runtime budget"}
         </span>
       </div>
@@ -113,6 +113,8 @@ export function LabRunView({ initial, canCancel, observations, runKey }: { initi
 function Result({ instance, result, observations }: { instance: LabInstance; result: LabResult; observations: string[] }) {
   const dims = instance.dimensions.map((d) => d.id)
   const capacity = new Map(instance.vehicle_types.map((v) => [v.id, v.capacity]))
+  const several = instance.depots.length > 1
+  const label = (id: string | null | undefined) => id ?? instance.depots[0].id
   const u = result.units
   return (
     <div className="flex flex-col gap-6">
@@ -168,6 +170,34 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
               </Table>
             </div>
           </section>
+          {several && (
+            <section className="flex flex-col gap-2" aria-labelledby="lab-depots">
+              <h2 id="lab-depots" className="text-sm font-medium">Depots</h2>
+              <div className="overflow-x-auto rounded-xl border">
+                <Table>
+                  <TableHeader>
+                    <TableRow><TableHead>Depot</TableHead><TableHead>Vehicles based here (used / available)</TableHead><TableHead className="text-right">Routes</TableHead><TableHead className="text-right">Clients</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {instance.depots.map((depot) => {
+                      const types = instance.vehicle_types.filter((v) => (v.start_depot ?? instance.depots[0].id) === depot.id)
+                      const routes = result.routes.filter((r) => label(r.start_depot) === depot.id)
+                      return (
+                        <TableRow key={depot.id} data-testid={`lab-depot-${depot.id}`}>
+                          <TableCell className="font-mono text-xs">{depot.id}</TableCell>
+                          <TableCell className="text-xs">
+                            {types.length === 0 ? "none" : types.map((v) => { const f = result.fleet.find((x) => x.vehicle_type === v.id); return `${v.id} ${f?.used ?? 0} / ${v.count}` }).join(", ")}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{routes.length}</TableCell>
+                          <TableCell className="text-right tabular-nums">{routes.reduce((sum, r) => sum + r.visits.length, 0)}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
           {result.violations.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-violations">
               <h2 id="lab-violations" className="text-sm font-medium">Violations</h2>
@@ -192,6 +222,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
               <TableRow>
                 <TableHead>#</TableHead>
                 <TableHead>Vehicle</TableHead>
+                {several && <TableHead>Depot</TableHead>}
                 <TableHead>Visits</TableHead>
                 {dims.map((d) => <TableHead key={d} className="text-right">{d} ({u.dimensions[d]})</TableHead>)}
                 <TableHead className="text-right">Distance</TableHead>
@@ -207,6 +238,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
                     {r.index + 1}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{r.vehicle_type}</TableCell>
+                  {several && <TableCell className="font-mono text-xs whitespace-nowrap">{label(r.start_depot) === label(r.end_depot) ? label(r.start_depot) : `${label(r.start_depot)} → ${label(r.end_depot)}`}</TableCell>}
                   <TableCell className="max-w-72 text-xs text-pretty">{r.visits.map((v) => v.client_id).join(" → ")}</TableCell>
                   {dims.map((d) => (
                     <TableCell key={d} className="text-right text-xs whitespace-nowrap tabular-nums">
@@ -221,7 +253,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
             </TableBody>
           </Table>
         </div>
-        <p className="text-muted-foreground text-xs">Distance in {u.distance}, duration in {u.duration}, cost in {u.cost}. Routes return to the depot; load is what the vehicle carries out.</p>
+        <p className="text-muted-foreground text-xs">Distance in {u.distance}, duration in {u.duration}, cost in {u.cost}. {several ? "Each route starts at its vehicle type's start depot and ends at its end depot" : "Routes return to the depot"}; load is what the vehicle carries out.</p>
       </section>
       {observations.length > 0 && (
         <section className="bg-card rounded-xl border p-4">

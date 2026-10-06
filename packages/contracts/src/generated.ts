@@ -824,6 +824,11 @@ export interface components {
             duration: number;
             /** Duration Cost */
             duration_cost: number;
+            /**
+             * End Depot
+             * @default null
+             */
+            end_depot: string | null;
             /** Fixed Cost */
             fixed_cost: number;
             /** Index */
@@ -834,6 +839,11 @@ export interface components {
             };
             /** Service Duration */
             service_duration: number;
+            /**
+             * Start Depot
+             * @default null
+             */
+            start_depot: string | null;
             /** Travel Duration */
             travel_duration: number;
             /** Utilization */
@@ -958,8 +968,10 @@ export interface components {
         };
         /**
          * LabVehicleType
-         * @description A vehicle type with a finite count. Every vehicle starts and ends at the single depot
-         *     (closed routes; PyVRP-native, no open-route workaround). Capacity names every dimension.
+         * @description A vehicle type with a finite count. Every vehicle starts at ``start_depot`` and ends at
+         *     ``end_depot`` (depot ids; both default to the first depot, so a single-depot instance needs
+         *     neither). Routes are closed in the sense that every route returns to a depot; there is no open
+         *     route workaround. Capacity names every dimension.
          */
         LabVehicleType: {
             /** Capacity */
@@ -968,6 +980,11 @@ export interface components {
             };
             /** Count */
             count: number;
+            /**
+             * End Depot
+             * @default null
+             */
+            end_depot: string | null;
             /**
              * Fixed Cost
              * @default 0
@@ -990,6 +1007,11 @@ export interface components {
              * @default null
              */
             shift_duration: number | null;
+            /**
+             * Start Depot
+             * @default null
+             */
+            start_depot: string | null;
             /**
              * Unit Distance Cost
              * @default 1
