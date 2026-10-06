@@ -563,13 +563,13 @@ services:
     volumes: ["./data:/data"]
     env_file: [{ path: .env, required: false }]
   valhalla:                              # enabled with `docker compose --profile valhalla up -d`
-    image: ghcr.io/valhalla/valhalla-scripted:<pinned tag>
+    image: ghcr.io/valhalla/valhalla-scripted:3.9.0@sha256:89daaf61…  # pinned multi-arch index
     profiles: ["valhalla"]
     restart: unless-stopped
-    volumes: ["./valhalla:/custom_files"] # extracts and config from deploy/valhalla/prepare.sh; tiles built on first start
+    volumes: ["${VALHALLA_DATA:-./valhalla-data}:/custom_files"] # extracts and config from deploy/valhalla/prepare.sh; tiles built on first start
 ```
 
-When the `valhalla` profile is used, set `VALHALLA_URL=http://valhalla:8002` in `.env`. The Valhalla service publishes no host port. Verify the pinned tag has an arm64 variant (the Raspberry Pi target) and record the result.
+When the `valhalla` profile is used, add the lines printed by `deploy/valhalla/prepare.sh env` (including `VALHALLA_URL=http://valhalla:8002`) to `.env`. The Valhalla service publishes no host port. The pinned 3.9.0 index has linux/amd64 and linux/arm64 variants (checked 2026-10-05; the arm64 image ran on Apple silicon, see `docs/valhalla.md`).
 
 The repository and GHCR image are public, so servers pull without a registry login. Real delivery data, customer addresses, and derived matrices never go into the repository, test fixtures, lesson data, or the image. Lessons use synthetic or public data. Real data exists only in the deployment's `/data` volume and in user-initiated exports.
 
