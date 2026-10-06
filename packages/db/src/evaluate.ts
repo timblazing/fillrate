@@ -3,7 +3,8 @@
 // FastAPI `/evaluate`, which validates it with the pipeline's own validator. Python never opens SQLite;
 // nothing here is persisted, so an evaluation is never a run, a solver result or a saved baseline.
 //
-// A plan is `{ cluster_id, routes }`: ordered visit IDs per truck, the shape of the solve artifact's `routes`.
+// A plan is `{ cluster_id, routes }`: ordered visit IDs per truck, the shape of the solve artifact's `routes`. A run with a
+// vehicle-type fleet also needs `vehicle_types`: one type ID per truck, parallel to `routes` (never guessed).
 import { inflateSync } from "node:zlib";
 import type { ClusterPlan, EvaluateRequest, EvaluateResponse } from "@fillrate/contracts";
 import type { Store } from "./index";
@@ -31,7 +32,7 @@ export function decodeTravel(payload: unknown): { clusters: Entry[] } {
 /** Validates a submitted plan's shape and size; the optimizer re-validates it. */
 export function parsePlan(input: unknown): ClusterPlan {
   const bad = (message: string) => new EvaluationError(400, "invalid_plan", message);
-  const plan = input as { cluster_id?: unknown; routes?: unknown };
+  const plan = input as { cluster_id?: unknown; routes?: unknown; vehicle_types?: unknown };
   if (!plan || typeof plan !== "object" || typeof plan.cluster_id !== "string" || !plan.cluster_id || plan.cluster_id.length > 200) throw bad("Send cluster_id, the cluster the plan is for.");
   if (!Array.isArray(plan.routes) || !plan.routes.length) throw bad("Send routes: one list of visit IDs per shipment, in visit order.");
   let total = 0;
@@ -41,6 +42,11 @@ export function parsePlan(input: unknown): ClusterPlan {
     total += route.length;
   }
   if (total > MAX_PLAN_VISITS) throw bad(`A plan may list at most ${MAX_PLAN_VISITS} visits.`);
+  if (plan.vehicle_types !== undefined && plan.vehicle_types !== null) {
+    if (!Array.isArray(plan.vehicle_types) || plan.vehicle_types.length > MAX_PLAN_VISITS || plan.vehicle_types.some(id => typeof id !== "string" || !id || id.length > 200)) throw bad("vehicle_types lists one non-empty vehicle type ID per shipment.");
+    if (plan.vehicle_types.length !== plan.routes.length) throw bad("vehicle_types needs exactly one type per shipment, in the same order as routes.");
+    return { cluster_id: plan.cluster_id, routes: plan.routes as string[][], vehicle_types: plan.vehicle_types as string[] };
+  }
   return { cluster_id: plan.cluster_id, routes: plan.routes as string[][] };
 }
 
@@ -82,6 +88,11 @@ export function planContext(store: Store, runId: string, clusterId: string) {
     blocked: (problem.blocked as { visit_id: string; reason: string }[]).map(b => ({ ...describe(b.visit_id), reason: b.reason })),
     solve_status: solve.status as string,
     reference_routes: solve.status === "solved" ? (solve.routes as string[][]) : null,
+    // Fleet runs only: the cluster problem's vehicle types (id, label, capacity, count) and each reference route's type.
+    ...(problem.vehicle_types ? {
+      vehicle_types: (problem.vehicle_types as { id: string; label: string; capacity: number; count: number | null }[]).map(({ id, label, capacity, count }) => ({ id, label, capacity, count })),
+      reference_vehicle_types: solve.status === "solved" ? (solve.vehicle_types as string[]) : null,
+    } : {}),
   };
 }
 
@@ -105,7 +116,7 @@ export function evaluationRequest(store: Store, runId: string, plan: ClusterPlan
     // The exact snapshot the run selected; the optimizer re-checks its identity against the settings.
     travel_snapshot: snapshotId ? (store.travelSnapshot(snapshotId) as unknown as Record<string, unknown>) : null,
     plan,
-    reference: solve.status === "solved" && (solve.routes as string[][]).length ? { cluster_id: id, routes: solve.routes as string[][] } : null,
+    reference: solve.status === "solved" && (solve.routes as string[][]).length ? { cluster_id: id, routes: solve.routes as string[][], ...(solve.vehicle_types ? { vehicle_types: solve.vehicle_types as string[] } : {}) } : null,
   };
   return { request, recorded: { travel: hash("travel"), problem: hash("problem"), aggregation: hash("aggregation"), travel_snapshot: snapshotId } };
 }

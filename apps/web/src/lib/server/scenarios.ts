@@ -1,6 +1,7 @@
 import "server-only";
 import { parseContract, type RunSettings, type ScenarioDocument, type Snapshot } from "@fillrate/contracts";
 import type { Store } from "@fillrate/db";
+import { fleetProblems, withoutEmptyFleet } from "@fillrate/db/fleet";
 import { validateScenario } from "@fillrate/db/scenarios";
 import { assertSnapshotBinding, preflightChecks } from "@fillrate/db/preflight";
 import type { Binding, TravelSnapshot } from "@fillrate/db/travel";
@@ -56,7 +57,9 @@ export function createScenarioRun(store: Store, who: Principal, versionId: strin
   const ownerId = assertOwnVersion(store, who, versionId);
   if (!key || key.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
   const document = validateScenario(store.versionDocument(versionId).document);
-  const settings = parseContract("RunSettings", rawSettings);
+  const settings = withoutEmptyFleet(parseContract("RunSettings", rawSettings));
+  const fleetIssues = fleetProblems(settings);
+  if (fleetIssues.length) throw new ApiError(400, "invalid_settings", fleetIssues.join(" "), ["settings.fleet"]);
   // Stored settings name the source explicitly; null and absent both mean a cold start.
   if (settings.warm_start) settings.warm_start = { kind: "run", run_id: settings.warm_start.run_id };
   else delete settings.warm_start;

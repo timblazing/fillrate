@@ -187,6 +187,8 @@ export interface components {
             cluster_id: string;
             /** Routes */
             routes: string[][];
+            /** Vehicle Types */
+            vehicle_types?: string[] | null;
         };
         /** ClusterSummary */
         ClusterSummary: {
@@ -265,7 +267,7 @@ export interface components {
              * Reason
              * @default null
              */
-            reason: ("travel_changed" | "visit_set_changed" | "demand_changed" | "source_invalid" | "invalid_on_new_problem" | "solver_rejected") | null;
+            reason: ("travel_changed" | "visit_set_changed" | "demand_changed" | "source_invalid" | "invalid_on_new_problem" | "solver_rejected" | "fleet_changed") | null;
             /**
              * Source Cluster Id
              * @default null
@@ -566,6 +568,60 @@ export interface components {
             versions: {
                 [key: string]: string;
             };
+        };
+        /**
+         * FleetTypeUse
+         * @description What a fleet run used of one vehicle type, fleet-wide (all clusters).
+         */
+        FleetTypeUse: {
+            /** Avg Fill */
+            avg_fill: number | null;
+            /** Capacity */
+            capacity: number;
+            /** Count */
+            count: number | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Load */
+            load: number;
+            /** Min Fill */
+            min_fill: number | null;
+            /** Trucks */
+            trucks: number;
+        };
+        /**
+         * FleetVehicleType
+         * @description One vehicle type of an optional heterogeneous fleet (spec §3, M6).
+         *
+         *     `count` is the number of vehicles of this type available to the whole dispatch (all clusters
+         *     together); null means unlimited, which is how the single trailer behaves today. `capacity` is
+         *     in the pipeline's capacity unit, integer hundredths of a foot. The two rates are used only by
+         *     the `cost` objective, which requires them on every type.
+         */
+        FleetVehicleType: {
+            /** Capacity */
+            capacity: number;
+            /**
+             * Count
+             * @default null
+             */
+            count: number | null;
+            /**
+             * Fixed Cost Cents
+             * @default null
+             */
+            fixed_cost_cents: number | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Per Mile Cents
+             * @default null
+             */
+            per_mile_cents: number | null;
         };
         /**
          * GeocodeMatch
@@ -1253,7 +1309,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "unknown_visit" | "unreachable_visit" | "duplicate_visit" | "missing_visit" | "empty_truck" | "over_capacity" | "leg_missing" | "leg_over_limit" | "leg_mismatch" | "leg_no_duration" | "window_late" | "horizon_exceeded" | "cluster_diameter";
+            code: "unknown_visit" | "unreachable_visit" | "duplicate_visit" | "missing_visit" | "empty_truck" | "over_capacity" | "leg_missing" | "leg_over_limit" | "leg_mismatch" | "leg_no_duration" | "window_late" | "horizon_exceeded" | "cluster_diameter" | "vehicle_type_missing" | "unknown_vehicle_type" | "fleet_count_exceeded";
             /** Message */
             message: string;
             /** Truck */
@@ -1414,6 +1470,8 @@ export interface components {
             cost_per_truck_cents: number | null;
             /** Excluded Line Ids */
             excluded_line_ids?: string[];
+            /** Fleet */
+            fleet?: components["schemas"]["FleetVehicleType"][] | null;
             /**
              * Fulfillment Policy
              * @default piece
@@ -1530,6 +1588,8 @@ export interface components {
             depot: components["schemas"]["Depot"];
             /** Diagnostics */
             diagnostics: components["schemas"]["Diagnostic"][];
+            /** Fleet Usage */
+            fleet_usage?: components["schemas"]["FleetTypeUse"][] | null;
             /** Locations */
             locations: components["schemas"]["MapLocation"][];
             /** Preflight */
@@ -1777,6 +1837,8 @@ export interface components {
             service_s_total?: number | null;
             /** Shift Start S */
             shift_start_s?: number | null;
+            /** Vehicle Type Id */
+            vehicle_type_id?: string | null;
             /** Visits */
             visits: components["schemas"]["TruckVisit"][];
             /** Wait S Total */
@@ -1864,6 +1926,7 @@ export interface components {
         /**
          * WarmStartCluster
          * @description A source cluster: validated ones carry their routes in service order; others carry none.
+         *     Fleet plans also carry each route's vehicle type ID, parallel to `routes`.
          */
         WarmStartCluster: {
             /** Cluster Id */
@@ -1877,6 +1940,8 @@ export interface components {
              * @enum {string}
              */
             status: "validated" | "invalid_candidate" | "no_candidate" | "nothing_to_solve";
+            /** Vehicle Types */
+            vehicle_types?: string[] | null;
         };
         /**
          * WarmStartPlan
@@ -1887,6 +1952,8 @@ export interface components {
         WarmStartPlan: {
             /** Clusters */
             clusters: components["schemas"]["WarmStartCluster"][];
+            /** Fleet */
+            fleet?: string[] | null;
             /**
              * Schema Version
              * @default 1

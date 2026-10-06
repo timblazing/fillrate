@@ -45,7 +45,7 @@ def wait(check, what, seconds=300):
 
 examples = {e["id"] for e in call("/api/v1/examples")["examples"]}
 if examples != {"m1", "lesson", "allocation", "capacity", "seeds", "windows", "windows_off",
-                "manual", "matrix_estimated", "matrix_recorded"}:
+                "manual", "fleet", "matrix_estimated", "matrix_recorded"}:
     sys.exit(f"unexpected examples: {examples}")
 call("/api/v1/runs", {"example": "nope"}, expect=400)
 

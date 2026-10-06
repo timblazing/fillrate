@@ -237,8 +237,24 @@ class WarmStartSource(Doc):
     run_id: Id
 
 
+class FleetVehicleType(Doc):
+    """One vehicle type of an optional heterogeneous fleet (spec §3, M6).
+
+    `count` is the number of vehicles of this type available to the whole dispatch (all clusters
+    together); null means unlimited, which is how the single trailer behaves today. `capacity` is
+    in the pipeline's capacity unit, integer hundredths of a foot. The two rates are used only by
+    the `cost` objective, which requires them on every type."""
+
+    id: Id
+    label: Annotated[str, Field(min_length=1, max_length=100)]
+    count: Annotated[int, Field(strict=True, ge=1, le=100_000)] | None = None
+    capacity: Annotated[int, Field(strict=True, ge=1, le=1_000_000)]
+    fixed_cost_cents: Count | None = None
+    per_mile_cents: Count | None = None
+
+
 class RunSettings(SparseDoc):
-    _sparse = ("warm_start",)
+    _sparse = ("warm_start", "fleet")
     schema_version: Literal[1] = 1
     trailer_capacity: Annotated[int, Field(strict=True, ge=1, le=1_000_000)] = 5_300
     travel_circuity: Annotated[float, Field(ge=1, le=5)] = 1.2
@@ -285,14 +301,34 @@ class RunSettings(SparseDoc):
     # PyVRP from that plan. Solver provenance: part of the solve stage identity, never of the
     # comparison signature. Left out of dumps when unset.
     warm_start: WarmStartSource | None = None
+    # Optional heterogeneous fleet (spec §3, M6). Absent: today's single unlimited trailer of
+    # `trailer_capacity`, and every document and identity is unchanged. Present: one PyVRP
+    # vehicle type per entry in every cluster, `trailer_capacity` is not used, and counts are
+    # fleet-wide (see docs/decisions.md). Left out of dumps when unset.
+    fleet: Annotated[list[FleetVehicleType], Field(min_length=1, max_length=10)] | None = None
 
     @model_validator(mode="after")
     def validate_cost_rates(self) -> RunSettings:
-        if self.objective == "cost" and (
+        if self.fleet is not None:
+            if len({t.id for t in self.fleet}) != len(self.fleet):
+                raise ValueError("fleet vehicle type IDs must be unique")
+            if self.objective == "cost" and any(
+                t.fixed_cost_cents is None or t.per_mile_cents is None for t in self.fleet
+            ):
+                raise ValueError(
+                    "cost objective with a fleet requires fixed and per-mile cents on every type"
+                )
+        elif self.objective == "cost" and (
             self.cost_per_truck_cents is None or self.cost_per_mile_cents is None
         ):
             raise ValueError("cost objective requires both truck and mile rates in integer cents")
         return self
+
+    @property
+    def max_capacity(self) -> int:
+        """The largest single-vehicle capacity: the trailer, or the biggest fleet type. Stops are
+        split to it and indivisible pieces are checked against it."""
+        return max(t.capacity for t in self.fleet) if self.fleet else self.trailer_capacity
 
 
 # ---- Run summary (results, spec §10) ----------------------------------------------------------
@@ -356,7 +392,7 @@ class TruckVisit(SparseDoc):
 
 
 class TruckSummary(SparseDoc):
-    _sparse = ("shift_start_s", "service_s_total", "wait_s_total", "end_s")
+    _sparse = ("shift_start_s", "service_s_total", "wait_s_total", "end_s", "vehicle_type_id")
     id: str
     cluster_id: str
     load: Count
@@ -371,6 +407,8 @@ class TruckSummary(SparseDoc):
     service_s_total: Count | None = None
     wait_s_total: Count | None = None
     end_s: Count | None = None
+    # Fleet runs only: the vehicle type this truck is, whose capacity `fill` is measured against.
+    vehicle_type_id: str | None = None
 
 
 WarmStartReason = Literal[
@@ -380,6 +418,7 @@ WarmStartReason = Literal[
     "source_invalid",
     "invalid_on_new_problem",
     "solver_rejected",
+    "fleet_changed",
 ]
 
 
@@ -567,13 +606,16 @@ class WarmStartVisit(Doc):
     load: Count
 
 
-class WarmStartCluster(Doc):
-    """A source cluster: validated ones carry their routes in service order; others carry none."""
+class WarmStartCluster(SparseDoc):
+    """A source cluster: validated ones carry their routes in service order; others carry none.
+    Fleet plans also carry each route's vehicle type ID, parallel to `routes`."""
 
+    _sparse = ("vehicle_types",)
     cluster_id: Annotated[str, Field(min_length=1, max_length=200)]
     status: Literal["validated", "invalid_candidate", "no_candidate", "nothing_to_solve"]
     location_ids: list[Id]
     routes: list[list[WarmStartVisit]]
+    vehicle_types: list[Id] | None = None
 
 
 class WarmStartTravel(Doc):
@@ -585,15 +627,19 @@ class WarmStartTravel(Doc):
     snapshot_id: Hash | None = None
 
 
-class WarmStartPlan(Doc):
+class WarmStartPlan(SparseDoc):
     """The warm-start source interface (spec §10, M6): a plan as routes of visits with their
     location and load, per source cluster, and the travel it was validated on. Its content hash is
     the plan identity recorded in the `warm_start` stage artifact and the replay bundle."""
 
+    _sparse = ("fleet",)
     schema_version: Literal[1] = 1
     source: WarmStartSource
     travel: WarmStartTravel
     clusters: list[WarmStartCluster]
+    # Fleet runs only: the vehicle type IDs the source run had. A plan from a fleet run only
+    # warm-starts a fleet run and the reverse (`fleet_changed`).
+    fleet: list[Id] | None = None
 
 
 class WarmStartSummary(Doc):
@@ -603,8 +649,21 @@ class WarmStartSummary(Doc):
     skipped: int
 
 
+class FleetTypeUse(Doc):
+    """What a fleet run used of one vehicle type, fleet-wide (all clusters)."""
+
+    id: Id
+    label: str
+    capacity: Count
+    count: Count | None
+    trucks: Count
+    load: Count
+    avg_fill: float | None
+    min_fill: float | None
+
+
 class RunSummary(SparseDoc):
-    _sparse = ("time", "warm_start")
+    _sparse = ("time", "warm_start", "fleet_usage")
     schema_version: Literal[1] = 1
     scenario_name: str
     validity: Literal["valid", "invalid"]
@@ -628,6 +687,8 @@ class RunSummary(SparseDoc):
     time: TimeSummary | None = None
     # Present only on warm-started runs (M6).
     warm_start: WarmStartSummary | None = None
+    # Present only on fleet runs (M6): per-type use against the fleet-wide counts.
+    fleet_usage: list[FleetTypeUse] | None = None
     diagnostics: list[Diagnostic]
     versions: dict[str, str]
 

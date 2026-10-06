@@ -18,7 +18,8 @@ import { cn } from "@/lib/utils"
 import { type Evaluation, PlanComparison } from "./plan-comparison"
 
 type Visit = { visit_id: string; location_id: string; load: number }
-type Context = { cluster_id: string; objective: string; visits: Visit[]; blocked: (Visit & { reason: string })[]; solve_status: string; reference_routes: string[][] | null }
+type FleetType = { id: string; label: string; capacity: number; count: number | null }
+type Context = { cluster_id: string; objective: string; visits: Visit[]; blocked: (Visit & { reason: string })[]; solve_status: string; reference_routes: string[][] | null; vehicle_types?: FleetType[]; reference_vehicle_types?: string[] | null }
 type Focus = { visit: string; action: "up" | "down" | "move" } | null
 
 const moveWithin = (routes: string[][], truck: number, from: number, to: number) =>
@@ -31,12 +32,16 @@ const moveWithin = (routes: string[][], truck: number, from: number, to: number)
   })
 
 /** Moves a visit to the end of another shipment (`to` = routes.length starts a new one); empty shipments are removed. */
-const moveAcross = (routes: string[][], from: number, visit: string, to: number) => {
+const moveAcross = (routes: string[][], from: number, visit: string, to: number, types: string[] = []) => {
   const next = routes.map((r) => [...r])
+  const nextTypes = [...types]
   next[from] = next[from].filter((v) => v !== visit)
-  if (to === next.length) next.push([visit])
-  else next[to].push(visit)
-  return next.filter((r) => r.length)
+  if (to === next.length) {
+    next.push([visit])
+    nextTypes.push(types[from]) // a new shipment starts as the source shipment's vehicle type
+  } else next[to].push(visit)
+  const keep = next.map((r) => r.length > 0)
+  return { routes: next.filter((_, i) => keep[i]), types: nextTypes.filter((_, i) => keep[i]) }
 }
 
 /**
@@ -50,6 +55,8 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
   const [context, setContext] = useState<Context | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [routes, setRoutes] = useState<string[][]>([])
+  // Fleet runs: the vehicle type of each shipment, parallel to `routes` (empty without a fleet).
+  const [types, setTypes] = useState<string[]>([])
   const [result, setResult] = useState<{ evaluation: Evaluation; plan: string } | null>(null)
   const [evaluating, setEvaluating] = useState(false)
   const [evalError, setEvalError] = useState<string | null>(null)
@@ -73,6 +80,7 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
         setContext(ctx)
         setLoadError(null)
         setRoutes(initialRoutes(ctx))
+        setTypes(initialTypes(ctx))
         setResult(null)
         setEvalError(null)
       })
@@ -103,14 +111,17 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
 
   const visits = new Map((context?.visits ?? []).map((v) => [v.visit_id, v]))
   const label = (id: string) => places.get(visits.get(id)?.location_id ?? "") ?? id
-  const capacity = summary.settings.trailer_capacity
-  const planKey = JSON.stringify(routes)
-  const changed = context ? planKey !== JSON.stringify(initialRoutes(context)) : false
+  const fleet = context?.vehicle_types
+  const fleetTypes = new Map((fleet ?? []).map((t) => [t.id, t]))
+  const capacityOf = (t: number) => fleetTypes.get(types[t])?.capacity ?? summary.settings.trailer_capacity
+  const planKey = JSON.stringify([routes, types])
+  const changed = context ? planKey !== JSON.stringify([initialRoutes(context), initialTypes(context)]) : false
   const clusterIndex = summary.clusters.findIndex((c) => c.id === clusterId) + 1
   const items = clusters.map((c) => ({ value: c.id, label: `Cluster ${summary.clusters.indexOf(c) + 1} · ${c.visit_count} ${c.visit_count === 1 ? "stop" : "stops"}` }))
 
-  function update(next: string[][], message: string, nextFocus: Focus) {
+  function update(next: string[][], message: string, nextFocus: Focus, nextTypes: string[] = types) {
     setRoutes(next)
+    setTypes(nextTypes)
     setAnnouncement(message)
     focus.current = nextFocus
   }
@@ -122,7 +133,7 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
       const res = await fetch(`/api/v1/runs/${runId}/evaluate`, {
         method: "POST",
         headers: { "content-type": "application/json", ...headers },
-        body: JSON.stringify({ cluster_id: clusterId, routes }),
+        body: JSON.stringify({ cluster_id: clusterId, routes, ...(fleet ? { vehicle_types: types } : {}) }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error?.message ?? "Evaluation failed.")
@@ -138,6 +149,7 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
   function reset() {
     if (!context) return
     setRoutes(initialRoutes(context))
+    setTypes(initialTypes(context))
     setResult(null)
     setEvalError(null)
     setAnnouncement("Manual plan reset to the optimized routes.")
@@ -208,6 +220,7 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
           <div ref={listRef} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {routes.map((route, t) => {
               const load = route.reduce((n, id) => n + (visits.get(id)?.load ?? 0), 0)
+              const capacity = capacityOf(t)
               const fill = load / capacity
               return (
                 <section key={t} className="bg-card flex min-w-0 flex-col rounded-xl border" aria-label={`Manual ${shipmentLabel(t + 1)}`}>
@@ -216,6 +229,24 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
                     <span className={cn("text-xs tabular-nums", fill > 1 ? "text-destructive-foreground font-medium" : fillBand(fill) === "low" ? "text-warning-foreground" : "text-muted-foreground")}>
                       {formatFeet(load)} of {formatFeet(capacity, 0)} · {formatPercent(fill)}
                     </span>
+                    {fleet && (
+                      <Select
+                        value={types[t]}
+                        onValueChange={(v) => update(routes, `${shipmentLabel(t + 1)} is now a ${fleetTypes.get(v as string)?.label}.`, null, types.map((x, i) => (i === t ? (v as string) : x)))}
+                        items={fleet.map((f) => ({ value: f.id, label: f.label }))}
+                      >
+                        <SelectTrigger size="sm" className="ml-auto w-40" aria-label={`Vehicle type of manual ${shipmentLabel(t + 1)}`} data-testid="manual-vehicle-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectPopup>
+                          {fleet.map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectPopup>
+                      </Select>
+                    )}
                   </header>
                   <ol className="divide-y">
                     {route.map((id, i) => (
@@ -257,8 +288,8 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
                                 <MenuItem
                                   key={j}
                                   onClick={() => {
-                                    const next = moveAcross(routes, t, id, j)
-                                    update(next, `${label(id)} moved to the end of ${shipmentLabel(next.findIndex((r) => r.includes(id)) + 1)}.`, { visit: id, action: "move" })
+                                    const next = moveAcross(routes, t, id, j, types)
+                                    update(next.routes, `${label(id)} moved to the end of ${shipmentLabel(next.routes.findIndex((r) => r.includes(id)) + 1)}.`, { visit: id, action: "move" }, next.types)
                                   }}
                                 >
                                   To {shipmentLabel(j + 1)}
@@ -268,7 +299,10 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
                             {routes.length > 1 && <MenuSeparator />}
                             <MenuItem
                               disabled={route.length === 1}
-                              onClick={() => update(moveAcross(routes, t, id, routes.length), `${label(id)} moved to a new ${shipmentLabel(routes.length + 1)}.`, { visit: id, action: "move" })}
+                              onClick={() => {
+                                const next = moveAcross(routes, t, id, routes.length, types)
+                                update(next.routes, `${label(id)} moved to a new ${shipmentLabel(routes.length + 1)}.`, { visit: id, action: "move" }, next.types)
+                              }}
                             >
                               To a new shipment
                             </MenuItem>
@@ -297,4 +331,12 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
 /** The run's optimized routes or, without a candidate, one shipment per stop. */
 function initialRoutes(context: Context) {
   return context.reference_routes?.map((r) => [...r]) ?? context.visits.map((v) => [v.visit_id])
+}
+
+/** Fleet runs: each optimized route's vehicle type or, without a candidate, the largest type for every shipment. */
+function initialTypes(context: Context) {
+  if (!context.vehicle_types) return []
+  if (context.reference_routes && context.reference_vehicle_types) return [...context.reference_vehicle_types]
+  const largest = context.vehicle_types.reduce((a, b) => (b.capacity > a.capacity ? b : a))
+  return initialRoutes(context).map(() => largest.id)
 }

@@ -350,7 +350,7 @@ function Results({ summary, run, runKey, canEvaluate }: { summary: RunSummary; r
         </div>
         <StatTile label="Shipments" value={formatCount(t.trucks)} footnote={<BoundsNote total={t.capacity_lower_bound} perCluster={t.sum_cluster_lower_bounds} trucks={t.trucks} />} />
         <StatTile
-          label="Trailer fill"
+          label={summary.settings.fleet ? "Vehicle fill" : "Trailer fill"}
           value={t.avg_fill == null ? "n/a" : formatPercent(t.avg_fill)}
           footnote={t.min_fill == null ? undefined : `Lowest ${formatPercent(t.min_fill)} · ${lowCount} under ${formatPercent(FILL_LOW)}`}
         />
@@ -360,6 +360,7 @@ function Results({ summary, run, runKey, canEvaluate }: { summary: RunSummary; r
 
       <PreflightNotes summary={summary} />
       <WarmStartNotes summary={summary} />
+      <FleetUsage summary={summary} />
 
       <StepsPanel>
         <CompletedSteps summary={summary} />
@@ -461,6 +462,48 @@ function ValidityAlert({ summary, unplannedPieces }: { summary: RunSummary; unpl
 }
 
 /** Preflight checks this run recorded. A blocked run fails before this point, so these ran as warnings. */
+/** Fleet runs: trucks used per vehicle type against its fleet-wide count, and fill against each type's own capacity. */
+function FleetUsage({ summary }: { summary: RunSummary }) {
+  const usage = summary.fleet_usage
+  if (!usage) return null
+  return (
+    <section className="bg-card flex flex-col gap-2 rounded-xl border p-4" aria-label="Fleet use" data-testid="fleet-usage">
+      <h3 className="text-sm font-medium">Fleet use</h3>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Vehicle type</TableHead>
+              <TableHead className="text-right">Capacity</TableHead>
+              <TableHead className="text-right">Used / available</TableHead>
+              <TableHead className="text-right">Linear ft</TableHead>
+              <TableHead className="text-right">Average fill</TableHead>
+              <TableHead className="text-right">Lowest fill</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {usage.map((u) => (
+              <TableRow key={u.id} data-testid={`fleet-usage-${u.id}`} data-trucks={u.trucks}>
+                <TableCell className="font-medium">{u.label}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatFeet(u.capacity, 0)}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatCount(u.trucks)} / {u.count == null ? "unlimited" : formatCount(u.count)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{formatFeet(u.load)}</TableCell>
+                <TableCell className="text-right tabular-nums">{u.avg_fill == null ? "n/a" : formatPercent(u.avg_fill)}</TableCell>
+                <TableCell className="text-right tabular-nums">{u.min_fill == null ? "n/a" : formatPercent(u.min_fill)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <p className="text-muted-foreground text-xs text-pretty">
+        Counts apply to the whole dispatch. PyVRP cannot enforce them across clusters, so each cluster was solved against the vehicles earlier clusters left and the total was checked afterwards.
+      </p>
+    </section>
+  )
+}
+
 function PreflightNotes({ summary }: { summary: RunSummary }) {
   const found = summary.preflight ?? []
   if (!found.length) return null
@@ -579,6 +622,7 @@ function ShipmentTable({
   const rows = cluster ? summary.trucks.filter((x) => x.cluster_id === cluster) : summary.trucks
   const labels = new Map(summary.locations.map((l) => [l.id, l.label]))
   const selected = summary.trucks.find((x) => x.id === truck)
+  const fleet = summary.settings.fleet ? new Map(summary.settings.fleet.map((v) => [v.id, v])) : null
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -601,7 +645,8 @@ function ShipmentTable({
           <TableHeader>
             <TableRow>
               <TableHead>Shipment</TableHead>
-              <TableHead>Trailer fill</TableHead>
+              {fleet && <TableHead>Vehicle</TableHead>}
+              <TableHead>{fleet ? "Fill (own capacity)" : "Trailer fill"}</TableHead>
               <TableHead>Stops</TableHead>
               <TableHead className="text-right">Linear ft</TableHead>
               <TableHead className="text-right">Loaded miles</TableHead>
@@ -626,6 +671,12 @@ function ShipmentTable({
                     <TruckTag id={x.id} cluster={clusterIndex(x.cluster_id)} className="text-muted-foreground text-[11px] font-normal" />
                   </button>
                 </TableCell>
+                {fleet && (
+                  <TableCell className="text-xs whitespace-normal" data-testid="shipment-vehicle" data-vehicle={x.vehicle_type_id}>
+                    {fleet.get(x.vehicle_type_id ?? "")?.label ?? x.vehicle_type_id}
+                    <span className="text-muted-foreground block tabular-nums">{formatFeet(fleet.get(x.vehicle_type_id ?? "")?.capacity ?? 0, 0)}</span>
+                  </TableCell>
+                )}
                 <TableCell>
                   <ShipmentFill fill={x.fill} size="sm" className="w-16" />
                 </TableCell>
@@ -657,11 +708,17 @@ function ShipmentTable({
 
 function ShipmentDetail({ summary, truck, index, cluster, runId }: { summary: RunSummary; truck: RunSummary["trucks"][number]; index: number; cluster: number; runId: string }) {
   const labels = new Map(summary.locations.map((l) => [l.id, l.label]))
+  const vehicle = summary.settings.fleet?.find((v) => v.id === truck.vehicle_type_id)
   return (
     <section className="bg-card space-y-3 rounded-xl border p-4" aria-label={`${shipmentLabel(index)} detail`}>
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="font-medium">{shipmentLabel(index)}</h3>
         <TruckTag id={truck.id} cluster={cluster} className="text-muted-foreground" />
+        {vehicle && (
+          <span className="text-xs" data-testid="shipment-detail-vehicle">
+            {vehicle.label}
+          </span>
+        )}
         <span className="text-muted-foreground text-xs tabular-nums">
           {plural(truck.visits.length, "stop")} · {miles(truck.distance_m)} loaded · {formatMoney(truck.amount_cents)}
         </span>
@@ -676,7 +733,7 @@ function ShipmentDetail({ summary, truck, index, cluster, runId }: { summary: Ru
       </div>
       <TrailerFill
         cluster={cluster}
-        capacity={summary.settings.trailer_capacity}
+        capacity={vehicle?.capacity ?? summary.settings.trailer_capacity}
         segments={truck.visits.map((v) => ({ id: v.visit_id, load: v.load, label: labels.get(v.location_id) }))}
       />
       <ol className="divide-y text-sm">
@@ -830,12 +887,16 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
       "Objective",
       s.objective === "trucks_then_distance"
         ? `Fewest trucks, then fewest miles (derived penalty F = n·L + 1 per cluster). ${COST_FALLBACK}`
-        : s.objective === "cost"
+        : s.objective === "cost" && s.fleet
+          ? `Lowest cost by vehicle type: ${s.fleet.map((v) => `${v.label} ${formatMoney(v.fixed_cost_cents ?? 0)} per truck, ${formatMoney(v.per_mile_cents ?? 0)} per mile`).join("; ")}`
+          : s.objective === "cost"
           ? `Lowest cost: ${formatMoney(s.cost_per_truck_cents ?? 0)} per truck, ${formatMoney(s.cost_per_mile_cents ?? 0)} per mile`
           : `Weighted distance (${s.weighted_truck_penalty_m} m per truck)`,
     ],
     ["Allocation", allocationProvenance(summary)],
-    ["Trailer", `${formatFeet(s.trailer_capacity, 0)}, linear feet only, open routes`],
+    s.fleet
+      ? ["Fleet", `${s.fleet.map((v) => `${v.label} (${formatFeet(v.capacity, 0)}, ${v.count == null ? "unlimited" : `${v.count} available`})`).join("; ")}; linear feet only, open routes. Counts are fleet-wide: clusters are solved in order against the vehicles left, then checked across clusters.`]
+      : ["Trailer", `${formatFeet(s.trailer_capacity, 0)}, linear feet only, open routes`],
     [
       "Travel",
       summary.travel?.mode === "snapshot"

@@ -9,6 +9,7 @@ import { assertWarmStartSource, parseWarmStart, warmStartError } from "./warm-st
 
 import allocation from "../../../../../examples/lesson-allocation.json";
 import capacity from "../../../../../examples/lesson-capacity.json";
+import fleet from "../../../../../examples/fleet-mixed.json";
 import lesson from "../../../../../examples/lesson-fulfillment.json";
 import matrixEstimated from "../../../../../examples/lesson-matrix-estimated.json";
 import matrixSnapshot from "../../../../../examples/lesson-matrix-snapshot.json";
@@ -27,7 +28,8 @@ import m1 from "../../../../../examples/m1-synthetic.json";
 // and without their delivery windows; `matrix_estimated` and `matrix_recorded` are the road matrix lesson's one
 // scenario on estimated travel and on its bundled synthetic recorded matrix (spec §13). An example's `travel` is a
 // travel snapshot document its settings select; it is stored for the examples owner before the first run.
-// `manual` is the manual versus optimized routes lesson (spec §13).
+// `manual` is the manual versus optimized routes lesson (spec §13). `fleet` is the mixed-fleet example: 53 ft
+// trailers and 26 ft box trucks with finite counts under the lowest-cost objective (M6).
 export const EXAMPLES = {
   m1: { id: "m1", scenario: m1.scenario as ScenarioDocument, settings: m1.settings as RunSettings, blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop" },
   lesson: { id: "lesson", scenario: lesson.scenario as ScenarioDocument, settings: lesson.settings as RunSettings, blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete" },
@@ -38,6 +40,7 @@ export const EXAMPLES = {
   windows_off: { id: "windows_off", scenario: windowsOff.scenario as ScenarioDocument, settings: windowsOff.settings as RunSettings, blurb: "Time-window lesson without windows: the same nine stops and service durations, no delivery windows" },
   matrix_estimated: { id: "matrix_estimated", scenario: matrixEstimated.scenario as ScenarioDocument, settings: matrixEstimated.settings as RunSettings, blurb: "Road matrix lesson on estimated travel: seven stops, straight-line distance × 1.2" },
   matrix_recorded: { id: "matrix_recorded", scenario: matrix.scenario as ScenarioDocument, settings: matrix.settings as RunSettings, travel: matrixSnapshot as unknown, blurb: "Road matrix lesson on a synthetic recorded directed matrix (not real roads): a one-way river crossing and a ridge detour" },
+  fleet: { id: "fleet", scenario: fleet.scenario as ScenarioDocument, settings: fleet.settings as RunSettings, blurb: "Mixed fleet: 24 stops served by three 53 ft trailers and eight 26 ft box trucks, so counts and per-type capacity and cost shape the plan" },
   manual: { id: "manual", scenario: manual.scenario as ScenarioDocument, settings: manual.settings as RunSettings, blurb: "Manual routes lesson: ten stops around Memphis on three trucks, to compare a dispatcher's plan with the optimized one" },
 } as const;
 export type ExampleId = keyof typeof EXAMPLES;
@@ -56,7 +59,7 @@ export function parseExample(input: unknown, fallback: ExampleId): Example {
   throw new ApiError(400, "unknown_example", `Unknown example; use one of ${Object.keys(EXAMPLES).join(", ")}.`, ["example"]);
 }
 
-const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", seeds: "Seed lesson", windows: "Time-window lesson", windows_off: "Time-window lesson, no windows", manual: "Manual routes lesson", matrix_estimated: "Road matrix lesson, estimated", matrix_recorded: "Road matrix lesson, recorded matrix" };
+const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", seeds: "Seed lesson", windows: "Time-window lesson", windows_off: "Time-window lesson, no windows", manual: "Manual routes lesson", fleet: "Mixed fleet example", matrix_estimated: "Road matrix lesson, estimated", matrix_recorded: "Road matrix lesson, recorded matrix" };
 
 /** Small listing for pages and `GET /api/v1/examples`. */
 export function exampleInfo(example: Example) {

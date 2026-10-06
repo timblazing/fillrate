@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "fleet"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1213,6 +1213,121 @@ async function manualPlanFlow(baseURL, runKey) {
   console.log(`  passed: run ${runId.slice(0, 8)} 3 trucks/273 mi; order-sequence plan valid at 714 mi; east-west plan over capacity; keyboard edit overloads shipment ${to + 1}`);
 }
 
+// Heterogeneous fleet (M6): an operator sets a fleet in the workbench (validation, Basic/Advanced disclosure), runs it, and the
+// run page, shipment sheet and manual plan tab show the persisted per-type results measured against each truck's own capacity.
+async function fleetFlow(baseURL, scenarioKey) {
+  console.log("Browser smoke: heterogeneous fleet");
+  beginBrowserFlow("fleet");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const author = "Fleet smoke", name = "Fleet browser run";
+  // Six stops of 24 ft each: a 26 ft box truck carries one, a 53 ft trailer two.
+  const stops = [["A", 35.15, -89.0], ["B", 35.15, -88.5], ["C", 35.6, -89.5], ["D", 34.6, -89.7], ["E", 35.9, -90.2], ["F", 34.9, -90.9]];
+  await importInWorkbench(baseURL, scenarioKey, { author, name, inventory: "product,available_pieces\nFL-SKU,100\n", orders: stops.map(([id, lat, lon], i) => `FL-${i + 1},FL-L${i + 1},2026-10-01,Cust ${id},FL-${id},Stop ${id},${lat},${lon},FL-SKU,6,25.00,4.00,1`) });
+  openSavedScenario(baseURL, scenarioKey, author, `${name} · v1`);
+  fillLabel("Clusters (blank = auto)", "1");
+  fillLabel("Time per cluster (seconds)", "2");
+
+  // Fleet section: off by default, then one trailer; Advanced shows ID and rates.
+  expect(evalValue(`document.querySelector('[data-testid="fleet-editor"]') === null || document.querySelector('[data-testid="fleet-row"]') === null`) === true, "A scenario should start without a fleet.");
+  browser("eval", `[...document.querySelectorAll('summary')].find((s) => s.textContent.trim() === 'Fleet')?.click()`);
+  browser("wait", '[data-testid="fleet-enabled"]', "--timeout", "10000");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  browser("eval", `document.querySelector('[data-testid="fleet-enabled"]').scrollIntoView({ block: "center" })`);
+  browser("click", '[data-testid="fleet-enabled"]');
+  browser("wait", '[data-testid="fleet-row"]', "--timeout", "10000");
+  expect(evalValue(`document.querySelectorAll('[data-testid="fleet-row"]').length`) === 1, "Enabling the fleet should add one 53 ft trailer.");
+  expect(evalValue(`document.querySelector('[data-testid="fleet-capacity"]').value`) === "53", "The default type should be 53 ft long.");
+  // Validation: a zero count is refused with a message, and the run button waits.
+  fillCss('[data-testid="fleet-count"]', "0");
+  browser("wait", '[data-testid="fleet-problems"]', "--timeout", "10000");
+  expect(String(parsedText()).includes("the count is a whole number from 1 to 100,000"), "A zero count should be explained.");
+  expect(evalValue(`[...document.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Review and run saved version').disabled`) === true, "An invalid fleet should disable the run button.");
+  fillCss('[data-testid="fleet-count"]', "1");
+  browser("wait", "--fn", `document.querySelector('[data-testid="fleet-problems"]') === null`, "--timeout", "10000");
+  // A second type: a 26 ft box truck, unlimited. The trailer is limited to one.
+  browser("click", '[data-testid="fleet-add"]');
+  browser("wait", "--fn", `document.querySelectorAll('[data-testid="fleet-row"]').length === 2`, "--timeout", "10000");
+  fillCss('[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-label"]', "26 ft box truck");
+  fillCss('[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-capacity"]', "26");
+  browser("eval", `document.querySelector('[data-testid="fleet-row"]:nth-child(2) summary').click()`);
+  browser("wait", '[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-id"]', "--timeout", "10000");
+  fillCss('[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-id"]', "box-26");
+  expect(evalValue(`document.querySelector('[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-capacity"]').value`) === "26", "The box truck length was not kept.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  clickButtonCentered("Review and run saved version");
+  browser("wait", "--url", "**/runs/**", "--timeout", "25000");
+  const runId = browser("get", "url").match(/\/runs\/([0-9a-f-]+)/i)?.[1];
+  expect(runId, "Fleet run did not open its run page.");
+
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey), (body) => ["succeeded", "failed"].includes(body?.status), "Fleet run");
+  checkRun(detail, "fleet");
+  const summary = detail.summary;
+  expect(stable(detail.settings.fleet.map((t) => [t.id, t.count ?? null, t.capacity])) === stable([["trailer-53", 1, 5300], ["box-26", null, 2600]]), `The persisted fleet is not what the workbench set: ${JSON.stringify(detail.settings.fleet)}`);
+  const persisted = Object.fromEntries(summary.fleet_usage.map((u) => [u.id, u.trucks]));
+  expect(stable(persisted) === stable({ "box-26": 4, "trailer-53": 1 }), `Expected 1 trailer and 4 box trucks: ${JSON.stringify(persisted)}`);
+  const capacityOf = Object.fromEntries(detail.settings.fleet.map((t) => [t.id, t.capacity]));
+  expect(summary.trucks.every((t) => t.load <= capacityOf[t.vehicle_type_id] && Math.abs(t.fill - t.load / capacityOf[t.vehicle_type_id]) < 1e-12), "A truck exceeds or is measured against the wrong capacity.");
+
+  // The run page renders exactly the persisted per-type results.
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  browser("wait", '[data-testid="fleet-usage"]', "--timeout", "15000");
+  for (const [id, trucks] of Object.entries(persisted)) {
+    expect(evalValue(`document.querySelector('[data-testid="fleet-usage-${id}"]')?.dataset.trucks`) === String(trucks), `The fleet table shows a different truck count for ${id}.`);
+  }
+  const usageText = String(evalValue(`document.querySelector('[data-testid="fleet-usage"]').innerText`));
+  expect(usageText.includes("1 / 1") && usageText.includes("4 / unlimited"), `The fleet table should show used / available: ${usageText}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  browser("find", "role", "tab", "click", "--name", `Shipments (${summary.trucks.length})`, "--exact");
+  browser("wait", '[data-testid="shipment-vehicle"]', "--timeout", "15000");
+  const shown = evalValue(`JSON.stringify([...document.querySelectorAll('[data-testid="shipment-vehicle"]')].map((c) => c.dataset.vehicle))`);
+  expect(stable(JSON.parse(shown)) === stable(summary.trucks.map((t) => t.vehicle_type_id)), `The shipment table's vehicle types differ from the persisted run: ${shown}`);
+  expect(String(parsedText()).includes("Fill (own capacity)"), "Fill should be labelled as measured against each truck's own capacity.");
+  const box = summary.trucks.find((t) => t.vehicle_type_id === "box-26");
+  browser("eval", `document.querySelector('[data-testid="shipment-vehicle"][data-vehicle="box-26"]').closest('tr').querySelector('button[aria-pressed]').click()`);
+  browser("wait", '[data-testid="shipment-detail-vehicle"]', "--timeout", "10000");
+  expect(String(evalValue(`document.querySelector('[data-testid="shipment-detail-vehicle"]').innerText`)) === "26 ft box truck", "The shipment detail should name its vehicle type.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // The printable sheet names the type and draws the bar against the truck's own capacity.
+  open(`${baseURL}/runs/${runId}/sheet?shipment=${encodeURIComponent(box.id)}`);
+  browser("wait", '[data-testid="sheet-vehicle"]', "--timeout", "15000");
+  const sheet = String(parsedText());
+  expect(sheet.includes("26 ft box truck") && sheet.includes(`${Math.round(box.fill * 100)}% of 26 ft`), `Shipment sheet does not show the box truck against 26 ft: ${sheet.slice(0, 400)}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // Manual plan: each shipment keeps its type; the run's own plan is valid; a trailer load typed as a box is refused.
+  open(`${baseURL}/runs/${runId}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", '[data-testid="manual-vehicle-type"]', "--timeout", "15000");
+  expect(evalValue(`document.querySelectorAll('[data-testid="manual-vehicle-type"]').length`) === summary.trucks.length, "Every manual shipment should offer its vehicle type.");
+  clickButtonCentered("Evaluate");
+  browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
+  const context = await fetchOkJson(baseURL, `/api/v1/runs/${runId}/evaluate?cluster=C1`, scenarioKey);
+  expect(stable(context.vehicle_types.map((t) => t.id)) === stable(["trailer-53", "box-26"]) && stable(context.reference_vehicle_types) === stable(summary.trucks.map((t) => t.vehicle_type_id)), "Plan context does not carry the run's fleet and route types.");
+  const wrong = context.reference_vehicle_types.map(() => "box-26");
+  const refused = await localFetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-scenario-key": scenarioKey }, body: JSON.stringify({ cluster_id: "C1", routes: context.reference_routes, vehicle_types: wrong }) });
+  const refusedBody = await refused.json();
+  expect(refused.status === 200 && refusedBody.manual.valid === false && refusedBody.manual.violations.some((v) => v.code === "over_capacity"), `A trailer load typed as a box should be over capacity: ${JSON.stringify(refusedBody).slice(0, 400)}`);
+  const missing = await localFetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-scenario-key": scenarioKey }, body: JSON.stringify({ cluster_id: "C1", routes: context.reference_routes }) });
+  expect(missing.status === 422, `A fleet plan without vehicle types should be refused, got ${missing.status}.`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("fleet");
+  console.log(`  passed: run ${runId.slice(0, 8)} ${summary.totals.trucks} shipments (1 trailer, 4 box trucks) match the persisted run; invalid fleet blocked; wrong-type plan refused`);
+}
+
 // Solver Lab (M6): a bundled planar example runs from /labs with the run key and its persisted, validated result is
 // what the page renders and exports; then an operator edits the instance JSON in the page and runs it as their own.
 async function labsFlow(baseURL, runKey, scenarioKey) {
@@ -1344,6 +1459,7 @@ try {
     if (flow === "edit") await editFlow(baseURL, scenarioKey);
     if (flow === "labs") await labsFlow(baseURL, runKey, scenarioKey);
     if (flow === "warm-start") await warmStartFlow(baseURL, runKey);
+    if (flow === "fleet") await fleetFlow(baseURL, scenarioKey);
   }
   await stop();
 } catch (error) {

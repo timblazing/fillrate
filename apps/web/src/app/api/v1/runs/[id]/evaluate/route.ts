@@ -17,7 +17,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
   }
 }
 
-// POST { cluster_id, routes: [[visit_id, ...], ...] }: evaluates a manual plan with the run's own matrices and
+// POST { cluster_id, routes: [[visit_id, ...], ...], vehicle_types?: [type_id, ...] } (vehicle_types: one per route, required on fleet runs): evaluates a manual plan with the run's own matrices and
 // constraint semantics, next to the run's optimized routes (spec §10). Nothing is saved.
 export async function POST(request: Request, ctx: RouteContext<"/api/v1/runs/[id]/evaluate">) {
   try {

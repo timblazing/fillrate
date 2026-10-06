@@ -38,7 +38,6 @@ export default async function SheetPage({ params, searchParams }: PageProps<"/ru
       scenario={detail.summary.scenario_name}
       depot={detail.summary.depot.label}
       milesNote={travelBasis(detail.summary.travel, detail.summary.settings.travel_circuity).sentence}
-      capacity={detail.summary.settings.trailer_capacity}
       sheets={sheets}
       total={all.length}
       shipment={one}

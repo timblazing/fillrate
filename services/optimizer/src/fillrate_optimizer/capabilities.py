@@ -146,7 +146,11 @@ BEHAVIORS = [
             "Fixed truck cost F = n·L + 1 per cluster (n visits, L leg limit) so any feasible plan "
             "with fewer trucks outranks one with more; then distance."
         ),
-        restrictions=["One depot, one vehicle type, open routes, distance-only costs."],
+        restrictions=[
+            "One depot, open routes, distance-only costs.",
+            "With a fleet (heterogeneous_fleet_pipeline) every vehicle type carries the same F, so "
+            "the count of trucks of any type is minimized first, then distance.",
+        ],
         fixture="tests/test_pipeline.py::test_trucks_first_vs_weighted_zero_counterexample",
     ),
     Behavior(
@@ -245,6 +249,51 @@ BEHAVIORS = [
             "test_evaluating_the_optimized_routes_reproduces_the_recorded_metrics"
         ),
     ),
+    Behavior(
+        id="heterogeneous_fleet_pipeline",
+        provided_by="native",
+        description=(
+            "Run setting fleet: a list of vehicle types (id, label, count or unlimited, capacity "
+            "in hundredths of a foot, fixed and per-mile cents). Every cluster's PyVRP model "
+            "gets one VehicleType per type (capacity, fixed cost, unit distance cost, and a "
+            "per-cluster num_available), so capacities and costs bind natively. Fill is measured "
+            "against each truck's own capacity; stops are split to, and oversize pieces checked "
+            "against, the largest type. The independent validator checks each truck against its "
+            "type's capacity and each type's count; manual plans and warm starts carry a type "
+            "per route and are refused when they do not match the run's fleet. The fleet is part "
+            "of the comparison signature and the replay bundle."
+        ),
+        restrictions=[
+            "Delivery capacity in linear feet only: no other load dimensions, and no per-type "
+            "max distance or shift duration in the pipeline yet.",
+            "Every type starts and ends at the single depot with the same open-route workaround.",
+            "Counts are fleet-wide, which PyVRP cannot express across independent clusters; see "
+            "fleet_wide_counts. A count may be null for unlimited, as the single trailer is.",
+            "Without a fleet the pipeline is exactly the single unlimited trailer: identical "
+            "settings, stage identities and results.",
+            "Cost objective: each type's cents rates are scaled by one common divisor into exact "
+            "integer PyVRP costs and converted to cents once.",
+        ],
+        fixture="tests/test_fleet.py::test_vehicle_types_bind_capacity_and_fill_is_per_type",
+    ),
+    Behavior(
+        id="fleet_wide_counts",
+        provided_by="workaround",
+        description=(
+            "Vehicle counts apply to the whole dispatch, but clusters are solved independently. "
+            "Fillrate solves clusters in order, each against the vehicles of every type that "
+            "earlier clusters left (the model's num_available), then an independent check sums "
+            "every type across clusters and marks the plan invalid with a concrete violation "
+            "when any count is exceeded. PyVRP does not enforce counts across clusters."
+        ),
+        restrictions=[
+            "A greedy order rule, not an optimal allocation of vehicles to clusters: an early "
+            "cluster can take vehicles a later one needs, which then has no candidate.",
+            "The manual evaluator checks one cluster against the full counts; the fleet-wide sum "
+            "is a run-level check.",
+        ],
+        fixture="tests/test_fleet.py::test_counts_are_fleet_wide_across_clusters",
+    ),
     # ---- Solver Lab (M6): generic normalized routing instances, not the fulfillment pipeline ----
     Behavior(
         id="solver_lab",
@@ -290,7 +339,8 @@ BEHAVIORS = [
             "duration (PyVRP VehicleType). The validator checks counts per type."
         ),
         restrictions=[
-            "Solver Lab only; every type starts and ends at the single depot.",
+            "Solver Lab instances; the pipeline's fleet is heterogeneous_fleet_pipeline.",
+            "Every type starts and ends at the single depot.",
             "Max distance and shift duration are penalized in PyVRP's search; only the "
             "independent validator decides whether a route respects them.",
         ],
