@@ -44,6 +44,11 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - No CARTO key was configured and no provider terms were accepted. M8 remains open pending the provider decision/configuration and exact attribution-link conformance, alongside shipment print, recovery, broader dashboard acceptance, final candidate release/deployment and native target timings.
 - Verification: `bun install --frozen-lockfile`, `bun run lint`, `bun run typecheck`, `bun run build`, and `git diff --check` passed. Lint reports the existing `globe.tsx` exhaustive-deps warning. No production browser smoke suite was rerun for this slice; T3 preview inspected the two gallery map controls locally.
 
+## 2026-10-06: M8 shipment-sheet print acceptance (Claude Code)
+- Printing `/runs/<id>/sheet` no longer includes the app navigation rail or header. Printing all shipments appends every persisted unshipped line, grouped by shared reason labels, with its evidence. Each page names its run and shipment. Rows avoid page splits and table headers repeat. Wide sheet tables scroll inside labeled regions on phone.
+- The 2,000-order lesson (443 shipments, 327 unshipped lines) printed to 466 PDF pages with no chrome, and a single shipment printed to one page. Evidence, before/after page images and limits: [m8-shipment-sheet-print-2026-10-06.md](reviews/m8-shipment-sheet-print-2026-10-06.md).
+- Verification: `bun run lint` (existing `globe.tsx` warning only), `bun run typecheck`, `bun run build`, and `bun run test:browser --flow=lesson` passed with the new sheet assertions. Physical printing was not tested.
+
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
   - [x] SQLite durable jobs, leased Python worker, real PyVRP pipeline, independent validation and persisted exports.
@@ -87,8 +92,8 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 
 - Dashboard coverage, responsive/accessibility review and measured frontend performance remain open under frontend-spec.md. The near-limit matrix path has before/after local browser evidence; desktop improved in three trials, while the phone sample did not, so repeat candidate trials remain useful. The displayed heatmap stays at its bounded 12×12 sample.
 - The 443-shipment persisted results transition meets the proposed 200 ms response target in three warm local trials per viewport; the table pages 50 rows and selection does not fetch the full result. This does not close matrix, whole-dashboard, cold-load or target-device performance acceptance.
-- Shipment-sheet print output and queued/running/failed/cancelled/retry recovery states have not passed the production candidate audit.
-- Complete unshipped-reason/print review remains open, alongside remaining keyboard/focus, theme, reduced-motion and six-Block integration checks.
+- Queued/running/failed/cancelled/retry recovery states have not passed the production candidate audit. Shipment-sheet print acceptance passed locally (see the 2026-10-06 entry).
+- Remaining keyboard/focus, theme, reduced-motion and six-Block integration checks are open.
 - The `e95f3cb` image is published (PR #72); deployment is separately owned by the user and is not inferred from a successful image workflow. Dashboard runtime changes still need a later image release.
 - VPS Valhalla coverage/timings are absent. Local pinned/provider/geometry evidence is distinct from hosted evidence.
 - Basemap public-use/provider terms record referenced by the spec is missing; create it after inspecting the shipped configuration.

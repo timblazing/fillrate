@@ -214,8 +214,41 @@ async function lessonFlow(baseURL, runKey) {
   expect(detail.summary.travel?.mode === "estimated" && detail.summary.trucks.every((t) => t.visits.every((v) => typeof v.leg_s === "number" && v.leg_s > 0)), "Lesson run should carry estimated travel with a duration on every leg.");
   await checkTimeline(detail, "lesson", { timing: "Estimated drive time (constant speed)" });
   await profileShipmentResults(baseURL, runKey, runId, detail.summary.totals.trucks);
+  checkShipmentSheet(baseURL, runKey, detail);
   checkBrowserDiagnostics("lesson");
   console.log(`  passed: run ${runId.slice(0, 8)}, revenue ${exported.summary.totals.planned_cents} cents, ${exported.summary.totals.trucks} shipments, JSON export`);
+}
+
+// Printable shipment sheets from the persisted run: one page per shipment, every unshipped line with its reason
+// afterwards, and no app navigation/header or sheet toolbar in print. The headless browser cannot switch to print
+// media, so the check evaluates the page's own print stylesheet rules against the chrome elements, then prints a PDF.
+function checkShipmentSheet(baseURL, runKey, detail) {
+  const { summary } = detail;
+  const sheetURL = `${baseURL}/runs/${detail.id}/sheet?key=${encodeURIComponent(runKey)}`;
+  open(sheetURL);
+  browser("wait", "--text", "Unshipped lines", "--timeout", "20000");
+  const page = evalValue(`(()=>{const rules=[];const walk=(list,print,sel)=>{for(const r of list){if(r instanceof CSSMediaRule)walk(r.cssRules,print||r.media.mediaText.includes("print"),sel);else if(r instanceof CSSStyleRule){const s=sel&&r.selectorText.includes("&")?r.selectorText.replaceAll("&",sel):r.selectorText;if(print&&r.style.display==="none")rules.push(s);if(r.cssRules?.length)walk(r.cssRules,print,s)}else if(r.cssRules)walk(r.cssRules,print,sel)}};for(const sheet of document.styleSheets){try{walk(sheet.cssRules,false,"")}catch{}}const hidden=(el)=>!!el&&rules.some((sel)=>{try{return el.matches(sel)}catch{return false}});const unshipped=document.getElementById("unshipped");return {articles:document.querySelectorAll("main article").length,unshippedRows:unshipped?unshipped.querySelectorAll("table")[1]?.tBodies[0].rows.length??0:-1,reasonText:unshipped?.querySelector("table")?.innerText??"",navHidden:hidden(document.querySelector('nav[aria-label="App"]')),headerHidden:hidden(document.querySelector("header.sticky")),toolbarHidden:hidden(document.querySelector("main")?.previousElementSibling),breakBefore:unshipped?getComputedStyle(unshipped).breakBefore:""}})()`);
+  expect(page.articles === summary.trucks.length, `Shipment sheets should render one page per persisted shipment (${summary.trucks.length}); saw ${page.articles}.`);
+  expect(page.unshippedRows === summary.unplanned.length, `The sheet should list every unshipped line (${summary.unplanned.length}); saw ${page.unshippedRows}.`);
+  expect(summary.unplanned.length > 0 && page.reasonText.includes("No stock"), `The unshipped summary should group lines by reason: ${page.reasonText.slice(0, 200)}`);
+  expect(page.navHidden && page.headerHidden && page.toolbarHidden, `App navigation, header and sheet toolbar must be hidden in print: ${JSON.stringify(page)}`);
+  expect(page.breakBefore === "page", `Unshipped lines should start on a new printed page: ${page.breakBefore}`);
+  const pdf = join(downloadDir, "shipment-sheets.pdf");
+  browser("pdf", pdf);
+  const pages = (readFileSync(pdf).toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+  expect(pages > summary.trucks.length, `Printed sheets should have one page per shipment plus unshipped pages; got ${pages} for ${summary.trucks.length} shipments.`);
+  const one = summary.trucks[0].id;
+  open(`${sheetURL}&shipment=${encodeURIComponent(one)}`);
+  browser("wait", "--text", "Shipment sheet", "--timeout", "20000");
+  const single = evalValue(`({articles:document.querySelectorAll("main article").length,unshipped:!!document.getElementById("unshipped")})`);
+  expect(single.articles === 1 && !single.unshipped, `A single-shipment sheet should print only that shipment: ${JSON.stringify(single)}`);
+  const singlePdf = join(downloadDir, "shipment-sheet-one.pdf");
+  browser("pdf", singlePdf);
+  const singlePages = (readFileSync(singlePdf).toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+  expect(singlePages === 1, `A one-shipment sheet should print on one page; got ${singlePages}.`);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  console.log(`  sheet: ${page.articles} shipments → ${pages} printed pages, ${page.unshippedRows} unshipped lines with reasons; chrome hidden in print; single shipment 1 page`);
 }
 
 // Records the large persisted-results tab transition at both frontend-spec viewports.
