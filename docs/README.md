@@ -16,4 +16,6 @@ Start with the [completion plan](completion-plan.md) to choose the next task. Fi
 
 Supporting implementation references: [durable jobs](durable-foundation.md), [road matrices](m6-road-matrices.md), [Valhalla](valhalla.md), [route geometry](route-geometry.md), [warm starts](m6-warm-starts.md), [Solver Lab](solver-lab.md), [browser acceptance](browser-smoke.md), [hosted operations](hosted-operations.md), [local distribution](local.md), and [issue workflow](issues-and-work.md).
 
+Current M8 evidence: [dashboard coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md) and [frontend performance baseline](reviews/m8-frontend-performance-baseline-2026-10-06.md), with paired captures under `reviews/assets/m8-dashboard-audit/`.
+
 Older revision notes and the pre-rewrite progress snapshot are in [history](history/). They preserve evidence, not the current task queue. Design review answers remain in `reviews/`. `fillrate.fig` and OpenPencil are historical assets with no remaining completion requirement.

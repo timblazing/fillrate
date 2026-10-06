@@ -15,6 +15,12 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - PR #72 completed the other session’s `e95f3cb` image publication record. Conflict resolution preserves its dated progress entry and release-verification file unchanged; publication is complete, deployment is not claimed.
 - Planning estimates are revised for the expanded M8 scope; no new runtime behavior is claimed. Validation: the actual `parseProjectDocs` function parsed all eight spec/progress milestones and the new dated decision; new/current planning links resolve, status weights sum to 100, and `git diff --check` passes. Runtime lint/typecheck/build and browser suites were not rerun for this docs-only change.
 
+## 2026-10-06: M8 dashboard audit and frontend baseline (Codex)
+- Captured all six gallery Blocks and paired synthetic persisted product screens at 1440×900 and 393×852; recorded implementation paths, accepted mobile differences, remaining acceptance gaps and priorities in [m8-dashboard-coverage-audit-2026-10-06.md](reviews/m8-dashboard-coverage-audit-2026-10-06.md).
+- Established warm local navigation and interaction baselines in [m8-frontend-performance-baseline-2026-10-06.md](reviews/m8-frontend-performance-baseline-2026-10-06.md). The 2,000-order lesson run completed with 443 shipments. Scenario pagination and shipment selection were under 50 ms; mounting/switching to the 443-row shipment pane measured 307.6–355.8 ms with repeated >200 ms main-thread tasks, so the proposed result-view budget fails on this baseline.
+- Three 601-node matrix UI previews took 1,594.7–1,617.4 ms. The 1,001-node/9.8 MB API preview validated in 226 ms, but browser UI completion was not observed and remains an explicit measurement gap.
+- Validation: `bun run build` and browser flows `lesson`, `import`, `experiment`, `matrix` passed on the task branch with isolated synthetic data. No runtime optimization or milestone completion is claimed; dashboard integration and final candidate gates remain open.
+
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
   - [x] SQLite durable jobs, leased Python worker, real PyVRP pipeline, independent validation and persisted exports.
@@ -77,4 +83,4 @@ See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for live 
 
 ## Next step
 
-Audit the six design-system Blocks against production screens, capture concrete gaps and baseline frontend measurements, then implement the highest-impact workflow/composition fixes. The current image publication is complete in #72; owner deployment remains separate. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
+Implement the highest-impact dashboard fixes from the [coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md), starting with the 443-row result-tab responsiveness issue; then complete missing sheet, recovery-state, accessibility and near-limit matrix UI acceptance. The current image publication is complete in #72; owner deployment remains separate. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
