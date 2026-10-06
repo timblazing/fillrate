@@ -33,6 +33,8 @@ def runs():
         "prizes_high": lab_examples.prizes(400),
         "groups": lab_examples.groups("north"),
         "groups_south": lab_examples.groups("south"),
+        "pairs": lab_examples.pairs(12),
+        "pairs_small": lab_examples.pairs(6),
     }
     return {
         (name, seed): run_lab(with_seed(b, seed)) for name, b in builds.items() for seed in SEEDS
@@ -275,3 +277,48 @@ def test_the_stops_decide_which_dock_wins(runs):
     assert north.problem_fingerprint != south.problem_fingerprint
     # Mirror images of each other, so the cost is the same: only the winner changes.
     assert north.objective.total == south.objective.total == 312
+
+
+def served_in_order(result):
+    """Each route's pair stops in visit order as (kind, pair id)."""
+    return [[(v.kind, v.pair) for v in r.visits if v.kind != "client"] for r in result.routes]
+
+
+def test_vans_carry_two_pairs_at_a_time(runs):
+    for seed in SEEDS:
+        result = runs["pairs", seed]
+        assert result.validated_feasible and result.solver_feasible and not result.violations
+        assert result.problem_fingerprint == runs["pairs", 0].problem_fingerprint
+        assert result.totals.pairs_total == result.totals.pairs_served == 6
+        assert (result.totals.routes, result.objective.fixed_cost) == (3, 300)
+        assert result.objective.total == runs["pairs", 0].objective.total == 1_226
+        assert result.totals.distance == 926 and all(r.distance <= 450 for r in result.routes)
+        # Every van carries two pairs together (12 on board at the peak) and drops them after.
+        assert all(
+            r.peak_load == {"parcels": 12} and r.utilization["parcels"] == 1.0
+            for r in result.routes
+        )
+        assert all(len(p.shared_with) == 1 for p in result.pairs)
+        for stops in served_in_order(result):
+            assert [k for k, _ in stops] == ["pickup", "pickup", "delivery", "delivery"]
+        # Pickup always precedes its own delivery, on one route.
+        assert all(
+            p.route is not None and p.pickup_position < p.delivery_position for p in result.pairs
+        )
+
+
+def test_smaller_vans_carry_one_pair_and_the_limit_forces_more_vans(runs):
+    for seed in SEEDS:
+        small, big = runs["pairs_small", seed], runs["pairs", seed]
+        assert small.validated_feasible and small.totals.pairs_served == 6
+        assert small.problem_fingerprint != big.problem_fingerprint
+        assert all(p.shared_with == [] for p in small.pairs)
+        assert all(r.peak_load["parcels"] <= 6 for r in small.routes)
+        assert all(r.distance <= 450 for r in small.routes)
+        # Carrying one pair at a time makes routes longer, so the route limit needs more vans.
+        assert small.totals.routes == 5 > big.totals.routes
+        assert small.objective.total == runs["pairs_small", 0].objective.total == 2_069
+        assert small.totals.distance == 1_569 > big.totals.distance
+        for stops in served_in_order(small):
+            assert stops == [x for pair in zip(stops[::2], stops[1::2], strict=True) for x in pair]
+            assert [k for k, _ in stops] == ["pickup", "delivery"] * (len(stops) // 2)

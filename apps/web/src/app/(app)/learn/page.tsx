@@ -69,6 +69,11 @@ const LESSONS = [
     title: "Alternative service groups",
     blurb: "A customer who can be served at a north or a south dock: one required group, so the solver visits exactly one and picks the cheaper; moving the other stops flips the choice.",
   },
+  {
+    href: "/learn/pickup-delivery-pairs",
+    title: "Pickup-delivery pairs",
+    blurb: "Six jobs, each picked up in the west and delivered in the east by the same van: vans that carry two pairs at once need 3 vans; halve the capacity and the 450-unit route limit needs 5.",
+  },
 ]
 
 // Every lesson runs the real pipeline on a bundled synthetic scenario (spec §13).

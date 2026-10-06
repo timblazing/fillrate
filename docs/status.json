@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-06",
-  "focus": "M6",
-  "productBehavior": 80,
+  "focus": "M8",
+  "productBehavior": 82,
   "milestones": {
     "M1": {
       "weight": 20,
@@ -35,25 +35,24 @@
     },
     "M6": {
       "weight": 12,
-      "done": 88,
-      "state": "active",
-      "notes": "Done: directed travel snapshots and browser matrix workflows; a pinned Valhalla 3.9.0 Compose profile with prepare.sh, coverage pre-check and live checks (local Colima evidence), so `directed_road_travel` is implemented; inspected-route road geometry; durable Valhalla snapshot jobs; time windows and service durations; manual plan evaluator with saved manual baselines as warm-start sources; verified warm starts; heterogeneous fleet in the fulfillment pipeline; Solver Lab with load dimensions, mixed fleets, multiple depots, reloads and optional clients/prizes. Remaining: Lab client groups and pickup-delivery pairs; the owner's VPS Valhalla deployment."
+      "done": 96,
+      "state": "waiting",
+      "notes": "Done: directed travel snapshots and browser matrix workflows; a pinned Valhalla 3.9.0 Compose profile with prepare.sh, coverage pre-check and live checks (local Colima evidence), so `directed_road_travel` is implemented; inspected-route road geometry; durable Valhalla snapshot jobs; time windows and service durations; manual plan evaluator with saved manual baselines as warm-start sources; verified warm starts; heterogeneous fleet in the fulfillment pipeline; Solver Lab with load dimensions, mixed fleets, multiple depots, reloads and optional clients/prizes, alternative client groups and pickup-delivery pairs (all native PyVRP). Remaining (owner): the VPS Valhalla deployment with its coverage and timings."
     },
     "M7": {
       "weight": 6,
-      "done": 93,
-      "state": "active",
-      "notes": "Done: flagship and allocation, capacity, seed, time-window, manual-route and road-matrix lessons; Solver Lab lessons for load dimensions, fleets, depots, reloads and optional visits; Python replay bundles (pipeline and explorer); timeline with playback cursor on Valhalla road geometry; GeoJSON route export with road vs schematic geometry; matrix downloads. Remaining: alternative service groups and pickup-delivery pair lessons."
+      "done": 100,
+      "state": "done",
+      "notes": "Done: flagship and allocation, capacity, seed, time-window, manual-route and road-matrix lessons; Solver Lab lessons for load dimensions, fleets, depots, reloads, optional visits, alternative groups and pickup-delivery pairs; Python replay bundles (pipeline and explorer); timeline with playback cursor on Valhalla road geometry; GeoJSON route export with road vs schematic geometry; matrix downloads."
     },
     "M8": {
       "weight": 7,
       "done": 92,
       "state": "active",
-      "notes": "Done: agent-browser production flows for every product area (19 flows) at desktop and iPhone 16; hosted/local acceptance (144 checks); the /request-access and /admin phone review; npm-compatible scripts and a Node 24 npm CI job; docs/local.md and docs/handoff.md; image target/recovery evidence on VPS and Pi 5. Remaining: native timings on the targets and an image release for the latest runtime changes."
+      "notes": "Done: agent-browser production flows for every product area (21 flows) at desktop and iPhone 16; hosted/local acceptance (144 checks); the /request-access and /admin phone review; npm-compatible scripts and a Node 24 npm CI job; docs/local.md and docs/handoff.md; image target/recovery evidence on VPS and Pi 5. Remaining: native timings on the targets and an image release for the latest runtime changes."
     }
   },
   "nextUp": [
-    "M6: Solver Lab client groups (#70) and pickup-delivery pairs, each with a lesson.",
     "Release: dispatch image.yml for the merged runtime changes; owner deploys the digest.",
     "Owner: VPS Valhalla deployment with recorded coverage; native timings on VPS/Pi 5; real sample data and cost rates."
   ]

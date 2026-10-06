@@ -12,7 +12,6 @@ export const MAX_LAB_BYTES = 2 * 1024 * 1024;
 // Mirrors PLANNED_FIELDS in services/optimizer/src/fillrate_optimizer/lab/schema.py: fields of capabilities that
 // are planned but not implemented are refused by name, not as a generic unknown field.
 const PLANNED: [where: "instance" | "client" | "vehicle_type", field: string, capability: string][] = [
-  ["instance", "shipments", "paired_shipments"],
   ["client", "pickup", "pickups_and_deliveries"],
   ["client", "tw_early", "lab_time_windows"], ["client", "tw_late", "lab_time_windows"],
   ["client", "release_time", "lab_time_windows"],
@@ -57,7 +56,10 @@ export function labInstanceProblems(doc: LabInstance) {
     for (const id of ids) { if (seen.has(id)) problems.push(`duplicate ${kind} id "${id}"`); seen.add(id); }
   };
   unique("dimension", dims);
-  unique("location", [...doc.depots.map(d => d.id), ...doc.clients.map(c => c.id)]);
+  const pairs = doc.pairs ?? [];
+  const stops = pairs.flatMap(p => [p.pickup, p.delivery]);
+  unique("location", [...doc.depots.map(d => d.id), ...doc.clients.map(c => c.id), ...stops.map(s => s.id)]);
+  unique("pair", pairs.map(p => p.id));
   unique("vehicle type", doc.vehicle_types.map(v => v.id));
   const depotIds = new Set(doc.depots.map(d => d.id));
   for (const v of doc.vehicle_types) {
@@ -69,7 +71,7 @@ export function labInstanceProblems(doc: LabInstance) {
   }
   for (const v of doc.vehicle_types) for (const [role, id] of [["start_depot", v.start_depot], ["end_depot", v.end_depot]] as const) if (id != null && !depotIds.has(id)) problems.push(`vehicle type ${v.id} ${role} "${id}" is not a depot id`);
   const planar = doc.coordinates === "planar";
-  for (const place of [...doc.depots, ...doc.clients]) {
+  for (const place of [...doc.depots, ...doc.clients, ...stops]) {
     const has = (k: "x" | "y" | "lat" | "lon") => place[k] !== undefined && place[k] !== null;
     if (planar && !(has("x") && has("y") && !has("lat") && !has("lon"))) problems.push(`${place.id}: planar instances need x and y (and no lat/lon)`);
     if (!planar && !(has("lat") && has("lon") && !has("x") && !has("y"))) problems.push(`${place.id}: geographic instances need lat and lon (and no x/y)`);
@@ -91,6 +93,8 @@ export function labInstanceProblems(doc: LabInstance) {
     }
   }
   const known = new Set(dims);
+  for (const p of pairs) for (const key of Object.keys(p.amount)) if (!known.has(key)) problems.push(`pair ${p.id} moves unknown dimension "${key}"`);
+  if (pairs.length && doc.vehicle_types.some(v => (v.reload_depots ?? []).length > 0)) problems.push("pickup-delivery pairs and reloads cannot be combined yet: remove reload_depots or the pairs");
   for (const c of doc.clients) for (const key of Object.keys(c.delivery ?? {})) if (!known.has(key)) problems.push(`client ${c.id} delivers unknown dimension "${key}"`);
   for (const v of doc.vehicle_types) {
     const keys = Object.keys(v.capacity);
@@ -100,6 +104,10 @@ export function labInstanceProblems(doc: LabInstance) {
   for (const c of doc.clients) {
     const fits = doc.vehicle_types.some(v => dims.every(d => (c.delivery?.[d] ?? 0) <= v.capacity[d]));
     if (!fits) problems.push(`client ${c.id} delivery fits no vehicle type's capacity`);
+  }
+  for (const p of pairs) {
+    const fits = doc.vehicle_types.some(v => dims.every(d => (p.amount[d] ?? 0) <= v.capacity[d]));
+    if (!fits) problems.push(`pair ${p.id} amount fits no vehicle type's capacity`);
   }
   return problems;
 }

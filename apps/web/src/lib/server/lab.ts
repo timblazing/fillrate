@@ -13,6 +13,8 @@ import fleet from "../../../../../examples/lab-fleet.json";
 import fleetTrucks from "../../../../../examples/lab-fleet-trucks.json";
 import depots from "../../../../../examples/lab-depots.json";
 import depotsSingle from "../../../../../examples/lab-depots-single.json";
+import pairs from "../../../../../examples/lab-pairs.json";
+import pairsSmall from "../../../../../examples/lab-pairs-small.json";
 import groups from "../../../../../examples/lab-groups.json";
 import groupsSouth from "../../../../../examples/lab-groups-south.json";
 import prizes from "../../../../../examples/lab-prizes.json";
@@ -71,6 +73,14 @@ export const LAB_EXAMPLES = {
   groups_south: {
     id: "groups_south", label: "Docks, stops south", instance: groupsSouth as unknown as LabInstance,
     observations: ["The same docks with the four required stops moved to the south side: now the south dock wins.", "The instance is the mirror image, so the nominal cost is again 312; only which alternative serves Acme changes."],
+  },
+  pairs: {
+    id: "pairs", label: "Pickup-delivery pairs", instance: pairs as unknown as LabInstance,
+    observations: ["Six pairs of 6 parcels are picked up in the west and delivered in the east; every pickup comes before its delivery on the same van.", "With capacity 12 each of 3 vans carries two pairs at once (12 parcels on board at the peak, 100% full), nominal cost 1,226 (300 fixed + 926 distance).", "Every route is at most 450 planar units, the limit that makes the number of vans matter."],
+  },
+  pairs_small: {
+    id: "pairs_small", label: "Pairs, small vans", instance: pairsSmall as unknown as LabInstance,
+    observations: ["With capacity 6 a van carries one pair at a time, so pairs never share a vehicle and routes are longer.", "The 450-unit limit then needs 5 vans instead of 3: nominal cost 2,069 (500 fixed + 1,569 distance)."],
   },
 } as const;
 export type LabExampleId = keyof typeof LAB_EXAMPLES;

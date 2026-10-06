@@ -1,5 +1,5 @@
 """Raw travel matrices for a lab instance. Nodes are the depots in input order (0..D-1), then the
-clients in input order (D..D+n-1).
+clients in input order (D..D+n-1), then each pickup-delivery pair's pickup and delivery stop.
 
 Planar: rounded euclidean distance in abstract units, and the same number of abstract time units.
 Geographic: haversine × circuity in integer meters (the pipeline's estimated travel) and seconds at
@@ -36,8 +36,8 @@ class LabMatrices:
 
 
 def node_points(instance: LabInstance) -> np.ndarray:
-    """(D + n) × 2 coordinates: [x, y] for planar, [lat, lon] for geographic."""
-    places = [*instance.depots, *instance.clients]
+    """(D + n + 2p) × 2 coordinates: [x, y] for planar, [lat, lon] for geographic."""
+    places = [*instance.depots, *instance.clients, *(s for _p, s, _k in instance.pair_stops())]
     if instance.coordinates == "planar":
         return np.array([[p.x, p.y] for p in places], dtype=float)
     return np.array([[p.lat, p.lon] for p in places], dtype=float)
@@ -63,3 +63,9 @@ def client_nodes(instance: LabInstance) -> dict[str, int]:
     """Client id → matrix node (clients follow the depots)."""
     offset = len(instance.depots)
     return {c.id: offset + i for i, c in enumerate(instance.clients)}
+
+
+def stop_nodes(instance: LabInstance) -> dict[str, int]:
+    """Pair stop id → matrix node (stops follow the clients; pickup then delivery per pair)."""
+    offset = len(instance.depots) + len(instance.clients)
+    return {stop.id: offset + i for i, (_p, stop, _k) in enumerate(instance.pair_stops())}

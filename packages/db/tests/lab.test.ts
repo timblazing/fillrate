@@ -11,6 +11,7 @@ import { enqueueLabRun, isLabVersion, LAB_SETTINGS, LabInstanceError, labExample
 import { saveScenario, scenarioList, scenarioVersion } from "../src/scenarios";
 import dimensions from "../../../examples/lab-dimensions.json";
 import fleet from "../../../examples/lab-fleet.json";
+import pairs from "../../../examples/lab-pairs.json";
 import groups from "../../../examples/lab-groups.json";
 import prizes from "../../../examples/lab-prizes.json";
 import reloads from "../../../examples/lab-reloads.json";
@@ -34,7 +35,14 @@ test("bundled lab examples validate; planned capabilities are refused by name", 
   expect(validateLabInstance(structuredClone(depots)).depots).toHaveLength(2);
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], start_depot: "nowhere" }] }))?.[1]).toContain('start_depot "nowhere" is not a depot id');
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], profile: "bike" }] }))?.[1]).toContain("routing_profiles");
-  expect(failure(instance({ shipments: [] }))?.[1]).toContain("planned capability paired_shipments");
+  expect(failure(instance({ shipments: [] }))?.[0]).toBe("invalid_lab_instance");
+  expect(validateLabInstance(structuredClone(pairs)).pairs).toHaveLength(6);
+  const pair = { id: "p", amount: { weight: 5 }, pickup: { id: "pp", x: 1, y: 1 }, delivery: { id: "pd", x: 2, y: 2 } };
+  expect(failure(instance({ pairs: [pair] }))).toBeNull();
+  expect(failure(instance({ pairs: [{ ...pair, amount: { mass: 5 } }] }))?.[1]).toContain('unknown dimension "mass"');
+  expect(failure(instance({ pairs: [{ ...pair, pickup: { id: "depot", x: 1, y: 1 } }] }))?.[1]).toContain('duplicate location id "depot"');
+  expect(failure(instance({ pairs: [{ ...pair, amount: { weight: 5_000 } }] }))?.[1]).toContain("fits no vehicle type");
+  expect(failure(instance({ pairs: [pair], vehicle_types: [{ ...dimensions.vehicle_types[0], reload_depots: ["depot"], max_reloads: 1 }] }))?.[1]).toContain("cannot be combined yet");
   expect(failure(instance({ clients: [{ ...dimensions.clients[0], prize: 3, required: false }] }))).toBeNull();
   expect(failure(instance({ clients: [{ ...dimensions.clients[0], prize: 3 }] }))?.[1]).toContain("has a prize but is required");
   expect(validateLabInstance(structuredClone(prizes)).clients.filter(c => c.required === false)).toHaveLength(3);

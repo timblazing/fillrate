@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
 import { LabPlot } from "@/components/lab/lab-plot"
+import { LoadProfile } from "@/components/lab/load-profile"
 import { StatTile } from "@/components/lab/stat-tile"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -117,6 +118,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
   const groupedIds = new Set((instance.groups ?? []).flatMap((g) => g.members))
   const optional = instance.clients.filter((c) => c.required === false && !groupedIds.has(c.id))
   const groupOutcomes = result.groups ?? []
+  const pairOutcomes = result.pairs ?? []
   const skipped = result.skipped ?? []
   const reloading = result.routes.some((r) => (r.trips?.length ?? 0) > 1)
   const label = (id: string | null | undefined) => id ?? instance.depots[0].id
@@ -182,6 +184,33 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
               </Table>
             </div>
           </section>
+          {pairOutcomes.length > 0 && (
+            <section className="flex flex-col gap-2" aria-labelledby="lab-pairs">
+              <h2 id="lab-pairs" className="text-sm font-medium">Pickup-delivery pairs ({result.totals.pairs_served ?? 0} of {result.totals.pairs_total ?? 0} served)</h2>
+              <div className="overflow-x-auto rounded-xl border">
+                <Table data-testid="lab-pairs">
+                  <TableHeader>
+                    <TableRow><TableHead>Pair</TableHead><TableHead>Amount</TableHead><TableHead>Route</TableHead><TableHead>Pickup → delivery</TableHead><TableHead>Rides with</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pairOutcomes.map((p) => {
+                      const def = (instance.pairs ?? []).find((x) => x.id === p.pair_id)
+                      return (
+                        <TableRow key={p.pair_id} data-testid={`lab-pair-${p.pair_id}`}>
+                          <TableCell className="font-mono text-xs">{p.pair_id}</TableCell>
+                          <TableCell className="text-xs whitespace-nowrap">{dims.map((d) => `${n(def?.amount[d] ?? 0)} ${u.dimensions[d]}`).join(", ")}</TableCell>
+                          <TableCell className="tabular-nums">{p.route == null ? <Badge variant="error">not served</Badge> : p.route + 1}</TableCell>
+                          <TableCell className="font-mono text-xs whitespace-nowrap">{def ? `${def.pickup.id} → ${def.delivery.id}` : ""}</TableCell>
+                          <TableCell className="text-xs">{p.route == null ? "" : p.shared_with.length ? p.shared_with.join(", ") : "alone"}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-muted-foreground text-xs text-pretty">Both stops of a pair are on one vehicle, pickup first. A pair counts against capacity from its pickup to its delivery, so two pairs ride together only while both fit.</p>
+            </section>
+          )}
           {groupOutcomes.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-groups">
               <h2 id="lab-groups" className="text-sm font-medium">Alternative groups (at most one member is visited)</h2>
@@ -298,6 +327,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
         </div>
         <LabPlot instance={instance} result={result} />
       </div>
+      {pairOutcomes.length > 0 && <LoadProfile instance={instance} result={result} />}
       <section className="flex flex-col gap-2" aria-labelledby="lab-routes">
         <h2 id="lab-routes" className="text-sm font-medium">Routes</h2>
         <div className="overflow-x-auto rounded-xl border">
@@ -325,10 +355,10 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
                   <TableCell className="font-mono text-xs">{r.vehicle_type}</TableCell>
                   {several && <TableCell className="font-mono text-xs whitespace-nowrap">{label(r.start_depot) === label(r.end_depot) ? label(r.start_depot) : `${label(r.start_depot)} → ${label(r.end_depot)}`}</TableCell>}
                   {reloading && <TableCell className="text-right tabular-nums">{r.trips?.length ?? 1}</TableCell>}
-                  <TableCell className="max-w-72 text-xs text-pretty">{r.visits.map((v) => v.client_id).join(" → ")}</TableCell>
+                  <TableCell className="max-w-72 text-xs text-pretty">{r.visits.map((v) => (v.kind === "pickup" ? "▲ " : v.kind === "delivery" ? "▼ " : "") + v.client_id).join(" → ")}</TableCell>
                   {dims.map((d) => (
                     <TableCell key={d} className="text-right text-xs whitespace-nowrap tabular-nums">
-                      {reloading && (r.trips?.length ?? 1) > 1 ? `${n(r.load[d])} in ${r.trips?.length ?? 1} trips of ≤ ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}` : `${n(r.load[d])} / ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}`} <span className="text-muted-foreground">({pct(r.utilization[d])}{reloading ? " fullest trip" : ""})</span>
+                      {pairOutcomes.length > 0 ? `peak ${n(r.peak_load?.[d] ?? r.load[d])} / ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}` : reloading && (r.trips?.length ?? 1) > 1 ? `${n(r.load[d])} in ${r.trips?.length ?? 1} trips of ≤ ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}` : `${n(r.load[d])} / ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}`} <span className="text-muted-foreground">({pct(r.utilization[d])}{reloading ? " fullest trip" : pairOutcomes.length > 0 ? " at the peak" : ""})</span>
                     </TableCell>
                   ))}
                   <TableCell className="text-right tabular-nums">{n(r.distance)}</TableCell>

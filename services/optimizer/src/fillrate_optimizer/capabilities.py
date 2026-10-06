@@ -433,6 +433,28 @@ BEHAVIORS = [
         ],
         fixture="tests/test_lab.py::test_a_required_group_is_served_by_the_cheaper_alternative",
     ),
+    Behavior(
+        id="paired_shipments",
+        provided_by="native",
+        description=(
+            "Lab instances may declare pickup-delivery pairs (PyVRP Shipment): each pair has a "
+            "pickup stop, a delivery stop and an amount per dimension. PyVRP keeps both stops on "
+            "one vehicle, pickup first, and the amount counts against the vehicle's capacity "
+            "from its pickup to its delivery, so pairs can share a vehicle only while they fit "
+            "together. Fillrate recomputes the load on board after every stop and rejects a "
+            "pair split across vehicles, delivered before its pickup, left half done or "
+            "overloading a vehicle mid-route."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline has no pickups. 'Shipment' there means a "
+            "truck load, so the lab and its lessons say pickup-delivery pair.",
+            "Pairs are required (no prizes or optional pairs) and cannot be combined with "
+            "reloads yet; time windows at the stops are not modeled.",
+            "Plain client pickups (a pickup quantity on a client) remain planned as "
+            "pickups_and_deliveries.",
+        ],
+        fixture="tests/test_lab.py::test_pairs_share_a_vehicle_only_while_they_fit_together",
+    ),
     *[
         Behavior(
             id=capability,
@@ -442,7 +464,6 @@ BEHAVIORS = [
             fixture=None,
         )
         for capability, text in (
-            ("paired_shipments", "pickup and delivery pairs"),
             ("pickups_and_deliveries", "client pickup loads beside deliveries"),
             (
                 "lab_time_windows",

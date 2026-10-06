@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "baselines", "fleet", "road-geometry"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs", "baselines", "fleet", "road-geometry"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1734,6 +1734,84 @@ async function labGroupsFlow(baseURL, runKey) {
   console.log(`  passed: stops north -> ${a.groups[0].served_by}, stops south -> ${b.groups[0].served_by} (nominal ${a.objective.total} both); comparison, run pages and reset`);
 }
 
+// Solver Lab pickup-delivery pairs (M6): the lesson starts the capacity-12 example and its capacity-6 twin from the page;
+// the persisted validated results are what the page compares, and the lab run page's Pairs table and load chart show
+// which pairs ride together and the load on board. Every number is checked against tests/test_lab_examples.py.
+async function labPairsFlow(baseURL, runKey) {
+  console.log("Browser smoke: Solver Lab pickup-delivery pairs lesson");
+  beginBrowserFlow("lab-pairs");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const keyed = `key=${encodeURIComponent(runKey)}`;
+  const doneRun = (id, label) => poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${id}?${keyed}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), label);
+  const labLinks = () => { const raw = evalValue(`JSON.stringify([...document.querySelectorAll('a[href^="/labs/"]')].map((a) => a.getAttribute('href').split('/').pop().split('?')[0]))`); return typeof raw === "string" ? JSON.parse(raw) : raw; };
+  open(`${baseURL}/learn/pickup-delivery-pairs?${keyed}`);
+  expect(snapshot().includes('heading "Pickup-delivery pairs"'), "Pickup-delivery pairs lesson did not load.");
+  let page = String(parsedText());
+  expect(page.includes("pick-1") && page.includes("pairs[].amount") && page.includes("Not modeled:") && !/shipments? pair/i.test(page), "Lesson is missing its pairs table or model fields.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  clickButtonCentered("Run with capacity 12");
+  browser("wait", "--text", "Open capacity-12 run", "--timeout", "20000");
+  const [bigId] = labLinks();
+  expect(/^[0-9a-f-]{36}$/.test(bigId ?? ""), `Capacity-12 run link is unexpected: ${bigId}`);
+  const big = await doneRun(bigId, "Capacity-12 lab run");
+  expect(big.status === "succeeded" && big.example === "pairs", `Capacity-12 run did not succeed: ${JSON.stringify(big).slice(0, 800)}`);
+  const a = big.result;
+  const order = (r) => r.routes.map((x) => x.visits.filter((v) => v.kind !== "client").map((v) => v.kind[0]).join(""));
+  expect(a.validated_feasible && a.solver_feasible && a.violations.length === 0 && a.totals.pairs_total === 6 && a.totals.pairs_served === 6 && a.totals.routes === 3 && a.objective.total === 1226 && a.objective.fixed_cost === 300 && a.totals.distance === 926,
+    `Capacity-12 plan should serve 6 pairs on 3 vans, nominal 1226: ${JSON.stringify(a.objective)} ${JSON.stringify(a.totals)}`);
+  expect(a.routes.every((r) => r.peak_load.parcels === 12 && r.distance <= 450) && order(a).every((o) => o === "ppdd") && a.pairs.every((p) => p.shared_with.length === 1 && p.pickup_position < p.delivery_position),
+    `Every van should carry two pairs at once, pickups first: ${JSON.stringify(order(a))}`);
+
+  clickButtonCentered("Run with capacity 6");
+  browser("wait", "--text", "Open capacity-6 run", "--timeout", "20000");
+  const smallId = labLinks().find((id) => id !== bigId);
+  expect(/^[0-9a-f-]{36}$/.test(smallId ?? ""), `Capacity-6 run link is unexpected: ${smallId}`);
+  const small = await doneRun(smallId, "Capacity-6 lab run");
+  expect(small.status === "succeeded" && small.example === "pairs_small", `Capacity-6 run did not succeed: ${JSON.stringify(small).slice(0, 800)}`);
+  const b = small.result;
+  expect(b.validated_feasible && b.totals.pairs_served === 6 && b.totals.routes === 5 && b.objective.total === 2069 && b.totals.distance === 1569 && b.pairs.every((p) => p.shared_with.length === 0) && b.routes.every((r) => r.peak_load.parcels <= 6 && r.distance <= 450) && b.problem_fingerprint !== a.problem_fingerprint,
+    `Capacity-6 plan should need 5 vans, nominal 2069: ${JSON.stringify(b.objective)}`);
+
+  // The page's side-by-side comparison reads the same persisted runs.
+  browser("wait", "--text", "Side by side", "--timeout", "20000");
+  const cell = (key, id) => String(evalValue(`document.querySelector('[data-testid="pairs-${key}-${id}"]')?.innerText ?? ""`));
+  expect(cell("big", "served") === "6 of 6" && cell("small", "served") === "6 of 6" && cell("big", "shared") === "6 of 6" && cell("small", "shared") === "0 of 6" && cell("big", "routes") === "3" && cell("small", "routes") === "5" && cell("big", "peak") === "12" && cell("small", "peak") === "6" && cell("big", "nominal") === "1,226" && cell("small", "nominal") === "2,069",
+    `Comparison cells do not match the persisted results: ${cell("big", "nominal")} / ${cell("small", "nominal")}`);
+  expect(Number(evalValue("document.querySelectorAll('svg polygon[data-kind=\"pickup\"]').length")) === 12 && Number(evalValue("document.querySelectorAll('svg polygon[data-kind=\"delivery\"]').length")) === 12, "Both plots should draw 6 pickup and 6 delivery markers.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("pickup-delivery pairs lesson");
+
+  // The run page: Pairs table, ▲/▼ visits and the load chart reaching capacity at the peak.
+  open(`${baseURL}/labs/${bigId}?${keyed}`);
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes("Pickup-delivery pairs (6 of 6 served)") && page.includes("Load on board along each route") && !/shipment/i.test(page), "Run page does not show the Pairs table and load chart (or says shipment).");
+  expect(Number(evalValue("document.querySelectorAll('[data-testid=\"lab-pairs\"] tbody tr').length")) === 6 && !String(evalValue("document.querySelector('[data-testid=\"lab-pair-pair-1\"]').innerText")).includes("alone"), "The Pairs table should list 6 pairs, each riding with another.");
+  const chart = (r) => evalValue(`JSON.stringify([document.querySelector('[data-testid="lab-profile-${r}-parcels"]')?.dataset.peak, document.querySelector('[data-testid="lab-profile-${r}-parcels"]')?.dataset.capacity])`);
+  expect(String(chart(0)).includes('"12","12"') && Number(evalValue("document.querySelectorAll('[data-testid^=\"lab-profile-\"]').length")) === 3, `Load charts should peak at the 12-parcel capacity: ${chart(0)}`);
+  expect(Number(evalValue("document.querySelectorAll('svg polygon[data-kind]').length")) === 12 && page.includes("Up triangle: pickup"), "Plot should draw pair stops as triangles.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  open(`${baseURL}/labs/${smallId}?${keyed}`);
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  expect(Number(evalValue("document.querySelectorAll('[data-testid^=\"lab-profile-\"]').length")) === 5 && String(evalValue("document.querySelector('[data-testid=\"lab-pair-pair-1\"]').innerText")).includes("alone"), "Capacity-6 run should have 5 route charts and pairs riding alone.");
+  assertViewport(1440, 900);
+
+  // Reset forgets the started runs but keeps them stored.
+  open(`${baseURL}/learn/pickup-delivery-pairs?${keyed}`);
+  browser("wait", "--text", "Open capacity-12 run", "--timeout", "20000");
+  clickButtonCentered("Reset lesson");
+  browser("wait", "--text", "Run steps 1 and 2 first", "--timeout", "10000");
+  expect(!String(parsedText()).includes("Open capacity-12 run"), "Reset should forget the started runs.");
+  checkBrowserDiagnostics("pickup-delivery pairs run page");
+  console.log(`  passed: capacity 12 -> 3 vans, pairs ride together (nominal ${a.objective.total}); capacity 6 -> 5 vans (nominal ${b.objective.total}); comparison, run pages and reset`);
+}
+
 // Saved manual baselines (spec §10, M6): hand-edited plans on the manual routes lesson's run are saved from the Manual
 // plan tab (the operator owns them), survive a reload, list with their validity, load back into the editor, and a valid
 // one re-runs the scenario warm-started from the saved plan. An invalid one is saved but never offered as a start.
@@ -2175,6 +2253,7 @@ try {
     if (flow === "lab-reloads") await labReloadsFlow(baseURL, runKey);
     if (flow === "lab-prizes") await labPrizesFlow(baseURL, runKey);
     if (flow === "lab-groups") await labGroupsFlow(baseURL, runKey);
+    if (flow === "lab-pairs") await labPairsFlow(baseURL, runKey);
     if (flow === "baselines") await baselinesFlow(baseURL, runKey, scenarioKey);
     if (flow === "fleet") await fleetFlow(baseURL, scenarioKey);
     if (flow === "road-geometry" && roadGeometryReady) await roadGeometryFlow(baseURL, scenarioKey, runKey);

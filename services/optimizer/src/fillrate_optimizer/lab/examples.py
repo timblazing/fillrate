@@ -31,6 +31,12 @@
   solver picks it. ``groups(side="south")`` puts the required stops on the south side instead, and
   the south dock wins.
 
+- ``pairs()``: a planar instance with six pickup-delivery pairs of 6 parcels moved from a west
+  cluster of pickup points to an east cluster of delivery points, vans with a 450-unit route limit
+  and capacity 12, so a van can carry two pairs at once. ``pairs(capacity=6)`` lets a van carry one
+  pair at a time: the pairs can no longer ride together, routes run longer, and the limit forces
+  more vans.
+
 The observations each page states are asserted in tests/test_lab_examples.py. Regenerate with
 `uv run python -m fillrate_optimizer.lab.examples` (writes examples/lab-*.json).
 """
@@ -144,6 +150,17 @@ GROUP_STOPS = [
     ("G-4", "Stop", 5, 60, 2),
 ]
 GROUP_VAN_CAPACITY = 10
+
+# pickup (x, y), delivery (x, y); every pair moves 6 parcels
+PAIRS = [
+    ((-40, 10), (70, 5)),
+    ((-55, -12), (85, -15)),
+    ((-30, -25), (60, 25)),
+    ((-62, 20), (95, 8)),
+    ((-45, 0), (78, -30)),
+    ((-35, 30), (100, -5)),
+]
+PAIR_ROUTE_LIMIT = 450
 
 # An iteration budget makes results repeat across machines; the runtime is only a safety cap.
 SOLVER = {"seed": 0, "max_iterations": 2_000, "max_runtime_s": 30}
@@ -433,6 +450,67 @@ def groups(side: str = "north") -> LabInstance:
     )
 
 
+def pairs(capacity: int = 12) -> LabInstance:
+    return LabInstance.model_validate(
+        {
+            "name": f"Pickup-delivery pairs, capacity {capacity} (planar, 6 pairs)",
+            "description": (
+                "Abstract planar coordinates. Six pairs of 6 parcels each are picked up in the "
+                "west and delivered in the east, pickup before delivery on the same van. Vans "
+                "carry "
+                f"{capacity} parcels and may drive at most {PAIR_ROUTE_LIMIT} planar units."
+            ),
+            "coordinates": "planar",
+            "dimensions": [{"id": "parcels", "label": "Parcels", "unit": "parcels"}],
+            "depots": [{"id": "depot", "label": "Depot", "x": 0, "y": 0}],
+            "clients": [
+                {
+                    "id": "return",
+                    "label": "Return stop",
+                    "x": 10,
+                    "y": 5,
+                    "delivery": {"parcels": 1},
+                    "service_duration": 10,
+                }
+            ],
+            "pairs": [
+                {
+                    "id": f"pair-{i}",
+                    "label": f"Pair {i}",
+                    "amount": {"parcels": 6},
+                    "pickup": {
+                        "id": f"pick-{i}",
+                        "label": "Pickup",
+                        "x": px,
+                        "y": py,
+                        "service_duration": 10,
+                    },
+                    "delivery": {
+                        "id": f"drop-{i}",
+                        "label": "Delivery",
+                        "x": dx,
+                        "y": dy,
+                        "service_duration": 10,
+                    },
+                }
+                for i, ((px, py), (dx, dy)) in enumerate(PAIRS, 1)
+            ],
+            "vehicle_types": [
+                {
+                    "id": "van",
+                    "label": "Van",
+                    "count": 6,
+                    "capacity": {"parcels": capacity},
+                    "fixed_cost": 100,
+                    "unit_distance_cost": 1,
+                    "max_distance": PAIR_ROUTE_LIMIT,
+                }
+            ],
+            "solver": SOLVER,
+        }
+    )
+
+
 EXAMPLES = {
     "lab-dimensions.json": lambda: dimensions(True),
     "lab-dimensions-volume.json": lambda: dimensions(False),
@@ -446,6 +524,8 @@ EXAMPLES = {
     "lab-prizes-high.json": lambda: prizes(400),
     "lab-groups.json": lambda: groups("north"),
     "lab-groups-south.json": lambda: groups("south"),
+    "lab-pairs.json": lambda: pairs(12),
+    "lab-pairs-small.json": lambda: pairs(6),
 }
 
 

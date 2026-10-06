@@ -945,6 +945,11 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Pairs
+             * @default null
+             */
+            pairs: components["schemas"]["LabPair"][] | null;
+            /**
              * Schema Version
              * @default 1
              * @constant
@@ -989,6 +994,43 @@ export interface components {
              */
             uncollected_prizes: number;
         };
+        /**
+         * LabPair
+         * @description A pickup-delivery pair (PyVRP Shipment): ``amount`` (per dimension) is loaded at the pickup
+         *     stop and unloaded at the delivery stop, on the same vehicle, pickup first. While it is on
+         *     board it counts against the vehicle's capacity.
+         */
+        LabPair: {
+            /** Amount */
+            amount: {
+                [key: string]: number;
+            };
+            delivery: components["schemas"]["LabStop"];
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            pickup: components["schemas"]["LabStop"];
+        };
+        /**
+         * LabPairOutcome
+         * @description Where each pair was served: both stops on one route, pickup before delivery.
+         */
+        LabPairOutcome: {
+            /** Delivery Position */
+            delivery_position: number | null;
+            /** Pair Id */
+            pair_id: string;
+            /** Pickup Position */
+            pickup_position: number | null;
+            /** Route */
+            route: number | null;
+            /** Shared With */
+            shared_with: string[];
+        };
         /** LabResult */
         LabResult: {
             /**
@@ -1009,6 +1051,8 @@ export interface components {
              */
             kind: "lab_result";
             objective: components["schemas"]["LabObjective"];
+            /** Pairs */
+            pairs?: components["schemas"]["LabPairOutcome"][];
             /** Problem Fingerprint */
             problem_fingerprint: string;
             /**
@@ -1062,6 +1106,13 @@ export interface components {
             load: {
                 [key: string]: number;
             };
+            /**
+             * Peak Load
+             * @default null
+             */
+            peak_load: {
+                [key: string]: number;
+            } | null;
             /** Service Duration */
             service_duration: number;
             /**
@@ -1153,6 +1204,45 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * LabStop
+         * @description A place a pickup-delivery pair visits: a pickup point or a delivery point. Stop ids share the
+         *     namespace of depots and clients.
+         */
+        LabStop: {
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Lat
+             * @default null
+             */
+            lat: number | null;
+            /**
+             * Lon
+             * @default null
+             */
+            lon: number | null;
+            /**
+             * Service Duration
+             * @default 0
+             */
+            service_duration: number;
+            /**
+             * X
+             * @default null
+             */
+            x: number | null;
+            /**
+             * Y
+             * @default null
+             */
+            y: number | null;
+        };
         /** LabTotals */
         LabTotals: {
             /** Clients Served */
@@ -1167,6 +1257,16 @@ export interface components {
             load: {
                 [key: string]: number;
             };
+            /**
+             * Pairs Served
+             * @default 0
+             */
+            pairs_served: number;
+            /**
+             * Pairs Total
+             * @default 0
+             */
+            pairs_total: number;
             /** Routes */
             routes: number;
             /** Service Duration */
@@ -1208,6 +1308,13 @@ export interface components {
             load: {
                 [key: string]: number;
             };
+            /**
+             * Peak Load
+             * @default null
+             */
+            peak_load: {
+                [key: string]: number;
+            } | null;
             /** To Depot */
             to_depot: string;
             /** Utilization */
@@ -1335,6 +1442,12 @@ export interface components {
             client_id: string;
             /** Departure */
             departure: number;
+            /**
+             * Kind
+             * @default client
+             * @enum {string}
+             */
+            kind: "client" | "pickup" | "delivery";
             /** Leg Distance */
             leg_distance: number;
             /** Leg Duration */
@@ -1347,6 +1460,11 @@ export interface components {
             load_before: {
                 [key: string]: number;
             };
+            /**
+             * Pair
+             * @default null
+             */
+            pair: string | null;
             /** Service Duration */
             service_duration: number;
             /**
