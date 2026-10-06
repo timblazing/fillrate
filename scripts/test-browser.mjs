@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-depots"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-depots", "lab-reloads"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1219,6 +1219,83 @@ async function labDepotsFlow(baseURL, runKey) {
   console.log(`  passed: two depots 4 routes objective ${a.objective.total} (each depot serves its side); one depot objective ${b.objective.total}; comparison, run page and reset`);
 }
 
+// Solver Lab reloads (M6): the lesson starts the reloading example and its no-reload twin from the page; the persisted
+// validated results are what the page compares, and the lab run page shows trips, per-trip loads and the reload depot.
+// Every number is checked against services/optimizer/tests/test_lab_examples.py.
+async function labReloadsFlow(baseURL, runKey) {
+  console.log("Browser smoke: Solver Lab reloads lesson");
+  beginBrowserFlow("lab-reloads");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const keyed = `key=${encodeURIComponent(runKey)}`;
+  const doneRun = (id, label) => poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${id}?${keyed}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), label);
+  const labLinks = () => { const raw = evalValue(`JSON.stringify([...document.querySelectorAll('a[href^="/labs/"]')].map((a) => a.getAttribute('href').split('/').pop().split('?')[0]))`); return typeof raw === "string" ? JSON.parse(raw) : raw; };
+  open(`${baseURL}/learn/reloads?${keyed}`);
+  expect(snapshot().includes('heading "Reloads and multiple trips"'), "Reloads lesson did not load.");
+  let page = String(parsedText());
+  expect(page.includes("Reload yard") && page.includes("reload_depots") && page.includes("max_reloads") && page.includes("Not modeled:"), "Lesson is missing its depot table or model fields.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  clickButtonCentered("Run with reloads");
+  browser("wait", "--text", "Open reload run", "--timeout", "20000");
+  const [onId] = labLinks();
+  expect(/^[0-9a-f-]{36}$/.test(onId ?? ""), `Reload run link is unexpected: ${onId}`);
+  const on = await doneRun(onId, "Reload lab run");
+  expect(on.status === "succeeded" && on.example === "reloads", `Reload run did not succeed: ${JSON.stringify(on).slice(0, 800)}`);
+  const a = on.result;
+  expect(a.validated_feasible && a.solver_feasible && a.violations.length === 0 && a.totals.routes === 1 && a.objective.total === 533 && a.objective.fixed_cost === 100 && a.totals.distance === 433,
+    `Reload plan should be one route, objective 533: ${JSON.stringify(a.objective)} ${JSON.stringify(a.totals)}`);
+  const [route] = a.routes;
+  expect(route.trips.length === 4 && route.load.parcels === 40 && route.trips.every((t) => t.load.parcels === 10 && t.client_ids.length === 2) && route.trips.map((t) => t.from_depot).join() === "dc,yard,yard,yard" && route.trips.map((t) => t.to_depot).join() === "yard,yard,yard,dc",
+    `The van should make 4 full trips through the yard: ${JSON.stringify(route.trips.map((t) => [t.from_depot, t.to_depot, t.client_ids, t.load]))}`);
+
+  clickButtonCentered("Run without reloads");
+  browser("wait", "--text", "Open no-reload run", "--timeout", "20000");
+  const offId = labLinks().find((id) => id !== onId);
+  expect(/^[0-9a-f-]{36}$/.test(offId ?? ""), `No-reload run link is unexpected: ${offId}`);
+  const off = await doneRun(offId, "No-reload lab run");
+  expect(off.status === "succeeded" && off.example === "reloads_off", `No-reload run did not succeed: ${JSON.stringify(off).slice(0, 800)}`);
+  const b = off.result;
+  expect(b.validated_feasible && b.totals.routes === 4 && b.objective.fixed_cost === 400 && b.objective.total === 1180 && b.totals.distance === 780 && b.problem_fingerprint !== a.problem_fingerprint && b.routes.every((r) => r.trips.length === 1),
+    `No-reload plan should be 4 vans, objective 1180: ${JSON.stringify(b.objective)}`);
+  expect(route.duration > Math.max(...b.routes.map((r) => r.duration)), "The reloading van should work for longer than any single-trip van.");
+
+  // The page's side-by-side comparison reads the same persisted runs.
+  browser("wait", "--text", "Side by side", "--timeout", "20000");
+  const cell = (key, id) => String(evalValue(`document.querySelector('[data-testid="reloads-${key}-${id}"]')?.innerText ?? ""`));
+  expect(cell("on", "objective") === "533" && cell("off", "objective") === "1,180" && cell("on", "fixed") === "100" && cell("off", "fixed") === "400" && cell("on", "routes") === "1" && cell("off", "routes") === "4" && cell("on", "trips") === "4" && cell("off", "trips") === "4",
+    `Comparison cells do not match the persisted results: ${cell("on", "objective")} / ${cell("off", "objective")}`);
+  expect(cell("on", "distance") === "433" && cell("off", "distance") === "780", "Comparison distances differ from the persisted results.");
+  expect(cell("on", "trip-list").includes("dc → yard: ") && cell("on", "trip-list").includes("yard → dc: ") && !cell("off", "trip-list").includes("yard"), "Comparison should list each trip's depots.");
+  expect(Number(evalValue("document.querySelectorAll('svg rect[data-reload=\"yard\"]').length")) === 1, "The reloading plot should mark the yard as a reload depot.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("reloads lesson");
+
+  // The run page shows the trips, their loads and the reload depot.
+  open(`${baseURL}/labs/${onId}?${keyed}`);
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes("Trips (load resets at every reload)"), "Lab run page does not show its Trips table.");
+  expect(Number(evalValue("document.querySelectorAll('[data-testid=\"lab-trips\"] tbody tr').length")) === 4, "The Trips table should list 4 trips.");
+  expect(String(evalValue("document.querySelector('[data-testid=\"lab-trip-0-1\"]').innerText")).includes("yard → yard") && String(evalValue("document.querySelector('[data-testid=\"lab-trip-0-3\"]').innerText")).includes("10 / 10"), "Trip rows should show reload depots and a full 10 / 10 load.");
+  expect(page.includes("Dashed square: a reload depot") && Number(evalValue("document.querySelectorAll('svg polyline[data-route]').length")) === 1 && Number(evalValue("document.querySelectorAll('svg rect[data-depot]').length")) === 2, "Plot should draw one route and mark both depots with the reload depot ringed.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+
+  // Reset forgets the started runs but keeps them stored.
+  open(`${baseURL}/learn/reloads?${keyed}`);
+  browser("wait", "--text", "Open reload run", "--timeout", "20000");
+  clickButtonCentered("Reset lesson");
+  browser("wait", "--text", "Run steps 1 and 2 first", "--timeout", "10000");
+  expect(!String(parsedText()).includes("Open reload run"), "Reset should forget the started runs.");
+  checkBrowserDiagnostics("reloads run page");
+  console.log(`  passed: reloads 1 van/4 trips objective ${a.objective.total}; no reloads 4 vans objective ${b.objective.total}; comparison, run page and reset`);
+}
+
 // Manual plan evaluator (spec §10) and the manual versus optimized routes lesson: the lesson's dispatcher plans are
 // evaluated through the page, then the run's Manual plan tab is edited from the keyboard and evaluated. Every
 // number is checked against the persisted run and services/optimizer/tests/test_lesson_manual.py.
@@ -1426,6 +1503,7 @@ try {
     if (flow === "labs") await labsFlow(baseURL, runKey, scenarioKey);
     if (flow === "warm-start") await warmStartFlow(baseURL, runKey);
     if (flow === "lab-depots") await labDepotsFlow(baseURL, runKey);
+    if (flow === "lab-reloads") await labReloadsFlow(baseURL, runKey);
   }
   await stop();
 } catch (error) {

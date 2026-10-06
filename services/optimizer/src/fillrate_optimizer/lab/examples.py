@@ -14,6 +14,11 @@
   ``depots(single=True)`` keeps the same stops and four vans but only the West depot, so every
   East stop is a long trip from it and the plan costs more.
 
+- ``reloads()``: a planar instance with a DC at the origin, a yard at (60, 0) and eight stops of
+  5 parcels around x = 70..110. One van of 10 parcels starts and ends at the DC and may reload
+  at the yard up to 3 times, so it makes four trips. ``reloads(allowed=False)`` removes the
+  reload (and the yard) and gives four vans, each with a long single trip from the DC.
+
 The observations each page states are asserted in tests/test_lab_examples.py. Regenerate with
 `uv run python -m fillrate_optimizer.lab.examples` (writes examples/lab-*.json).
 """
@@ -92,6 +97,19 @@ DEPOTS = [
     {"id": "west", "label": "West depot", "x": -60, "y": 0},
     {"id": "east", "label": "East depot", "x": 60, "y": 0},
 ]
+
+# id, label, x, y, parcels
+RELOAD_CLIENTS = [
+    ("R-1", "Store", 72, 20, 5),
+    ("R-2", "Store", 78, -22, 5),
+    ("R-3", "Store", 88, 8, 5),
+    ("R-4", "Store", 95, -12, 5),
+    ("R-5", "Store", 70, 0, 5),
+    ("R-6", "Store", 100, 22, 5),
+    ("R-7", "Store", 108, -4, 5),
+    ("R-8", "Store", 90, -28, 5),
+]
+RELOAD_VAN_CAPACITY = 10
 
 # An iteration budget makes results repeat across machines; the runtime is only a safety cap.
 SOLVER = {"seed": 0, "max_iterations": 2_000, "max_runtime_s": 30}
@@ -231,6 +249,49 @@ def depots(single: bool = False) -> LabInstance:
     )
 
 
+def reloads(allowed: bool = True) -> LabInstance:
+    van = {
+        "id": "van",
+        "label": "Van",
+        "count": 1 if allowed else 4,
+        "capacity": {"parcels": RELOAD_VAN_CAPACITY},
+        "fixed_cost": 100,
+        "unit_distance_cost": 1,
+    }
+    if allowed:
+        van |= {"reload_depots": ["yard"], "max_reloads": 3}
+    return LabInstance.model_validate(
+        {
+            "name": "Reloads" + ("" if allowed else " off") + " (planar, 8 clients)",
+            "description": (
+                "Abstract planar coordinates. One van (10 parcels) starts and ends at the DC and "
+                "may reload at the yard up to 3 times; eight stops of 5 parcels lie beyond it."
+                if allowed
+                else "The same stops without reloading: four vans, one trip each from the DC."
+            ),
+            "coordinates": "planar",
+            "dimensions": [{"id": "parcels", "label": "Parcels", "unit": "parcels"}],
+            "depots": [
+                {"id": "dc", "label": "Distribution center", "x": 0, "y": 0},
+                *([{"id": "yard", "label": "Reload yard", "x": 60, "y": 0}] if allowed else []),
+            ],
+            "clients": [
+                {
+                    "id": cid,
+                    "label": label,
+                    "x": x,
+                    "y": y,
+                    "delivery": {"parcels": parcels},
+                    "service_duration": 10,
+                }
+                for cid, label, x, y, parcels in RELOAD_CLIENTS
+            ],
+            "vehicle_types": [van],
+            "solver": SOLVER,
+        }
+    )
+
+
 EXAMPLES = {
     "lab-dimensions.json": lambda: dimensions(True),
     "lab-dimensions-volume.json": lambda: dimensions(False),
@@ -238,6 +299,8 @@ EXAMPLES = {
     "lab-fleet-trucks.json": lambda: fleet(False),
     "lab-depots.json": lambda: depots(False),
     "lab-depots-single.json": lambda: depots(True),
+    "lab-reloads.json": lambda: reloads(True),
+    "lab-reloads-off.json": lambda: reloads(False),
 }
 
 

@@ -44,6 +44,11 @@ const LESSONS = [
     title: "Multiple depots",
     blurb: "12 abstract-plane stops around two depots in the Solver Lab: vans based at each depot serve their own side; the same stops from one depot cost over 1.5 times as much.",
   },
+  {
+    href: "/learn/reloads",
+    title: "Reloads and multiple trips",
+    blurb: "8 abstract-plane stops beyond a yard: one 10-parcel van reloads at the yard and makes four trips; without reloading the same stops need four vans and cost over twice as much.",
+  },
 ]
 
 // Every lesson runs the real pipeline on a bundled synthetic scenario (spec §13).
@@ -56,7 +61,7 @@ export default function LessonsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Lessons</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each lesson starts real runs on a synthetic scenario and lists what to look for, not fixed answers. Lessons use only features the app runs today: estimated travel,
-            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and, in the Solver Lab, vehicles based at several depots.
+            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and, in the Solver Lab, vehicles based at several depots and vehicles that reload between trips.
           </p>
         </section>
         <ul className="grid gap-3 sm:grid-cols-2">

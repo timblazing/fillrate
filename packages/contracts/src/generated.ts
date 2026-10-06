@@ -846,6 +846,8 @@ export interface components {
             start_depot: string | null;
             /** Travel Duration */
             travel_duration: number;
+            /** Trips */
+            trips?: components["schemas"]["LabTrip"][];
             /** Utilization */
             utilization: {
                 [key: string]: number;
@@ -953,6 +955,31 @@ export interface components {
              */
             speed_m_per_s: number;
         };
+        /**
+         * LabTrip
+         * @description One trip of a route: from the route's start depot or a reload depot to the next reload
+         *     depot or the route's end depot. Loads are per trip (full again after every reload).
+         */
+        LabTrip: {
+            /** Client Ids */
+            client_ids: string[];
+            /** Distance */
+            distance: number;
+            /** From Depot */
+            from_depot: string;
+            /** Index */
+            index: number;
+            /** Load */
+            load: {
+                [key: string]: number;
+            };
+            /** To Depot */
+            to_depot: string;
+            /** Utilization */
+            utilization: {
+                [key: string]: number;
+            };
+        };
         /** LabUnits */
         LabUnits: {
             /** Cost */
@@ -1003,6 +1030,16 @@ export interface components {
              */
             max_distance: number | null;
             /**
+             * Max Reloads
+             * @default null
+             */
+            max_reloads: number | null;
+            /**
+             * Reload Depots
+             * @default null
+             */
+            reload_depots: string[] | null;
+            /**
              * Shift Duration
              * @default null
              */
@@ -1045,6 +1082,11 @@ export interface components {
              */
             route: number | null;
             /**
+             * Trip
+             * @default null
+             */
+            trip: number | null;
+            /**
              * Vehicle Type
              * @default null
              */
@@ -1072,6 +1114,11 @@ export interface components {
             };
             /** Service Duration */
             service_duration: number;
+            /**
+             * Trip
+             * @default 0
+             */
+            trip: number;
         };
         /** Lease */
         Lease: {

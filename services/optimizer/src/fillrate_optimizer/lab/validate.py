@@ -22,6 +22,7 @@ from .schema import (
     LabObjective,
     LabRoute,
     LabTotals,
+    LabTrip,
     LabViolation,
     LabVisit,
 )
@@ -38,6 +39,18 @@ class CandidateRoute:
     client_ids: list[str]
     start_depot: str | None = None
     end_depot: str | None = None
+    # Trips: client ids between reloads; None means one trip with ``client_ids``. ``reload_depots``
+    # are the depot ids where the vehicle reloads between consecutive trips (one fewer than trips;
+    # None means the vehicle type's first reload depot each time).
+    trips: list[list[str]] | None = None
+    reload_depots: list[str] | None = None
+
+    def __post_init__(self):
+        if self.trips is not None:  # the flat list is always the trips in order
+            object.__setattr__(self, "client_ids", [cid for trip in self.trips for cid in trip])
+
+    def trip_lists(self) -> list[list[str]]:
+        return self.trips if self.trips is not None else [list(self.client_ids)]
 
 
 @dataclass
@@ -95,6 +108,18 @@ def instance_problems(instance: LabInstance) -> list[str]:
             problems.append(
                 f"vehicle type {vt.id} capacity must name exactly the dimensions {dims}"
             )
+    for vt in instance.vehicle_types:
+        reload_ids = vt.reload_depots or []
+        max_reloads = vt.max_reloads or 0
+        for rid in reload_ids:
+            if rid not in depot_ids:
+                problems.append(f"vehicle type {vt.id} reload depot {rid!r} is not a depot id")
+        if len(set(reload_ids)) != len(reload_ids):
+            problems.append(f"vehicle type {vt.id} lists a reload depot twice")
+        if max_reloads > 0 and not reload_ids:
+            problems.append(f"vehicle type {vt.id} max_reloads needs at least one reload depot")
+        if reload_ids and max_reloads == 0:
+            problems.append(f"vehicle type {vt.id} reload_depots need max_reloads of at least 1")
     if problems:
         return problems
 
@@ -193,20 +218,54 @@ def check_route_depots(ctx: Context, index: int, route: CandidateRoute) -> None:
             )
 
 
-def check_route_capacity(ctx: Context, index: int, route: CandidateRoute) -> None:
+def check_route_trips(ctx: Context, index: int, route: CandidateRoute) -> None:
+    """Reloads happen only at the vehicle type's reload depots, at most max_reloads times, and no
+    trip is empty."""
     vt = next((v for v in ctx.instance.vehicle_types if v.id == route.vehicle_type), None)
     if vt is None:
         return
-    load = ctx.routes[-1].load
-    for dim in ctx.instance.dimension_ids():
-        if load[dim] > vt.capacity[dim]:
+    trips = route.trip_lists()
+    reloads = len(trips) - 1
+    allowed = (vt.max_reloads or 0) if vt.reload_depots else 0
+    if reloads > allowed:
+        ctx.flag(
+            "too_many_reloads",
+            f"Route reloads {reloads} times; {vt.id} allows {allowed}.",
+            route=index,
+            vehicle_type=vt.id,
+        )
+    for t, ids in enumerate(trips):
+        if not ids and len(trips) > 1:
+            ctx.flag("empty_trip", f"Trip {t + 1} has no visits.", route=index, trip=t)
+    for depot_id in route.reload_depots or []:
+        if depot_id not in ctx.depot_node:
+            ctx.flag("unknown_depot", f"Unknown reload depot {depot_id}.", route=index)
+        elif depot_id not in (vt.reload_depots or []):
             ctx.flag(
-                "over_capacity",
-                f"Load {load[dim]} exceeds {vt.id} capacity {vt.capacity[dim]} in {dim}.",
+                "wrong_reload_depot",
+                f"{vt.id} cannot reload at {depot_id}.",
                 route=index,
                 vehicle_type=vt.id,
-                dimension=dim,
             )
+
+
+def check_route_capacity(ctx: Context, index: int, route: CandidateRoute) -> None:
+    """Every trip fits the vehicle's capacity on its own (the load resets at each reload)."""
+    vt = next((v for v in ctx.instance.vehicle_types if v.id == route.vehicle_type), None)
+    if vt is None:
+        return
+    for trip in ctx.routes[-1].trips:
+        for dim in ctx.instance.dimension_ids():
+            if trip.load[dim] > vt.capacity[dim]:
+                ctx.flag(
+                    "over_capacity",
+                    f"Load {trip.load[dim]} exceeds {vt.id} capacity {vt.capacity[dim]} in {dim}"
+                    + (f" on trip {trip.index + 1}." if len(ctx.routes[-1].trips) > 1 else "."),
+                    route=index,
+                    vehicle_type=vt.id,
+                    dimension=dim,
+                    trip=trip.index,
+                )
 
 
 def check_route_limits(ctx: Context, index: int, route: CandidateRoute) -> None:
@@ -266,6 +325,7 @@ PlanCheck = Callable[[Context], None]
 ROUTE_CHECKS: list[RouteCheck] = [
     check_route_clients,
     check_route_depots,
+    check_route_trips,
     check_route_capacity,
     check_route_limits,
 ]
@@ -273,45 +333,76 @@ PLAN_CHECKS: list[PlanCheck] = [check_coverage, check_fleet]
 
 
 def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
-    """Recompute one route: loads, schedule (no waiting: lab routes have no time windows), costs."""
+    """Recompute one route: trips, loads per trip, schedule (no waiting: lab routes have no time
+    windows), costs. A trip runs from the start depot or a reload depot to the next reload depot or
+    the end depot; the vehicle is full again after every reload."""
     instance, dist, dur = ctx.instance, ctx.matrices.distance, ctx.matrices.duration
     dims = instance.dimension_ids()
     clients = {c.id: c for c in instance.clients}
     vt = next((v for v in instance.vehicle_types if v.id == route.vehicle_type), None)
-    ids = [cid for cid in route.client_ids if cid in ctx.node]
-    on_board = {d: sum(clients[cid].delivery.get(d, 0) for cid in ids) for d in dims}
-    load = dict(on_board)
-    visits: list[LabVisit] = []
+    trips = [[cid for cid in trip if cid in ctx.node] for trip in route.trip_lists()]
     start_id = route.start_depot or (instance.start_depot_of(vt) if vt else instance.depot.id)
     end_id = route.end_depot or (instance.end_depot_of(vt) if vt else instance.depot.id)
-    start = ctx.depot_node.get(start_id, 0)
-    end = ctx.depot_node.get(end_id, 0)
-    prev, clock, distance, travel, service = start, 0, 0, 0, 0
-    for cid in ids:
-        node = ctx.node[cid]
-        leg_d, leg_t = int(dist[prev, node]), int(dur[prev, node])
-        arrival = clock + leg_t
-        after = {d: on_board[d] - clients[cid].delivery.get(d, 0) for d in dims}
-        sd = clients[cid].service_duration
-        visits.append(
-            LabVisit(
-                client_id=cid,
-                load_before=dict(on_board),
-                load_after=after,
-                leg_distance=leg_d,
-                leg_duration=leg_t,
-                arrival=arrival,
-                service_duration=sd,
-                departure=arrival + sd,
+    default_reload = vt.reload_depots[0] if vt and vt.reload_depots else start_id
+    reloads = list(route.reload_depots or [])
+    reloads += [default_reload] * max(0, len(trips) - 1 - len(reloads))
+    # Depot at each end of each trip: start, reload 1, ..., reload k, end.
+    stops = [start_id, *reloads[: max(0, len(trips) - 1)], end_id]
+    node = lambda depot_id: ctx.depot_node.get(depot_id, 0)  # noqa: E731
+    visits: list[LabVisit] = []
+    trip_docs: list[LabTrip] = []
+    capacity = vt.capacity if vt else {}
+    total_load = dict.fromkeys(dims, 0)
+    clock, distance, travel, service = 0, 0, 0, 0
+    for t, ids in enumerate(trips):
+        prev = node(stops[t])
+        on_board = {d: sum(clients[cid].delivery.get(d, 0) for cid in ids) for d in dims}
+        trip_load = dict(on_board)
+        trip_distance = 0
+        for cid in ids:
+            n = ctx.node[cid]
+            leg_d, leg_t = int(dist[prev, n]), int(dur[prev, n])
+            arrival = clock + leg_t
+            after = {d: on_board[d] - clients[cid].delivery.get(d, 0) for d in dims}
+            sd = clients[cid].service_duration
+            visits.append(
+                LabVisit(
+                    client_id=cid,
+                    trip=t,
+                    load_before=dict(on_board),
+                    load_after=after,
+                    leg_distance=leg_d,
+                    leg_duration=leg_t,
+                    arrival=arrival,
+                    service_duration=sd,
+                    departure=arrival + sd,
+                )
+            )
+            on_board, clock, prev = after, arrival + sd, n
+            trip_distance += leg_d
+            distance, travel, service = distance + leg_d, travel + leg_t, service + sd
+        if ids or len(trips) > 1:  # the trip ends at its reload depot or the route's end depot
+            back = node(stops[t + 1])
+            trip_distance += int(dist[prev, back])
+            distance += int(dist[prev, back])
+            travel += int(dur[prev, back])
+            clock += int(dur[prev, back])
+        for d in dims:
+            total_load[d] += trip_load[d]
+        trip_docs.append(
+            LabTrip(
+                index=t,
+                from_depot=stops[t],
+                to_depot=stops[t + 1],
+                client_ids=ids,
+                load=trip_load,
+                utilization={
+                    d: round(trip_load[d] / capacity[d], 4) if capacity.get(d) else 0.0
+                    for d in dims
+                },
+                distance=trip_distance,
             )
         )
-        on_board, clock, prev = after, arrival + sd, node
-        distance, travel, service = distance + leg_d, travel + leg_t, service + sd
-    if ids:  # the route ends at its end depot
-        distance += int(dist[prev, end])
-        travel += int(dur[prev, end])
-        clock += int(dur[prev, end])
-    capacity = vt.capacity if vt else {}
     fixed = vt.fixed_cost if vt else 0
     d_cost = (vt.unit_distance_cost if vt else 0) * distance
     t_cost = (vt.unit_duration_cost if vt else 0) * clock
@@ -320,9 +411,10 @@ def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
         vehicle_type=route.vehicle_type,
         start_depot=start_id,
         end_depot=end_id,
+        trips=trip_docs,
         visits=visits,
-        load=load,
-        utilization={d: round(load[d] / capacity[d], 4) if capacity.get(d) else 0.0 for d in dims},
+        load=total_load,
+        utilization={d: max(t.utilization[d] for t in trip_docs) for d in dims},
         distance=distance,
         duration=clock,
         travel_duration=travel,

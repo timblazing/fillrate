@@ -16,7 +16,6 @@ const PLANNED: [where: "instance" | "client" | "vehicle_type", field: string, ca
   ["client", "pickup", "pickups_and_deliveries"], ["client", "prize", "optional_clients"], ["client", "required", "optional_clients"],
   ["client", "group", "client_groups"], ["client", "tw_early", "lab_time_windows"], ["client", "tw_late", "lab_time_windows"],
   ["client", "release_time", "lab_time_windows"],
-  ["vehicle_type", "reload_depots", "reloads"], ["vehicle_type", "max_reloads", "reloads"], ["vehicle_type", "initial_load", "reloads"],
   ["vehicle_type", "tw_early", "lab_time_windows"], ["vehicle_type", "tw_late", "lab_time_windows"], ["vehicle_type", "profile", "routing_profiles"],
 ];
 
@@ -61,6 +60,13 @@ export function labInstanceProblems(doc: LabInstance) {
   unique("location", [...doc.depots.map(d => d.id), ...doc.clients.map(c => c.id)]);
   unique("vehicle type", doc.vehicle_types.map(v => v.id));
   const depotIds = new Set(doc.depots.map(d => d.id));
+  for (const v of doc.vehicle_types) {
+    const reloads = v.reload_depots ?? [], max = v.max_reloads ?? 0;
+    for (const id of reloads) if (!depotIds.has(id)) problems.push(`vehicle type ${v.id} reload depot "${id}" is not a depot id`);
+    if (new Set(reloads).size !== reloads.length) problems.push(`vehicle type ${v.id} lists a reload depot twice`);
+    if (max > 0 && reloads.length === 0) problems.push(`vehicle type ${v.id} max_reloads needs at least one reload depot`);
+    if (reloads.length > 0 && max === 0) problems.push(`vehicle type ${v.id} reload_depots need max_reloads of at least 1`);
+  }
   for (const v of doc.vehicle_types) for (const [role, id] of [["start_depot", v.start_depot], ["end_depot", v.end_depot]] as const) if (id != null && !depotIds.has(id)) problems.push(`vehicle type ${v.id} ${role} "${id}" is not a depot id`);
   const planar = doc.coordinates === "planar";
   for (const place of [...doc.depots, ...doc.clients]) {
