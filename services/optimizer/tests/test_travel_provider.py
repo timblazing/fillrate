@@ -59,7 +59,7 @@ def config(**kwargs):
         dataset_revision="osm-fixture-2026-10-01",
         graph_config_hash="sha256:fixture",
         costing_options={"length": 21.64},
-        **kwargs,
+        **{"check_coverage": False, **kwargs},
     )
 
 
@@ -410,7 +410,7 @@ def test_solver_boundary_rejects_malformed_effective_matrices(matrix):
     [
         (200, b'{"ok":true}', None),
         (200, b"not-json", ProviderError),
-        (200, b"[]", ProviderError),
+        (200, b"42", ProviderError),
         (200, b" " * 65, ProviderError),
         (400, b"{}", ProviderError),
         (503, b"{}", TransientProviderError),
@@ -454,3 +454,77 @@ def test_http_transport_posts_bounded_json_and_refuses_redirects(monkeypatch, st
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def locate_fake(outside: set[str], nodes=NODES, calls=None):
+    """Answers /locate (edges unless the node is in `outside`) and builds directed matrix blocks."""
+    by_point = {(node.lat, node.lon): node.id for node in nodes}
+
+    def transport(url, body, timeout):
+        if calls is not None:
+            calls.append((url.rsplit("/", 1)[1], body))
+        if url.endswith("/locate"):
+            return [
+                {
+                    "edges": [] if by_point[(p["lat"], p["lon"])] in outside else [{"way_id": 1}],
+                    "nodes": [],
+                }
+                for p in body["locations"]
+            ]
+        rows = [
+            [
+                {
+                    "from_index": i,
+                    "to_index": j,
+                    "distance": 0 if s == t else 1.5,
+                    "time": 0 if s == t else 90,
+                }
+                for j, t in enumerate(body["targets"])
+            ]
+            for i, s in enumerate(body["sources"])
+        ]
+        return {"units": "kilometers", "algorithm": "costmatrix", "sources_to_targets": rows}
+
+    return transport
+
+
+def test_nodes_outside_coverage_get_unreachable_edges_not_errors():
+    calls = []
+    snapshot = ValhallaTravel(
+        config(check_coverage=True), transport=locate_fake({"B"}, calls=calls)
+    ).matrix(NODES)
+    assert snapshot.distances[2] == [None, None, 0] and [row[2] for row in snapshot.distances] == [
+        None,
+        None,
+        0,
+    ]
+    assert snapshot.distances[0][1] == 1.5 and snapshot.durations[1][0] == 90
+    assert snapshot.warnings[0]["code"] == "outside_coverage" and snapshot.warnings[0]["nodes"] == [
+        "B"
+    ]
+    assert snapshot.options["coverage_check"] == "locate"
+    # The uncovered node is never sent to the matrix endpoint.
+    matrix_points = [
+        p for kind, body in calls if kind == "sources_to_targets" for p in body["sources"]
+    ]
+    assert {"lat": NODES[2].lat, "lon": NODES[2].lon} not in matrix_points
+
+
+def test_extent_limit_ignores_nodes_outside_coverage():
+    far = [*NODES, TravelNode(id="X", lat=40, lon=-105)]
+    snapshot = ValhallaTravel(
+        config(check_coverage=True), transport=locate_fake({"X"}, nodes=far)
+    ).matrix(far)
+    assert snapshot.distances[3][0] is None and snapshot.warnings[0]["nodes"] == ["X"]
+    with pytest.raises(ProviderError, match="max_matrix_distance"):
+        ValhallaTravel(config(check_coverage=True), transport=locate_fake(set(), nodes=far)).matrix(
+            far
+        )
+
+
+def test_malformed_locate_responses_are_provider_errors():
+    for bad in ({}, [{"edges": []}], [None, None, None], [{"edges": "x"}] * 3):
+        with pytest.raises(ProviderError):
+            ValhallaTravel(
+                config(check_coverage=True), transport=lambda url, body, timeout, bad=bad: bad
+            ).matrix(NODES)

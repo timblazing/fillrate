@@ -417,4 +417,4 @@ def test_capabilities_list_the_time_behaviors_with_resolving_fixtures():
         assert behavior.availability == "implemented" and behavior.provided_by == "native"
         module, _, test = behavior.fixture.partition("::")
         assert test in globals() and module == "tests/test_time_windows.py"
-    assert behaviors["directed_road_travel"].availability == "planned"
+    assert behaviors["directed_road_travel"].availability == "implemented"
