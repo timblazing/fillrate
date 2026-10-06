@@ -554,3 +554,10 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 - **Decision:** The owner removed `fillrate.fig`/OpenPencil maintenance from completion scope and asked to prioritize the real dashboard against the design-system components/Blocks. CSS tokens and `/dev/components` are the design reference. Accepted M2 review evidence remains; production composition, usability and measured optimization are explicit M8 requirements in `frontend-spec.md`.
 - **Planning approach:** Keep technical spec sections and M1–M8 stable, preserve earlier evidence in history, and separate delivery order, current evidence, owner actions and digest-specific release verification. Frontend measurement budgets and the completion checklist are proposed engineering acceptance criteria, not claims of tested behavior or owner approval of new product changes.
 - **Coordination:** The other active session owns the `e95f3cb` image dispatch and release-verification evidence PR. This documentation work does not duplicate it or imply deployment.
+
+## 2026-10-06: MIT license and public README (Codex)
+- **Decision:** License Fillrate under MIT, copyright 2026 Clay Blasingame, as requested by the owner.
+- **Decision:** Keep the README focused on product capabilities, screenshots and access. Agent guidance and development records remain in `AGENTS.md` and `docs/`.
+
+## 2026-10-06: Keep README text-only (Codex)
+- **Decision:** Owner approved the README copy and requested removing its screenshots and copied image assets, with no placeholder or future-screenshot note.

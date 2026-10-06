@@ -1,9 +1,40 @@
-# Fillrate
+<h1 align="center">Fillrate</h1>
 
-Fillrate is an open source project for exploring order fulfillment and truckload planning. The goal is to allocate limited inventory to open orders, group delivery stops, build 53-foot trailer loads, and compare plans by truck fill, geographic tightness, and planned revenue.
+<p align="center">An open source workbench for order fulfillment and truckload planning.</p>
 
-The project is under active development. The fulfillment pipeline, imports, allocation experiments, validated results and replay exports work through a durable Python worker. The hosted app uses request-only accounts. Live road matrices and advanced routing remain on the roadmap.
+<p align="center">
+  <a href="https://fillrate.blasingame.dev">Website</a> ·
+  <a href="docs/local.md">Run locally</a> ·
+  <a href="https://github.com/timblazing/fillrate/issues">Report an issue</a> ·
+  <a href="LICENSE">MIT license</a>
+</p>
 
-To run it yourself without an account (Bun, npm or Docker Compose), see [local use](docs/local.md). [The handoff](docs/handoff.md) covers setup, verification, measured timings and current limitations.
+Allocate limited inventory to open orders, group delivery stops, and build trailer loads. Compare plans by revenue, trailer fill, shipment count, and travel distance to see how different assumptions change the result.
 
-See the [technical specification](docs/fillrate-technical-spec.md) for the product plan, [progress](docs/progress.md) for remaining work and verification, and [decisions](docs/decisions.md) for the project record. These repository files are the source of truth and power `/dev`.
+## What you can do
+
+- **Bring your own data.** Import orders and inventory from CSV, or start with a bundled example. Review locations and save scenario versions.
+- **Build a fulfillment plan.** Choose an allocation strategy, cluster delivery stops, and solve loads with capacity, time-window, and fleet constraints.
+- **Compare alternatives.** Try different allocations, cluster counts, capacities, and solver seeds. Rank comparable plans by the measures you care about.
+- **Inspect the result.** Explore delivery clusters, shipments, trailer utilization, and orders left unshipped. Review routes and adjust visit order with the manual plan editor.
+- **Take your work with you.** Export JSON, CSV, GeoJSON routes, and Python replay bundles.
+
+## Compare plans
+
+See revenue, fill, distance, and shipment counts side by side, and choose your own ranking priorities.
+
+## Explore delivery clusters
+
+Compare cluster counts and see how consistently locations group together across solver seeds.
+
+Travel can use geographic estimates or a road matrix; maps and results identify the method used.
+
+## Use Fillrate
+
+The [hosted app](https://fillrate.blasingame.dev) is available by request. You can also [run Fillrate locally](docs/local.md) with Bun, npm, or Docker, without an account.
+
+Built with Next.js, SQLite, and Python, using [PyVRP](https://pyvrp.org/) for routing and [OR-Tools](https://developers.google.com/optimization) for allocation.
+
+## License
+
+[MIT](LICENSE) © 2026 Clay Blasingame.

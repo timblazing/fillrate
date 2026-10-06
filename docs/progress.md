@@ -1,5 +1,9 @@
 # Progress
 
+## 2026-10-06: Public README and MIT license (Codex)
+- Added MIT licensing and a product-focused README. Owner approved the copy and requested removal of all README screenshots and their copied assets before publication.
+- Validation: README local links resolve and `git diff --check` passes. No runtime changes or milestone estimate changes; application checks were not rerun. Documentation-only paths do not trigger CI, and no workflows are dispatched.
+
 Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` (#72), reviewed 2026-10-06. This is the current evidence/gap record; [completion-plan.md](completion-plan.md) owns delivery order, [frontend-spec.md](frontend-spec.md) owns dashboard acceptance, and [owner-actions.md](owner-actions.md) owns deployment/input actions. The complete pre-rewrite dated log and detailed checklists are preserved in [history/progress-through-2026-10-06.md](history/progress-through-2026-10-06.md). Historical undated next steps are superseded.
 
 ## 2026-10-06: Multi-architecture image release for `e95f3cb` (Codex)
