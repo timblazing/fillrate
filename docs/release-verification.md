@@ -1,5 +1,11 @@
 # Release verification and hardware evidence
 
+## 2026-10-06 image release for `e95f3cb`
+
+GitHub Actions [image workflow run 37482591185](https://github.com/timblazing/fillrate/actions/runs/37482591185) completed successfully for `main` commit `e95f3cb6556a52b013d318caf2f4800329970051`. The CI and npm checks passed; native `build (amd64, ubuntu-24.04)` and `build (arm64, ubuntu-24.04-arm)` both passed their smoke and benchmark steps, and the publish job created the multi-architecture manifest.
+
+Published tag: `ghcr.io/timblazing/fillrate:sha-e95f3cb`. Registry manifest digest: `sha256:0b6eeac32bba5853c3d9190cc1b0bfc62c2e5edecfd29f9b213c11b84052322e`. `docker manifest inspect` confirmed `linux/amd64` (`sha256:065838a48d6957bab52729a1a3c6b03f9eb4866a880556bc4b4da46b5b5362a0`) and `linux/arm64` (`sha256:67b13cf4d5b9a3cae1091c8866b35a67221fdf11c3b97bdeec967d454285d93e`).
+
 This reference records M4 release evidence and the remaining M8 release/handoff work. The canonical scope is in `fillrate-technical-spec.md` §§14–16 and the remaining work/dependencies are in `progress.md`. CI and runner benchmarks establish an implementation baseline; they do not replace evidence from the intended Ubuntu VPS and 64-bit Raspberry Pi or the actual hosted release.
 
 ## Current evidence and missing handoff
