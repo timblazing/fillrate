@@ -49,6 +49,11 @@ const LESSONS = [
     title: "Heterogeneous fleets",
     blurb: "10 synthetic Memphis stops and 30 pallets on 3 vans and 3 box trucks: the solver uses every van and one truck; remove the vans to compare fixed and total cost.",
   },
+  {
+    href: "/learn/multiple-depots",
+    title: "Multiple depots",
+    blurb: "12 abstract-plane stops around two depots in the Solver Lab: vans based at each depot serve their own side; the same stops from one depot cost over 1.5 times as much.",
+  },
 ]
 
 // Every lesson runs the real pipeline on a bundled synthetic scenario (spec §13).
@@ -61,7 +66,7 @@ export default function LessonsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Lessons</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each lesson starts real runs on a synthetic scenario and lists what to look for, not fixed answers. Lessons use only features the app runs today: estimated travel,
-            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and Solver Lab load dimensions and mixed fleets.
+            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and, in the Solver Lab, load dimensions, mixed fleets and vehicles based at several depots.
           </p>
         </section>
         <ul className="grid gap-3 sm:grid-cols-2">

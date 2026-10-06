@@ -25,6 +25,8 @@ def runs():
         "volume": lab_examples.dimensions(False),
         "fleet": lab_examples.fleet(True),
         "trucks": lab_examples.fleet(False),
+        "depots": lab_examples.depots(False),
+        "single": lab_examples.depots(True),
     }
     return {
         (name, seed): run_lab(with_seed(b, seed)) for name, b in builds.items() for seed in SEEDS
@@ -116,3 +118,39 @@ def test_trucks_only_costs_more_for_the_same_deliveries(runs):
         assert max(r.utilization["pallets"] for r in trucks.routes) < 0.8
         assert trucks.objective.total > mixed.objective.total
         assert trucks.objective.fixed_cost > mixed.objective.fixed_cost
+
+
+def test_each_depot_serves_its_own_cluster(runs):
+    for seed in SEEDS:
+        result = runs["depots", seed]
+        assert result.validated_feasible and result.solver_feasible
+        assert result.problem_fingerprint == runs["depots", 0].problem_fingerprint
+        assert result.objective.total == runs["depots", 0].objective.total == 689
+        assert {f.vehicle_type: f.used for f in result.fleet} == {"west-van": 2, "east-van": 2}
+        for route in result.routes:
+            sides = {v.client_id[0] for v in route.visits}
+            assert sides == ({"W"} if route.vehicle_type == "west-van" else {"E"})
+            assert len(route.visits) == 3 and route.utilization["parcels"] == 1.0
+            assert (route.start_depot, route.end_depot) == (
+                ("west", "west") if route.vehicle_type == "west-van" else ("east", "east")
+            )
+        assert sorted(v.client_id for r in result.routes for v in r.visits) == sorted(
+            c.id for c in lab_examples.depots().clients
+        )
+
+
+def test_one_depot_makes_the_same_stops_cost_more(runs):
+    for seed in SEEDS:
+        two, one = runs["depots", seed], runs["single", seed]
+        assert one.validated_feasible
+        assert one.problem_fingerprint != two.problem_fingerprint
+        # Same stops, same number of vans, so the same fixed cost; the whole difference is distance.
+        assert one.totals.routes == two.totals.routes == 4
+        assert one.objective.fixed_cost == two.objective.fixed_cost == 400
+        assert one.totals.load == two.totals.load == {"parcels": 48}
+        assert one.objective.total == runs["single", 0].objective.total == 1_096
+        assert one.objective.total > two.objective.total * 1.5
+        # Two vans still serve only the East stops, now driving out from the West depot.
+        east = [r for r in one.routes if all(v.client_id.startswith("E") for v in r.visits)]
+        assert len(east) == 2 and all(r.start_depot == "west" for r in east)
+        assert min(r.distance for r in east) > 2 * 100

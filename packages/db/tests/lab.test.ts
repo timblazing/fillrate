@@ -11,6 +11,7 @@ import { enqueueLabRun, isLabVersion, LAB_SETTINGS, LabInstanceError, labExample
 import { saveScenario, scenarioList, scenarioVersion } from "../src/scenarios";
 import dimensions from "../../../examples/lab-dimensions.json";
 import fleet from "../../../examples/lab-fleet.json";
+import depots from "../../../examples/lab-depots.json";
 import example from "../../../examples/m1-synthetic.json";
 
 const A = "user:a", B = "user:b", DAY = 86_400_000;
@@ -26,7 +27,10 @@ const quota = (ownerId: string): Admission => ({ ownerId, maxActive: 1, maxQueue
 test("bundled lab examples validate; planned capabilities are refused by name", () => {
   expect(validateLabInstance(structuredClone(dimensions)).name).toBe(dimensions.name);
   expect(validateLabInstance(structuredClone(fleet)).coordinates).toBe("geographic");
-  expect(failure(instance({ depots: [dimensions.depots[0], { id: "d2", x: 1, y: 1 }] }))).toEqual(["planned_capability", expect.stringContaining("multiple_depots")]);
+  expect(failure(instance({ depots: [dimensions.depots[0], { id: "d2", x: 1, y: 1 }] }))).toBeNull();
+  expect(validateLabInstance(structuredClone(depots)).depots).toHaveLength(2);
+  expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], start_depot: "nowhere" }] }))?.[1]).toContain('start_depot "nowhere" is not a depot id');
+  expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], profile: "bike" }] }))?.[1]).toContain("routing_profiles");
   expect(failure(instance({ shipments: [] }))?.[1]).toContain("planned capability paired_shipments");
   expect(failure(instance({ clients: [{ ...dimensions.clients[0], prize: 3 }] }))?.[1]).toContain("optional_clients");
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], reload_depots: ["depot"] }] }))?.[1]).toContain("reloads");

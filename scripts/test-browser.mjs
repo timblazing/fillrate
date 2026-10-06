@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1425,6 +1425,87 @@ async function stop() {
   return stopping;
 }
 
+// Solver Lab multiple depots (M6): the lesson starts the two-depot example and its one-depot twin from the page; the
+// persisted validated results are what the page compares, and the lab run page shows depots and per-route depots.
+// Every number is checked against services/optimizer/tests/test_lab_examples.py.
+async function labDepotsFlow(baseURL, runKey) {
+  console.log("Browser smoke: Solver Lab multiple depots lesson");
+  beginBrowserFlow("lab-depots");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const keyed = `key=${encodeURIComponent(runKey)}`;
+  const doneRun = (id, label) => poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${id}?${keyed}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), label);
+  const labLinks = () => { const raw = evalValue(`JSON.stringify([...document.querySelectorAll('a[href^="/labs/"]')].map((a) => a.getAttribute('href').split('/').pop().split('?')[0]))`); return typeof raw === "string" ? JSON.parse(raw) : raw; };
+  open(`${baseURL}/learn/multiple-depots?${keyed}`);
+  expect(snapshot().includes('heading "Multiple depots"'), "Multiple depots lesson did not load.");
+  let page = String(parsedText());
+  expect(page.includes("West depot") && page.includes("East depot") && page.includes("start_depot, end_depot") && page.includes("Not modeled:"), "Lesson is missing its depot table or model fields.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  clickButtonCentered("Run with two depots");
+  browser("wait", "--text", "Open two-depot run", "--timeout", "20000");
+  const [twoId] = labLinks();
+  expect(/^[0-9a-f-]{36}$/.test(twoId ?? ""), `Two-depot run link is unexpected: ${twoId}`);
+  const two = await doneRun(twoId, "Two-depot lab run");
+  expect(two.status === "succeeded" && two.example === "depots", `Two-depot run did not succeed: ${JSON.stringify(two).slice(0, 800)}`);
+  const a = two.result;
+  expect(a.validated_feasible && a.solver_feasible && a.violations.length === 0 && a.totals.routes === 4 && a.objective.total === 689 && a.objective.fixed_cost === 400 && a.totals.distance === 289,
+    `Two-depot plan should be 4 routes, objective 689 (400 fixed): ${JSON.stringify(a.objective)} ${JSON.stringify(a.totals)}`);
+  for (const route of a.routes) {
+    const west = route.vehicle_type === "west-van";
+    expect(route.start_depot === (west ? "west" : "east") && route.end_depot === route.start_depot && route.visits.length === 3 && route.visits.every((v) => v.client_id.startsWith(west ? "W-" : "E-")),
+      `Route ${route.index} should stay on its own depot's side: ${JSON.stringify([route.vehicle_type, route.start_depot, route.end_depot, route.visits.map((v) => v.client_id)])}`);
+  }
+
+  clickButtonCentered("Run from one depot");
+  browser("wait", "--text", "Open one-depot run", "--timeout", "20000");
+  const oneId = labLinks().find((id) => id !== twoId);
+  expect(/^[0-9a-f-]{36}$/.test(oneId ?? ""), `One-depot run link is unexpected: ${oneId}`);
+  const one = await doneRun(oneId, "One-depot lab run");
+  expect(one.status === "succeeded" && one.example === "depots_single", `One-depot run did not succeed: ${JSON.stringify(one).slice(0, 800)}`);
+  const b = one.result;
+  expect(b.validated_feasible && b.totals.routes === 4 && b.objective.fixed_cost === 400 && b.objective.total === 1096 && b.problem_fingerprint !== a.problem_fingerprint && b.routes.every((r) => r.start_depot === "west"),
+    `One-depot plan should be 4 routes from West, objective 1096: ${JSON.stringify(b.objective)}`);
+  const east = b.routes.filter((r) => r.visits.every((v) => v.client_id.startsWith("E-")));
+  expect(east.length === 2 && east.every((r) => r.distance > 200), `Two routes should drive out to the East stops: ${JSON.stringify(b.routes.map((r) => [r.distance, r.visits.map((v) => v.client_id)]))}`);
+
+  // The page's side-by-side comparison reads the same persisted runs.
+  browser("wait", "--text", "Side by side", "--timeout", "20000");
+  const cell = (key, id) => String(evalValue(`document.querySelector('[data-testid="depots-${key}-${id}"]')?.innerText ?? ""`));
+  expect(cell("two", "objective") === "689" && cell("one", "objective") === "1,096" && cell("two", "fixed") === "400" && cell("one", "fixed") === "400" && cell("two", "routes") === "4" && cell("one", "routes") === "4",
+    `Comparison cells do not match the persisted results: ${cell("two", "objective")} / ${cell("one", "objective")}`);
+  expect(cell("two", "distance") === a.totals.distance.toLocaleString("en-US") && cell("one", "distance") === b.totals.distance.toLocaleString("en-US"), "Comparison distances differ from the persisted results.");
+  expect(cell("two", "routes-by-depot").includes("west: ") && cell("two", "routes-by-depot").includes("east: ") && !cell("one", "routes-by-depot").includes("east: "), "Comparison should name each route's depot.");
+  expect(Number(evalValue("document.querySelectorAll('svg rect[data-depot]').length")) === 3, "The two plots should mark 2 + 1 depots.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("multiple depots lesson");
+
+  // The run page shows the depots, each route's depot and a plot with a marker per depot.
+  open(`${baseURL}/labs/${twoId}?${keyed}`);
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes("2 depots") && page.includes("Vehicles based here") && page.includes("west-van 2 / 2") && page.includes("east-van 2 / 2"), "Lab run page does not show its depots and the fleet per depot.");
+  expect(Number(evalValue("document.querySelectorAll('svg rect[data-depot]').length")) === 2 && Number(evalValue("document.querySelectorAll('svg polyline[data-route]').length")) === 4, "Lab plot should mark both depots and draw 4 routes.");
+  const rows = JSON.parse(String(evalValue(`JSON.stringify([...document.querySelectorAll('[data-testid="lab-routes"] tbody tr')].map((tr) => tr.children[2].innerText.trim()))`)));
+  expect(stable(rows.sort()) === stable(["east", "east", "west", "west"]), `Route table depots: ${JSON.stringify(rows)}`);
+  expect(Number(evalValue("document.querySelector('[data-testid=\"lab-depot-west\"] td:nth-child(3)').innerText")) === 2, "West depot should list 2 routes.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+
+  // Reset forgets the started runs but keeps them stored.
+  open(`${baseURL}/learn/multiple-depots?${keyed}`);
+  browser("wait", "--text", "Open two-depot run", "--timeout", "20000");
+  clickButtonCentered("Reset lesson");
+  browser("wait", "--text", "Run steps 1 and 2 first", "--timeout", "10000");
+  expect(!String(parsedText()).includes("Open two-depot run"), "Reset should forget the started runs.");
+  checkBrowserDiagnostics("multiple depots run page");
+  console.log(`  passed: two depots 4 routes objective ${a.objective.total} (each depot serves its side); one depot objective ${b.objective.total}; comparison, run page and reset`);
+}
+
 process.once("SIGINT", () => void stop().finally(() => process.exit(130)));
 process.once("SIGTERM", () => void stop().finally(() => process.exit(143)));
 
@@ -1477,6 +1558,7 @@ try {
     if (flow === "labs") await labsFlow(baseURL, runKey, scenarioKey);
     if (flow === "warm-start") await warmStartFlow(baseURL, runKey);
     if (flow === "lab-lessons") await labLessonsFlow(baseURL, runKey);
+    if (flow === "lab-depots") await labDepotsFlow(baseURL, runKey);
   }
   await stop();
 } catch (error) {

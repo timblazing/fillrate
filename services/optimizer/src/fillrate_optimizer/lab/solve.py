@@ -51,6 +51,16 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
             ],
             "fleet": [
                 {
+                    # Depot assignment only enters with several depots, so single-depot
+                    # fingerprints from before multiple depots stay valid.
+                    **(
+                        {
+                            "start_depot": instance.start_depot_of(v),
+                            "end_depot": instance.end_depot_of(v),
+                        }
+                        if len(instance.depots) > 1
+                        else {}
+                    ),
                     "id": v.id,
                     "count": v.count,
                     "capacity": instance.capacity_vector(v),
@@ -94,7 +104,15 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
     for route in best.routes():
         type_id = instance.vehicle_types[route.vehicle_type()].id
         ids = [instance.clients[a.idx].id for a in route if a.is_client()]
-        candidate.append(CandidateRoute(type_id, ids))
+        # The depots PyVRP actually used, so a mismatch with the type's depots is caught.
+        candidate.append(
+            CandidateRoute(
+                type_id,
+                ids,
+                instance.depots[route.start_depot()].id,
+                instance.depots[route.end_depot()].id,
+            )
+        )
         reported.append(route)
     plan = validate_plan(instance, matrices, candidate)
 
