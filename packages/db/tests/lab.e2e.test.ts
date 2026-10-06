@@ -57,14 +57,15 @@ test.skipIf(!hasUv)("a bundled lab example completes with a validated, persisted
 }, 120_000);
 
 test.skipIf(!hasUv)("Python re-validates an instance the TypeScript checks never saw, and fails it permanently", async () => {
-  const sneaky = { ...structuredClone(dimensions), shipments: [] } as unknown as LabInstance;
-  const runId = enqueueLabRun(store, { instance: sneaky }, "sneaky", { ownerId: "operator" });
+  const sneaky = structuredClone(dimensions) as unknown as { clients: Record<string, unknown>[] };
+  sneaky.clients[0].pickup = [1, 1];
+  const runId = enqueueLabRun(store, { instance: sneaky as unknown as LabInstance }, "sneaky", { ownerId: "operator" });
   startWorker("lab-2");
   const view = await ended(runId);
   expect(view.status).toBe("failed");
   expect(view.attempt).toBe(1);
   expect(view.events.at(-1)!.payload).toMatchObject({ code: "planned_capability" });
-  expect(String(view.events.at(-1)!.payload.message)).toContain("paired_shipments");
+  expect(String(view.events.at(-1)!.payload.message)).toContain("pickups_and_deliveries");
 }, 120_000);
 
 test.skipIf(!hasUv)("cancelling a running lab solve kills it and persists the cancellation", async () => {
