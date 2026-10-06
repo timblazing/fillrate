@@ -26,7 +26,7 @@ export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel, 
 
   return (
     <div className="relative h-full">
-      <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5}>
+      <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5} attributionControl={{ compact: false }}>
         <FitBounds points={path} fitKey={timeline.truckId} />
         {color && !timeline.legPaths && <MapRoute id={`timeline-${timeline.truckId}`} coordinates={path} color={color} width={3} opacity={0.8} dashArray={[2, 1.5]} interactive={false} />}
         {color && timeline.legPaths?.map((leg, i) => (leg ? <MapRoute key={i} id={`timeline-${timeline.truckId}-road-${i}`} coordinates={leg} color={color} width={4} opacity={0.95} interactive={false} /> : null))}

@@ -79,7 +79,7 @@ export default function CoordinateMap({
 
   return (
     <div className="relative h-full">
-      <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={[depot.lon, depot.lat]} zoom={5}>
+      <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={[depot.lon, depot.lat]} zoom={5} attributionControl={{ compact: false }}>
         <FitBounds points={fit} fitKey={String(locations.length)} />
         {ready && <StopPointsLayer data={points} outline={colors["--background"]} onSelect={(id) => !placing && onSelect(id)} />}
         {placing && current && <MapClick onClick={(lat, lon) => onPlace(current.id, lat, lon)} />}

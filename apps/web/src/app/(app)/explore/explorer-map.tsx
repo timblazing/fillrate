@@ -33,7 +33,7 @@ export default function ExplorerMap({ summary, repaired }: { summary: ExplorerSu
   const depot: [number, number] = [summary.depot.lon, summary.depot.lat]
   const fit = useMemo<[number, number][]>(() => [depot, ...summary.locations.map((l) => [l.lon, l.lat] as [number, number])], [summary]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5}>
+    <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5} attributionControl={{ compact: false }}>
       <FitBounds points={fit} fitKey="explorer" />
       {ready && <StopPointsLayer data={points} outline={colors["--background"]} />}
       <MapMarker longitude={depot[0]} latitude={depot[1]}>

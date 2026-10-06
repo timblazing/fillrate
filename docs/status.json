@@ -49,7 +49,7 @@
       "weight": 7,
       "done": 76,
       "state": "active",
-      "notes": "Planning estimate: 76%. The 443-shipment results transition meets the proposed response target in three warm local trials per viewport; selection avoids a full-result refetch and the table mounts 50 rows. The 1,001-node matrix flow passed again on the refreshed branch; latest local preview medians were 211.8 ms desktop and 207.2 ms phone (three trials, not p95 evidence). Full six-Block integration/accessibility, matrix acceptance, shipment-sheet print, recovery states, basemap terms, final candidate release/deployment and native target timings remain open."
+      "notes": "Planning estimate: 76%. The 443-shipment results transition meets the proposed response target in three warm local trials per viewport; selection avoids a full-result refetch and the table mounts 50 rows. The 1,001-node matrix flow passed again on the refreshed branch; latest local preview medians were 211.8 ms desktop and 207.2 ms phone (three trials, not p95 evidence). CARTO terms and limits are now documented; map credits stay expanded, but exact credit-link conformance and owner key/tier configuration remain open. Full six-Block integration/accessibility, matrix acceptance, shipment-sheet print, recovery states, final candidate release/deployment and native target timings also remain open."
     }
   },
   "nextUp": [

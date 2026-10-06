@@ -27,7 +27,7 @@ The current publication task completed in #72 independently of dashboard work. I
 
 - [ ] Dashboard coverage/integration/performance evidence passes [frontend-spec.md](frontend-spec.md).
 - [ ] Final candidate verification is recorded with exact source; older green checks are labeled historical.
-- [ ] Basemap provider attribution, public-use terms and capacity assumptions are documented (the spec references `docs/basemap.md`, currently missing); inspect the shipped style/provider before launch review.
+- [ ] Basemap provider decision and runtime setup complete; CARTO source, current key/attribution terms and capacity limits are recorded in [basemap.md](basemap.md), but the current style URLs have no API key and owner acceptance/classification/configuration plus rendered attribution validation remain open.
 - [ ] `image.yml` succeeds for the final runtime source on amd64 and arm64; registry manifest/digest confirmed.
 - [ ] Owner backs up, pins the tested digest, upgrades and records migrations, health and worker connectivity.
 - [ ] Live HTTPS verifies anonymous/pending/admin policy, approved owner sign-in and one synthetic import → run → inspect → export; no live two-account test is added to the previously waived gate.

@@ -178,7 +178,7 @@ export default function PipelineMap({
         </div>
       )}
       <div className={cn("relative overflow-hidden", embedded ? "h-full" : "h-[520px] rounded-xl border")}>
-        <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={[-89.4, 35.3]} zoom={4.9}>
+        <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={[-89.4, 35.3]} zoom={4.9} attributionControl={{ compact: false }}>
           <FitBounds points={fitPoints} fitKey={`${selectedCluster}`} />
           {ready && limit && <MapGeoJSON id="leg-limit" data={ring} fillPaint={false} linePaint={ringLine} />}
           {ready && hulls && mode === "cluster" && <MapGeoJSON id="hulls" data={hullData} fillPaint={hullFill} linePaint={hullLine} />}
