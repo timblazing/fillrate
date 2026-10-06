@@ -2,6 +2,8 @@
 
 Focused before/after evidence for the 443-shipment bottleneck in the [M8 frontend performance baseline](m8-frontend-performance-baseline-2026-10-06.md). This closes only the large shipment-table transition slice; it is not M8 completion or full frontend performance acceptance.
 
+Implementation source: commit `24bfaee` (based on `281b16e`). Production build: `bun run build` passed for this source.
+
 ## Workload and method
 
 - Synthetic `examples/lesson-fulfillment.json`: 2,000 orders, 600 locations, 640 accounts and 2,829 lines; persisted run `2162f2c3` contained 443 shipments. The browser flow created the run in an isolated temporary database and checked the persisted JSON export.
