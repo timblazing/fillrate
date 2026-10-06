@@ -13,6 +13,8 @@ import fleet from "../../../../../examples/lab-fleet.json";
 import fleetTrucks from "../../../../../examples/lab-fleet-trucks.json";
 import depots from "../../../../../examples/lab-depots.json";
 import depotsSingle from "../../../../../examples/lab-depots-single.json";
+import prizes from "../../../../../examples/lab-prizes.json";
+import prizesHigh from "../../../../../examples/lab-prizes-high.json";
 import reloads from "../../../../../examples/lab-reloads.json";
 import reloadsOff from "../../../../../examples/lab-reloads-off.json";
 
@@ -51,6 +53,14 @@ export const LAB_EXAMPLES = {
   reloads_off: {
     id: "reloads_off", label: "Reloads off", instance: reloadsOff as unknown as LabInstance,
     observations: ["Without reloading the same 8 stops need 4 vans, each driving one trip from the DC: fixed cost 400 and 780 distance.", "The objective is 1,180 cost units, over twice the reloading plan; the one reloading van also works longer than any single-trip van."],
+  },
+  prizes: {
+    id: "prizes", label: "Optional stops", instance: prizes as unknown as LabInstance,
+    observations: ["The three remote stops are optional with a prize of 60 each; the solver skips all three and the 5 required stops ride on 1 van.", "Nominal cost 315 (100 fixed + 215 distance) plus 180 of uncollected prizes: PyVRP minimizes 495. The prizes are a separate term, never part of the cost."],
+  },
+  prizes_high: {
+    id: "prizes_high", label: "Higher prizes", instance: prizesHigh as unknown as LabInstance,
+    observations: ["With a prize of 400 each, all 3 remote stops are visited on a second van: 2 routes, nominal cost 800, no uncollected prizes and 1,200 of prizes collected.", "The nominal cost is higher than when the stops were skipped (800 against 315), but skipping them would now cost 1,200 in prizes."],
   },
 } as const;
 export type LabExampleId = keyof typeof LAB_EXAMPLES;

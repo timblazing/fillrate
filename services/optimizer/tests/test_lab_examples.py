@@ -29,6 +29,8 @@ def runs():
         "single": lab_examples.depots(True),
         "reloads": lab_examples.reloads(True),
         "reloads_off": lab_examples.reloads(False),
+        "prizes": lab_examples.prizes(60),
+        "prizes_high": lab_examples.prizes(400),
     }
     return {
         (name, seed): run_lab(with_seed(b, seed)) for name, b in builds.items() for seed in SEEDS
@@ -186,3 +188,33 @@ def test_without_reloads_four_vans_drive_from_the_dc(runs):
         assert off.totals.distance == 780 > on.totals.distance
         # The one reloading van works for longer than any single-trip van: its route is the day.
         assert on.routes[0].duration > max(r.duration for r in off.routes)
+
+
+def test_low_prizes_leave_the_remote_stops_unvisited(runs):
+    for seed in SEEDS:
+        result = runs["prizes", seed]
+        assert result.validated_feasible and result.solver_feasible
+        assert result.problem_fingerprint == runs["prizes", 0].problem_fingerprint
+        assert [s.client_id for s in result.skipped] == ["P-6", "P-7", "P-8"]
+        assert result.totals.clients_served == 5 and result.totals.routes == 1
+        o = result.objective
+        # Nominal cost 315 = 100 fixed + 215 distance; prizes are a separate 180, never in costs.
+        assert (o.fixed_cost, o.distance_cost, o.total) == (100, 215, 315)
+        assert (o.uncollected_prizes, o.prizes_collected, o.objective_with_prizes) == (180, 0, 495)
+        assert result.solver.nominal_cost == 315
+
+
+def test_raised_prizes_make_the_solver_visit_them(runs):
+    for seed in SEEDS:
+        low, high = runs["prizes", seed], runs["prizes_high", seed]
+        assert high.validated_feasible and high.skipped == []
+        assert high.problem_fingerprint != low.problem_fingerprint
+        assert high.totals.clients_served == 8 and high.totals.routes == 2
+        o = high.objective
+        assert (o.total, o.uncollected_prizes, o.prizes_collected) == (800, 0, 1_200)
+        assert o.objective_with_prizes == 800 == runs["prizes_high", 0].objective.total
+        # Visiting costs more as a nominal cost, but is cheaper once skipped prizes are counted.
+        assert o.total > low.objective.total
+        # Each remote visit is worth its prize only above the extra distance it needs: 485 > 180.
+        assert o.total - low.objective.total > low.objective.uncollected_prizes
+        assert high.totals.distance > low.totals.distance

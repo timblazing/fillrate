@@ -641,6 +641,16 @@ export interface components {
              */
             lon: number | null;
             /**
+             * Prize
+             * @default null
+             */
+            prize: number | null;
+            /**
+             * Required
+             * @default null
+             */
+            required: boolean | null;
+            /**
              * Service Duration
              * @default 0
              */
@@ -756,7 +766,10 @@ export interface components {
          * LabObjective
          * @description Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle
          *     its fixed cost, plus unit_distance_cost × route distance and unit_duration_cost × route
-         *     duration. Infeasibility penalties are never part of it.
+         *     duration. ``total`` is this nominal cost only. Infeasibility penalties are never part of it.
+         *     With optional clients PyVRP minimizes ``total`` plus the prizes of the clients it skips:
+         *     ``uncollected_prizes`` is reported as its own term and ``objective_with_prizes`` is the sum
+         *     PyVRP optimized. Prizes are in the instance's cost unit but are never costs.
          */
         LabObjective: {
             /** Distance Cost */
@@ -765,8 +778,23 @@ export interface components {
             duration_cost: number;
             /** Fixed Cost */
             fixed_cost: number;
+            /**
+             * Objective With Prizes
+             * @default null
+             */
+            objective_with_prizes: number | null;
+            /**
+             * Prizes Collected
+             * @default 0
+             */
+            prizes_collected: number;
             /** Total */
             total: number;
+            /**
+             * Uncollected Prizes
+             * @default 0
+             */
+            uncollected_prizes: number;
         };
         /** LabResult */
         LabResult: {
@@ -802,6 +830,8 @@ export interface components {
              * @constant
              */
             schema_version: 1;
+            /** Skipped */
+            skipped?: components["schemas"]["LabSkipped"][];
             solver: components["schemas"]["LabSolverInfo"];
             /** Solver Feasible */
             solver_feasible: boolean;
@@ -856,6 +886,16 @@ export interface components {
             vehicle_type: string;
             /** Visits */
             visits: components["schemas"]["LabVisit"][];
+        };
+        /**
+         * LabSkipped
+         * @description An optional client that no route visits, and the prize forgone.
+         */
+        LabSkipped: {
+            /** Client Id */
+            client_id: string;
+            /** Prize */
+            prize: number;
         };
         /**
          * LabSolver

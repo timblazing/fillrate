@@ -59,6 +59,11 @@ const LESSONS = [
     title: "Reloads and multiple trips",
     blurb: "8 abstract-plane stops beyond a yard: one 10-parcel van reloads at the yard and makes four trips; without reloading the same stops need four vans and cost over twice as much.",
   },
+  {
+    href: "/learn/optional-visits",
+    title: "Optional visits and prizes",
+    blurb: "8 abstract-plane stops, three of them remote and optional: at a prize of 60 each the solver skips them and pays 180; at 400 each it visits them and the nominal cost rises from 315 to 800.",
+  },
 ]
 
 // Every lesson runs the real pipeline on a bundled synthetic scenario (spec §13).
