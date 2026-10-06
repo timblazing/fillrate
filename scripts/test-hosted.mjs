@@ -3,7 +3,7 @@
 //
 // 1. FILLRATE_MODE=hosted without auth settings refuses to start.
 // 2. FILLRATE_MODE=local serves scenarios and runs with no keys and no account routes.
-// 3. FILLRATE_MODE=hosted with settings: two accounts (sessions written to the database and signed with the
+// 3. FILLRATE_MODE=hosted with settings (including saved manual baselines): two accounts (sessions written to the database and signed with the
 //    server secret, exactly as Better Auth would after GitHub sign-in) cannot see or touch each other's data by
 //    guessed IDs; anonymous callers get sign-in errors; quotas answer 429 with Retry-After; cross-origin writes,
 //    sign-out and account deletion behave. GitHub OAuth itself needs real credentials and is an owner check.
@@ -158,6 +158,34 @@ try {
     check("A cannot warm-start from an unfinished run (409)", warmEarly.status === 409 && warmEarly.body?.error?.code === "warm_start_source_not_ready", JSON.stringify(warmEarly.body));
     check("operator key does not open A's data", (await call(b, `/api/v1/runs/${runId}`, { headers: { "x-scenario-key": "operator-check" } })).status === 404);
 
+    // Saved manual baselines (M6): strictly the saver's own. No worker runs here, so the baselines are inserted the
+    // way the save endpoint stores them (an evaluated plan on a run), and every read, delete and warm start is checked over HTTP.
+    const baseline = (id, owner, valid) => db.prepare("INSERT INTO manual_baselines (id,ownerId,runId,clusterId,name,plan,evaluation,valid,idempotencyKey,requestHash,createdAt) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+      .run(id, owner, runId, "C1", `Baseline ${id}`, JSON.stringify({ cluster_id: "C1", routes: [["v1"]] }), JSON.stringify({ manual: { valid, violations: valid ? [] : [{ code: "missing_visit", message: "x" }], metrics: { trucks: 1, loaded_distance_m: 1000 }, trucks: [] } }), valid ? 1 : 0, randomUUID(), "h", Date.now());
+    baseline("base-a-valid", `user:${A.userId}`, true); baseline("base-a-invalid", `user:${A.userId}`, false);
+    check("A saves nothing on an unfinished run (409)", (await call(b, `/api/v1/runs/${runId}/baselines`, as(A, { method: "POST", body: { name: "x", plan: { cluster_id: "C1", routes: [["v1"]] } }, headers: { "idempotency-key": randomUUID() } }))).body?.error?.code === "run_not_finished");
+    check("B cannot save a baseline on A's run (404)", (await call(b, `/api/v1/runs/${runId}/baselines`, as(B, { method: "POST", body: { name: "x", plan: { cluster_id: "C1", routes: [["v1"]] } }, headers: { "idempotency-key": randomUUID() } }))).status === 404);
+    check("anonymous cannot save a baseline (401)", (await call(b, `/api/v1/runs/${runId}/baselines`, { method: "POST", body: { name: "x", plan: { cluster_id: "C1", routes: [["v1"]] } }, headers: { "idempotency-key": randomUUID() } })).status === 401);
+    const listed = await call(b, `/api/v1/runs/${runId}/baselines`, as(A));
+    check("A lists own baselines with their validity", listed.status === 200 && listed.body?.baselines?.length === 2 && listed.body.baselines.some(x => x.id === "base-a-valid" && x.valid) && listed.body.baselines.some(x => x.id === "base-a-invalid" && !x.valid), JSON.stringify(listed.body));
+    check("B cannot list baselines on A's run (404)", (await call(b, `/api/v1/runs/${runId}/baselines`, as(B))).status === 404);
+    check("anonymous cannot list baselines (401)", (await call(b, `/api/v1/runs/${runId}/baselines`)).status === 401);
+    check("A reads own baseline", (await call(b, "/api/v1/baselines/base-a-valid", as(A))).body?.name === "Baseline base-a-valid");
+    check("B cannot read A's baseline (404)", (await call(b, "/api/v1/baselines/base-a-valid", as(B))).body?.error?.code === "baseline_not_found");
+    check("anonymous cannot read A's baseline (404)", (await call(b, "/api/v1/baselines/base-a-valid")).status === 404);
+    check("operator key does not open A's baseline", (await call(b, "/api/v1/baselines/base-a-valid", { headers: { "x-scenario-key": "operator-check" } })).status === 404);
+    check("B cannot delete A's baseline (404)", (await call(b, "/api/v1/baselines/base-a-valid", as(B, { method: "DELETE" }))).status === 404);
+    const warmBaseline = (who, id) => call(b, "/api/v1/runs", as(who, { method: "POST", body: { settings: { warm_start: { kind: "manual_baseline", baseline_id: id } } }, headers: { "idempotency-key": randomUUID() } }));
+    const stolen = await warmBaseline(B, "base-a-valid");
+    check("B cannot warm-start from A's baseline (404)", stolen.status === 404 && stolen.body?.error?.code === "warm_start_source_not_found", JSON.stringify(stolen.body));
+    const invalidStart = await warmBaseline(A, "base-a-invalid");
+    check("A cannot warm-start from an invalid baseline (409)", invalidStart.status === 409 && invalidStart.body?.error?.code === "warm_start_baseline_invalid", JSON.stringify(invalidStart.body));
+    // A's valid baseline passes the source check; the queue then refuses on A's one-unfinished-job limit, so nothing is spent.
+    const validStart = await warmBaseline(A, "base-a-valid");
+    check("A's valid baseline is accepted as a source (queue refuses: active limit)", validStart.status === 429 && validStart.body?.error?.code === "active_limit", JSON.stringify(validStart.body));
+    check("A's data export lists the baselines", (await (await fetch(`${b}/api/v1/me/export`, as(A))).json()).baselines?.length === 2);
+    check("B's data export has none", (await (await fetch(`${b}/api/v1/me/export`, as(B))).json()).baselines?.length === 0);
+
     const second = await call(b, "/api/v1/runs", as(A, { method: "POST", body: {}, headers: { "idempotency-key": randomUUID() } }));
     check("A's second job is refused: one unfinished job (429)", second.status === 429 && second.body?.error?.code === "active_limit" && Number(second.headers.get("retry-after")) > 0, JSON.stringify(second.body));
     check("A cancels own run", (await call(b, `/api/v1/runs/${runId}/cancel`, as(A, { method: "POST" }))).status === 202);
@@ -175,8 +203,8 @@ try {
     // Solver Lab (M6): an account's own instance is private and is not a scenario; anonymous callers need sign-in.
     check("anonymous lab run needs sign-in (401)", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { example: "dimensions" }, headers: { "idempotency-key": randomUUID() } })).status === 401);
     check("anonymous own lab instance needs sign-in (401)", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { instance: labInstance }, headers: { "idempotency-key": randomUUID() } })).status === 401);
-    const planned = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, depots: [...labInstance.depots, { id: "depot-2", x: 5, y: 5 }] } }, headers: { "idempotency-key": randomUUID() } }));
-    check("a planned lab capability is refused by name (422)", planned.status === 422 && planned.body?.error?.code === "planned_capability" && /multiple_depots/.test(planned.body?.error?.message ?? ""), JSON.stringify(planned.body));
+    const planned = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, shipments: [] } }, headers: { "idempotency-key": randomUUID() } }));
+    check("a planned lab capability is refused by name (422)", planned.status === 422 && planned.body?.error?.code === "planned_capability" && /paired_shipments/.test(planned.body?.error?.message ?? ""), JSON.stringify(planned.body));
     const lab = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, name: "Bob's lab" } }, headers: { "idempotency-key": randomUUID() } }));
     check("B queues a lab run on an own instance", lab.status === 201 && lab.body?.kind === "lab" && lab.body?.example === null, JSON.stringify(lab.body).slice(0, 300));
     const labId = lab.body?.id;
@@ -205,10 +233,10 @@ try {
 
     const deleted = await call(b, "/api/v1/me", as(A, { method: "DELETE" }));
     check("A deletes the account", deleted.status === 200 && deleted.body?.deleted?.scenarios === 1, JSON.stringify(deleted.body));
-    const left = db.prepare("SELECT (SELECT count(*) FROM user WHERE id=?) + (SELECT count(*) FROM session WHERE user_id=?) + (SELECT count(*) FROM access_requests WHERE user_id=?) + (SELECT count(*) FROM scenarios WHERE ownerId=?) + (SELECT count(*) FROM runs WHERE ownerId=?) AS n").get(A.userId, A.userId, A.userId, `user:${A.userId}`, `user:${A.userId}`).n;
+    const left = db.prepare("SELECT (SELECT count(*) FROM user WHERE id=?) + (SELECT count(*) FROM session WHERE user_id=?) + (SELECT count(*) FROM access_requests WHERE user_id=?) + (SELECT count(*) FROM scenarios WHERE ownerId=?) + (SELECT count(*) FROM runs WHERE ownerId=?) + (SELECT count(*) FROM manual_baselines WHERE ownerId=?) AS n").get(A.userId, A.userId, A.userId, `user:${A.userId}`, `user:${A.userId}`, `user:${A.userId}`).n;
     check("nothing of A remains", left === 0);
     check("A's old cookie no longer works", (await call(b, "/api/v1/scenarios", as(A))).status === 401);
-    check("lessons stay public", (await fetch(`${b}/learn/fulfillment-pipeline`)).status === 200);
+    check("signed-out lesson redirects home", (await fetch(`${b}/learn/fulfillment-pipeline`, { redirect: "manual" })).headers.get("location") === "/");
     db.close();
     await server.stop();
   }
@@ -236,14 +264,24 @@ try {
     check("pending run list is 403", (await call(b, "/api/v1/runs", as(user))).body?.error?.code === "access_pending");
     check("pending export is 403", (await call(b, "/api/v1/me/export", as(user))).status === 403);
     check("pending page redirects", (await fetch(`${b}/scenarios`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
-    check("lessons remain public", (await fetch(`${b}/learn/fulfillment-pipeline`)).status === 200);
+    for (const path of ["/scenarios", "/runs", "/experiments", "/labs", "/learn", "/learn/fulfillment-pipeline", "/account", "/admin", "/request-access", "/dev/blocks/app-header"]) {
+      check(`anonymous page ${path} redirects home`, (await fetch(`${b}${path}`, { redirect: "manual" })).headers.get("location") === "/");
+    }
+    for (const path of ["/", "/privacy", "/dev", "/dev/components"]) {
+      check(`public page ${path} stays available`, (await fetch(`${b}${path}`)).status === 200);
+    }
+    check("pending lesson redirects to request", (await fetch(`${b}/learn/fulfillment-pipeline`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
+    check("authenticated request form is available", (await fetch(`${b}/request-access`, { headers: user.headers })).status === 200);
+    check("approved lesson is available", (await fetch(`${b}/learn/fulfillment-pipeline`, { headers: admin.headers })).status === 200);
+    const landing = await (await fetch(`${b}/`, { headers: admin.headers })).text();
+    check("landing CTA requests access", landing.includes("Request access") && !landing.includes("Open Fillrate"));
     check("pending note saves", (await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Testing with sample orders" } }))).status === 200);
     check("note is stored", db.prepare("SELECT note FROM access_requests WHERE user_id=?").get(user.userId)?.note === "Testing with sample orders");
     for (let i = 0; i < 9; i++) await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: `Update ${i}` } }));
     const overNote = await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Too many" } }));
     check("eleventh note update is rate limited", overNote.status === 429 && overNote.body?.error?.code === "quota_exceeded", JSON.stringify(overNote.body));
     check("stranger cannot list requests", (await call(b, "/api/v1/admin/access-requests", as(stranger))).status === 404);
-    check("pending user cannot open admin page", (await fetch(`${b}/admin`, { headers: user.headers, redirect: "manual" })).status === 404);
+    check("pending admin page redirects to request", (await fetch(`${b}/admin`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
     check("stranger cannot forge approval", (await call(b, `/api/v1/admin/access-requests/${user.userId}`, as(stranger, { method: "POST", body: { action: "approve" } }))).status === 404);
     const decision = (target, action, who = admin, headers = {}) => call(b, `/api/v1/admin/access-requests/${target.userId}`, as(who, { method: "POST", body: { action }, headers }));
     check("cross-origin admin POST is refused", (await decision(user, "approve", admin, { origin: "https://evil.example" })).status === 403);

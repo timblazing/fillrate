@@ -2,9 +2,9 @@
 
 Every mapping here is native PyVRP: named dimensions become capacity/delivery vectors in the
 instance's dimension order, vehicle types keep their count, costs and limits, and every edge
-carries the raw distance and duration. There are no synthetic terminal edges (lab routes are
-closed) and no omitted arcs. The builder is split per entity so a later capability (multiple
-depots, reloads, optional clients, groups, shipments) changes one function.
+carries the raw distance and duration. There are no synthetic terminal edges (every route
+returns to a depot) and no omitted arcs. The builder is split per entity so a later capability
+(optional clients, groups, shipments) changes one function.
 """
 
 from __future__ import annotations
@@ -37,7 +37,15 @@ class LabBuildError(ValueError):
 
 def check_range(instance: LabInstance, matrices: LabMatrices) -> None:
     """Keep every objective term well below PyVRP's MAX_VALUE so nothing overflows or saturates."""
-    n = len(instance.clients)
+    # Reloads add one depot stop per reload to a route's path.
+    n = (
+        len(instance.clients)
+        + len(instance.depots)
+        - 1
+        + max(
+            ((vt.max_reloads or 0) for vt in instance.vehicle_types if vt.reload_depots), default=0
+        )
+    )
     longest = int(matrices.distance.max()) * (n + 1)
     slowest = int(matrices.duration.max()) * (n + 1) + sum(
         c.service_duration for c in instance.clients
@@ -48,6 +56,7 @@ def check_range(instance: LabInstance, matrices: LabMatrices) -> None:
             vt.fixed_cost + vt.unit_distance_cost * longest + vt.unit_duration_cost * slowest
         )
         worst += vt.count * per_route
+    worst += sum(c.prize_value for c in instance.clients)
     if worst >= MAX_VALUE // 4:
         raise LabBuildError(
             "objective_out_of_range",
@@ -62,15 +71,18 @@ def add_locations(model: pyvrp.Model, matrices: LabMatrices) -> list:
 
 
 def add_depots(model: pyvrp.Model, instance: LabInstance, locations: list) -> list:
-    return [model.add_depot(locations[0], name=instance.depot.id)]
+    # Depots are the first locations, in instance order; clients follow.
+    return [model.add_depot(locations[i], name=d.id) for i, d in enumerate(instance.depots)]
 
 
 def add_clients(model: pyvrp.Model, instance: LabInstance, locations: list) -> list:
     return [
         model.add_client(
-            locations[i + 1],
+            locations[len(instance.depots) + i],
             delivery=instance.delivery_vector(client),
             service_duration=client.service_duration,
+            prize=client.prize_value,
+            required=client.is_required,
             name=client.id,
         )
         for i, client in enumerate(instance.clients)
@@ -79,6 +91,7 @@ def add_clients(model: pyvrp.Model, instance: LabInstance, locations: list) -> l
 
 def add_vehicle_types(model: pyvrp.Model, instance: LabInstance, depots: list) -> list:
     out = []
+    depot_by_id = {d.id: depots[i] for i, d in enumerate(instance.depots)}
     for vt in instance.vehicle_types:
         limits: dict[str, int] = {}
         if vt.max_distance is not None:
@@ -89,8 +102,10 @@ def add_vehicle_types(model: pyvrp.Model, instance: LabInstance, depots: list) -
             model.add_vehicle_type(
                 num_available=vt.count,
                 capacity=instance.capacity_vector(vt),
-                start_depot=depots[0],
-                end_depot=depots[0],
+                start_depot=depot_by_id[instance.start_depot_of(vt)],
+                end_depot=depot_by_id[instance.end_depot_of(vt)],
+                reload_depots=[depot_by_id[d] for d in vt.reload_depots or []],
+                max_reloads=(vt.max_reloads or 0) if vt.reload_depots else 0,
                 fixed_cost=vt.fixed_cost,
                 unit_distance_cost=vt.unit_distance_cost,
                 unit_duration_cost=vt.unit_duration_cost,

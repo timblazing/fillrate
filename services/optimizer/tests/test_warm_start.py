@@ -14,8 +14,10 @@ import pyvrp
 from pyvrp.stop import MaxIterations
 
 from fillrate_optimizer import lesson_allocation, pipeline
+from fillrate_optimizer.artifact_codec import decode_travel
 from fillrate_optimizer.canonical import content_hash
 from fillrate_optimizer.capabilities import BEHAVIORS
+from fillrate_optimizer.evaluate import cluster_request, evaluate
 from fillrate_optimizer.loads import (
     PartitionProblem,
     PartitionVisit,
@@ -27,7 +29,7 @@ from fillrate_optimizer.loads import (
 from fillrate_optimizer.model import RunSettings, WarmStartPlan, WarmStartSource
 from fillrate_optimizer.pipeline import PipelineError, run_pipeline
 from fillrate_optimizer.replay import DETERMINISTIC_STAGES, expected_record, replay
-from fillrate_optimizer.warmstart import plan_from_summary
+from fillrate_optimizer.warmstart import plan_from_baseline, plan_from_summary
 
 SCENARIO = lesson_allocation.build()
 SETTINGS = lesson_allocation.SETTINGS.model_copy(update={"solver_max_iterations": 50})
@@ -297,12 +299,110 @@ def test_plan_from_summary_keeps_service_order_and_only_validated_routes(cold, p
     assert plan.travel.mode == "estimated" and plan.travel.circuity == SETTINGS.travel_circuity
 
 
+# ---- saved manual baselines as a source -------------------------------------------------------
+
+
+def test_warm_start_source_kinds_keep_run_identity_and_name_exactly_one_id():
+    assert WarmStartSource(run_id="r").model_dump(mode="json") == {"kind": "run", "run_id": "r"}
+    baseline = WarmStartSource(kind="manual_baseline", baseline_id="b")
+    assert baseline.model_dump(mode="json") == {"kind": "manual_baseline", "baseline_id": "b"}
+    for bad in (
+        {"kind": "run"},
+        {"kind": "run", "run_id": "r", "baseline_id": "b"},
+        {"kind": "manual_baseline", "run_id": "r"},
+        {"kind": "manual_baseline"},
+    ):
+        with pytest.raises(ValueError):
+            WarmStartSource(**bad)
+
+
+BASELINE = WarmStartSource(kind="manual_baseline", baseline_id="baseline-1")
+
+
+def saved_baseline(cold, cluster_id: str, valid_only: bool = True) -> dict:
+    """What the web stores for a saved manual baseline of one cluster: the plan and the evaluator's
+    outcome for it, as the worker transport returns them."""
+    stages = {a.stage: a.payload for a in cold.artifacts}
+    stages["travel"] = decode_travel(stages["travel"])
+    solve = next(c for c in stages["solve"]["clusters"] if c["cluster_id"] == cluster_id)
+    request = cluster_request(SCENARIO, SETTINGS, stages, cluster_id, solve["routes"])
+    result = evaluate(request).manual
+    assert result.valid or not valid_only
+    return {
+        "cluster_id": cluster_id,
+        "routes": solve["routes"],
+        "valid": result.valid,
+        "trucks": [t.model_dump(mode="json") for t in result.trucks],
+        "settings": SETTINGS.model_dump(mode="json"),
+    }
+
+
+@pytest.fixture(scope="module")
+def baseline(cold):
+    cluster = next(
+        c.cluster_id
+        for c in plan_from_summary(cold.summary.model_dump(mode="json"), SOURCE).clusters
+        if c.routes
+    )
+    return saved_baseline(cold, cluster)
+
+
+def test_manual_baseline_warm_starts_its_cluster_and_is_never_worse(cold, baseline):
+    source = plan_from_baseline(baseline, BASELINE)
+    assert source.source == BASELINE
+    assert [c.cluster_id for c in source.clusters] == [baseline["cluster_id"]]
+    assert source.clusters[0].status == "validated"
+    config = SETTINGS.model_copy(update={"warm_start": BASELINE})
+    warm = run_pipeline(SCENARIO, config, warm_start_plan=source)
+    found = outcomes(warm)
+    used = [cid for cid, o in found.items() if o.status == "used"]
+    assert used == [baseline["cluster_id"]]
+    assert all(o.reason == "visit_set_changed" for cid, o in found.items() if cid not in used)
+    cluster = next(c for c in warm.summary.clusters if c.id == used[0])
+    assert cluster.warm_start.final_cost <= cluster.warm_start.initial_cost
+    assert warm.summary.warm_start.source == BASELINE
+    assert (warm.summary.warm_start.used, warm.summary.warm_start.skipped) == (1, len(found) - 1)
+    message = next(d.message for d in warm.summary.diagnostics if d.code == "warm_start")
+    assert "manual baseline baseline-1" in message
+
+
+def test_manual_baseline_goes_through_the_validator_gate(cold, baseline):
+    """A baseline is judged on the new problem like any source: a smaller trailer keeps its visits
+    and loads but makes a truck overweight, so the cluster is solved cold with the reason."""
+    source = plan_from_baseline(baseline, BASELINE)
+    loads = {v["visit_id"]: v["load"] for t in baseline["trucks"] for v in t["visits"]}
+    capacity = max(loads.values())
+    assert capacity < max(t["load"] for t in baseline["trucks"])
+    config = SETTINGS.model_copy(update={"warm_start": BASELINE, "trailer_capacity": capacity})
+    warm = run_pipeline(SCENARIO, config, warm_start_plan=source)
+    outcome = outcomes(warm)[baseline["cluster_id"]]
+    assert outcome.status == "skipped" and outcome.reason == "invalid_on_new_problem"
+    assert warm.summary.validity == "valid"
+
+
+def test_invalid_baseline_is_never_a_source(baseline):
+    with pytest.raises(ValueError, match="invalid"):
+        plan_from_baseline({**baseline, "valid": False}, BASELINE)
+
+
+def test_manual_baseline_replays_from_its_bundled_plan(tmp_path, baseline):
+    source = plan_from_baseline(baseline, BASELINE)
+    expected = write_warm_bundle(tmp_path, source, BASELINE)
+    assert expected["warm_start"]["source"] == {
+        "kind": "manual_baseline",
+        "baseline_id": "baseline-1",
+    }
+    lines: list[str] = []
+    assert replay(tmp_path, out=lines.append) == []
+    assert lines[-1] == "REPLAY OK"
+
+
 # ---- replay ------------------------------------------------------------------------------------
 
 
-def write_warm_bundle(root: Path, plan_doc: WarmStartPlan) -> dict:
+def write_warm_bundle(root: Path, plan_doc: WarmStartPlan, source=SOURCE) -> dict:
     """What `packages/db/src/replay.ts` writes for a warm-started run."""
-    config = SETTINGS.model_copy(update={"warm_start": SOURCE})
+    config = SETTINGS.model_copy(update={"warm_start": source})
     output = run_pipeline(SCENARIO, config, warm_start_plan=plan_doc)
     (root / "artifacts").mkdir(parents=True)
     (root / "scenario.json").write_text(json.dumps(SCENARIO.model_dump(mode="json")))

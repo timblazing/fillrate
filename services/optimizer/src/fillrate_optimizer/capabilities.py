@@ -70,22 +70,29 @@ class Capabilities(BaseModel):
 BEHAVIORS = [
     Behavior(
         id="directed_road_travel",
-        availability="planned",
+        availability="implemented",
         provided_by="preprocessing",
         description=(
             "M6: immutable directed travel snapshots (imported or Valhalla truck matrices) are "
-            "stored by content hash and selected in run settings; the worker's travel stage, "
-            "reachability and the submission preflight read that matrix. A durable job can "
-            "build a Valhalla snapshot for a scenario version; that job is verified against "
-            "fixtures only."
+            "stored by content hash and selected in run settings or the /scenarios workbench; "
+            "the worker's travel stage, reachability, the submission preflight and the "
+            "independent validator read that matrix. A durable job builds a Valhalla `truck` "
+            "snapshot from the deployment's pinned service (docs/valhalla.md); stops outside "
+            "its coverage get unreachable edges, never an estimate."
         ),
         restrictions=[
-            "Selectable only through the operator API (travel_snapshot_id) and the worker; "
-            "no browser control or matrix preview yet.",
-            "No live Valhalla deployment or route geometry has been verified; the snapshot "
-            "building job runs against fixtures only.",
+            "Static matrices only: no traffic or time-dependent travel. A recorded snapshot is "
+            "immutable and replays exactly; rebuilding can differ slightly because Valhalla's "
+            "CostMatrix results depend on which locations share a request (the block size is "
+            "recorded).",
+            "Live Valhalla verified on local Colima on Apple silicon (arm64) with the pinned "
+            "valhalla-scripted 3.9.0 image and Geofabrik Tennessee/Mississippi/Arkansas "
+            "extracts dated 2026-10-05; each deployment records its own coverage, and the "
+            "owner's production deployment is not verified.",
+            "Coverage is whatever the deployment built: a stop outside it is unreachable.",
+            "Valhalla is optional; estimated haversine x circuity stays the default.",
         ],
-        fixture=None,
+        fixture="tests/test_travel_snapshots.py::test_snapshot_legs_and_reachability_replace_the_estimate",
     ),
     Behavior(
         id="capacitated_loads",
@@ -194,11 +201,12 @@ BEHAVIORS = [
         id="warm_start",
         provided_by="native",
         description=(
-            "Run setting warm_start {kind: run, run_id}: each cluster starts PyVRP's search from "
-            "the source run's validated plan (pyvrp.solve initial_solution). With a feasible "
-            "initial solution the pinned search keeps it as the incumbent, so the returned "
-            "objective is never higher. Fillrate passes a plan only after the independent "
-            "validator accepts it on the new problem; every cluster records used or skipped "
+            "Run setting warm_start {kind: run, run_id} or {kind: manual_baseline, baseline_id}: "
+            "each cluster starts PyVRP's search from the source's validated plan "
+            "(pyvrp.solve initial_solution). With a feasible initial solution the pinned search "
+            "keeps it as the incumbent, so the returned objective is never higher. Fillrate "
+            "passes a plan only after the independent validator accepts it on the new problem; "
+            "every cluster records used or skipped "
             "with a reason, and the plan is a recorded input of the solve stage."
         ),
         restrictions=[
@@ -210,8 +218,10 @@ BEHAVIORS = [
             "(invalid_on_new_problem) and be complete and feasible to PyVRP (solver_rejected). "
             "Pinned PyVRP accepts infeasible, incomplete or mismatched initial solutions without "
             "an error (tests/test_warm_start.py), so Fillrate refuses them instead.",
-            "Sources are succeeded pipeline runs the submitter can read; manual baselines are "
-            "not a source yet.",
+            "Sources are succeeded pipeline runs the submitter can read, or the submitter's saved "
+            "manual baselines that the evaluator found valid when saved. A baseline covers one "
+            "cluster of the run it was made on; other clusters are solved cold "
+            "(visit_set_changed). An invalid baseline is never a source.",
             "Warm starts change solver provenance only, never the comparison signature.",
         ],
         fixture="tests/test_warm_start.py::test_feasible_initial_solution_is_never_worsened",
@@ -241,8 +251,9 @@ BEHAVIORS = [
         restrictions=[
             "One cluster at a time, within that cluster's visits; visits cannot move between "
             "clusters.",
-            "Evaluation only: a valid manual plan is a baseline, not a solver result, and is "
-            "not saved or used as a warm start.",
+            "Evaluation alone stores nothing: a valid manual plan is a baseline, not a solver "
+            "result. A saved baseline (separate endpoint) can be a warm-start source only "
+            "while it is valid.",
         ],
         fixture=(
             "tests/test_evaluate.py::"
@@ -300,8 +311,8 @@ BEHAVIORS = [
         provided_by="native",
         description=(
             "Lab instances (fillrate_optimizer.lab) create depots, clients and vehicle types "
-            "directly and are solved by PyVRP 0.14.0 as one problem: closed routes from one "
-            "depot, every edge with its raw distance and duration, a seed and an iteration or "
+            "directly and are solved by PyVRP 0.14.0 as one problem: routes between depots, every "
+            "edge with its raw distance and duration, a seed and an iteration or "
             "runtime budget. Planar instances use rounded euclidean abstract units (never "
             "latitude/longitude); geographic ones haversine × circuity meters and "
             "constant-speed seconds. An independent validator recomputes coverage, loads, "
@@ -309,7 +320,7 @@ BEHAVIORS = [
             "any PyVRP route number that differs."
         ),
         restrictions=[
-            "Exactly one depot; no time windows, release times, pickups, prizes, groups, "
+            "No time windows, release times, pickups, prizes, groups, "
             "shipments or reloads (each is refused as a planned capability).",
             "Heuristic search: results are the best found within the budget, never proven optimal.",
             "At most 500 clients, 8 dimensions and 10 vehicle types per instance.",
@@ -340,11 +351,67 @@ BEHAVIORS = [
         ),
         restrictions=[
             "Solver Lab instances; the pipeline's fleet is heterogeneous_fleet_pipeline.",
-            "Every type starts and ends at the single depot.",
+            "Every type starts and ends at its own start and end depots.",
             "Max distance and shift duration are penalized in PyVRP's search; only the "
             "independent validator decides whether a route respects them.",
         ],
         fixture="tests/test_lab.py::test_mixed_fleet_uses_cheaper_type_within_its_count",
+    ),
+    Behavior(
+        id="multiple_depots",
+        provided_by="native",
+        description=(
+            "Lab instances name up to 10 depots; each vehicle type has a start depot and an end "
+            "depot (default: the first depot), which become PyVRP depots and "
+            "VehicleType start_depot/end_depot. The matrices list the depots first, then the "
+            "clients. The validator recomputes each route from its own start depot to its own "
+            "end depot and rejects a route that does not use its type's depots."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline still has one depot.",
+            "No depot capacity, stock or opening hours: a depot is a place vehicles start and end.",
+            "Every type's start and end depot is fixed in the instance; the solver does not "
+            "choose which depot a vehicle uses.",
+        ],
+        fixture="tests/test_lab.py::test_vehicles_start_and_end_at_their_types_depots",
+    ),
+    Behavior(
+        id="reloads",
+        provided_by="native",
+        description=(
+            "Lab vehicle types may list reload depots and a maximum number of reloads (PyVRP "
+            "VehicleType reload_depots/max_reloads): a vehicle returns to a reload depot, is full "
+            "again, and starts another trip, so one vehicle can serve more than its capacity in "
+            "one route. The validator splits every route into trips, resets the load at each "
+            "reload and checks capacity per trip, the reload count and the reload depots."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline has no reloads.",
+            "A reload takes no time and costs nothing beyond the distance driven; max distance "
+            "and shift duration apply to the whole route.",
+            "Delivery loads only: every trip starts full and is never restocked partially.",
+        ],
+        fixture="tests/test_lab.py::test_reloads_let_one_vehicle_serve_more_than_its_capacity",
+    ),
+    Behavior(
+        id="optional_clients",
+        provided_by="native",
+        description=(
+            "Lab clients may be optional (PyVRP Client required=false with a prize): the solver "
+            "may skip them, and the prize of every skipped client is added to PyVRP's objective "
+            "as an uncollected prize. Fillrate reports the nominal cost, the uncollected prizes "
+            "and their sum as separate terms and lists the skipped clients; the validator "
+            "requires every required client to be visited."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline has no optional visits.",
+            "A prize is in the instance's cost unit but is never part of a cost: the nominal "
+            "objective excludes it and the sum is shown beside it.",
+            "A required client cannot carry a prize; an optional client with no prize is "
+            "skipped unless visiting it is free.",
+            "Heuristic: a skipped client was judged not worth its detour, not proven so.",
+        ],
+        fixture="tests/test_lab.py::test_optional_clients_are_skipped_when_the_prize_does_not_pay",
     ),
     *[
         Behavior(
@@ -355,9 +422,6 @@ BEHAVIORS = [
             fixture=None,
         )
         for capability, text in (
-            ("multiple_depots", "several depots with per-vehicle-type start and end depots"),
-            ("reloads", "reload depots and multiple trips per vehicle"),
-            ("optional_clients", "optional visits with prizes"),
             ("client_groups", "mutually exclusive client groups"),
             ("paired_shipments", "pickup and delivery pairs"),
             ("pickups_and_deliveries", "client pickup loads beside deliveries"),
@@ -377,7 +441,7 @@ def capabilities() -> Capabilities:
         python=sys.version.split()[0],
         platform=f"{platform.system().lower()}-{platform.machine()}",
         versions={name: version(name) for name in PINNED},
-        travel_modes=["haversine"],
+        travel_modes=["haversine", "imported", "valhalla"],
         behaviors=BEHAVIORS,
         limits=Limits(),
         defaults=Defaults(),

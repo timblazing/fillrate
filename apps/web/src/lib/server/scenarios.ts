@@ -7,7 +7,7 @@ import { assertSnapshotBinding, preflightChecks } from "@fillrate/db/preflight";
 import type { Binding, TravelSnapshot } from "@fillrate/db/travel";
 import { admission, assertOwnVersion, type Principal } from "./access";
 import { ApiError } from "./errors";
-import { assertWarmStartSource, warmStartError } from "./warm-start";
+import { assertWarmStartSource, normalizeWarmStart, warmStartError } from "./warm-start";
 
 /** Runs on bundled examples plus the caller's own scenarios. */
 export function visibleRuns(store: Store, who: Principal) {
@@ -61,7 +61,7 @@ export function createScenarioRun(store: Store, who: Principal, versionId: strin
   const fleetIssues = fleetProblems(settings);
   if (fleetIssues.length) throw new ApiError(400, "invalid_settings", fleetIssues.join(" "), ["settings.fleet"]);
   // Stored settings name the source explicitly; null and absent both mean a cold start.
-  if (settings.warm_start) settings.warm_start = { kind: "run", run_id: settings.warm_start.run_id };
+  if (settings.warm_start) settings.warm_start = normalizeWarmStart(settings.warm_start);
   else delete settings.warm_start;
   assertWarmStartSource(store, who, settings);
   const findings = preflightChecks(document, settings, selectedTravel(store, document, settings, ownerId));

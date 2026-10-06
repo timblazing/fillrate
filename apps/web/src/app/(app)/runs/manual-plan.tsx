@@ -1,25 +1,41 @@
 "use client"
 
 import type { RunSummary } from "@fillrate/contracts"
-import { ArrowDown, ArrowUp, ArrowRightLeft, RotateCcw, Scale } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowRightLeft, Bookmark, FolderOpen, RotateCcw, Scale, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { ClusterSwatch } from "@/components/lab/route-swatch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { Input } from "@/components/ui/input"
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "@/components/ui/menu"
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toastManager } from "@/components/ui/toast"
 import { shipmentLabel } from "@/lib/copy"
-import { fillBand, formatFeet, formatPercent } from "@/lib/units"
+import { METERS_PER_MILE } from "@/lib/shipment-sheet"
+import { fillBand, formatFeet, formatMiles, formatPercent, plural } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
-import { type Evaluation, PlanComparison } from "./plan-comparison"
+import { type Evaluation, PlanComparison, violationLabel } from "./plan-comparison"
+import { type WarmRerun, WarmRerunButton } from "./warm-rerun"
 
 type Visit = { visit_id: string; location_id: string; load: number }
 type FleetType = { id: string; label: string; capacity: number; count: number | null }
 type Context = { cluster_id: string; objective: string; visits: Visit[]; blocked: (Visit & { reason: string })[]; solve_status: string; reference_routes: string[][] | null; vehicle_types?: FleetType[]; reference_vehicle_types?: string[] | null }
+/** A saved manual baseline as `GET /api/v1/runs/<id>/baselines` lists it (the caller's own only). */
+type Baseline = {
+  id: string
+  name: string
+  cluster_id: string
+  valid: boolean
+  created_at: number
+  plan: { cluster_id: string; routes: string[][]; vehicle_types?: string[] }
+  violations: { code: keyof typeof violationLabel; message: string }[]
+  metrics: { trucks: number; loaded_distance_m: number | null }
+}
 type Focus = { visit: string; action: "up" | "down" | "move" } | null
 
 const moveWithin = (routes: string[][], truck: number, from: number, to: number) =>
@@ -49,7 +65,7 @@ const moveAcross = (routes: string[][], from: number, visit: string, to: number,
  * to a new one, then evaluate it against the run's recorded problem next to the optimized routes. Every
  * control is a button or menu, so the editor works from the keyboard.
  */
-export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summary: RunSummary; runId: string; runKey?: string; canEvaluate: boolean }) {
+export function ManualPlanPanel({ summary, runId, runKey, canEvaluate, rerun = null }: { summary: RunSummary; runId: string; runKey?: string; canEvaluate: boolean; rerun?: WarmRerun | null }) {
   const clusters = summary.clusters.filter((c) => c.visit_count > 0 && c.status !== "nothing_to_solve")
   const [clusterId, setClusterId] = useState(clusters[0]?.id ?? "")
   const [context, setContext] = useState<Context | null>(null)
@@ -61,6 +77,10 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
   const [evaluating, setEvaluating] = useState(false)
   const [evalError, setEvalError] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState("")
+  const [baselines, setBaselines] = useState<Baseline[] | null>(null)
+  const [baselineName, setBaselineName] = useState("")
+  const [saving, setSaving] = useState(false)
+  const pendingLoad = useRef<Baseline | null>(null)
   const focus = useRef<Focus>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const headers = useMemo((): Record<string, string> => (runKey ? { "x-run-key": runKey } : {}), [runKey])
@@ -79,8 +99,11 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
         if (cancelled) return
         setContext(ctx)
         setLoadError(null)
-        setRoutes(initialRoutes(ctx))
-        setTypes(initialTypes(ctx))
+        // A baseline picked from another cluster's list opens here once its cluster has loaded.
+        const picked = pendingLoad.current?.cluster_id === ctx.cluster_id ? pendingLoad.current : null
+        pendingLoad.current = null
+        setRoutes(picked ? picked.plan.routes.map((r) => [...r]) : initialRoutes(ctx))
+        setTypes(picked?.plan.vehicle_types ? [...picked.plan.vehicle_types] : initialTypes(ctx))
         setResult(null)
         setEvalError(null)
       })
@@ -89,6 +112,18 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
       cancelled = true
     }
   }, [clusterId, runId, headers])
+
+  // Your saved baselines on this run. Anyone without an owner (anonymous callers) simply has none to show.
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/v1/runs/${runId}/baselines`, { headers, cache: "no-store" })
+      .then(async (res) => (res.ok ? ((await res.json()).baselines as Baseline[]) : null))
+      .then((list) => !cancelled && setBaselines(list))
+      .catch(() => !cancelled && setBaselines(null))
+    return () => {
+      cancelled = true
+    }
+  }, [runId, headers])
 
   // Keyboard users keep their place: after a move, focus returns to the moved stop's control.
   useEffect(() => {
@@ -143,6 +178,55 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
       setEvalError(error instanceof Error ? error.message : "Evaluation failed.")
     } finally {
       setEvaluating(false)
+    }
+  }
+
+  async function saveBaseline() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/v1/runs/${runId}/baselines`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...headers },
+        body: JSON.stringify({ name: baselineName, plan: { cluster_id: clusterId, routes, ...(fleet ? { vehicle_types: types } : {}) } }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error?.message ?? "Could not save the baseline.")
+      setBaselines((list) => [body as Baseline, ...(list ?? [])])
+      setBaselineName("")
+      toastManager.add({
+        type: body.valid ? "success" : "warning",
+        title: body.valid ? "Baseline saved" : "Saved as invalid",
+        description: body.valid ? "It passed the validator and can start a warm-started run." : "It failed the validator, so it cannot start a run. Fix the plan and save again.",
+      })
+      setAnnouncement(`Baseline ${body.name} saved, ${body.valid ? "valid" : "invalid"}.`)
+    } catch (error) {
+      toastManager.add({ type: "error", title: "Baseline not saved", description: error instanceof Error ? error.message : undefined })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function loadBaseline(b: Baseline) {
+    if (b.cluster_id !== clusterId) {
+      pendingLoad.current = b
+      setClusterId(b.cluster_id)
+    } else {
+      setRoutes(b.plan.routes.map((r) => [...r]))
+      if (context) setTypes(b.plan.vehicle_types ? [...b.plan.vehicle_types] : initialTypes(context))
+      setResult(null)
+      setEvalError(null)
+    }
+    setAnnouncement(`Loaded baseline ${b.name} into the editor.`)
+  }
+
+  async function removeBaseline(b: Baseline) {
+    const res = await fetch(`/api/v1/baselines/${b.id}`, { method: "DELETE", headers })
+    if (res.ok) {
+      setBaselines((list) => list?.filter((x) => x.id !== b.id) ?? null)
+      setAnnouncement(`Baseline ${b.name} deleted.`)
+    } else {
+      const body = await res.json().catch(() => null)
+      toastManager.add({ type: "error", title: "Baseline not deleted", description: body?.error?.message })
     }
   }
 
@@ -322,6 +406,66 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
             </Alert>
           )}
           {result && <PlanComparison result={result.evaluation} places={places} stale={result.plan !== planKey} />}
+          <section className="bg-card flex flex-col gap-3 rounded-xl border p-3" aria-label="Saved baselines">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="text-sm font-medium">Saved baselines</h4>
+              <span className="text-muted-foreground text-xs">Yours only. A valid one can start a warm-started run; saving never means the solver can match it.</span>
+            </div>
+            <form
+              className="flex flex-wrap items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (baselineName.trim() && !saving) void saveBaseline()
+              }}
+            >
+              <Input className="min-w-0 flex-1 basis-48" value={baselineName} onChange={(e) => setBaselineName(e.target.value)} placeholder="Baseline name" maxLength={100} aria-label="Baseline name" disabled={!canEvaluate} />
+              <Button type="submit" size="sm" variant="outline" loading={saving} disabled={!canEvaluate || !baselineName.trim() || !routes.length}>
+                <Bookmark aria-hidden /> Save as baseline
+              </Button>
+            </form>
+            {baselines && baselines.length > 0 ? (
+              <ul className="flex flex-col divide-y">
+                {baselines.map((b) => {
+                  const n = summary.clusters.findIndex((c) => c.id === b.cluster_id) + 1
+                  return (
+                    <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-sm" data-baseline={b.id} data-valid={b.valid}>
+                      <span className="flex min-w-0 flex-1 basis-56 flex-col">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate font-medium">{b.name}</span>
+                          <Badge variant={b.valid ? "success" : "error"}>{b.valid ? "Valid" : "Invalid"}</Badge>
+                        </span>
+                        <span className="text-muted-foreground text-xs tabular-nums">
+                          Cluster {n || b.cluster_id} · {plural(b.metrics.trucks, "shipment")}
+                          {b.metrics.loaded_distance_m != null && ` · ${formatMiles(b.metrics.loaded_distance_m / METERS_PER_MILE)}`}
+                          {!b.valid && ` · ${[...new Set(b.violations.map((v) => violationLabel[v.code] ?? v.code))].slice(0, 3).join(", ")}`}
+                        </span>
+                      </span>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <Button size="xs" variant="outline" onClick={() => loadBaseline(b)}>
+                          <FolderOpen aria-hidden /> Load
+                        </Button>
+                        {b.valid && rerun && (
+                          <WarmRerunButton
+                            size="xs"
+                            source={{ kind: "manual_baseline", baseline_id: b.id }}
+                            rerun={rerun}
+                            runKey={runKey}
+                            label="Re-run warm-started from this baseline"
+                            title="Same scenario and settings; this baseline's cluster starts from your saved plan if it still validates, others start cold"
+                          />
+                        )}
+                        <Button size="icon-xs" variant="ghost" aria-label={`Delete baseline ${b.name}`} onClick={() => void removeBaseline(b)}>
+                          <Trash2 />
+                        </Button>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground text-xs">{baselines ? "No baselines saved on this run yet." : "Sign in (or use the operator key) to save baselines; they belong to your account."}</p>
+            )}
+          </section>
         </>
       )}
     </div>

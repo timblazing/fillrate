@@ -1076,7 +1076,7 @@ def run_pipeline(
                 code="warm_start",
                 severity="info",
                 message=(
-                    f"Warm start from run {settings.warm_start.run_id}: {used} of {len(outcomes)} "
+                    f"Warm start from {settings.warm_start.label}: {used} of {len(outcomes)} "
                     "solved cluster(s) started from the source plan after independent validation"
                     + (f"; skipped: {', '.join(reasons)}" if reasons else "")
                     + ". Shipments and miles remain heuristic best-found values."
@@ -1264,14 +1264,14 @@ def resolve_warm_start(
         if loader is None:
             raise PipelineError(
                 "warm_start_missing",
-                f"A warm start from run {wanted.run_id} is selected but no source was provided.",
+                f"A warm start from {wanted.label} is selected but no source was provided.",
             )
         try:
             plan = WarmStartPlan.model_validate(loader(wanted))
         except Exception as error:  # noqa: BLE001 - transport, missing run and invalid document
             raise PipelineError(
                 "warm_start_unavailable",
-                f"The warm-start source run {wanted.run_id} could not be loaded: {error}"[:500],
+                f"The warm-start source ({wanted.label}) could not be loaded: {error}"[:500],
             ) from error
     if plan.source != wanted:
         raise PipelineError(

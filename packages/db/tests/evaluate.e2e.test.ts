@@ -109,3 +109,43 @@ test.skipIf(!hasUv)("a run's routes reproduce its trucks and an edited plan name
   // Unreachable optimizer: a clear 503, not a hang.
   await expect(callEvaluator(`http://127.0.0.1:${await freePort()}`, token, same.request, 2_000)).rejects.toMatchObject({ status: 503, code: "evaluator_unavailable" });
 }, 180_000);
+
+test.skipIf(!hasUv)("a saved valid baseline starts a rerun from its plan, an invalid one cannot", async () => {
+  const versionId = store.createScenario("Windows baselines", { schema_version: 1, document: windows.scenario }, "e2e").versionId;
+  const settings = { ...windows.settings, solver_max_iterations: 200 };
+  const finish = async (id: string) => { await waitFor(() => ["succeeded", "failed"].includes(store.runView(id)!.status)); return store.runView(id)!; };
+  const runId = store.enqueue(versionId, { schema_version: 1, document: settings }, "baseline-source");
+  expect((await finish(runId)).status).toBe("succeeded");
+
+  // The saved baseline is the evaluator's real outcome for a hand plan (here the run's own routes, one stop moved to the end of its truck).
+  const context = planContext(store, runId, "C1");
+  const plan = { cluster_id: "C1", routes: context.reference_routes!.map(r => [...r]) };
+  const evaluated = await callEvaluator(optimizerUrl, token, evaluationRequest(store, runId, plan).request);
+  expect(evaluated.manual.valid).toBe(true);
+  const evaluation = { evaluator_version: evaluated.evaluator_version, cluster_id: "C1", manual: evaluated.manual };
+  const good = store.saveBaseline({ runId, ownerId: "operator", name: "Dispatcher plan", plan, evaluation, idempotencyKey: "good" });
+  const merged = { cluster_id: "C1", routes: [plan.routes.flat()] };
+  const bad = await callEvaluator(optimizerUrl, token, evaluationRequest(store, runId, merged).request);
+  expect(bad.manual.valid).toBe(false);
+  const broken = store.saveBaseline({ runId, ownerId: "operator", name: "One truck", plan: merged, evaluation: { evaluator_version: bad.evaluator_version, cluster_id: "C1", manual: bad.manual }, idempotencyKey: "bad" });
+  expect([good.valid, broken.valid]).toEqual([true, false]);
+
+  const warm = (baseline_id: string) => ({ schema_version: 1 as const, document: { ...settings, warm_start: { kind: "manual_baseline", baseline_id } } });
+  expect(() => store.enqueue(versionId, warm(broken.id), "warm-bad")).toThrow("warm_start_baseline_invalid");
+  const rerun = store.enqueue(versionId, warm(good.id), "warm-good");
+  const view = await finish(rerun);
+  expect(view.status).toBe("succeeded");
+  const warmManifest = view.artifacts.find(a => a.stage_type === "warm_start")!;
+  expect(store.readArtifact(warmManifest.output_hash)).toMatchObject({ source: { kind: "manual_baseline", baseline_id: good.id }, clusters: [{ cluster_id: "C1", status: "validated" }] });
+  const summary = store.readArtifact(view.artifacts.find(a => a.stage_type === "summary")!.output_hash) as RunSummary;
+  expect(summary.warm_start).toMatchObject({ source: { kind: "manual_baseline", baseline_id: good.id }, plan_id: warmManifest.output_hash, used: 1, skipped: 0 });
+  const cluster = summary.clusters.find(c => c.id === "C1")!;
+  expect(cluster.warm_start).toMatchObject({ status: "used", reason: null });
+  expect(cluster.warm_start!.final_cost!).toBeLessThanOrEqual(cluster.warm_start!.initial_cost!);
+  expect(summary.validity).toBe("valid");
+
+  // Another owner cannot start from it, and deleting it afterwards leaves the finished run intact.
+  expect(() => store.enqueue(versionId, warm(good.id), "warm-other", Date.now(), 3, "pipeline", { ownerId: "user:other" })).toThrow(/version_not_found|warm_start_source_not_found/);
+  expect(store.deleteBaseline(good.id, "operator")).toBe(true);
+  expect(store.runView(rerun)!.status).toBe("succeeded");
+}, 240_000);

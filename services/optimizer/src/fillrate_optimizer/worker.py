@@ -120,7 +120,7 @@ def child_main(
     from .model import RunSettings, ScenarioDocument
     from .pipeline import Limits, PipelineError, run_pipeline
     from .travel_job import TravelJobError
-    from .warmstart import plan_from_summary
+    from .warmstart import plan_from_baseline, plan_from_summary
 
     watch_parent(os.getppid())
 
@@ -184,9 +184,11 @@ def child_main(
             # The validated plan of the warm-start source run. The server owner-checks the source
             # against this run before answering; Python never opens SQLite.
             warm_start_loader=(
-                lambda source: plan_from_summary(rpc("warm_start")["summary"], source).model_dump(
-                    mode="json"
-                )
+                lambda source: (
+                    plan_from_baseline(answer["baseline"], source)
+                    if "baseline" in (answer := rpc("warm_start"))
+                    else plan_from_summary(answer["summary"], source)
+                ).model_dump(mode="json")
             )
             if transport
             else None,

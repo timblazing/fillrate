@@ -81,7 +81,7 @@ export class Store {
         if (existing.requestHash !== requestHash || existing.ownerId !== ownerId) throw new Error("idempotency_conflict");
         return existing.id;
       }
-      if (kind === "pipeline") this.warmStartSummary(settings, ownerId);
+      if (kind === "pipeline") this.warmStartSource(settings, ownerId);
       if (options.admission) admit(tx, options.admission, 1, now);
       return insertRun(tx, versionId, settings, idempotencyKey, requestHash, now, maxAttempts, kind, ownerId);
     }, { behavior: "immediate" });
@@ -103,13 +103,27 @@ export class Store {
   }
 
   /**
-   * The validated plan source a run's `warm_start` names (spec §10, M6): a succeeded pipeline run whose scenario
-   * `ownerId` can read (theirs or a bundled example). Another owner's run reads as missing. Returns the source run's
-   * summary, which the worker turns into the warm-start plan; null when the settings select no warm start.
+   * The validated plan source a run's `warm_start` names (spec §10, M6), checked for `ownerId`: either a succeeded
+   * pipeline run the owner can read (theirs or a bundled example's) or one of the owner's own saved manual
+   * baselines that the evaluator found valid. Another owner's run or baseline reads as missing. Returns the run's
+   * summary (`{summary}`) or the baseline (`{baseline}`), which the worker turns into the warm-start plan; null
+   * when the settings select no warm start.
    */
-  warmStartSummary(settings: Snapshot, ownerId: string) {
-    const source = (settings.document as { warm_start?: { kind?: string; run_id?: unknown } | null }).warm_start;
+  warmStartSource(settings: Snapshot, ownerId: string): { summary: unknown } | { baseline: BaselineSource } | null {
+    const source = (settings.document as { warm_start?: { kind?: string; run_id?: unknown; baseline_id?: unknown } | null }).warm_start;
     if (!source) return null;
+    if (source.kind === "manual_baseline") {
+      const missing = new Error("warm_start_source_not_found: no saved baseline of yours has this ID");
+      if (typeof source.baseline_id !== "string") throw missing;
+      const row = this.db.select().from(s.manualBaselines).where(and(eq(s.manualBaselines.id, source.baseline_id), eq(s.manualBaselines.ownerId, ownerId))).get();
+      if (!row) throw missing;
+      if (!row.valid) throw new Error("warm_start_baseline_invalid: this baseline did not pass the validator when it was saved, so it cannot start a solve");
+      const run = this.db.select({ settings: s.runs.settings }).from(s.runs).where(eq(s.runs.id, row.runId)).get();
+      if (!run) throw missing;
+      const plan = JSON.parse(row.plan) as { cluster_id: string; routes: string[][]; vehicle_types?: string[] };
+      const manual = (JSON.parse(row.evaluation) as { manual: { trucks: unknown[] } }).manual;
+      return { baseline: { id: row.id, run_id: row.runId, cluster_id: row.clusterId, routes: plan.routes, ...(plan.vehicle_types ? { vehicle_types: plan.vehicle_types } : {}), valid: row.valid, trucks: manual.trucks, settings: (JSON.parse(run.settings) as Snapshot).document } };
+    }
     const missing = new Error("warm_start_source_not_found: no run you can read has this ID");
     if (source.kind !== "run" || typeof source.run_id !== "string") throw missing;
     const run = this.db.select({ id: s.runs.id, kind: s.runs.kind, status: s.runs.status, owner: s.scenarios.ownerId })
@@ -121,18 +135,88 @@ export class Store {
         .find(a => (JSON.parse(a.manifest) as StageManifest).stage_type === "summary")
       : undefined;
     if (!summary) throw new Error("warm_start_source_not_ready: the source must be a succeeded pipeline run with results");
-    return this.readArtifact(summary.hash);
+    return { summary: this.readArtifact(summary.hash) };
   }
 
-  /** The warm-start source summary for a leased run's worker, re-checked against the run's owner. */
-  leaseWarmStartSummary(lease: Lease, now = Date.now()) {
+  /** The warm-start source for a leased run's worker, re-checked against the run's owner. */
+  leaseWarmStartSource(lease: Lease, now = Date.now()) {
     parseContract("Lease", lease);
     const job = this.db.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get();
     assertLease(job, lease, now);
     const run = this.db.select().from(s.runs).where(eq(s.runs.id, job!.runId)).get()!;
-    const summary = this.warmStartSummary(JSON.parse(run.settings) as Snapshot, run.ownerId);
-    if (!summary) throw new Error("warm_start_not_selected: this run did not select a warm start");
-    return summary;
+    const source = this.warmStartSource(JSON.parse(run.settings) as Snapshot, run.ownerId);
+    if (!source) throw new Error("warm_start_not_selected: this run did not select a warm start");
+    return source;
+  }
+
+  /** `requestHash` of a saved baseline's request, so a replayed Idempotency-Key never saves twice. */
+  baselineRequestHash(runId: string, name: string, plan: unknown) { return contentHash(canonical({ runId, name, plan })); }
+
+  /** The baseline an Idempotency-Key already saved for `ownerId`; a key used for anything else is a conflict. */
+  baselineReplay(idempotencyKey: string, ownerId: string, requestHash: string) {
+    const row = this.db.select().from(s.manualBaselines).where(eq(s.manualBaselines.idempotencyKey, idempotencyKey)).get();
+    if (!row) return null;
+    if (row.ownerId !== ownerId || row.requestHash !== requestHash) throw new Error("idempotency_conflict");
+    return baselineRecord(row);
+  }
+
+  /**
+   * Saves a hand-edited plan with the evaluator's outcome (spec §10). `ownerId` must be able to read the run (their
+   * own scenario's, or a bundled example's) and the run must have succeeded; the baseline then belongs to
+   * `ownerId`. Invalid plans are saved too, marked invalid. `admission` is charged in the same transaction.
+   */
+  saveBaseline(input: { runId: string; ownerId: string; name: string; plan: { cluster_id: string; routes: string[][]; vehicle_types?: string[] }; evaluation: { manual: { valid: boolean } } & Record<string, unknown>; idempotencyKey: string; admission?: Admission; maxPerOwner?: number }, now = Date.now()) {
+    if (!input.idempotencyKey || input.idempotencyKey.length > 200) throw new Error("invalid_idempotency_key");
+    const name = input.name.trim();
+    if (!name || name.length > 100) throw new Error("invalid_baseline_name");
+    if (input.ownerId === EXAMPLES_OWNER || input.ownerId === PUBLIC_OWNER) throw new Error("invalid_owner");
+    const requestHash = this.baselineRequestHash(input.runId, name, input.plan);
+    return this.db.transaction(tx => {
+      const prior = tx.select().from(s.manualBaselines).where(eq(s.manualBaselines.idempotencyKey, input.idempotencyKey)).get();
+      if (prior) {
+        if (prior.ownerId !== input.ownerId || prior.requestHash !== requestHash) throw new Error("idempotency_conflict");
+        return baselineRecord(prior);
+      }
+      const run = tx.select({ kind: s.runs.kind, status: s.runs.status, owner: s.scenarios.ownerId }).from(s.runs)
+        .innerJoin(s.versions, eq(s.versions.id, s.runs.versionId)).innerJoin(s.scenarios, eq(s.scenarios.id, s.versions.scenarioId)).where(eq(s.runs.id, input.runId)).get();
+      if (!run || (run.owner !== EXAMPLES_OWNER && run.owner !== input.ownerId)) throw new Error("run_not_found");
+      if (run.kind !== "pipeline" || run.status !== "succeeded") throw new Error("run_not_finished");
+      const held = tx.get<{ n: number }>(sql`SELECT count(*) AS n FROM manual_baselines WHERE ownerId=${input.ownerId}`).n;
+      if (held >= (input.maxPerOwner ?? MAX_BASELINES_PER_OWNER)) throw new Error("baseline_limit");
+      if (input.admission) admit(tx, input.admission, 1, now);
+      const row = { id: randomUUID(), ownerId: input.ownerId, runId: input.runId, clusterId: input.plan.cluster_id, name, plan: canonical(input.plan), evaluation: canonical(input.evaluation), valid: input.evaluation.manual.valid, idempotencyKey: input.idempotencyKey, requestHash, createdAt: now };
+      tx.insert(s.manualBaselines).values(row).run();
+      return baselineRecord(row);
+    }, { behavior: "immediate" });
+  }
+
+  /** One of `ownerId`'s baselines; anyone else's (or a deleted one) reads as missing. */
+  baseline(id: string, ownerId: string) {
+    const row = this.db.select().from(s.manualBaselines).where(and(eq(s.manualBaselines.id, id), eq(s.manualBaselines.ownerId, ownerId))).get();
+    return row ? baselineRecord(row) : null;
+  }
+
+  /** `ownerId`'s baselines on one run, newest first. */
+  listBaselines(runId: string, ownerId: string, limit = 100) {
+    return this.db.select().from(s.manualBaselines).where(and(eq(s.manualBaselines.runId, runId), eq(s.manualBaselines.ownerId, ownerId)))
+      .orderBy(desc(s.manualBaselines.createdAt), desc(s.manualBaselines.id)).limit(limit).all().map(baselineRecord);
+  }
+
+  /** Everything `ownerId` saved, for the account export. */
+  ownerBaselines(ownerId: string) {
+    return this.db.select().from(s.manualBaselines).where(eq(s.manualBaselines.ownerId, ownerId)).orderBy(asc(s.manualBaselines.createdAt)).all().map(baselineRecord);
+  }
+
+  /** Deletes one of `ownerId`'s baselines; refused (`baseline_in_use`) while an unfinished run names it as its warm start. */
+  deleteBaseline(id: string, ownerId: string) {
+    return this.db.transaction(tx => {
+      const row = tx.select({ id: s.manualBaselines.id }).from(s.manualBaselines).where(and(eq(s.manualBaselines.id, id), eq(s.manualBaselines.ownerId, ownerId))).get();
+      if (!row) return false;
+      const using = tx.get<{ n: number }>(sql`SELECT count(*) AS n FROM runs WHERE ${ACTIVE_RUN} AND json_extract(settings, '$.document.warm_start.baseline_id')=${id}`).n;
+      if (using) throw new Error("baseline_in_use");
+      tx.delete(s.manualBaselines).where(eq(s.manualBaselines.id, id)).run();
+      return true;
+    }, { behavior: "immediate" });
   }
 
   /** Stores a validated snapshot under its content hash. Saving the same document again is a no-op. */
@@ -249,7 +333,7 @@ export class Store {
         return existing.id;
       }
       // A sweep is one submission for the active limit, but every child run is a solve admission.
-      for (const run of input.runs) this.warmStartSummary(run.settings, ownerId);
+      for (const run of input.runs) this.warmStartSource(run.settings, ownerId);
       if (input.admission) admit(tx, input.admission, input.runs.length, now);
       const id = randomUUID();
       tx.insert(s.experiments).values({ id, versionId: input.versionId, name: input.name, spec: canonical(input.spec), comparison: canonical(input.comparison), idempotencyKey, requestHash, createdAt: now, ownerId }).run();
@@ -390,6 +474,7 @@ export class Store {
       const experiments = (this.sqlite.prepare("SELECT id FROM experiments WHERE ownerId=?").all(ownerId) as { id: string }[]).map(r => r.id);
       for (const id of experiments) this.sqlite.prepare("DELETE FROM experiment_runs WHERE experimentId=?").run(id);
       this.sqlite.prepare("DELETE FROM experiments WHERE ownerId=?").run(ownerId);
+      this.sqlite.prepare("DELETE FROM manual_baselines WHERE ownerId=?").run(ownerId);
       this.deleteRuns(runs);
       this.sqlite.prepare("DELETE FROM travel_snapshot_owners WHERE ownerId=?").run(ownerId);
       this.sqlite.prepare("DELETE FROM travel_snapshots WHERE id NOT IN (SELECT snapshotId FROM travel_snapshot_owners)").run();
@@ -404,6 +489,7 @@ export class Store {
     for (const runId of runs) {
       const job = this.sqlite.prepare("SELECT id FROM jobs WHERE runId=?").get(runId) as { id: string } | undefined;
       this.sqlite.prepare("DELETE FROM experiment_runs WHERE runId=?").run(runId);
+      this.sqlite.prepare("DELETE FROM manual_baselines WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM stage_cache WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM run_artifacts WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM cluster_jobs WHERE runId=?").run(runId);
@@ -636,6 +722,14 @@ export class Store {
     return JSON.parse(bytes.toString("utf8"));
   }
 }
+/** What the worker receives for a `manual_baseline` source: the saved routes and the evaluator's trucks (location and load per visit). */
+export type BaselineSource = { id: string; run_id: string; cluster_id: string; routes: string[][]; vehicle_types?: string[]; valid: boolean; trucks: unknown[]; settings: unknown };
+export const MAX_BASELINES_PER_OWNER = 200;
+function baselineRecord(row: typeof s.manualBaselines.$inferSelect) {
+  return { id: row.id, ownerId: row.ownerId, runId: row.runId, clusterId: row.clusterId, name: row.name, valid: row.valid, createdAt: row.createdAt,
+    plan: JSON.parse(row.plan) as { cluster_id: string; routes: string[][] }, evaluation: JSON.parse(row.evaluation) as { evaluator_version?: string; manual: { valid: boolean; violations: unknown[]; metrics: Record<string, unknown>; trucks: unknown[] }; recorded?: unknown } };
+}
+export type BaselineRecord = ReturnType<typeof baselineRecord>;
 export type RunKind = "pipeline" | "explorer" | "travel_snapshot" | "lab";
 export const OPERATOR = "operator", EXAMPLES_OWNER = "examples", PUBLIC_OWNER = "public";
 

@@ -1656,6 +1656,32 @@
             "default": null,
             "title": "Lon"
           },
+          "prize": {
+            "anyOf": [
+              {
+                "maximum": 1000000000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prize"
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Required"
+          },
           "service_duration": {
             "default": 0,
             "maximum": 1000000000,
@@ -1863,7 +1889,7 @@
             "items": {
               "$ref": "#/components/schemas/LabDepot"
             },
-            "maxItems": 1,
+            "maxItems": 10,
             "minItems": 1,
             "title": "Depots",
             "type": "array"
@@ -1930,7 +1956,7 @@
       },
       "LabObjective": {
         "additionalProperties": false,
-        "description": "Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle\nits fixed cost, plus unit_distance_cost \u00d7 route distance and unit_duration_cost \u00d7 route\nduration. Infeasibility penalties are never part of it.",
+        "description": "Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle\nits fixed cost, plus unit_distance_cost \u00d7 route distance and unit_duration_cost \u00d7 route\nduration. ``total`` is this nominal cost only. Infeasibility penalties are never part of it.\nWith optional clients PyVRP minimizes ``total`` plus the prizes of the clients it skips:\n``uncollected_prizes`` is reported as its own term and ``objective_with_prizes`` is the sum\nPyVRP optimized. Prizes are in the instance's cost unit but are never costs.",
         "properties": {
           "distance_cost": {
             "title": "Distance Cost",
@@ -1944,8 +1970,30 @@
             "title": "Fixed Cost",
             "type": "integer"
           },
+          "objective_with_prizes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Objective With Prizes"
+          },
+          "prizes_collected": {
+            "default": 0,
+            "title": "Prizes Collected",
+            "type": "integer"
+          },
           "total": {
             "title": "Total",
+            "type": "integer"
+          },
+          "uncollected_prizes": {
+            "default": 0,
+            "title": "Uncollected Prizes",
             "type": "integer"
           }
         },
@@ -2013,6 +2061,13 @@
             "title": "Schema Version",
             "type": "integer"
           },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/LabSkipped"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
           "solver": {
             "$ref": "#/components/schemas/LabSolverInfo"
           },
@@ -2078,6 +2133,18 @@
             "title": "Duration Cost",
             "type": "integer"
           },
+          "end_depot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Depot"
+          },
           "fixed_cost": {
             "title": "Fixed Cost",
             "type": "integer"
@@ -2097,9 +2164,28 @@
             "title": "Service Duration",
             "type": "integer"
           },
+          "start_depot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Depot"
+          },
           "travel_duration": {
             "title": "Travel Duration",
             "type": "integer"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/LabTrip"
+            },
+            "title": "Trips",
+            "type": "array"
           },
           "utilization": {
             "additionalProperties": {
@@ -2136,6 +2222,26 @@
           "cost"
         ],
         "title": "LabRoute",
+        "type": "object"
+      },
+      "LabSkipped": {
+        "additionalProperties": false,
+        "description": "An optional client that no route visits, and the prize forgone.",
+        "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "prize": {
+            "title": "Prize",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_id",
+          "prize"
+        ],
+        "title": "LabSkipped",
         "type": "object"
       },
       "LabSolver": {
@@ -2337,6 +2443,60 @@
         "title": "LabTravel",
         "type": "object"
       },
+      "LabTrip": {
+        "additionalProperties": false,
+        "description": "One trip of a route: from the route's start depot or a reload depot to the next reload\ndepot or the route's end depot. Loads are per trip (full again after every reload).",
+        "properties": {
+          "client_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Client Ids",
+            "type": "array"
+          },
+          "distance": {
+            "title": "Distance",
+            "type": "integer"
+          },
+          "from_depot": {
+            "title": "From Depot",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "load": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Load",
+            "type": "object"
+          },
+          "to_depot": {
+            "title": "To Depot",
+            "type": "string"
+          },
+          "utilization": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Utilization",
+            "type": "object"
+          }
+        },
+        "required": [
+          "index",
+          "from_depot",
+          "to_depot",
+          "client_ids",
+          "load",
+          "utilization",
+          "distance"
+        ],
+        "title": "LabTrip",
+        "type": "object"
+      },
       "LabUnits": {
         "additionalProperties": false,
         "properties": {
@@ -2371,7 +2531,7 @@
       },
       "LabVehicleType": {
         "additionalProperties": false,
-        "description": "A vehicle type with a finite count. Every vehicle starts and ends at the single depot\n(closed routes; PyVRP-native, no open-route workaround). Capacity names every dimension.",
+        "description": "A vehicle type with a finite count. Every vehicle starts at ``start_depot`` and ends at\n``end_depot`` (depot ids; both default to the first depot, so a single-depot instance needs\nneither). Routes are closed in the sense that every route returns to a depot; there is no open\nroute workaround. Capacity names every dimension.",
         "properties": {
           "capacity": {
             "additionalProperties": {
@@ -2387,6 +2547,21 @@
             "minimum": 1,
             "title": "Count",
             "type": "integer"
+          },
+          "end_depot": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Depot"
           },
           "fixed_cost": {
             "default": 0,
@@ -2422,6 +2597,39 @@
             "default": null,
             "title": "Max Distance"
           },
+          "max_reloads": {
+            "anyOf": [
+              {
+                "maximum": 50,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Reloads"
+          },
+          "reload_depots": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reload Depots"
+          },
           "shift_duration": {
             "anyOf": [
               {
@@ -2435,6 +2643,21 @@
             ],
             "default": null,
             "title": "Shift Duration"
+          },
+          "start_depot": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Depot"
           },
           "unit_distance_cost": {
             "default": 1,
@@ -2506,6 +2729,18 @@
             "default": null,
             "title": "Route"
           },
+          "trip": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Trip"
+          },
           "vehicle_type": {
             "anyOf": [
               {
@@ -2565,6 +2800,11 @@
           },
           "service_duration": {
             "title": "Service Duration",
+            "type": "integer"
+          },
+          "trip": {
+            "default": 0,
+            "title": "Trip",
             "type": "integer"
           }
         },
@@ -4958,24 +5198,44 @@
       },
       "WarmStartSource": {
         "additionalProperties": false,
-        "description": "Where a warm start's plan comes from (spec \u00a710, M6). Today only a succeeded pipeline run the\nsubmitter can read; the web resolves it with owner checks and the worker receives its validated\nplan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)\nwould be a new `kind` producing the same plan document.",
+        "description": "Where a warm start's plan comes from (spec \u00a710, M6). Either a succeeded pipeline run the\nsubmitter can read (`{kind: \"run\", run_id}`) or one of the submitter's saved manual baselines\n(`{kind: \"manual_baseline\", baseline_id}`). The web resolves it with owner checks and the\nworker receives the source over the loopback transport; Python turns either into the same\n`WarmStartPlan` document. The id field of the other kind is left out of dumps, so `run`\nsources keep their original content hash.",
         "properties": {
+          "baseline_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Id"
+          },
           "kind": {
-            "const": "run",
             "default": "run",
+            "enum": [
+              "run",
+              "manual_baseline"
+            ],
             "title": "Kind",
             "type": "string"
           },
           "run_id": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Run Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
           }
         },
-        "required": [
-          "run_id"
-        ],
         "title": "WarmStartSource",
         "type": "object"
       },
