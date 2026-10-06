@@ -15,7 +15,7 @@ import pyvrp
 from pyvrp.constants import MAX_VALUE
 
 from .schema import LabInstance
-from .travel import LabMatrices
+from .travel import LabMatrices, stop_nodes
 
 ADAPTER_VERSION = "fillrate-lab/1"
 
@@ -40,6 +40,7 @@ def check_range(instance: LabInstance, matrices: LabMatrices) -> None:
     # Reloads add one depot stop per reload to a route's path.
     n = (
         len(instance.clients)
+        + 2 * len(instance.pairs or [])
         + len(instance.depots)
         - 1
         + max(
@@ -47,8 +48,10 @@ def check_range(instance: LabInstance, matrices: LabMatrices) -> None:
         )
     )
     longest = int(matrices.distance.max()) * (n + 1)
-    slowest = int(matrices.duration.max()) * (n + 1) + sum(
-        c.service_duration for c in instance.clients
+    slowest = (
+        int(matrices.duration.max()) * (n + 1)
+        + sum(c.service_duration for c in instance.clients)
+        + sum(s.service_duration for _p, s, _k in instance.pair_stops())
     )
     worst = 0
     for vt in instance.vehicle_types:
@@ -101,6 +104,23 @@ def add_clients(
     ]
 
 
+def add_shipments(model: pyvrp.Model, instance: LabInstance, locations: list) -> list:
+    """Pickup-delivery pairs as native PyVRP shipments: the pickup and delivery stop nodes follow
+    the clients, and PyVRP keeps both on one route, pickup first."""
+    nodes = stop_nodes(instance)
+    return [
+        model.add_shipment(
+            locations[nodes[pair.pickup.id]],
+            locations[nodes[pair.delivery.id]],
+            pickup_service_duration=pair.pickup.service_duration,
+            delivery_service_duration=pair.delivery.service_duration,
+            amount=instance.amount_vector(pair),
+            name=pair.id,
+        )
+        for pair in instance.pairs or []
+    ]
+
+
 def add_vehicle_types(model: pyvrp.Model, instance: LabInstance, depots: list) -> list:
     out = []
     depot_by_id = {d.id: depots[i] for i, d in enumerate(instance.depots)}
@@ -143,6 +163,7 @@ def build_lab_model(instance: LabInstance, matrices: LabMatrices) -> LabModel:
     depots = add_depots(model, instance, locations)
     groups = add_client_groups(model, instance)
     clients = add_clients(model, instance, locations, groups)
+    add_shipments(model, instance, locations)
     vehicle_types = add_vehicle_types(model, instance, depots)
     add_edges(model, locations, matrices)
     return LabModel(model, locations, depots, clients, vehicle_types)

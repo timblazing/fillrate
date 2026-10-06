@@ -19,6 +19,7 @@ const FIELDS = [
   ["dimensions", "1–8 named load dimensions, each with an integer unit"],
   ["depots", "1–10 depots; each vehicle type starts at its start_depot and ends at its end_depot (default: the first depot)"],
   ["clients", "visits created directly: delivery per dimension and service_duration; optional visits with required: false and a prize (cost units) paid when skipped"],
+  ["pairs", "pickup-delivery pairs: a pickup stop, a delivery stop and an amount per dimension; both stops on one vehicle, pickup first, the amount counts against capacity while on board (not with reloads)"],
   ["groups", "alternative service groups: members (optional clients without a prize) of which at most one is visited; a required group is served by exactly one"],
   ["vehicle_types", "count, capacity per dimension, fixed_cost, unit_distance_cost, unit_duration_cost, optional max_distance and shift_duration, start_depot and end_depot (depot ids), reload_depots (depot ids) and max_reloads"],
   ["solver", "seed, max_iterations (reproducible) and max_runtime_s (at most 30 s)"],
@@ -75,7 +76,7 @@ export default async function LabsPage({ searchParams }: PageProps<"/labs">) {
             ))}
           </dl>
           <p className="text-muted-foreground text-xs text-pretty">
-            Planned, refused by name for now: paired shipments, pickups, time windows and
+            Planned, refused by name for now: client pickups, time windows and
             routing profiles in lab instances.
           </p>
         </section>

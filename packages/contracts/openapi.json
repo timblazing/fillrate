@@ -1839,6 +1839,22 @@
             "title": "Name",
             "type": "string"
           },
+          "pairs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LabPair"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pairs"
+          },
           "schema_version": {
             "const": 1,
             "default": 1,
@@ -1924,6 +1940,107 @@
         "title": "LabObjective",
         "type": "object"
       },
+      "LabPair": {
+        "additionalProperties": false,
+        "description": "A pickup-delivery pair (PyVRP Shipment): ``amount`` (per dimension) is loaded at the pickup\nstop and unloaded at the delivery stop, on the same vehicle, pickup first. While it is on\nboard it counts against the vehicle's capacity.",
+        "properties": {
+          "amount": {
+            "additionalProperties": {
+              "maximum": 1000000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "title": "Amount",
+            "type": "object"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/LabStop"
+          },
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Label",
+            "type": "string"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/LabStop"
+          }
+        },
+        "required": [
+          "id",
+          "pickup",
+          "delivery",
+          "amount"
+        ],
+        "title": "LabPair",
+        "type": "object"
+      },
+      "LabPairOutcome": {
+        "additionalProperties": false,
+        "description": "Where each pair was served: both stops on one route, pickup before delivery.",
+        "properties": {
+          "delivery_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Position"
+          },
+          "pair_id": {
+            "title": "Pair Id",
+            "type": "string"
+          },
+          "pickup_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pickup Position"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "shared_with": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Shared With",
+            "type": "array"
+          }
+        },
+        "required": [
+          "pair_id",
+          "route",
+          "pickup_position",
+          "delivery_position",
+          "shared_with"
+        ],
+        "title": "LabPairOutcome",
+        "type": "object"
+      },
       "LabResult": {
         "additionalProperties": false,
         "properties": {
@@ -1961,6 +2078,13 @@
           },
           "objective": {
             "$ref": "#/components/schemas/LabObjective"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/LabPairOutcome"
+            },
+            "title": "Pairs",
+            "type": "array"
           },
           "problem_fingerprint": {
             "pattern": "^[a-f0-9]{64}$",
@@ -2084,6 +2208,21 @@
             },
             "title": "Load",
             "type": "object"
+          },
+          "peak_load": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Peak Load"
           },
           "service_duration": {
             "title": "Service Duration",
@@ -2294,6 +2433,93 @@
         "title": "LabSolverInfo",
         "type": "object"
       },
+      "LabStop": {
+        "additionalProperties": false,
+        "description": "A place a pickup-delivery pair visits: a pickup point or a delivery point. Stop ids share the\nnamespace of depots and clients.",
+        "properties": {
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Label",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "maximum": 90,
+                "minimum": -90,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "maximum": 180,
+                "minimum": -180,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lon"
+          },
+          "service_duration": {
+            "default": 0,
+            "maximum": 1000000000,
+            "minimum": 0,
+            "title": "Service Duration",
+            "type": "integer"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": -1000000,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "maximum": 1000000,
+                "minimum": -1000000,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Y"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "LabStop",
+        "type": "object"
+      },
       "LabTotals": {
         "additionalProperties": false,
         "properties": {
@@ -2319,6 +2545,16 @@
             },
             "title": "Load",
             "type": "object"
+          },
+          "pairs_served": {
+            "default": 0,
+            "title": "Pairs Served",
+            "type": "integer"
+          },
+          "pairs_total": {
+            "default": 0,
+            "title": "Pairs Total",
+            "type": "integer"
           },
           "routes": {
             "title": "Routes",
@@ -2397,6 +2633,21 @@
             },
             "title": "Load",
             "type": "object"
+          },
+          "peak_load": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Peak Load"
           },
           "to_depot": {
             "title": "To Depot",
@@ -2701,6 +2952,16 @@
             "title": "Departure",
             "type": "integer"
           },
+          "kind": {
+            "default": "client",
+            "enum": [
+              "client",
+              "pickup",
+              "delivery"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
           "leg_distance": {
             "title": "Leg Distance",
             "type": "integer"
@@ -2722,6 +2983,18 @@
             },
             "title": "Load Before",
             "type": "object"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pair"
           },
           "service_duration": {
             "title": "Service Duration",

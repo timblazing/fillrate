@@ -631,6 +631,121 @@ def test_group_fields_are_checked():
         planar(base, van, groups=[{"id": "g", "members": ["a"]}])
 
 
+def pair_instance(capacity=12, count=2, **extra) -> LabInstance:
+    """Two pickup-delivery pairs of 6 moved from the west to the east side of a depot."""
+    pairs = [
+        {
+            "id": f"p{i}",
+            "amount": {"load": 6},
+            "pickup": {"id": f"p{i}-pick", "x": -40 - 2 * i, "y": i},
+            "delivery": {"id": f"p{i}-drop", "x": 40 + 2 * i, "y": i},
+        }
+        for i in (1, 2)
+    ]
+    return planar(
+        [client("c", 5, 5, load=1)],
+        [{"id": "t", "count": count, "capacity": {"load": capacity}, "fixed_cost": 100}],
+        pairs=pairs,
+        **extra,
+    )
+
+
+def test_pairs_share_a_vehicle_only_while_they_fit_together():
+    # Capacity 12 carries both pairs at once (the client's 1 is dropped first): pairs shared.
+    together = run_lab(pair_instance(capacity=12))
+    assert together.solver_feasible and together.validated_feasible and not together.violations
+    assert (
+        together.totals.routes == 1
+        and together.totals.pairs_total == together.totals.pairs_served == 2
+    )
+    (route,) = together.routes
+    kinds = [(v.kind, v.pair) for v in route.visits if v.kind != "client"]
+    assert sorted(kinds) == [
+        ("delivery", "p1"),
+        ("delivery", "p2"),
+        ("pickup", "p1"),
+        ("pickup", "p2"),
+    ]
+    assert route.peak_load == {"load": 12} and route.utilization == {"load": 1.0}
+    assert sorted(p.shared_with for p in together.pairs) == [["p1"], ["p2"]]
+    # Visits carry the profile: pickups raise the load on board, deliveries lower it.
+    for visit in route.visits:
+        delta = sum(visit.load_after.values()) - sum(visit.load_before.values())
+        assert delta == {"pickup": 6, "delivery": -6, "client": -1}[visit.kind]
+    # Capacity 11 cannot hold both pairs at once: they ride one after the other.
+    apart = run_lab(pair_instance(capacity=11))
+    assert apart.validated_feasible
+    assert all(p.shared_with == [] for p in apart.pairs)
+    assert apart.objective.total >= together.objective.total  # sharing never costs more here
+    assert max(r.peak_load["load"] for r in apart.routes) <= 11
+    # Too small for even one pair is refused before solving.
+    with pytest.raises(ValidationError, match="fits no vehicle type's capacity"):
+        pair_instance(capacity=5)
+    assert problem_fingerprint(pair_instance()) != problem_fingerprint(pair_instance(capacity=13))
+    assert apart.problem_fingerprint != together.problem_fingerprint
+
+
+def test_validator_rejects_wrong_order_split_pairs_and_mid_route_overload():
+    instance = pair_instance(capacity=12)
+    matrices = lab_matrices(instance)
+    ids = ["p1-pick", "p1-drop", "p2-pick", "p2-drop"]
+    ok = validate_plan(instance, matrices, [CandidateRoute("t", [*ids, "c"])])
+    assert ok.feasible and [p.shared_with for p in ok.pairs] == [[], []]
+    # Delivered before picked up.
+    wrong = validate_plan(
+        instance, matrices, [CandidateRoute("t", ["p1-drop", "p1-pick", "p2-pick", "p2-drop", "c"])]
+    )
+    assert [v.code for v in wrong.violations] == ["pair_order"]
+    # Pickup on one vehicle, delivery on another.
+    split = validate_plan(
+        instance,
+        matrices,
+        [
+            CandidateRoute("t", ["c", "p1-pick", "p2-pick", "p2-drop"]),
+            CandidateRoute("t", ["p1-drop"]),
+        ],
+    )
+    assert [v.code for v in split.violations] == ["pair_split"]
+    # Half done and not served at all.
+    half = validate_plan(
+        instance, matrices, [CandidateRoute("t", ["c", "p1-pick", "p2-pick", "p2-drop"])]
+    )
+    assert {v.code for v in half.violations} == {"pair_incomplete"}
+    none = validate_plan(instance, matrices, [CandidateRoute("t", ["c"])])
+    assert [v.code for v in none.violations] == ["pair_not_served", "pair_not_served"]
+    # Both pairs on board with the client's 1: 13 > 12 mid-route, though the start is fine.
+    over = validate_plan(
+        instance, matrices, [CandidateRoute("t", ["p1-pick", "p2-pick", "p1-drop", "p2-drop", "c"])]
+    )
+    assert [(v.code, v.dimension) for v in over.violations] == [("over_capacity", "load")]
+    assert over.routes[0].peak_load == {"load": 13} and over.routes[0].load == {"load": 1}
+    assert [p.shared_with for p in over.pairs] == [["p2"], ["p1"]]
+
+
+def test_pair_fields_are_checked():
+    van = [{"id": "t", "count": 1, "capacity": {"load": 9}}]
+    stop = lambda i, x: {"id": i, "x": x, "y": 0}  # noqa: E731
+    pair = {"id": "p", "amount": {"load": 1}, "pickup": stop("a", 1), "delivery": stop("b", 2)}
+    ok = planar([client("c", 1, 1, load=1)], van, pairs=[pair])
+    assert ok.pairs and lab_matrices(ok).distance.shape == (4, 4)
+    with pytest.raises(ValidationError, match="duplicate location id 'a'"):
+        planar([client("a", 1, 1, load=1)], van, pairs=[pair])
+    with pytest.raises(ValidationError, match="unknown dimension 'mass'"):
+        planar([client("c", 1, 1, load=1)], van, pairs=[pair | {"amount": {"mass": 1}}])
+    with pytest.raises(ValidationError, match="planar instances need x and y"):
+        planar(
+            [client("c", 1, 1, load=1)],
+            van,
+            pairs=[pair | {"pickup": {"id": "a", "lat": 1, "lon": 2}}],
+        )
+    with pytest.raises(ValidationError, match="cannot be combined yet"):
+        planar(
+            [client("c", 1, 1, load=1)],
+            [van[0] | {"reload_depots": ["depot"], "max_reloads": 1}],
+            pairs=[pair],
+        )
+
+
 @pytest.mark.parametrize(
     ("patch", "capability"),
     [
@@ -642,7 +757,10 @@ def test_group_fields_are_checked():
             },
             "routing_profiles",
         ),
-        ({"shipments": []}, "paired_shipments"),
+        (
+            {"clients": [{"id": "a", "x": 1, "y": 1, "pickup": {"load": 1}}]},
+            "pickups_and_deliveries",
+        ),
     ],
 )
 def test_planned_capabilities_are_refused_by_name(patch, capability):

@@ -11,7 +11,7 @@ in abstract units, and one abstract time unit elapses per distance unit. Geograp
 haversine × circuity in meters and constant-speed durations in seconds. Costs are integers in
 `cost_unit`.
 
-Adding a capability (shipments) adds
+Adding a capability (plain pickups, time windows) adds
 fields here and removes their entry from ``PLANNED_FIELDS``; see docs/solver-lab.md.
 """
 
@@ -34,6 +34,7 @@ MAX_CLIENTS = 500
 MAX_DEPOTS = 10
 MAX_RELOADS = 50
 MAX_GROUPS = 100
+MAX_PAIRS = 200
 MAX_DIMENSIONS = 8
 MAX_VEHICLE_TYPES = 10
 MAX_VEHICLES_PER_TYPE = 500
@@ -41,7 +42,6 @@ MAX_VEHICLES_PER_TYPE = 500
 # Fields a later capability will add. Sending one now is refused with the capability's name rather
 # than a generic "extra field" error. Keys are (where, field); "instance" is the top level.
 PLANNED_FIELDS: dict[tuple[str, str], str] = {
-    ("instance", "shipments"): "paired_shipments",
     ("client", "pickup"): "pickups_and_deliveries",
     ("client", "tw_early"): "lab_time_windows",
     ("client", "tw_late"): "lab_time_windows",
@@ -126,6 +126,31 @@ class LabClient(LabDoc):
         return self.prize or 0
 
 
+class LabStop(LabDoc):
+    """A place a pickup-delivery pair visits: a pickup point or a delivery point. Stop ids share the
+    namespace of depots and clients."""
+
+    id: LabId
+    label: Label = ""
+    x: Coordinate | None = None
+    y: Coordinate | None = None
+    lat: Lat | None = None
+    lon: Lon | None = None
+    service_duration: Amount = 0
+
+
+class LabPair(LabDoc):
+    """A pickup-delivery pair (PyVRP Shipment): ``amount`` (per dimension) is loaded at the pickup
+    stop and unloaded at the delivery stop, on the same vehicle, pickup first. While it is on
+    board it counts against the vehicle's capacity."""
+
+    id: LabId
+    label: Label = ""
+    pickup: LabStop
+    delivery: LabStop
+    amount: dict[str, Amount]
+
+
 class LabGroup(LabDoc):
     """Mutually exclusive alternatives (PyVRP ClientGroup): at most one member is visited. A
     ``required`` group must be served by exactly one member (a customer reachable at one of
@@ -198,6 +223,8 @@ class LabInstance(LabDoc):
     ]
     # Alternative service groups; absent means no groups.
     groups: Annotated[list[LabGroup], Field(max_length=MAX_GROUPS)] | None = None
+    # Pickup-delivery pairs; absent means none. Pairs and reloads cannot be combined yet.
+    pairs: Annotated[list[LabPair], Field(max_length=MAX_PAIRS)] | None = None
     solver: LabSolver = Field(default_factory=LabSolver)
 
     @model_validator(mode="before")
@@ -228,6 +255,17 @@ class LabInstance(LabDoc):
 
     def end_depot_of(self, vehicle_type: LabVehicleType) -> str:
         return vehicle_type.end_depot or self.depots[0].id
+
+    def pair_stops(self) -> list[tuple[LabPair, LabStop, str]]:
+        """(pair, stop, "pickup" | "delivery") in node order: pickup, then delivery, per pair."""
+        return [
+            item
+            for pair in self.pairs or []
+            for item in ((pair, pair.pickup, "pickup"), (pair, pair.delivery, "delivery"))
+        ]
+
+    def amount_vector(self, pair: LabPair) -> list[int]:
+        return [pair.amount.get(d, 0) for d in self.dimension_ids()]
 
     def group_of(self) -> dict[str, LabGroup]:
         """Client id → its group (clients not in a group are absent)."""
@@ -260,9 +298,14 @@ class LabViolation(LabDoc):
 
 class LabVisit(LabDoc):
     client_id: str
+    # "client", or "pickup"/"delivery" for a pickup-delivery pair's stops (``client_id`` is then the
+    # stop's id and ``pair`` its pair).
+    kind: Literal["client", "pickup", "delivery"] = "client"
+    pair: str | None = None
     # Trip of the route this visit belongs to (0 unless the vehicle reloads).
     trip: int = 0
-    # Load on board before and after serving this visit, per dimension (delivery only).
+    # Load on board before and after serving this visit, per dimension: client deliveries still to
+    # drop plus pair amounts picked up and not yet delivered.
     load_before: Loads
     load_after: Loads
     leg_distance: int
@@ -281,6 +324,8 @@ class LabTrip(LabDoc):
     to_depot: str
     client_ids: list[str]
     load: Loads
+    # Highest load on board at any point of the trip (equals ``load`` without pairs).
+    peak_load: Loads | None = None
     utilization: dict[str, float]
     distance: int
 
@@ -296,7 +341,9 @@ class LabRoute(LabDoc):
     visits: list[LabVisit]
     # Total delivered over all trips; each trip is checked against capacity on its own.
     load: Loads
-    # Fullest trip's load / capacity per dimension, 0–1 when feasible (above 1 means overloaded).
+    # Highest load on board at any point of the route (equals ``load`` without pairs).
+    peak_load: Loads | None = None
+    # Peak load / capacity per dimension, 0–1 when feasible (above 1 means overloaded).
     utilization: dict[str, float]
     distance: int
     duration: int
@@ -331,6 +378,17 @@ class LabGroupOutcome(LabDoc):
     group_id: str
     required: bool
     served_by: str | None
+
+
+class LabPairOutcome(LabDoc):
+    """Where each pair was served: both stops on one route, pickup before delivery."""
+
+    pair_id: str
+    route: int | None
+    pickup_position: int | None
+    delivery_position: int | None
+    # Other pairs on the same vehicle while this one is on board (their intervals overlap).
+    shared_with: list[str]
 
 
 class LabSkipped(LabDoc):
@@ -373,6 +431,8 @@ class LabTotals(LabDoc):
     travel_duration: int
     service_duration: int
     load: Loads
+    pairs_total: int = 0
+    pairs_served: int = 0
 
 
 class LabUnits(LabDoc):
@@ -399,6 +459,8 @@ class LabResult(LabDoc):
     skipped: list[LabSkipped] = Field(default_factory=list)
     # One entry per alternative group (empty unless the instance has groups).
     groups: list[LabGroupOutcome] = Field(default_factory=list)
+    # One entry per pickup-delivery pair (empty unless the instance has pairs).
+    pairs: list[LabPairOutcome] = Field(default_factory=list)
     totals: LabTotals
     fleet: list[LabFleetUse]
     routes: list[LabRoute]

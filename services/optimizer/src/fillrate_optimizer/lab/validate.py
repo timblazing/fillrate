@@ -21,6 +21,7 @@ from .schema import (
     LabGroupOutcome,
     LabInstance,
     LabObjective,
+    LabPairOutcome,
     LabRoute,
     LabSkipped,
     LabTotals,
@@ -28,7 +29,7 @@ from .schema import (
     LabViolation,
     LabVisit,
 )
-from .travel import LabMatrices, client_nodes, depot_nodes
+from .travel import LabMatrices, client_nodes, depot_nodes, stop_nodes
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ class ValidatedPlan:
     fleet: list[LabFleetUse]
     skipped: list[LabSkipped] = field(default_factory=list)
     groups: list[LabGroupOutcome] = field(default_factory=list)
+    pairs: list[LabPairOutcome] = field(default_factory=list)
 
     @property
     def feasible(self) -> bool:
@@ -114,7 +116,12 @@ def instance_problems(instance: LabInstance) -> list[str]:
                 problems.append(f"duplicate {kind} id {value!r}")
 
     unique("dimension", dims)
-    unique("location", [d.id for d in instance.depots] + [c.id for c in instance.clients])
+    stops = [s for _p, s, _k in instance.pair_stops()]
+    unique(
+        "location",
+        [d.id for d in instance.depots] + [c.id for c in instance.clients] + [s.id for s in stops],
+    )
+    unique("pair", [pair.id for pair in instance.pairs or []])
     unique("vehicle type", [v.id for v in instance.vehicle_types])
     depot_ids = {d.id for d in instance.depots}
     for vt in instance.vehicle_types:
@@ -123,7 +130,7 @@ def instance_problems(instance: LabInstance) -> list[str]:
                 problems.append(f"vehicle type {vt.id} {role} {value!r} is not a depot id")
 
     planar = instance.coordinates == "planar"
-    for place in [*instance.depots, *instance.clients]:
+    for place in [*instance.depots, *instance.clients, *stops]:
         xy = place.x is not None and place.y is not None
         ll = place.lat is not None and place.lon is not None
         has_xy = place.x is not None or place.y is not None
@@ -143,6 +150,15 @@ def instance_problems(instance: LabInstance) -> list[str]:
             problems.append(
                 f"vehicle type {vt.id} capacity must name exactly the dimensions {dims}"
             )
+    for pair in instance.pairs or []:
+        for key in pair.amount:
+            if key not in known:
+                problems.append(f"pair {pair.id} moves unknown dimension {key!r}")
+    if instance.pairs and any(vt.reload_depots for vt in instance.vehicle_types):
+        problems.append(
+            "pickup-delivery pairs and reloads cannot be combined yet: remove reload_depots "
+            "or the pairs"
+        )
     for vt in instance.vehicle_types:
         reload_ids = vt.reload_depots or []
         max_reloads = vt.max_reloads or 0
@@ -169,6 +185,13 @@ def instance_problems(instance: LabInstance) -> list[str]:
             problems.append(
                 f"client {client.id} delivery {client.delivery} fits no vehicle type's capacity"
             )
+    for pair in instance.pairs or []:
+        demand = instance.amount_vector(pair)
+        if not any(
+            all(q <= c for q, c in zip(demand, instance.capacity_vector(vt), strict=True))
+            for vt in instance.vehicle_types
+        ):
+            problems.append(f"pair {pair.id} amount {pair.amount} fits no vehicle type's capacity")
     return problems
 
 
@@ -201,6 +224,31 @@ def preflight(instance: LabInstance, matrices: LabMatrices) -> list[str]:
                 f"depots within its max distance and shift (shortest trip {trip} "
                 f"{matrices.distance_unit}, {busy} {matrices.duration_unit} with service)"
             )
+    nodes = stop_nodes(instance)
+    for pair in instance.pairs or []:
+        demand = instance.amount_vector(pair)
+        pick, drop = nodes[pair.pickup.id], nodes[pair.delivery.id]
+        busy_service = pair.pickup.service_duration + pair.delivery.service_duration
+        best: tuple[int, int] | None = None
+        servable = False
+        for vt in instance.vehicle_types:
+            if not all(q <= c for q, c in zip(demand, instance.capacity_vector(vt), strict=True)):
+                continue
+            start = depots[instance.start_depot_of(vt)]
+            end = depots[instance.end_depot_of(vt)]
+            trip = int(dist[start, pick] + dist[pick, drop] + dist[drop, end])
+            busy = int(dur[start, pick] + dur[pick, drop] + dur[drop, end]) + busy_service
+            best = min(best or (trip, busy), (trip, busy))
+            servable |= (vt.max_distance is None or trip <= vt.max_distance) and (
+                vt.shift_duration is None or busy <= vt.shift_duration
+            )
+        if not servable:
+            trip, busy = best or (0, 0)
+            findings.append(
+                f"pair {pair.id}: no vehicle type can carry it and serve pickup and delivery "
+                f"alone within its max distance and shift (shortest trip {trip} "
+                f"{matrices.distance_unit}, {busy} {matrices.duration_unit} with service)"
+            )
     return findings
 
 
@@ -214,6 +262,9 @@ class Context:
     candidate: list[CandidateRoute]
     node: dict[str, int] = field(default_factory=dict)  # client id → matrix node
     depot_node: dict[str, int] = field(default_factory=dict)  # depot id → matrix node
+    # pair stop id → (pair id, "pickup" | "delivery", amount vector)
+    stop_info: dict[str, tuple[str, str, list[int]]] = field(default_factory=dict)
+    stop_service: dict[str, int] = field(default_factory=dict)  # pair stop id → service duration
     routes: list[LabRoute] = field(default_factory=list)
     violations: list[LabViolation] = field(default_factory=list)
 
@@ -291,10 +342,11 @@ def check_route_capacity(ctx: Context, index: int, route: CandidateRoute) -> Non
         return
     for trip in ctx.routes[-1].trips:
         for dim in ctx.instance.dimension_ids():
-            if trip.load[dim] > vt.capacity[dim]:
+            if trip.peak_load[dim] > vt.capacity[dim]:
                 ctx.flag(
                     "over_capacity",
-                    f"Load {trip.load[dim]} exceeds {vt.id} capacity {vt.capacity[dim]} in {dim}"
+                    f"Load {trip.peak_load[dim]} exceeds {vt.id} capacity "
+                    f"{vt.capacity[dim]} in {dim}"
                     + (f" on trip {trip.index + 1}." if len(ctx.routes[-1].trips) > 1 else "."),
                     route=index,
                     vehicle_type=vt.id,
@@ -357,6 +409,97 @@ def check_groups(ctx: Context) -> None:
             ctx.flag("group_not_served", f"Required group {group.id} is not served by any member.")
 
 
+def pair_positions(ctx: Context) -> dict[str, dict[str, list[tuple[int, int]]]]:
+    """pair id → {"pickup" | "delivery": [(route index, position in that route's visit list)]}."""
+    found: dict[str, dict[str, list[tuple[int, int]]]] = {}
+    for r, route in enumerate(ctx.candidate):
+        for position, cid in enumerate(route.client_ids):
+            if cid in ctx.stop_info:
+                pair_id, kind, _amount = ctx.stop_info[cid]
+                found.setdefault(pair_id, {"pickup": [], "delivery": []})[kind].append(
+                    (r, position)
+                )
+    return found
+
+
+def check_pairs(ctx: Context) -> None:
+    """A pair's pickup and delivery are visited exactly once, on the same route, pickup first."""
+    found = pair_positions(ctx)
+    for pair in ctx.instance.pairs or []:
+        spots = found.get(pair.id, {"pickup": [], "delivery": []})
+        pick, drop = spots["pickup"], spots["delivery"]
+        for stop, where in ((pair.pickup, pick), (pair.delivery, drop)):
+            if len(where) > 1:
+                ctx.flag(
+                    "duplicate_visit",
+                    f"Stop {stop.id} is visited {len(where)} times.",
+                    client_id=stop.id,
+                )
+        if not pick and not drop:
+            ctx.flag("pair_not_served", f"Pair {pair.id} is not served.")
+        elif not pick or not drop:
+            ctx.flag(
+                "pair_incomplete",
+                f"Pair {pair.id} has only its {'pickup' if pick else 'delivery'} visited.",
+            )
+        elif pick[0][0] != drop[0][0]:
+            ctx.flag(
+                "pair_split",
+                f"Pair {pair.id} is picked up on route {pick[0][0] + 1} but delivered on route "
+                f"{drop[0][0] + 1}: both stops must be on one vehicle.",
+                route=pick[0][0],
+            )
+        elif drop[0][1] < pick[0][1]:
+            ctx.flag(
+                "pair_order",
+                f"Pair {pair.id} is delivered before it is picked up.",
+                route=pick[0][0],
+            )
+
+
+def pair_outcomes(ctx: Context) -> list[LabPairOutcome]:
+    found = pair_positions(ctx)
+    spans: dict[str, tuple[int, int, int]] = {}
+    for pair in ctx.instance.pairs or []:
+        spots = found.get(pair.id)
+        if (
+            spots
+            and spots["pickup"]
+            and spots["delivery"]
+            and spots["pickup"][0][0] == spots["delivery"][0][0]
+        ):
+            spans[pair.id] = (spots["pickup"][0][0], spots["pickup"][0][1], spots["delivery"][0][1])
+    out = []
+    for pair in ctx.instance.pairs or []:
+        if pair.id not in spans:
+            out.append(
+                LabPairOutcome(
+                    pair_id=pair.id,
+                    route=None,
+                    pickup_position=None,
+                    delivery_position=None,
+                    shared_with=[],
+                )
+            )
+            continue
+        r, lo, hi = spans[pair.id]
+        shared = [
+            other
+            for other, (r2, lo2, hi2) in spans.items()
+            if other != pair.id and r2 == r and lo2 < hi and lo < hi2
+        ]
+        out.append(
+            LabPairOutcome(
+                pair_id=pair.id,
+                route=r,
+                pickup_position=lo,
+                delivery_position=hi,
+                shared_with=shared,
+            )
+        )
+    return out
+
+
 def check_fleet(ctx: Context) -> None:
     used = Counter(r.vehicle_type for r in ctx.candidate)
     types = {v.id: v for v in ctx.instance.vehicle_types}
@@ -382,7 +525,7 @@ ROUTE_CHECKS: list[RouteCheck] = [
     check_route_capacity,
     check_route_limits,
 ]
-PLAN_CHECKS: list[PlanCheck] = [check_coverage, check_groups, check_fleet]
+PLAN_CHECKS: list[PlanCheck] = [check_coverage, check_groups, check_pairs, check_fleet]
 
 
 def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
@@ -409,18 +552,33 @@ def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
     clock, distance, travel, service = 0, 0, 0, 0
     for t, ids in enumerate(trips):
         prev = node(stops[t])
-        on_board = {d: sum(clients[cid].delivery.get(d, 0) for cid in ids) for d in dims}
+        # The vehicle leaves loaded with every client delivery of the trip; pair amounts join at
+        # their pickup and leave at their delivery.
+        on_board = {
+            d: sum(clients[cid].delivery.get(d, 0) for cid in ids if cid in clients) for d in dims
+        }
         trip_load = dict(on_board)
+        peak = dict(on_board)
         trip_distance = 0
         for cid in ids:
             n = ctx.node[cid]
             leg_d, leg_t = int(dist[prev, n]), int(dur[prev, n])
             arrival = clock + leg_t
-            after = {d: on_board[d] - clients[cid].delivery.get(d, 0) for d in dims}
-            sd = clients[cid].service_duration
+            if cid in ctx.stop_info:
+                pair_id, kind, amount = ctx.stop_info[cid]
+                sign = 1 if kind == "pickup" else -1
+                after = {d: on_board[d] + sign * amount[k] for k, d in enumerate(dims)}
+                sd = ctx.stop_service[cid]
+            else:
+                pair_id, kind = None, "client"
+                after = {d: on_board[d] - clients[cid].delivery.get(d, 0) for d in dims}
+                sd = clients[cid].service_duration
+            peak = {d: max(peak[d], after[d]) for d in dims}
             visits.append(
                 LabVisit(
                     client_id=cid,
+                    kind=kind,
+                    pair=pair_id,
                     trip=t,
                     load_before=dict(on_board),
                     load_after=after,
@@ -449,9 +607,9 @@ def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
                 to_depot=stops[t + 1],
                 client_ids=ids,
                 load=trip_load,
+                peak_load=peak,
                 utilization={
-                    d: round(trip_load[d] / capacity[d], 4) if capacity.get(d) else 0.0
-                    for d in dims
+                    d: round(peak[d] / capacity[d], 4) if capacity.get(d) else 0.0 for d in dims
                 },
                 distance=trip_distance,
             )
@@ -467,6 +625,7 @@ def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
         trips=trip_docs,
         visits=visits,
         load=total_load,
+        peak_load={d: max(t.peak_load[d] for t in trip_docs) for d in dims},
         utilization={d: max(t.utilization[d] for t in trip_docs) for d in dims},
         distance=distance,
         duration=clock,
@@ -486,8 +645,13 @@ def validate_plan(
         instance,
         matrices,
         candidate,
-        node=client_nodes(instance),
+        node={**client_nodes(instance), **stop_nodes(instance)},
         depot_node=depot_nodes(instance),
+        stop_info={
+            stop.id: (pair.id, kind, instance.amount_vector(pair))
+            for pair, stop, kind in instance.pair_stops()
+        },
+        stop_service={s.id: s.service_duration for _p, s, _k in instance.pair_stops()},
     )
     for index, route in enumerate(candidate):
         ctx.routes.append(build_route(ctx, index, route))
@@ -498,7 +662,7 @@ def validate_plan(
     routes = ctx.routes
     used = Counter(r.vehicle_type for r in candidate)
     dims = instance.dimension_ids()
-    visited = {v.client_id for r in routes for v in r.visits}
+    visited = {v.client_id for r in routes for v in r.visits if v.kind == "client"}
     in_group = instance.group_of()
     # Unvisited group members are alternatives not taken, not skipped prizes: reported per group.
     skipped = [
@@ -521,6 +685,7 @@ def validate_plan(
         violations=ctx.violations,
         skipped=skipped,
         groups=outcomes,
+        pairs=pair_outcomes(ctx),
         objective=LabObjective(
             fixed_cost=sum(r.fixed_cost for r in routes),
             distance_cost=sum(r.distance_cost for r in routes),
@@ -535,12 +700,14 @@ def validate_plan(
         totals=LabTotals(
             routes=len(routes),
             clients_total=len(instance.clients),
-            clients_served=len({v.client_id for r in routes for v in r.visits}),
+            clients_served=len(visited),
             distance=sum(r.distance for r in routes),
             duration=sum(r.duration for r in routes),
             travel_duration=sum(r.travel_duration for r in routes),
             service_duration=sum(r.service_duration for r in routes),
             load={d: sum(r.load[d] for r in routes) for d in dims},
+            pairs_total=len(instance.pairs or []),
+            pairs_served=sum(1 for p in pair_outcomes(ctx) if p.route is not None),
         ),
         fleet=[
             LabFleetUse(vehicle_type=v.id, available=v.count, used=used[v.id])

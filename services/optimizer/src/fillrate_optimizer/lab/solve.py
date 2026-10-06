@@ -27,6 +27,11 @@ PRIZE_DEFINITION = (
     "; optional clients may be skipped and their prizes are added to the objective as uncollected "
     "prizes, separately from costs"
 )
+PAIR_DEFINITION = (
+    "; pickup-delivery pairs: pickup and delivery on one route, pickup first, the amount on board "
+    "in between"
+)
+
 GROUP_DEFINITION = (
     "; client groups are mutually exclusive alternatives: a required group is served by exactly "
     "one member, an optional group by at most one"
@@ -92,6 +97,21 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
             # Groups only when present, so instances without them keep their fingerprints.
             **(
                 {
+                    "pairs": [
+                        {
+                            "id": p.id,
+                            "amount": instance.amount_vector(p),
+                            "pickup_service": p.pickup.service_duration,
+                            "delivery_service": p.delivery.service_duration,
+                        }
+                        for p in instance.pairs
+                    ]
+                }
+                if instance.pairs
+                else {}
+            ),
+            **(
+                {
                     "groups": [
                         {"id": g.id, "required": g.required, "members": sorted(g.members)}
                         for g in instance.groups
@@ -103,7 +123,8 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
             "matrix": matrices.identity(),
             "objective": OBJECTIVE_DEFINITION
             + (PRIZE_DEFINITION if has_optional else "")
-            + (GROUP_DEFINITION if instance.groups else ""),
+            + (GROUP_DEFINITION if instance.groups else "")
+            + (PAIR_DEFINITION if instance.pairs else ""),
             "cost_unit": instance.cost_unit,
         }
     )
@@ -141,6 +162,10 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
         for position, a in enumerate(activities):
             if a.is_client():
                 trips[-1].append(instance.clients[a.idx].id)
+            elif a.is_pickup():
+                trips[-1].append(instance.pairs[a.idx].pickup.id)
+            elif a.is_delivery():
+                trips[-1].append(instance.pairs[a.idx].delivery.id)
             elif 0 < position < len(activities) - 1:
                 reload_ids.append(instance.depots[a.idx].id)
                 trips.append([])
@@ -184,6 +209,16 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
                     )
                 )
 
+    # Pairs: PyVRP's number of unserved pairs must equal the recomputation.
+    missing = int(best.num_missing_shipments())
+    ours = sum(1 for p in plan.pairs if p.route is None)
+    if missing != ours:
+        mismatches.append(
+            LabViolation(
+                code="solver_mismatch",
+                message=f"PyVRP reports {missing} unserved pairs; recomputed {ours}.",
+            )
+        )
     # Groups: PyVRP must agree on how many required groups are unserved.
     unserved = sum(1 for g in plan.groups if g.required and g.served_by is None)
     if unserved != int(best.num_missing_groups()):
@@ -230,6 +265,7 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
         objective=plan.objective,
         skipped=plan.skipped,
         groups=plan.groups,
+        pairs=plan.pairs,
         totals=plan.totals,
         fleet=plan.fleet,
         routes=plan.routes,

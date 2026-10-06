@@ -59,6 +59,11 @@ const LESSONS = [
     title: "Alternative service groups",
     blurb: "A customer who can be served at a north or a south dock: one required group, so the solver visits exactly one and picks the cheaper; moving the other stops flips the choice.",
   },
+  {
+    href: "/learn/pickup-delivery-pairs",
+    title: "Pickup-delivery pairs",
+    blurb: "Six jobs, each picked up in the west and delivered in the east by the same van: vans that carry two pairs at once need 3 vans; halve the capacity and the 450-unit route limit needs 5.",
+  },
 ]
 
 // Every lesson runs the real pipeline on a bundled synthetic scenario (spec §13).
@@ -71,7 +76,7 @@ export default function LessonsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Lessons</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each lesson starts real runs on a synthetic scenario and lists what to look for, not fixed answers. Lessons use only features the app runs today: estimated travel,
-            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and, in the Solver Lab, vehicles based at several depots and vehicles that reload between trips and optional visits with prizes and alternative service groups.
+            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and, in the Solver Lab, vehicles based at several depots and vehicles that reload between trips and optional visits with prizes alternative service groups and pickup-delivery pairs.
           </p>
         </section>
         <ul className="grid gap-3 sm:grid-cols-2">
