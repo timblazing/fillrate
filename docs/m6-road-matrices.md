@@ -194,3 +194,8 @@ network, not real roads). The web server stores it for the `examples` owner by c
 ordinary snapshot path above. Regenerate with `uv run python -m fillrate_optimizer.lesson_matrix`; the settings'
 `travel_snapshot_id` changes with any change to the document, and pytest and Vitest check both agree.
 
+
+## Road geometry for inspected routes
+
+Valhalla `/route` geometry for one inspected truck, with its context rule, chunking, discrepancy recording, cache and
+GeoJSON semantics, is documented in [route-geometry.md](route-geometry.md). It does not change the matrix or the solve.

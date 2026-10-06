@@ -122,6 +122,15 @@ export const travelSnapshotOwners = sqliteTable("travel_snapshot_owners", {
   snapshotId: text().notNull().references(() => travelSnapshots.id), ownerId: text().notNull(), createdAt: integer().notNull(),
 }, t => [primaryKey({ columns: [t.snapshotId, t.ownerId] }), index("snapshot_owner").on(t.ownerId)]);
 
+// Valhalla road geometry for one inspected truck (spec §4, §7), cached apart from run results. `key` is a
+// content hash of run, truck, snapshot identity and deployment identity; the payload is a content-addressed
+// artifact. Rows go with their run and are never read without the run's read check.
+export const routeGeometry = sqliteTable("route_geometry", {
+  key: text().primaryKey(), runId: text().notNull().references(() => runs.id), truckId: text().notNull(),
+  snapshotId: text().notNull(), deployment: text().notNull(), artifactHash: text().notNull().references(() => artifacts.hash),
+  createdAt: integer().notNull(),
+}, t => [index("route_geometry_by_run").on(t.runId)]);
+
 // Better Auth tables (hosted mode only; local mode never writes them). Column names follow Better Auth's
 // Drizzle SQLite schema. Owner IDs elsewhere are "user:" + user.id, so the provider stays replaceable.
 const ms = (name: string) => integer(name, { mode: "timestamp_ms" });

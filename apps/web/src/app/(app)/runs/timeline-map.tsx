@@ -7,13 +7,16 @@ import { useMemo } from "react"
 import { FitBounds } from "@/components/lab/map-layers"
 import { Map, MapControls, MapMarker, MapRoute, MarkerContent, MarkerTooltip } from "@/components/ui/map"
 import { useCssColors } from "@/lib/css-color"
+import { SIMULATION_COPY } from "@/lib/road-geometry"
 import type { CursorState, Timeline } from "@/lib/timeline"
+
+import { RouteLegend } from "./road-geometry"
 
 const tokens = Array.from({ length: 8 }, (_, i) => `--route-${i + 1}`)
 
-// One truck's planned route on the map: schematic straight segments between stops (there is no road geometry
-// yet) and a marker interpolated along the current leg by the timeline cursor.
-export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel }: { timeline: Timeline; cursor: CursorState | null; routeIndex: number; depotLabel: string }) {
+// One truck's planned route on the map: schematic straight segments between stops, or Valhalla road lines when they
+// were fetched (display only), and a marker interpolated along the current leg by the timeline cursor.
+export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel, roadLabel = null }: { timeline: Timeline; cursor: CursorState | null; routeIndex: number; depotLabel: string; roadLabel?: string | null }) {
   const { resolvedTheme } = useTheme()
   const colors = useCssColors(tokens, resolvedTheme)
   const color = colors[`--route-${((routeIndex - 1) % 8) + 1}`]
@@ -25,7 +28,8 @@ export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel }
     <div className="relative h-full">
       <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5}>
         <FitBounds points={path} fitKey={timeline.truckId} />
-        {color && <MapRoute id={`timeline-${timeline.truckId}`} coordinates={path} color={color} width={3} opacity={0.8} dashArray={[2, 1.5]} interactive={false} />}
+        {color && !timeline.legPaths && <MapRoute id={`timeline-${timeline.truckId}`} coordinates={path} color={color} width={3} opacity={0.8} dashArray={[2, 1.5]} interactive={false} />}
+        {color && timeline.legPaths?.map((leg, i) => (leg ? <MapRoute key={i} id={`timeline-${timeline.truckId}-road-${i}`} coordinates={leg} color={color} width={4} opacity={0.95} interactive={false} /> : null))}
         {timeline.stops.map((s) => (
           <MapMarker key={s.visitId} longitude={s.lon!} latitude={s.lat!}>
             <MarkerContent>
@@ -56,9 +60,13 @@ export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel }
         )}
         <MapControls />
       </Map>
-      <span className="bg-background/85 text-muted-foreground absolute bottom-2 left-2 max-w-[calc(100%-1rem)] rounded-md px-2 py-1 text-[11px] backdrop-blur">
-        Schematic straight-line path — road geometry not available
-      </span>
+      <RouteLegend road={timeline.legPaths ? roadLabel : null} schematic={!timeline.legPaths} color={color} />
+      {cursor && (
+        <span data-testid="timeline-map-state" className="bg-background/90 absolute top-2 left-2 rounded-md px-2 py-1 text-[11px] backdrop-blur">
+          {{ depot: "At depot", drive: "Driving", wait: "Waiting for window", service: "Service" }[cursor.phase]}
+          {timeline.legPaths ? ` · ${SIMULATION_COPY}` : ""}
+        </span>
+      )}
     </div>
   )
 }
