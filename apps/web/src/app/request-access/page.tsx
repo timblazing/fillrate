@@ -12,12 +12,14 @@ export const metadata = { title: "Request access · Fillrate" }
 
 export default async function RequestAccessPage() {
   const who = await pagePrincipal()
-  if (who.kind === "user") redirect("/account")
+  if (who.kind === "anonymous") redirect("/")
+  if (who.kind === "local" || who.kind === "operator") redirect("/scenarios")
+  if (who.kind === "user") redirect("/scenarios")
   const config = mode()
   const access = who.user && config.mode === "hosted" ? accessFor(initializeDatabase(), who.user.id, config.adminGithubId, config.signupMode) : null
   return <div className="min-h-dvh"><PublicHeader /><main className="mx-auto w-full max-w-xl space-y-5 px-4 py-8 sm:px-6">
     <h1 className="text-2xl font-semibold">Request access</h1>
-    {!who.user ? <div className="space-y-4"><p className="text-muted-foreground text-sm">Sign in with GitHub to request access. Lessons and bundled examples are open to everyone.</p><SignInButton /></div>
+    {!who.user ? <div className="space-y-4"><p className="text-muted-foreground text-sm">Sign in with GitHub to request access.</p><SignInButton /></div>
       : <RequestForm name={who.user.name} email={who.user.email} image={who.user.image} status={access!.status} note={access!.note ?? ""} canRetry={access!.canRetry} />}
   </main></div>
 }
