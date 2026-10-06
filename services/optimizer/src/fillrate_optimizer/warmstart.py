@@ -46,7 +46,15 @@ def plan_from_summary(summary: dict[str, Any], source: WarmStartSource) -> WarmS
     """The validated plan of a succeeded run. Reads only the fields it needs, so summaries from
     earlier pipeline versions still work. Trucks exist only for validated clusters."""
     routes: dict[str, list[list[WarmStartVisit]]] = {}
+    types: dict[str, list[str]] = {}
+    fleet = (
+        [t["id"] for t in summary["settings"]["fleet"]]
+        if summary["settings"].get("fleet")
+        else None
+    )
     for truck in summary["trucks"]:
+        if fleet is not None:
+            types.setdefault(truck["cluster_id"], []).append(truck["vehicle_type_id"])
         routes.setdefault(truck["cluster_id"], []).append(
             [
                 WarmStartVisit(visit_id=v["visit_id"], location_id=v["location_id"], load=v["load"])
@@ -59,11 +67,19 @@ def plan_from_summary(summary: dict[str, Any], source: WarmStartSource) -> WarmS
             status=c["status"],
             location_ids=c["location_ids"],
             routes=routes.get(c["id"], []) if c["status"] == "validated" else [],
+            vehicle_types=(
+                (types.get(c["id"], []) if c["status"] == "validated" else [])
+                if fleet is not None
+                else None
+            ),
         )
         for c in summary["clusters"]
     ]
     return WarmStartPlan(
-        source=source, travel=travel_identity(summary["settings"]), clusters=clusters
+        source=source,
+        travel=travel_identity(summary["settings"]),
+        clusters=clusters,
+        fleet=fleet,
     )
 
 
@@ -73,10 +89,21 @@ def match_cluster(
     solve_visits: list[str],
     locations: list[str],
     visits: dict[str, dict[str, Any]],
-) -> tuple[WarmStartCluster | None, list[list[str]] | None, str | None, str | None]:
-    """Rules 1–3 for one cluster: (source cluster, routes as visit IDs, skip reason, detail)."""
+    fleet: list[str] | None = None,
+) -> tuple[
+    WarmStartCluster | None, list[list[str]] | None, str | None, str | None, list[str] | None
+]:
+    """Rules 1–3 for one cluster: (source cluster, routes as visit IDs, skip reason, detail,
+    each route's vehicle type ID on fleet runs). Fleet: a plan from a fleet run only maps onto a
+    fleet run and the reverse (`fleet_changed`); the type IDs it carries are then checked by the
+    independent validator against this run's fleet."""
     if plan.travel != travel:
-        return None, None, "travel_changed", "The source plan used different travel data."
+        return None, None, "travel_changed", "The source plan used different travel data.", None
+    if (plan.fleet is None) != (fleet is None):
+        return (
+            None, None, "fleet_changed",
+            "The source plan and this run differ in using a vehicle-type fleet.", None,
+        )  # fmt: skip
     wanted = set(solve_visits)
     for cluster in plan.clusters:
         if cluster.status != "validated":
@@ -92,16 +119,24 @@ def match_cluster(
         ]
         if changed:
             detail = f"{len(changed)} visit(s) changed load or location."
-            return cluster, None, "demand_changed", detail
-        return cluster, [[v.visit_id for v in route] for route in cluster.routes], None, None
+            return cluster, None, "demand_changed", detail, None
+        return (
+            cluster,
+            [[v.visit_id for v in route] for route in cluster.routes],
+            None,
+            None,
+            list(cluster.vehicle_types or []) if fleet is not None else None,
+        )
     places = set(locations)
     same_places = next(
         (c for c in plan.clusters if c.status != "validated" and set(c.location_ids) == places),
         None,
     )
     if same_places:
-        return same_places, None, "source_invalid", "The source cluster has no validated plan."
-    return None, None, "visit_set_changed", "No source cluster planned exactly these visits."
+        return (
+            same_places, None, "source_invalid", "The source cluster has no validated plan.", None,
+        )  # fmt: skip
+    return None, None, "visit_set_changed", "No source cluster planned exactly these visits.", None
 
 
 def plan_from_baseline(baseline: dict[str, Any], source: WarmStartSource) -> WarmStartPlan:
@@ -123,12 +158,22 @@ def plan_from_baseline(baseline: dict[str, Any], source: WarmStartSource) -> War
         for route in baseline["routes"]
     ]
     locations = sorted({v.location_id for route in routes for v in route})
+    # Fleet runs: each saved route keeps the vehicle type the author chose (the evaluator required
+    # one per truck), so the validator can check it against the new run's fleet.
+    settings = baseline["settings"]
+    fleet = [t["id"] for t in settings["fleet"]] if settings.get("fleet") else None
+    vehicle_types = None
+    if fleet is not None:
+        vehicle_types = baseline.get("vehicle_types")
+        if vehicle_types is None or len(vehicle_types) != len(routes):
+            raise ValueError("a fleet baseline needs one vehicle type per route")
     cluster = WarmStartCluster(
         cluster_id=baseline["cluster_id"],
         status="validated",
         location_ids=locations,
         routes=routes,
+        vehicle_types=vehicle_types,
     )
     return WarmStartPlan(
-        source=source, travel=travel_identity(baseline["settings"]), clusters=[cluster]
+        source=source, travel=travel_identity(settings), clusters=[cluster], fleet=fleet
     )

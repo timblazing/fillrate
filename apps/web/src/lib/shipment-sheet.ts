@@ -29,6 +29,10 @@ export type Sheet = {
   truckId: string
   clusterId: string
   clusterIndex: number
+  /** Hundredths of a foot: this truck's own capacity (its vehicle type's on fleet runs, else the trailer's). */
+  capacity: number
+  /** Fleet runs: the vehicle type's label; null for the single trailer. */
+  vehicle: string | null
   stops: SheetStop[]
   totals: { stops: number; linearFeet: number; fill: number; loadedMiles: number; value: number }
 }
@@ -36,7 +40,9 @@ export type Sheet = {
 export function shipmentSheets(summary: RunSummary): Sheet[] {
   const labels = new Map(summary.locations.map((l) => [l.id, l.label]))
   const clusterIndex = new Map(summary.clusters.map((c, i) => [c.id, i + 1]))
+  const fleet = new Map((summary.settings.fleet ?? []).map((v) => [v.id, v]))
   return summary.trucks.map((t, i) => {
+    const type = t.vehicle_type_id ? fleet.get(t.vehicle_type_id) : undefined
     const stops = t.visits.map((v) => {
       const pieces: Record<string, number> = {}
       for (const l of v.lines) pieces[l.product_id] = (pieces[l.product_id] ?? 0) + l.pieces
@@ -56,6 +62,8 @@ export function shipmentSheets(summary: RunSummary): Sheet[] {
       truckId: t.id,
       clusterId: t.cluster_id,
       clusterIndex: clusterIndex.get(t.cluster_id) ?? 0,
+      capacity: type?.capacity ?? summary.settings.trailer_capacity,
+      vehicle: type ? type.label : null,
       stops,
       totals: { stops: stops.length, linearFeet: t.load, fill: t.fill, loadedMiles: t.distance_m / METERS_PER_MILE, value: t.amount_cents },
     }
@@ -65,8 +73,10 @@ export function shipmentSheets(summary: RunSummary): Sheet[] {
 /** CSV rows for the sheet export: one row per stop, with internal column names. */
 export function sheetCsvRows(sheets: Sheet[], columns: SheetColumn[] = []) {
   const products = [...new Set(sheets.flatMap((s) => s.stops.flatMap((x) => Object.keys(x.pieces))))].sort()
+  const fleet = sheets.some((s) => s.vehicle !== null)
   const header = [
     "truck_id",
+    ...(fleet ? ["vehicle_type"] : []),
     "shipment_number",
     "sequence",
     "order_ids",
@@ -79,6 +89,7 @@ export function sheetCsvRows(sheets: Sheet[], columns: SheetColumn[] = []) {
   const rows = sheets.flatMap((s) =>
     s.stops.map((x) => [
       s.truckId,
+      ...(fleet ? [s.vehicle ?? ""] : []),
       s.index,
       x.sequence,
       x.orders.join(" "),

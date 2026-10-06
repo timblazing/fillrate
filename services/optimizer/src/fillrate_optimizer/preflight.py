@@ -187,7 +187,7 @@ def preflight_checks(
         check = "far_via_stop" if loc_id in chained else "far_from_depot"
         found[check][loc_id].extend(located_lines[loc_id])
     for (loc_id, _customer_id), lines in grouped.items():
-        if sum(load for _, load in lines) > settings.trailer_capacity:
+        if sum(load for _, load in lines) > settings.max_capacity:
             found["oversize_stop"][loc_id].extend(line_id for line_id, _ in lines)
     out = []
     for check in (

@@ -9,6 +9,7 @@
     "./scenarios": "./src/scenarios.ts",
     "./imports": "./src/imports.ts",
     "./preflight": "./src/preflight.ts",
+    "./fleet": "./src/fleet.ts",
     "./travel": "./src/travel.ts",
     "./travel-job": "./src/travel-job.ts",
     "./travel-export": "./src/travel-export.ts",

@@ -300,6 +300,23 @@
             "minItems": 1,
             "title": "Routes",
             "type": "array"
+          },
+          "vehicle_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 10000,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Types"
           }
         },
         "required": [
@@ -544,7 +561,8 @@
                   "demand_changed",
                   "source_invalid",
                   "invalid_on_new_problem",
-                  "solver_rejected"
+                  "solver_rejected",
+                  "fleet_changed"
                 ],
                 "type": "string"
               },
@@ -1316,6 +1334,160 @@
           "versions"
         ],
         "title": "ExplorerSummary",
+        "type": "object"
+      },
+      "FleetTypeUse": {
+        "additionalProperties": false,
+        "description": "What a fleet run used of one vehicle type, fleet-wide (all clusters).",
+        "properties": {
+          "avg_fill": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Fill"
+          },
+          "capacity": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "load": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Load",
+            "type": "integer"
+          },
+          "min_fill": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Fill"
+          },
+          "trucks": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Trucks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "capacity",
+          "count",
+          "trucks",
+          "load",
+          "avg_fill",
+          "min_fill"
+        ],
+        "title": "FleetTypeUse",
+        "type": "object"
+      },
+      "FleetVehicleType": {
+        "additionalProperties": false,
+        "description": "One vehicle type of an optional heterogeneous fleet (spec \u00a73, M6).\n\n`count` is the number of vehicles of this type available to the whole dispatch (all clusters\ntogether); null means unlimited, which is how the single trailer behaves today. `capacity` is\nin the pipeline's capacity unit, integer hundredths of a foot. The two rates are used only by\nthe `cost` objective, which requires them on every type.",
+        "properties": {
+          "capacity": {
+            "maximum": 1000000,
+            "minimum": 1,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "maximum": 100000,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Count"
+          },
+          "fixed_cost_cents": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fixed Cost Cents"
+          },
+          "id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "per_mile_cents": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Per Mile Cents"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "capacity"
+        ],
+        "title": "FleetVehicleType",
         "type": "object"
       },
       "GeocodeMatch": {
@@ -3280,7 +3452,10 @@
               "leg_no_duration",
               "window_late",
               "horizon_exceeded",
-              "cluster_diameter"
+              "cluster_diameter",
+              "vehicle_type_missing",
+              "unknown_vehicle_type",
+              "fleet_count_exceeded"
             ],
             "title": "Code",
             "type": "string"
@@ -3670,6 +3845,22 @@
             "title": "Excluded Line Ids",
             "type": "array"
           },
+          "fleet": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FleetVehicleType"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet"
+          },
           "fulfillment_policy": {
             "default": "piece",
             "enum": [
@@ -3897,6 +4088,20 @@
             },
             "title": "Diagnostics",
             "type": "array"
+          },
+          "fleet_usage": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FleetTypeUse"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet Usage"
           },
           "locations": {
             "items": {
@@ -4576,6 +4781,17 @@
             ],
             "title": "Shift Start S"
           },
+          "vehicle_type_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Type Id"
+          },
           "visits": {
             "items": {
               "$ref": "#/components/schemas/TruckVisit"
@@ -4869,7 +5085,7 @@
       },
       "WarmStartCluster": {
         "additionalProperties": false,
-        "description": "A source cluster: validated ones carry their routes in service order; others carry none.",
+        "description": "A source cluster: validated ones carry their routes in service order; others carry none.\nFleet plans also carry each route's vehicle type ID, parallel to `routes`.",
         "properties": {
           "cluster_id": {
             "maxLength": 200,
@@ -4905,6 +5121,22 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "vehicle_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Types"
           }
         },
         "required": [
@@ -4926,6 +5158,22 @@
             },
             "title": "Clusters",
             "type": "array"
+          },
+          "fleet": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet"
           },
           "schema_version": {
             "const": 1,

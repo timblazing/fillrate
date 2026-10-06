@@ -20,12 +20,13 @@ artifacts and posts them to FastAPI ``/evaluate`` (spec §2).
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
-from .loads import monetary_objective
-from .model import Count, Doc, RunSettings, ScenarioDocument, TruckSummary
+from .loads import fleet_monetary_objective, monetary_objective
+from .model import Count, Doc, Id, RunSettings, ScenarioDocument, TruckSummary
 from .pipeline import (
     PipelineError,
     check_routes,
@@ -57,6 +58,9 @@ ViolationCode = Literal[
     "window_late",
     "horizon_exceeded",
     "cluster_diameter",
+    "vehicle_type_missing",
+    "unknown_vehicle_type",
+    "fleet_count_exceeded",
 ]
 
 
@@ -73,6 +77,9 @@ class ClusterPlan(Doc):
 
     cluster_id: Annotated[str, Field(min_length=1, max_length=200)]
     routes: Annotated[list[Route], Field(min_length=1, max_length=MAX_PLAN_VISITS)]
+    # Fleet runs: the vehicle type ID of each truck, parallel to `routes`. Required exactly when
+    # the run's settings have a fleet; a plan never guesses a type.
+    vehicle_types: Annotated[list[Id], Field(max_length=MAX_PLAN_VISITS)] | None = None
 
 
 class EvaluateRequest(Doc):
@@ -158,6 +165,20 @@ def evaluate(request: EvaluateRequest) -> EvaluateResponse:
             raise EvaluationError(
                 "cluster_mismatch", f"The plan is for {plan.cluster_id}, not cluster {cid}."
             )
+    for plan in (request.plan, request.reference):
+        if plan is None:
+            continue
+        if request.settings.fleet is None and plan.vehicle_types is not None:
+            raise EvaluationError(
+                "vehicle_types_unexpected", "This run has no fleet, so a plan has no vehicle types."
+            )
+        if request.settings.fleet is not None and (
+            plan.vehicle_types is None or len(plan.vehicle_types) != len(plan.routes)
+        ):
+            raise EvaluationError(
+                "vehicle_types_mismatch",
+                "This run has a fleet: a plan needs exactly one vehicle type per truck.",
+            )
     if sum(len(r) for r in request.plan.routes) > MAX_PLAN_VISITS:
         raise EvaluationError(
             "plan_too_large", f"A plan may list at most {MAX_PLAN_VISITS} visits."
@@ -178,12 +199,13 @@ def evaluate(request: EvaluateRequest) -> EvaluateResponse:
         raise EvaluationError("unknown_product", f"Unknown product {error}.") from error
 
     raw_leg, leg_seconds = travel_readers(request, meta["locations"])
-    capacity = settings.trailer_capacity
+    capacity = settings.max_capacity
 
     def run(plan: ClusterPlan, prefix: str) -> PlanEvaluation:
         found, checked = check_routes(
-            meta, prob, trav, plan.routes, visits, lines, settings, raw_leg, leg_seconds
-        )
+            meta, prob, trav, plan.routes, visits, lines, settings, raw_leg, leg_seconds,
+            plan.vehicle_types,
+        )  # fmt: skip
         # A truck that uses a leg the provider has no value for cannot be measured; its
         # violation is reported and it gets no result row (truck IDs keep plan positions).
         measured = [
@@ -254,22 +276,48 @@ def plan_metrics(
     distance = sum(t.distance_m for t in used) if not unmeasured else None
     drives = [t.drive_s for t in used]
     waits = [t.wait_s_total for t in used]
-    objective = (
-        prob["truck_penalty"] * count + prob["distance_cost"] * distance
-        if distance is not None
-        else None
-    )
+    if distance is None:
+        objective = None
+    elif prob.get("vehicle_types"):
+        # Fleet: each truck pays its own type's fixed cost and unit distance cost.
+        rates = {t["id"]: t for t in prob["vehicle_types"]}
+        objective = (
+            sum(
+                rates[t.vehicle_type_id]["fixed_cost"]
+                + rates[t.vehicle_type_id]["distance_cost"] * t.distance_m
+                for t in used
+            )
+            if all(t.vehicle_type_id in rates for t in used)
+            else None  # an unknown vehicle type: the plan is invalid and has no objective
+        )
+    else:
+        objective = prob["truck_penalty"] * count + prob["distance_cost"] * distance
     monetary = prob.get("monetary")
     cents = None
     if monetary and objective is not None:
         # Recomputed from the recorded rates and checked against the recorded coefficients.
-        converted = monetary_objective(
-            monetary["cost_per_truck_cents"], monetary["cost_per_mile_cents"]
-        )
-        if (converted.truck_penalty, converted.distance_cost) != (
-            prob["truck_penalty"],
-            prob["distance_cost"],
-        ):
+        if prob.get("vehicle_types"):
+            fleet = fleet_monetary_objective(
+                [(t["fixed_cost_cents"], t["per_mile_cents"]) for t in prob["vehicle_types"]]
+            )
+            converted = SimpleNamespace(
+                truck_penalty=prob["truck_penalty"],
+                distance_cost=prob["distance_cost"],
+                cents_numerator=fleet.cents_numerator,
+                cents_denominator=fleet.cents_denominator,
+            )
+            mismatch = fleet.coefficients != [
+                (t["fixed_cost"], t["distance_cost"]) for t in prob["vehicle_types"]
+            ]
+        else:
+            converted = monetary_objective(
+                monetary["cost_per_truck_cents"], monetary["cost_per_mile_cents"]
+            )
+            mismatch = (converted.truck_penalty, converted.distance_cost) != (
+                prob["truck_penalty"],
+                prob["distance_cost"],
+            )
+        if mismatch:
             raise EvaluationError(
                 "objective_mismatch", "The recorded cost coefficients do not match the rates."
             )
@@ -305,6 +353,7 @@ def cluster_request(
     *,
     travel_snapshot: TravelSnapshot | None = None,
     with_reference: bool = True,
+    vehicle_types: list[str] | None = None,
 ) -> EvaluateRequest:
     """The request Next.js assembles from a run's stored artifacts (``stages``: stage type →
     payload, travel already decoded), for tests, lessons and offline use."""
@@ -327,9 +376,13 @@ def cluster_request(
         travel=pick["travel"],
         visits=[v for v in stages["aggregation"]["visits"] if v["visit_id"] in members],
         travel_snapshot=travel_snapshot.model_dump(mode="json") if travel_snapshot else None,
-        plan=ClusterPlan(cluster_id=cluster_id, routes=routes),
+        plan=ClusterPlan(cluster_id=cluster_id, routes=routes, vehicle_types=vehicle_types),
         reference=(
-            ClusterPlan(cluster_id=cluster_id, routes=pick["solve"]["routes"])
+            ClusterPlan(
+                cluster_id=cluster_id,
+                routes=pick["solve"]["routes"],
+                vehicle_types=pick["solve"].get("vehicle_types"),
+            )
             if with_reference and solved
             else None
         ),

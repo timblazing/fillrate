@@ -28,6 +28,9 @@ export const violationLabel: Record<PlanViolation["code"], string> = {
   window_late: "Window missed",
   horizon_exceeded: "Past the end of the day",
   cluster_diameter: "Cluster too wide",
+  vehicle_type_missing: "Shipment without a vehicle type",
+  unknown_vehicle_type: "Unknown vehicle type",
+  fleet_count_exceeded: "More vehicles than the fleet has",
 }
 
 const miles = (m: number | null | undefined) => (m == null ? "n/a" : formatMiles(m / METERS_PER_MILE))

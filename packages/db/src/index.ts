@@ -120,9 +120,9 @@ export class Store {
       if (!row.valid) throw new Error("warm_start_baseline_invalid: this baseline did not pass the validator when it was saved, so it cannot start a solve");
       const run = this.db.select({ settings: s.runs.settings }).from(s.runs).where(eq(s.runs.id, row.runId)).get();
       if (!run) throw missing;
-      const plan = JSON.parse(row.plan) as { cluster_id: string; routes: string[][] };
+      const plan = JSON.parse(row.plan) as { cluster_id: string; routes: string[][]; vehicle_types?: string[] };
       const manual = (JSON.parse(row.evaluation) as { manual: { trucks: unknown[] } }).manual;
-      return { baseline: { id: row.id, run_id: row.runId, cluster_id: row.clusterId, routes: plan.routes, valid: row.valid, trucks: manual.trucks, settings: (JSON.parse(run.settings) as Snapshot).document } };
+      return { baseline: { id: row.id, run_id: row.runId, cluster_id: row.clusterId, routes: plan.routes, ...(plan.vehicle_types ? { vehicle_types: plan.vehicle_types } : {}), valid: row.valid, trucks: manual.trucks, settings: (JSON.parse(run.settings) as Snapshot).document } };
     }
     const missing = new Error("warm_start_source_not_found: no run you can read has this ID");
     if (source.kind !== "run" || typeof source.run_id !== "string") throw missing;
@@ -165,7 +165,7 @@ export class Store {
    * own scenario's, or a bundled example's) and the run must have succeeded; the baseline then belongs to
    * `ownerId`. Invalid plans are saved too, marked invalid. `admission` is charged in the same transaction.
    */
-  saveBaseline(input: { runId: string; ownerId: string; name: string; plan: { cluster_id: string; routes: string[][] }; evaluation: { manual: { valid: boolean } } & Record<string, unknown>; idempotencyKey: string; admission?: Admission; maxPerOwner?: number }, now = Date.now()) {
+  saveBaseline(input: { runId: string; ownerId: string; name: string; plan: { cluster_id: string; routes: string[][]; vehicle_types?: string[] }; evaluation: { manual: { valid: boolean } } & Record<string, unknown>; idempotencyKey: string; admission?: Admission; maxPerOwner?: number }, now = Date.now()) {
     if (!input.idempotencyKey || input.idempotencyKey.length > 200) throw new Error("invalid_idempotency_key");
     const name = input.name.trim();
     if (!name || name.length > 100) throw new Error("invalid_baseline_name");
@@ -723,7 +723,7 @@ export class Store {
   }
 }
 /** What the worker receives for a `manual_baseline` source: the saved routes and the evaluator's trucks (location and load per visit). */
-export type BaselineSource = { id: string; run_id: string; cluster_id: string; routes: string[][]; valid: boolean; trucks: unknown[]; settings: unknown };
+export type BaselineSource = { id: string; run_id: string; cluster_id: string; routes: string[][]; vehicle_types?: string[]; valid: boolean; trucks: unknown[]; settings: unknown };
 export const MAX_BASELINES_PER_OWNER = 200;
 function baselineRecord(row: typeof s.manualBaselines.$inferSelect) {
   return { id: row.id, ownerId: row.ownerId, runId: row.runId, clusterId: row.clusterId, name: row.name, valid: row.valid, createdAt: row.createdAt,
