@@ -107,7 +107,7 @@ export default function RunMap({
 
   return (
     <div className="relative h-full">
-      <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5}>
+      <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5} attributionControl={{ compact: false }}>
         <FitBounds points={fit} fitKey={`${cluster}`} />
         {ready && cells && <MapGeoJSON id="run-h3" data={cells} fillPaint={cellFill} linePaint={cellLine} />}
         {ready && <MapGeoJSON id="run-hulls" data={hulls} fillPaint={hullFill} linePaint={hullLine} />}

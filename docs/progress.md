@@ -33,6 +33,13 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - Verification: `bun run test:browser --flow=lesson` passed on an isolated production build and generated synthetic data. `bun run lint` and `bun run typecheck` passed; lint retains one existing exhaustive-deps warning in `apps/web/src/components/ui/globe.tsx`. `bun run build` passed.
 - This closes the shipment-table transition slice only. The 601-node matrix preview remains slow, while 1,001-node UI measurement is now recorded separately; shipment-sheet print and unshipped-reason acceptance, recovery states and other dashboard audit gaps remain open. M8 is not complete.
 
+## 2026-10-06: M8 basemap provider and terms record (Codex)
+- Inspected the shipped MapLibre defaults: CARTO Positron/Dark Matter style URLs and the enabled attribution control. Recorded CARTO's current key requirement, attribution, stated free-tier limits and commercial-plan pricing in [basemap.md](basemap.md), with links to the provider terms and attribution requirements.
+- Changed current product and gallery map compositions to keep attribution expanded after map interaction. T3 preview inspection of both gallery map variants at 1440×900 and 393×852 confirmed visible CARTO/OpenStreetMap credits fit inside map bounds. The style-provided links still target older about pages, so exact link conformance remains open.
+- The current URLs have no CARTO-issued API key, and the repository documents no key configuration. Public-use classification, capacity/cost and an owner-controlled hosted key therefore remain launch decisions; this record is not legal approval.
+- No CARTO key was configured and no provider terms were accepted. M8 remains open pending the provider decision/configuration and exact attribution-link conformance, alongside shipment print, recovery, broader dashboard acceptance, final candidate release/deployment and native target timings.
+- Verification: `bun install --frozen-lockfile`, `bun run lint`, `bun run typecheck`, `bun run build`, and `git diff --check` passed. Lint reports the existing `globe.tsx` exhaustive-deps warning. No production browser smoke suite was rerun for this slice; T3 preview inspected the two gallery map controls locally.
+
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
   - [x] SQLite durable jobs, leased Python worker, real PyVRP pipeline, independent validation and persisted exports.
@@ -59,9 +66,9 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
   - [x] Recorded 21 production browser flows at desktop/phone and 144 hosted/local checks (prior sessions; not rerun by this documentation pass).
   - [x] Request-access/admin phone review, npm-compatible scripts, native documentation and handoff.
   - [x] Historical image target timings/recovery on VPS/Pi; native timings only in a dev container.
-  - [ ] Six-Block production coverage audit and dashboard integration acceptance.
-  - [ ] Measured 2,000-order and matrix frontend responsiveness/performance acceptance.
-  - [ ] Basemap public-use terms/attribution record and final candidate verification.
+  - [ ] Six-Block production coverage audit and dashboard integration acceptance; audit captures exist, but workflow/accessibility/theme/print fixes and candidate acceptance remain.
+  - [ ] Measured 2,000-order and matrix frontend responsiveness/performance acceptance; the 443-shipment transition and 1,001-node preview are scoped observations only, with final candidate/cold and broader interaction measurements open.
+  - [ ] Basemap owner use classification/key/tier decision, runtime configuration and rendered attribution check; current CARTO terms and source record are documented in [basemap.md](basemap.md).
   - [x] Current runtime image publication for `e95f3cb`: run 37482591185, both architecture smokes and manifest recorded in #72.
   - [ ] Final dashboard image release and deployed-digest evidence.
   - [ ] Native target timings on VPS/Pi for full distribution handoff.
@@ -98,4 +105,4 @@ See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for live 
 
 ## Next step
 
-Continue the dashboard work from the [coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md): repeat near-limit matrix performance measurements on the final candidate, then complete shipment-sheet print, recovery-state and remaining accessibility/integration acceptance. The measured 443-shipment results transition and 1,001-node matrix preview are scoped slices only and do not complete M8. The current image publication is complete in #72; owner deployment remains separate. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
+Continue from the [coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md): first complete the local shipment-sheet print and failed/retry acceptance, then remaining dashboard accessibility/integration and final candidate performance checks. The CARTO provider decision and final hosted release/deployment require owner actions; native VPS/Pi timings close the broader handoff. The measured 443-shipment transition and 1,001-node matrix preview are scoped slices only and do not complete M8. The current image publication is complete in #72. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
