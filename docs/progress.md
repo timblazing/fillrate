@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-10-06: M8 request-access and admin phone review (Claude Code)
+- New `node scripts/review-access-pages.mjs [--shots <dir>]` (after `bun run build`): a hosted-mode production standalone server on loopback with a temporary database and test-only secrets, synthetic Better Auth users and signed sessions seeded the way `scripts/test-hosted.mjs` does (no OAuth, no live GitHub accounts), served over HTTPS on a made-up host through a throwaway self-signed TLS proxy so the browser's Origin and `__Secure-` session cookie match the configured canonical URL. With agent-browser at iPhone 16 393×852 and 1440×900: a pending user with a long name submits and updates a 200-character note (stored in the database), and the admin approves one request, denies, restores and revokes another (through the confirmation dialog), switching the Pending / Approved / Denied-Revoked tabs. Each of the 16 screens must be hydrated, load every resource, have no page-level horizontal overflow, keep its controls inside the viewport and show no console or page errors; the revoke dialog's two actions must be visible and not covered. The script exits non-zero on failure.
+- Found and fixed: on phones the success toasts (bottom of the screen, above dialogs) covered the bottom-sheet revoke dialog's "Revoke access" and "Keep access" buttons. Below 640 px, toasts now stay under an open modal dialog (`globals.css`); desktop is unchanged. An earlier version of this review passed while the pages were unstyled and not hydrated (the standalone server had no static assets) and never authenticated through the browser; the script now copies the assets and asserts hydration.
+- Verification: the review passed at both sizes; screenshots reviewed (request form with long note and name truncated, admin cards, all three tabs, the revoke dialog at 393 px with both buttons clear). `bun run lint` (existing `globe.tsx` warning), `bun run typecheck`, `bun run build`, `bun run test:hosted`. Boundary: local hosted-mode production build with synthetic sessions; not the deployed site and not live OAuth.
+
 ## 2026-10-05: Visitor landing and hosted page access (Codex)
 - Removed the landing navbar app link and account/sign-in controls. The hero “Request access” button starts GitHub authentication for signed-out hosted visitors, opens the request form for pending accounts and opens scenarios for approved/local users.
 - Anonymous hosted page access is limited to `/`, `/privacy`, `/dev` and `/dev/components`; product pages and fullscreen gallery blocks redirect home. Pending accounts are redirected to `/request-access`. Existing API authorization and local account-free behavior are unchanged.
@@ -323,7 +328,8 @@
   - [x] Browser cancellation (queued and running runs) and scenario edit/version-conflict/branch/discard coverage at desktop and iPhone 16 (`--flow=cancel`, `--flow=edit`, 2026-10-05)
   - [x] Account-free native Bun/npm distribution and reproducible handoff: `docs/local.md`, `docs/handoff.md`, aligned `package-lock.json`, CI `npm` job (2026-10-05; Node 24 + npm pending the job's first run)
   - [x] Node 24 + npm evidence: `main` CI run 37376574336 (commit `edd4d83`) passed both the `checks` job (full suite, including the unmodified browser smoke) and the new `npm` job (`npm ci`, lock check, typecheck, Vitest, build) on Node 24.18.1 (2026-10-05)
-  - [ ] Native timings on the VPS and Pi 5; optional request-access/admin iPhone review
+  - [x] Optional `/request-access` and `/admin` review at iPhone 16 and desktop (`scripts/review-access-pages.mjs`, local hosted-mode build with synthetic sessions; toasts no longer cover phone dialogs) (2026-10-06)
+  - [ ] Native timings on the VPS and Pi 5 (owner hardware)
 
 ## Current state
 
