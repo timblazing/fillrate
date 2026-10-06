@@ -1686,6 +1686,80 @@
         "title": "LabFleetUse",
         "type": "object"
       },
+      "LabGroup": {
+        "additionalProperties": false,
+        "description": "Mutually exclusive alternatives (PyVRP ClientGroup): at most one member is visited. A\n``required`` group must be served by exactly one member (a customer reachable at one of\nseveral service points); an optional group may be left unserved. Members are optional clients\n(``required: false``) without a prize of their own, so the group, not a prize, decides.",
+        "properties": {
+          "id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Label",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][\\w.:-]*$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 2,
+            "title": "Members",
+            "type": "array"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "members"
+        ],
+        "title": "LabGroup",
+        "type": "object"
+      },
+      "LabGroupOutcome": {
+        "additionalProperties": false,
+        "description": "Which member (if any) serves a group.",
+        "properties": {
+          "group_id": {
+            "title": "Group Id",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "served_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served By"
+          }
+        },
+        "required": [
+          "group_id",
+          "required",
+          "served_by"
+        ],
+        "title": "LabGroupOutcome",
+        "type": "object"
+      },
       "LabInstance": {
         "additionalProperties": false,
         "properties": {
@@ -1736,6 +1810,22 @@
             "minItems": 1,
             "title": "Dimensions",
             "type": "array"
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LabGroup"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Groups"
           },
           "kind": {
             "const": "lab_instance",
@@ -1850,6 +1940,13 @@
               "$ref": "#/components/schemas/LabFleetUse"
             },
             "title": "Fleet",
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/LabGroupOutcome"
+            },
+            "title": "Groups",
             "type": "array"
           },
           "instance_name": {

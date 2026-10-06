@@ -11,7 +11,7 @@ in abstract units, and one abstract time unit elapses per distance unit. Geograp
 haversine × circuity in meters and constant-speed durations in seconds. Costs are integers in
 `cost_unit`.
 
-Adding a capability (client groups, shipments) adds
+Adding a capability (shipments) adds
 fields here and removes their entry from ``PLANNED_FIELDS``; see docs/solver-lab.md.
 """
 
@@ -33,6 +33,7 @@ Lon = Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
 MAX_CLIENTS = 500
 MAX_DEPOTS = 10
 MAX_RELOADS = 50
+MAX_GROUPS = 100
 MAX_DIMENSIONS = 8
 MAX_VEHICLE_TYPES = 10
 MAX_VEHICLES_PER_TYPE = 500
@@ -41,10 +42,7 @@ MAX_VEHICLES_PER_TYPE = 500
 # than a generic "extra field" error. Keys are (where, field); "instance" is the top level.
 PLANNED_FIELDS: dict[tuple[str, str], str] = {
     ("instance", "shipments"): "paired_shipments",
-    ("instance", "groups"): "client_groups",
-    ("instance", "client_groups"): "client_groups",
     ("client", "pickup"): "pickups_and_deliveries",
-    ("client", "group"): "client_groups",
     ("client", "tw_early"): "lab_time_windows",
     ("client", "tw_late"): "lab_time_windows",
     ("client", "release_time"): "lab_time_windows",
@@ -128,6 +126,18 @@ class LabClient(LabDoc):
         return self.prize or 0
 
 
+class LabGroup(LabDoc):
+    """Mutually exclusive alternatives (PyVRP ClientGroup): at most one member is visited. A
+    ``required`` group must be served by exactly one member (a customer reachable at one of
+    several service points); an optional group may be left unserved. Members are optional clients
+    (``required: false``) without a prize of their own, so the group, not a prize, decides."""
+
+    id: LabId
+    label: Label = ""
+    members: Annotated[list[LabId], Field(min_length=2, max_length=50)]
+    required: bool = True
+
+
 class LabVehicleType(LabDoc):
     """A vehicle type with a finite count. Every vehicle starts at ``start_depot`` and ends at
     ``end_depot`` (depot ids; both default to the first depot, so a single-depot instance needs
@@ -186,6 +196,8 @@ class LabInstance(LabDoc):
     vehicle_types: Annotated[
         list[LabVehicleType], Field(min_length=1, max_length=MAX_VEHICLE_TYPES)
     ]
+    # Alternative service groups; absent means no groups.
+    groups: Annotated[list[LabGroup], Field(max_length=MAX_GROUPS)] | None = None
     solver: LabSolver = Field(default_factory=LabSolver)
 
     @model_validator(mode="before")
@@ -216,6 +228,10 @@ class LabInstance(LabDoc):
 
     def end_depot_of(self, vehicle_type: LabVehicleType) -> str:
         return vehicle_type.end_depot or self.depots[0].id
+
+    def group_of(self) -> dict[str, LabGroup]:
+        """Client id → its group (clients not in a group are absent)."""
+        return {m: g for g in self.groups or [] for m in g.members}
 
     def dimension_ids(self) -> list[str]:
         return [d.id for d in self.dimensions]
@@ -309,6 +325,14 @@ class LabObjective(LabDoc):
     objective_with_prizes: int | None = None
 
 
+class LabGroupOutcome(LabDoc):
+    """Which member (if any) serves a group."""
+
+    group_id: str
+    required: bool
+    served_by: str | None
+
+
 class LabSkipped(LabDoc):
     """An optional client that no route visits, and the prize forgone."""
 
@@ -373,6 +397,8 @@ class LabResult(LabDoc):
     objective: LabObjective
     # Optional clients not visited (empty unless the instance has optional clients).
     skipped: list[LabSkipped] = Field(default_factory=list)
+    # One entry per alternative group (empty unless the instance has groups).
+    groups: list[LabGroupOutcome] = Field(default_factory=list)
     totals: LabTotals
     fleet: list[LabFleetUse]
     routes: list[LabRoute]

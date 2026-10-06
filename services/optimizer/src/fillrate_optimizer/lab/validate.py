@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 from .schema import (
     LabFleetUse,
+    LabGroupOutcome,
     LabInstance,
     LabObjective,
     LabRoute,
@@ -62,6 +63,7 @@ class ValidatedPlan:
     totals: LabTotals
     fleet: list[LabFleetUse]
     skipped: list[LabSkipped] = field(default_factory=list)
+    groups: list[LabGroupOutcome] = field(default_factory=list)
 
     @property
     def feasible(self) -> bool:
@@ -74,6 +76,31 @@ class ValidatedPlan:
 def instance_problems(instance: LabInstance) -> list[str]:
     problems: list[str] = []
     dims = instance.dimension_ids()
+    ids = {c.id for c in instance.clients}
+    by_id = {c.id: c for c in instance.clients}
+    group_ids = [g.id for g in instance.groups or []]
+    for gid, n in Counter(group_ids).items():
+        if n > 1:
+            problems.append(f"duplicate group id {gid!r}")
+    seen_member: dict[str, str] = {}
+    for g in instance.groups or []:
+        for m in g.members:
+            if m not in ids:
+                problems.append(f"group {g.id} member {m!r} is not a client id")
+                continue
+            if m in seen_member:
+                problems.append(f"client {m} is in groups {seen_member[m]} and {g.id}")
+            seen_member[m] = g.id
+            if by_id[m].required is not False:
+                problems.append(
+                    f"group {g.id} member {m} must be an optional client (required: false)"
+                )
+            if by_id[m].prize_value:
+                problems.append(
+                    f"group {g.id} member {m} has a prize: members carry none, the group decides"
+                )
+        if len(set(g.members)) != len(g.members):
+            problems.append(f"group {g.id} lists a member twice")
     for client in instance.clients:
         if client.prize_value and client.is_required:
             problems.append(
@@ -314,6 +341,22 @@ def check_coverage(ctx: Context) -> None:
             )
 
 
+def check_groups(ctx: Context) -> None:
+    """A required group is served by exactly one member, an optional group by at most one."""
+    seen = Counter(cid for r in ctx.candidate for cid in r.client_ids if cid in ctx.node)
+    for group in ctx.instance.groups or []:
+        served = [m for m in group.members if seen[m] > 0]
+        visits = sum(seen[m] for m in group.members)
+        if visits > 1:
+            ctx.flag(
+                "group_multiple_served",
+                f"Group {group.id} is served {visits} times ({', '.join(served)}); "
+                "its members are alternatives, so only one may be visited.",
+            )
+        elif visits == 0 and group.required:
+            ctx.flag("group_not_served", f"Required group {group.id} is not served by any member.")
+
+
 def check_fleet(ctx: Context) -> None:
     used = Counter(r.vehicle_type for r in ctx.candidate)
     types = {v.id: v for v in ctx.instance.vehicle_types}
@@ -339,7 +382,7 @@ ROUTE_CHECKS: list[RouteCheck] = [
     check_route_capacity,
     check_route_limits,
 ]
-PLAN_CHECKS: list[PlanCheck] = [check_coverage, check_fleet]
+PLAN_CHECKS: list[PlanCheck] = [check_coverage, check_groups, check_fleet]
 
 
 def build_route(ctx: Context, index: int, route: CandidateRoute) -> LabRoute:
@@ -456,17 +499,28 @@ def validate_plan(
     used = Counter(r.vehicle_type for r in candidate)
     dims = instance.dimension_ids()
     visited = {v.client_id for r in routes for v in r.visits}
+    in_group = instance.group_of()
+    # Unvisited group members are alternatives not taken, not skipped prizes: reported per group.
     skipped = [
         LabSkipped(client_id=c.id, prize=c.prize_value)
         for c in instance.clients
-        if not c.is_required and c.id not in visited
+        if not c.is_required and c.id not in visited and c.id not in in_group
     ]
+    outcomes = []
+    for g in instance.groups or []:
+        served = [m for m in g.members if m in visited]
+        outcomes.append(
+            LabGroupOutcome(
+                group_id=g.id, required=g.required, served_by=served[0] if served else None
+            )
+        )
     uncollected = sum(s.prize for s in skipped)
     nominal = sum(r.cost for r in routes)
     return ValidatedPlan(
         routes=routes,
         violations=ctx.violations,
         skipped=skipped,
+        groups=outcomes,
         objective=LabObjective(
             fixed_cost=sum(r.fixed_cost for r in routes),
             distance_cost=sum(r.distance_cost for r in routes),

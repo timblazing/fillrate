@@ -31,6 +31,8 @@ def runs():
         "reloads_off": lab_examples.reloads(False),
         "prizes": lab_examples.prizes(60),
         "prizes_high": lab_examples.prizes(400),
+        "groups": lab_examples.groups("north"),
+        "groups_south": lab_examples.groups("south"),
     }
     return {
         (name, seed): run_lab(with_seed(b, seed)) for name, b in builds.items() for seed in SEEDS
@@ -206,3 +208,58 @@ def test_raised_prizes_make_the_solver_visit_them(runs):
         # Each remote visit is worth its prize only above the extra distance it needs: 485 > 180.
         assert o.total - low.objective.total > low.objective.uncollected_prizes
         assert high.totals.distance > low.totals.distance
+
+
+def swap_member(result, old, new):
+    """The solver's routes with one alternative replaced by the other."""
+    return [
+        CandidateRoute(
+            r.vehicle_type, [new if v.client_id == old else v.client_id for v in r.visits]
+        )
+        for r in result.routes
+    ]
+
+
+@pytest.mark.parametrize(
+    ("name", "chosen", "other"),
+    [
+        ("groups", "acme-north", "acme-south"),
+        ("groups_south", "acme-south", "acme-north"),
+    ],
+)
+def test_the_solver_picks_the_cheaper_alternative(runs, name, chosen, other):
+    for seed in SEEDS:
+        result = runs[name, seed]
+        assert result.validated_feasible and result.solver_feasible and not result.skipped
+        assert result.problem_fingerprint == runs[name, 0].problem_fingerprint
+        assert [(g.group_id, g.required, g.served_by) for g in result.groups] == [
+            ("acme", True, chosen)
+        ]
+        visited = {v.client_id for r in result.routes for v in r.visits}
+        assert chosen in visited and other not in visited and len(visited) == 5
+        assert result.totals.routes == 1 and result.objective.total == 312
+        # Serving the other dock instead (same order) is valid but longer, so the choice is real.
+        instance = lab_examples.groups("north" if name == "groups" else "south")
+        swapped = validate_plan(
+            instance, lab_matrices(instance), swap_member(result, chosen, other)
+        )
+        assert swapped.feasible and swapped.objective.total > result.objective.total + 40
+        # Visiting both docks is rejected.
+        both = validate_plan(
+            instance,
+            lab_matrices(instance),
+            [
+                CandidateRoute(
+                    "van", [*[v.client_id for r in result.routes for v in r.visits], other]
+                )
+            ],
+        )
+        assert "group_multiple_served" in {v.code for v in both.violations}
+
+
+def test_the_stops_decide_which_dock_wins(runs):
+    north, south = runs["groups", 0], runs["groups_south", 0]
+    assert north.groups[0].served_by != south.groups[0].served_by
+    assert north.problem_fingerprint != south.problem_fingerprint
+    # Mirror images of each other, so the cost is the same: only the winner changes.
+    assert north.objective.total == south.objective.total == 312

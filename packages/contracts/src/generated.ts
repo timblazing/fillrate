@@ -720,6 +720,41 @@ export interface components {
             /** Vehicle Type */
             vehicle_type: string;
         };
+        /**
+         * LabGroup
+         * @description Mutually exclusive alternatives (PyVRP ClientGroup): at most one member is visited. A
+         *     ``required`` group must be served by exactly one member (a customer reachable at one of
+         *     several service points); an optional group may be left unserved. Members are optional clients
+         *     (``required: false``) without a prize of their own, so the group, not a prize, decides.
+         */
+        LabGroup: {
+            /** Id */
+            id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Members */
+            members: string[];
+            /**
+             * Required
+             * @default true
+             */
+            required: boolean;
+        };
+        /**
+         * LabGroupOutcome
+         * @description Which member (if any) serves a group.
+         */
+        LabGroupOutcome: {
+            /** Group Id */
+            group_id: string;
+            /** Required */
+            required: boolean;
+            /** Served By */
+            served_by: string | null;
+        };
         /** LabInstance */
         LabInstance: {
             /** Clients */
@@ -743,6 +778,11 @@ export interface components {
             description: string;
             /** Dimensions */
             dimensions: components["schemas"]["LabDimension"][];
+            /**
+             * Groups
+             * @default null
+             */
+            groups: components["schemas"]["LabGroup"][] | null;
             /**
              * Kind
              * @default lab_instance
@@ -805,6 +845,8 @@ export interface components {
             coordinates: "planar" | "geographic";
             /** Fleet */
             fleet: components["schemas"]["LabFleetUse"][];
+            /** Groups */
+            groups?: components["schemas"]["LabGroupOutcome"][];
             /** Instance Name */
             instance_name: string;
             /**

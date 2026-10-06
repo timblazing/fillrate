@@ -552,6 +552,85 @@ def test_prize_fields_are_checked():
         )
 
 
+def group_instance(group_required=True, a_y=5, extra_group=None) -> LabInstance:
+    """A customer ``cust`` reachable at service point ``near`` or ``far`` (one is enough) plus
+    a required stop beside ``near``."""
+    clients = [
+        client("stop", 30, 0, load=1),
+        client("near", 40, a_y, load=1) | {"required": False},
+        client("far", 40, -60, load=1) | {"required": False},
+    ]
+    groups = [{"id": "cust", "members": ["near", "far"], "required": group_required}]
+    return planar(
+        clients,
+        [{"id": "t", "count": 2, "capacity": {"load": 5}}],
+        groups=groups + (extra_group or []),
+    )
+
+
+def test_a_required_group_is_served_by_the_cheaper_alternative():
+    result = run_lab(group_instance())
+    assert result.solver_feasible and result.validated_feasible and not result.violations
+    served = {v.client_id for r in result.routes for v in r.visits}
+    assert served == {"stop", "near"}  # exactly one of the two alternatives
+    assert [(g.group_id, g.required, g.served_by) for g in result.groups] == [
+        ("cust", True, "near")
+    ]
+    assert result.skipped == []  # an unvisited alternative is not a skipped prize
+    assert result.objective.uncollected_prizes == 0
+    # Moving the near point far away makes the other alternative win.
+    flipped = run_lab(group_instance(a_y=200))
+    assert flipped.validated_feasible and flipped.groups[0].served_by == "far"
+    # An optional group with nothing to gain is left unserved.
+    optional = run_lab(group_instance(group_required=False))
+    assert optional.validated_feasible and optional.groups[0].served_by is None
+    assert {v.client_id for r in optional.routes for v in r.visits} == {"stop"}
+    assert problem_fingerprint(group_instance()) != problem_fingerprint(group_instance(False))
+
+
+def test_validator_allows_one_alternative_per_group():
+    instance = group_instance()
+    matrices = lab_matrices(instance)
+    ok = validate_plan(instance, matrices, [CandidateRoute("t", ["stop", "near"])])
+    assert ok.feasible and [g.served_by for g in ok.groups] == ["near"]
+    both = validate_plan(instance, matrices, [CandidateRoute("t", ["stop", "near", "far"])])
+    assert [v.code for v in both.violations] == ["group_multiple_served"]
+    split = validate_plan(
+        instance, matrices, [CandidateRoute("t", ["stop", "near"]), CandidateRoute("t", ["far"])]
+    )
+    assert [v.code for v in split.violations] == ["group_multiple_served"]
+    none = validate_plan(instance, matrices, [CandidateRoute("t", ["stop"])])
+    assert [v.code for v in none.violations] == ["group_not_served"]
+    unrequired = group_instance(group_required=False)
+    assert validate_plan(
+        unrequired, lab_matrices(unrequired), [CandidateRoute("t", ["stop"])]
+    ).feasible
+
+
+def test_group_fields_are_checked():
+    base = [
+        client("a", 1, 1, load=1) | {"required": False},
+        client("b", 2, 2, load=1) | {"required": False},
+    ]
+    van = [{"id": "t", "count": 1, "capacity": {"load": 5}}]
+    with pytest.raises(ValidationError, match="member 'zzz' is not a client id"):
+        planar(base, van, groups=[{"id": "g", "members": ["a", "zzz"]}])
+    with pytest.raises(ValidationError, match="must be an optional client"):
+        planar(
+            [client("a", 1, 1, load=1), base[1]], van, groups=[{"id": "g", "members": ["a", "b"]}]
+        )
+    with pytest.raises(ValidationError, match="in groups g and h"):
+        planar(
+            base,
+            van,
+            groups=[{"id": "g", "members": ["a", "b"]}, {"id": "h", "members": ["a", "b"]}],
+        )
+    with pytest.raises(ValidationError, match="has a prize"):
+        planar([base[0] | {"prize": 3}, base[1]], van, groups=[{"id": "g", "members": ["a", "b"]}])
+    with pytest.raises(ValidationError, match="at least 2 items"):
+        planar(base, van, groups=[{"id": "g", "members": ["a"]}])
+
+
 @pytest.mark.parametrize(
     ("patch", "capability"),
     [
@@ -564,7 +643,6 @@ def test_prize_fields_are_checked():
             "routing_profiles",
         ),
         ({"shipments": []}, "paired_shipments"),
-        ({"clients": [{"id": "a", "x": 1, "y": 1, "group": "g"}]}, "client_groups"),
     ],
 )
 def test_planned_capabilities_are_refused_by_name(patch, capability):

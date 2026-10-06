@@ -1,0 +1,120 @@
+{
+ "schema_version": 1,
+ "kind": "lab_instance",
+ "name": "Alternative service points, stops on the south side (planar, 6 clients)",
+ "description": "Abstract planar coordinates. Customer Acme (2 parcels) can be served at its north dock or its south dock: the two docks are one required group, so exactly one is visited. Four required stops lie on the south side of the depot.",
+ "coordinates": "planar",
+ "travel": {
+  "circuity": 1.2,
+  "speed_m_per_s": 11.176
+ },
+ "cost_unit": "cost units",
+ "dimensions": [
+  {
+   "id": "parcels",
+   "label": "Parcels",
+   "unit": "parcels"
+  }
+ ],
+ "depots": [
+  {
+   "id": "depot",
+   "label": "Depot",
+   "x": 0.0,
+   "y": 0.0
+  }
+ ],
+ "clients": [
+  {
+   "id": "G-1",
+   "label": "Stop",
+   "x": 30.0,
+   "y": -28.0,
+   "delivery": {
+    "parcels": 2
+   },
+   "service_duration": 10
+  },
+  {
+   "id": "G-2",
+   "label": "Stop",
+   "x": -25.0,
+   "y": -35.0,
+   "delivery": {
+    "parcels": 2
+   },
+   "service_duration": 10
+  },
+  {
+   "id": "G-3",
+   "label": "Stop",
+   "x": 55.0,
+   "y": -50.0,
+   "delivery": {
+    "parcels": 2
+   },
+   "service_duration": 10
+  },
+  {
+   "id": "G-4",
+   "label": "Stop",
+   "x": 5.0,
+   "y": -60.0,
+   "delivery": {
+    "parcels": 2
+   },
+   "service_duration": 10
+  },
+  {
+   "id": "acme-north",
+   "label": "Acme, north dock",
+   "x": 20.0,
+   "y": 45.0,
+   "delivery": {
+    "parcels": 2
+   },
+   "service_duration": 10,
+   "required": false
+  },
+  {
+   "id": "acme-south",
+   "label": "Acme, south dock",
+   "x": 20.0,
+   "y": -45.0,
+   "delivery": {
+    "parcels": 2
+   },
+   "service_duration": 10,
+   "required": false
+  }
+ ],
+ "vehicle_types": [
+  {
+   "id": "van",
+   "label": "Van",
+   "count": 2,
+   "capacity": {
+    "parcels": 10
+   },
+   "fixed_cost": 100,
+   "unit_distance_cost": 1,
+   "unit_duration_cost": 0
+  }
+ ],
+ "groups": [
+  {
+   "id": "acme",
+   "label": "Acme (one dock)",
+   "members": [
+    "acme-north",
+    "acme-south"
+   ],
+   "required": true
+  }
+ ],
+ "solver": {
+  "seed": 0,
+  "max_iterations": 2000,
+  "max_runtime_s": 30.0
+ }
+}
