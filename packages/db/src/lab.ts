@@ -13,7 +13,7 @@ export const MAX_LAB_BYTES = 2 * 1024 * 1024;
 // are planned but not implemented are refused by name, not as a generic unknown field.
 const PLANNED: [where: "instance" | "client" | "vehicle_type", field: string, capability: string][] = [
   ["instance", "shipments", "paired_shipments"], ["instance", "groups", "client_groups"], ["instance", "client_groups", "client_groups"],
-  ["client", "pickup", "pickups_and_deliveries"], ["client", "prize", "optional_clients"], ["client", "required", "optional_clients"],
+  ["client", "pickup", "pickups_and_deliveries"],
   ["client", "group", "client_groups"], ["client", "tw_early", "lab_time_windows"], ["client", "tw_late", "lab_time_windows"],
   ["client", "release_time", "lab_time_windows"],
   ["vehicle_type", "tw_early", "lab_time_windows"], ["vehicle_type", "tw_late", "lab_time_windows"], ["vehicle_type", "profile", "routing_profiles"],
@@ -74,6 +74,7 @@ export function labInstanceProblems(doc: LabInstance) {
     if (planar && !(has("x") && has("y") && !has("lat") && !has("lon"))) problems.push(`${place.id}: planar instances need x and y (and no lat/lon)`);
     if (!planar && !(has("lat") && has("lon") && !has("x") && !has("y"))) problems.push(`${place.id}: geographic instances need lat and lon (and no x/y)`);
   }
+  for (const c of doc.clients) if ((c.prize ?? 0) > 0 && c.required !== false) problems.push(`client ${c.id} has a prize but is required: set required to false to let it be skipped, or remove the prize`);
   const known = new Set(dims);
   for (const c of doc.clients) for (const key of Object.keys(c.delivery ?? {})) if (!known.has(key)) problems.push(`client ${c.id} delivers unknown dimension "${key}"`);
   for (const v of doc.vehicle_types) {

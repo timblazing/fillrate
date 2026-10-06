@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-depots", "lab-reloads"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-depots", "lab-reloads", "lab-prizes"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1296,6 +1296,81 @@ async function labReloadsFlow(baseURL, runKey) {
   console.log(`  passed: reloads 1 van/4 trips objective ${a.objective.total}; no reloads 4 vans objective ${b.objective.total}; comparison, run page and reset`);
 }
 
+// Solver Lab optional clients (M6): the lesson starts the low-prize example and its high-prize twin from the page; the
+// persisted validated results are what the page compares, and the lab run page lists visited and skipped clients and
+// separates the nominal cost from uncollected prizes. Every number is checked against tests/test_lab_examples.py.
+async function labPrizesFlow(baseURL, runKey) {
+  console.log("Browser smoke: Solver Lab optional visits lesson");
+  beginBrowserFlow("lab-prizes");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const keyed = `key=${encodeURIComponent(runKey)}`;
+  const doneRun = (id, label) => poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${id}?${keyed}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), label);
+  const labLinks = () => { const raw = evalValue(`JSON.stringify([...document.querySelectorAll('a[href^="/labs/"]')].map((a) => a.getAttribute('href').split('/').pop().split('?')[0]))`); return typeof raw === "string" ? JSON.parse(raw) : raw; };
+  open(`${baseURL}/learn/optional-visits?${keyed}`);
+  expect(snapshot().includes('heading "Optional visits and prizes"'), "Optional visits lesson did not load.");
+  let page = String(parsedText());
+  expect(page.includes("optional, prize 60") && page.includes("clients[].prize") && page.includes("Not modeled:"), "Lesson is missing its client table or model fields.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  clickButtonCentered("Run with prize 60");
+  browser("wait", "--text", "Open low-prize run", "--timeout", "20000");
+  const [lowId] = labLinks();
+  expect(/^[0-9a-f-]{36}$/.test(lowId ?? ""), `Low-prize run link is unexpected: ${lowId}`);
+  const low = await doneRun(lowId, "Low-prize lab run");
+  expect(low.status === "succeeded" && low.example === "prizes", `Low-prize run did not succeed: ${JSON.stringify(low).slice(0, 800)}`);
+  const a = low.result, ao = a.objective;
+  expect(a.validated_feasible && a.solver_feasible && a.violations.length === 0 && a.totals.routes === 1 && a.totals.clients_served === 5 && a.skipped.map((x) => x.client_id).join() === "P-6,P-7,P-8" && ao.total === 315 && ao.uncollected_prizes === 180 && ao.prizes_collected === 0 && ao.objective_with_prizes === 495 && a.solver.nominal_cost === 315,
+    `Low-prize plan should skip the 3 remote stops, nominal 315 + 180 uncollected: ${JSON.stringify(ao)} ${JSON.stringify(a.skipped)}`);
+
+  clickButtonCentered("Run with prize 400");
+  browser("wait", "--text", "Open high-prize run", "--timeout", "20000");
+  const highId = labLinks().find((id) => id !== lowId);
+  expect(/^[0-9a-f-]{36}$/.test(highId ?? ""), `High-prize run link is unexpected: ${highId}`);
+  const high = await doneRun(highId, "High-prize lab run");
+  expect(high.status === "succeeded" && high.example === "prizes_high", `High-prize run did not succeed: ${JSON.stringify(high).slice(0, 800)}`);
+  const b = high.result, bo = b.objective;
+  expect(b.validated_feasible && b.skipped.length === 0 && b.totals.clients_served === 8 && b.totals.routes === 2 && bo.total === 800 && bo.uncollected_prizes === 0 && bo.prizes_collected === 1200 && b.problem_fingerprint !== a.problem_fingerprint,
+    `High-prize plan should visit all 8 stops, nominal 800: ${JSON.stringify(bo)}`);
+
+  // The page's side-by-side comparison reads the same persisted runs.
+  browser("wait", "--text", "Side by side", "--timeout", "20000");
+  const cell = (key, id) => String(evalValue(`document.querySelector('[data-testid="prizes-${key}-${id}"]')?.innerText ?? ""`));
+  expect(cell("low", "nominal") === "315" && cell("high", "nominal") === "800" && cell("low", "uncollected") === "180" && cell("high", "uncollected") === "0" && cell("low", "objective") === "495" && cell("high", "objective") === "800" && cell("low", "visited") === "5 of 8" && cell("high", "visited") === "8 of 8" && cell("low", "skipped") === "P-6, P-7, P-8" && cell("high", "collected") === "1,200",
+    `Comparison cells do not match the persisted results: ${cell("low", "nominal")} / ${cell("high", "nominal")}`);
+  expect(Number(evalValue("document.querySelectorAll('svg circle[data-skipped]').length")) === 3, "The low-prize plot should draw 3 skipped clients as dashed circles.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("optional visits lesson");
+
+  // The run page lists visited and skipped optional clients and separates prizes from the nominal cost.
+  open(`${baseURL}/labs/${lowId}?${keyed}`);
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes("Optional clients: 0 visited, 3 skipped") && page.includes("Skipped: prize missed") && page.includes("Objective PyVRP minimizes"), "Run page does not show skipped clients and the prize terms.");
+  const text = (id) => String(evalValue(`document.querySelector('[data-testid="${id}"]')?.innerText ?? ""`));
+  expect(text("lab-objective-total") === "315" && text("lab-uncollected-prizes") === "180" && text("lab-objective-with-prizes") === "495" && text("lab-prizes-collected") === "0", "Run page prize terms do not match the persisted result.");
+  expect(text("lab-optional-P-7").includes("Skipped") && Number(evalValue("document.querySelectorAll('[data-testid=\"lab-optional\"] tbody tr').length")) === 3, "Optional clients table should list 3 skipped stops.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  open(`${baseURL}/labs/${highId}?${keyed}`);
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes("Optional clients: 3 visited, 0 skipped") && text("lab-prizes-collected") === "1,200" && text("lab-optional-P-6").includes("Visited") && text("lab-uncollected-prizes") === "0", "High-prize run page should show the 3 optional stops visited.");
+  assertViewport(1440, 900);
+
+  // Reset forgets the started runs but keeps them stored.
+  open(`${baseURL}/learn/optional-visits?${keyed}`);
+  browser("wait", "--text", "Open low-prize run", "--timeout", "20000");
+  clickButtonCentered("Reset lesson");
+  browser("wait", "--text", "Run steps 1 and 2 first", "--timeout", "10000");
+  expect(!String(parsedText()).includes("Open low-prize run"), "Reset should forget the started runs.");
+  checkBrowserDiagnostics("optional visits run page");
+  console.log(`  passed: prize 60 skips 3 stops (nominal ${ao.total} + ${ao.uncollected_prizes} uncollected); prize 400 visits all (nominal ${bo.total}); comparison, run pages and reset`);
+}
+
 // Manual plan evaluator (spec §10) and the manual versus optimized routes lesson: the lesson's dispatcher plans are
 // evaluated through the page, then the run's Manual plan tab is edited from the keyboard and evaluated. Every
 // number is checked against the persisted run and services/optimizer/tests/test_lesson_manual.py.
@@ -1504,6 +1579,7 @@ try {
     if (flow === "warm-start") await warmStartFlow(baseURL, runKey);
     if (flow === "lab-depots") await labDepotsFlow(baseURL, runKey);
     if (flow === "lab-reloads") await labReloadsFlow(baseURL, runKey);
+    if (flow === "lab-prizes") await labPrizesFlow(baseURL, runKey);
   }
   await stop();
 } catch (error) {

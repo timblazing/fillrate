@@ -496,6 +496,62 @@ def test_reload_fields_are_checked():
         planar([client("a", 1, 1, load=1)], [van | {"max_reloads": 2}], depots=two)
 
 
+def prize_instance(prize: int) -> LabInstance:
+    """Two near required stops and one far optional stop worth ``prize`` to skip."""
+    clients = [client("a", 10, 0, load=1), client("b", 12, 3, load=1)]
+    clients.append(client("far", 100, 0, load=1) | {"required": False, "prize": prize})
+    return planar(clients, [{"id": "t", "count": 2, "capacity": {"load": 5}}])
+
+
+def test_optional_clients_are_skipped_when_the_prize_does_not_pay():
+    # The far stop's detour costs about 180 distance: a prize of 50 is not worth it, 500 is.
+    low = run_lab(prize_instance(50))
+    assert low.solver_feasible and low.validated_feasible and not low.violations
+    assert [(s.client_id, s.prize) for s in low.skipped] == [("far", 50)]
+    assert low.totals.clients_served == 2 and low.totals.clients_total == 3
+    assert low.objective.uncollected_prizes == 50 and low.objective.prizes_collected == 0
+    # Prizes are a separate term, never folded into the nominal cost.
+    assert low.objective.total == low.objective.distance_cost + low.objective.fixed_cost
+    assert low.objective.objective_with_prizes == low.objective.total + 50
+    assert low.solver.nominal_cost == low.objective.total
+    high = run_lab(prize_instance(500))
+    assert high.validated_feasible and high.skipped == []
+    assert high.objective.uncollected_prizes == 0 and high.objective.prizes_collected == 500
+    assert high.objective.total > low.objective.total
+    # Skipping at this prize would cost the low plan's nominal cost plus 500; visiting is cheaper.
+    assert high.objective.objective_with_prizes < low.objective.total + 500
+    # The prize is part of the problem; instances without optional clients keep their fingerprint.
+    assert problem_fingerprint(prize_instance(50)) != problem_fingerprint(prize_instance(500))
+
+
+def test_validator_requires_required_clients_and_reports_skipped_ones():
+    instance = prize_instance(50)
+    matrices = lab_matrices(instance)
+    skipping = validate_plan(instance, matrices, [CandidateRoute("t", ["a", "b"])])
+    assert skipping.feasible
+    assert [(s.client_id, s.prize) for s in skipping.skipped] == [("far", 50)]
+    assert skipping.objective.uncollected_prizes == 50
+    # Skipping a required client is a violation, with no prize to excuse it.
+    missing = validate_plan(instance, matrices, [CandidateRoute("t", ["a", "far"])])
+    assert [(v.code, v.client_id) for v in missing.violations] == [("client_not_visited", "b")]
+    assert missing.objective.prizes_collected == 50 and missing.skipped == []
+    twice = validate_plan(
+        instance, matrices, [CandidateRoute("t", ["a", "b", "far"]), CandidateRoute("t", ["far"])]
+    )
+    assert [(v.code, v.client_id) for v in twice.violations] == [("duplicate_visit", "far")]
+
+
+def test_prize_fields_are_checked():
+    required_prize = client("a", 1, 1, load=1) | {"prize": 5}
+    with pytest.raises(ValidationError, match="has a prize but is required"):
+        planar([required_prize], [{"id": "t", "count": 1, "capacity": {"load": 1}}])
+    with pytest.raises(ValidationError, match="Input should be a valid boolean"):
+        planar(
+            [client("a", 1, 1, load=1) | {"required": "maybe"}],
+            [{"id": "t", "count": 1, "capacity": {"load": 1}}],
+        )
+
+
 @pytest.mark.parametrize(
     ("patch", "capability"),
     [
@@ -508,7 +564,6 @@ def test_reload_fields_are_checked():
             "routing_profiles",
         ),
         ({"shipments": []}, "paired_shipments"),
-        ({"clients": [{"id": "a", "x": 1, "y": 1, "prize": 5}]}, "optional_clients"),
         ({"clients": [{"id": "a", "x": 1, "y": 1, "group": "g"}]}, "client_groups"),
     ],
 )

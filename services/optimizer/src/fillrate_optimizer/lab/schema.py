@@ -11,7 +11,7 @@ in abstract units, and one abstract time unit elapses per distance unit. Geograp
 haversine × circuity in meters and constant-speed durations in seconds. Costs are integers in
 `cost_unit`.
 
-Adding a capability (optional clients, client groups, shipments) adds
+Adding a capability (client groups, shipments) adds
 fields here and removes their entry from ``PLANNED_FIELDS``; see docs/solver-lab.md.
 """
 
@@ -44,8 +44,6 @@ PLANNED_FIELDS: dict[tuple[str, str], str] = {
     ("instance", "groups"): "client_groups",
     ("instance", "client_groups"): "client_groups",
     ("client", "pickup"): "pickups_and_deliveries",
-    ("client", "prize"): "optional_clients",
-    ("client", "required"): "optional_clients",
     ("client", "group"): "client_groups",
     ("client", "tw_early"): "lab_time_windows",
     ("client", "tw_late"): "lab_time_windows",
@@ -115,6 +113,19 @@ class LabClient(LabDoc):
     delivery: dict[str, Amount] = Field(default_factory=dict)
     # Duration units: abstract (planar) or seconds (geographic).
     service_duration: Amount = 0
+    # Optional visits (PyVRP Client.required/prize). Absent means a required client with no prize.
+    # An optional client (``required: false``) may be skipped; the solver then pays its ``prize``
+    # (in the instance's cost unit) as an uncollected prize. Prizes are never folded into costs.
+    required: bool | None = None
+    prize: Amount | None = None
+
+    @property
+    def is_required(self) -> bool:
+        return self.required is not False
+
+    @property
+    def prize_value(self) -> int:
+        return self.prize or 0
 
 
 class LabVehicleType(LabDoc):
@@ -284,12 +295,25 @@ class LabRoute(LabDoc):
 class LabObjective(LabDoc):
     """Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle
     its fixed cost, plus unit_distance_cost × route distance and unit_duration_cost × route
-    duration. Infeasibility penalties are never part of it."""
+    duration. ``total`` is this nominal cost only. Infeasibility penalties are never part of it.
+    With optional clients PyVRP minimizes ``total`` plus the prizes of the clients it skips:
+    ``uncollected_prizes`` is reported as its own term and ``objective_with_prizes`` is the sum
+    PyVRP optimized. Prizes are in the instance's cost unit but are never costs."""
 
     fixed_cost: int
     distance_cost: int
     duration_cost: int
     total: int
+    uncollected_prizes: int = 0
+    prizes_collected: int = 0
+    objective_with_prizes: int | None = None
+
+
+class LabSkipped(LabDoc):
+    """An optional client that no route visits, and the prize forgone."""
+
+    client_id: str
+    prize: int
 
 
 class LabFleetUse(LabDoc):
@@ -347,6 +371,8 @@ class LabResult(LabDoc):
     validated_feasible: bool
     violations: list[LabViolation]
     objective: LabObjective
+    # Optional clients not visited (empty unless the instance has optional clients).
+    skipped: list[LabSkipped] = Field(default_factory=list)
     totals: LabTotals
     fleet: list[LabFleetUse]
     routes: list[LabRoute]

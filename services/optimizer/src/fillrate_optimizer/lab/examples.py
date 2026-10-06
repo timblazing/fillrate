@@ -19,6 +19,12 @@
   at the yard up to 3 times, so it makes four trips. ``reloads(allowed=False)`` removes the
   reload (and the yard) and gives four vans, each with a long single trip from the DC.
 
+- ``prizes()``: a planar instance with five required stops near the depot and three optional,
+  remote stops, each with a prize of 60 cost units. The detour to the remote cluster costs far
+  more than the 180 of prizes it would collect, so the solver skips them and pays 180 of
+  uncollected prizes. ``prizes(prize=400)`` raises each prize to 400, so the same solver visits
+  all three and collects 1,200.
+
 The observations each page states are asserted in tests/test_lab_examples.py. Regenerate with
 `uv run python -m fillrate_optimizer.lab.examples` (writes examples/lab-*.json).
 """
@@ -110,6 +116,19 @@ RELOAD_CLIENTS = [
     ("R-8", "Store", 90, -28, 5),
 ]
 RELOAD_VAN_CAPACITY = 10
+
+# id, label, x, y, parcels, optional
+PRIZE_CLIENTS = [
+    ("P-1", "Nearby stop", 25, 10, 2, False),
+    ("P-2", "Nearby stop", 35, -15, 2, False),
+    ("P-3", "Nearby stop", -20, 25, 2, False),
+    ("P-4", "Nearby stop", -30, -20, 2, False),
+    ("P-5", "Nearby stop", 10, 40, 2, False),
+    ("P-6", "Remote stop", 190, 10, 2, True),
+    ("P-7", "Remote stop", 200, -12, 2, True),
+    ("P-8", "Remote stop", 215, 4, 2, True),
+]
+PRIZE_VAN_CAPACITY = 10
 
 # An iteration budget makes results repeat across machines; the runtime is only a safety cap.
 SOLVER = {"seed": 0, "max_iterations": 2_000, "max_runtime_s": 30}
@@ -292,6 +311,46 @@ def reloads(allowed: bool = True) -> LabInstance:
     )
 
 
+def prizes(prize: int = 60) -> LabInstance:
+    return LabInstance.model_validate(
+        {
+            "name": f"Optional stops, prize {prize} (planar, 8 clients)",
+            "description": (
+                "Abstract planar coordinates. Five required stops lie near the depot; three "
+                f"optional stops are far away and each carries a prize of {prize} cost units that "
+                "the solver pays if it skips the stop. Vans carry 10 parcels, cost 100 per use "
+                "and 1 per planar unit."
+            ),
+            "coordinates": "planar",
+            "dimensions": [{"id": "parcels", "label": "Parcels", "unit": "parcels"}],
+            "depots": [{"id": "depot", "label": "Depot", "x": 0, "y": 0}],
+            "clients": [
+                {
+                    "id": cid,
+                    "label": label,
+                    "x": x,
+                    "y": y,
+                    "delivery": {"parcels": parcels},
+                    "service_duration": 10,
+                }
+                | ({"required": False, "prize": prize} if optional else {})
+                for cid, label, x, y, parcels, optional in PRIZE_CLIENTS
+            ],
+            "vehicle_types": [
+                {
+                    "id": "van",
+                    "label": "Van",
+                    "count": 3,
+                    "capacity": {"parcels": PRIZE_VAN_CAPACITY},
+                    "fixed_cost": 100,
+                    "unit_distance_cost": 1,
+                }
+            ],
+            "solver": SOLVER,
+        }
+    )
+
+
 EXAMPLES = {
     "lab-dimensions.json": lambda: dimensions(True),
     "lab-dimensions-volume.json": lambda: dimensions(False),
@@ -301,6 +360,8 @@ EXAMPLES = {
     "lab-depots-single.json": lambda: depots(True),
     "lab-reloads.json": lambda: reloads(True),
     "lab-reloads-off.json": lambda: reloads(False),
+    "lab-prizes.json": lambda: prizes(60),
+    "lab-prizes-high.json": lambda: prizes(400),
 }
 
 

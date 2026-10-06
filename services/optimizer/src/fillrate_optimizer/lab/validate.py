@@ -6,7 +6,7 @@ distances, durations and the nominal objective. It never reads PyVRP's feasibili
 `lab.solve` compares those with this result separately.
 
 Each rule is a small function in ``ROUTE_CHECKS`` or ``PLAN_CHECKS`` so a later capability adds
-its own rule (reload trips, optional prizes, group membership, shipment precedence) without
+its own rule (group membership, shipment precedence) without
 editing the others.
 """
 
@@ -21,6 +21,7 @@ from .schema import (
     LabInstance,
     LabObjective,
     LabRoute,
+    LabSkipped,
     LabTotals,
     LabTrip,
     LabViolation,
@@ -60,6 +61,7 @@ class ValidatedPlan:
     objective: LabObjective
     totals: LabTotals
     fleet: list[LabFleetUse]
+    skipped: list[LabSkipped] = field(default_factory=list)
 
     @property
     def feasible(self) -> bool:
@@ -72,6 +74,12 @@ class ValidatedPlan:
 def instance_problems(instance: LabInstance) -> list[str]:
     problems: list[str] = []
     dims = instance.dimension_ids()
+    for client in instance.clients:
+        if client.prize_value and client.is_required:
+            problems.append(
+                f"client {client.id} has a prize but is required: set required to false "
+                "to let it be skipped, or remove the prize"
+            )
 
     def unique(kind: str, ids: list[str]) -> None:
         for value, n in Counter(ids).items():
@@ -293,6 +301,8 @@ def check_coverage(ctx: Context) -> None:
     seen = Counter(cid for r in ctx.candidate for cid in r.client_ids if cid in ctx.node)
     for client in ctx.instance.clients:
         if seen[client.id] == 0:
+            if not client.is_required:
+                continue  # an optional client may be skipped; its prize is reported, not flagged
             ctx.flag(
                 "client_not_visited", f"Client {client.id} is not visited.", client_id=client.id
             )
@@ -445,14 +455,28 @@ def validate_plan(
     routes = ctx.routes
     used = Counter(r.vehicle_type for r in candidate)
     dims = instance.dimension_ids()
+    visited = {v.client_id for r in routes for v in r.visits}
+    skipped = [
+        LabSkipped(client_id=c.id, prize=c.prize_value)
+        for c in instance.clients
+        if not c.is_required and c.id not in visited
+    ]
+    uncollected = sum(s.prize for s in skipped)
+    nominal = sum(r.cost for r in routes)
     return ValidatedPlan(
         routes=routes,
         violations=ctx.violations,
+        skipped=skipped,
         objective=LabObjective(
             fixed_cost=sum(r.fixed_cost for r in routes),
             distance_cost=sum(r.distance_cost for r in routes),
             duration_cost=sum(r.duration_cost for r in routes),
-            total=sum(r.cost for r in routes),
+            total=nominal,
+            uncollected_prizes=uncollected,
+            prizes_collected=sum(
+                c.prize_value for c in instance.clients if not c.is_required and c.id in visited
+            ),
+            objective_with_prizes=nominal + uncollected,
         ),
         totals=LabTotals(
             routes=len(routes),

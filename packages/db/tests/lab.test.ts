@@ -11,6 +11,7 @@ import { enqueueLabRun, isLabVersion, LAB_SETTINGS, LabInstanceError, labExample
 import { saveScenario, scenarioList, scenarioVersion } from "../src/scenarios";
 import dimensions from "../../../examples/lab-dimensions.json";
 import fleet from "../../../examples/lab-fleet.json";
+import prizes from "../../../examples/lab-prizes.json";
 import reloads from "../../../examples/lab-reloads.json";
 import depots from "../../../examples/lab-depots.json";
 import example from "../../../examples/m1-synthetic.json";
@@ -33,7 +34,9 @@ test("bundled lab examples validate; planned capabilities are refused by name", 
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], start_depot: "nowhere" }] }))?.[1]).toContain('start_depot "nowhere" is not a depot id');
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], profile: "bike" }] }))?.[1]).toContain("routing_profiles");
   expect(failure(instance({ shipments: [] }))?.[1]).toContain("planned capability paired_shipments");
-  expect(failure(instance({ clients: [{ ...dimensions.clients[0], prize: 3 }] }))?.[1]).toContain("optional_clients");
+  expect(failure(instance({ clients: [{ ...dimensions.clients[0], prize: 3, required: false }] }))).toBeNull();
+  expect(failure(instance({ clients: [{ ...dimensions.clients[0], prize: 3 }] }))?.[1]).toContain("has a prize but is required");
+  expect(validateLabInstance(structuredClone(prizes)).clients.filter(c => c.required === false)).toHaveLength(3);
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], reload_depots: ["depot"], max_reloads: 2 }] }))).toBeNull();
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], reload_depots: ["nowhere"], max_reloads: 2 }] }))?.[1]).toContain('reload depot "nowhere" is not a depot id');
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], reload_depots: ["depot"] }] }))?.[1]).toContain("need max_reloads of at least 1");

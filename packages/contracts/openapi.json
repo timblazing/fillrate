@@ -1484,6 +1484,32 @@
             "default": null,
             "title": "Lon"
           },
+          "prize": {
+            "anyOf": [
+              {
+                "maximum": 1000000000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prize"
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Required"
+          },
           "service_duration": {
             "default": 0,
             "maximum": 1000000000,
@@ -1758,7 +1784,7 @@
       },
       "LabObjective": {
         "additionalProperties": false,
-        "description": "Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle\nits fixed cost, plus unit_distance_cost \u00d7 route distance and unit_duration_cost \u00d7 route\nduration. Infeasibility penalties are never part of it.",
+        "description": "Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle\nits fixed cost, plus unit_distance_cost \u00d7 route distance and unit_duration_cost \u00d7 route\nduration. ``total`` is this nominal cost only. Infeasibility penalties are never part of it.\nWith optional clients PyVRP minimizes ``total`` plus the prizes of the clients it skips:\n``uncollected_prizes`` is reported as its own term and ``objective_with_prizes`` is the sum\nPyVRP optimized. Prizes are in the instance's cost unit but are never costs.",
         "properties": {
           "distance_cost": {
             "title": "Distance Cost",
@@ -1772,8 +1798,30 @@
             "title": "Fixed Cost",
             "type": "integer"
           },
+          "objective_with_prizes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Objective With Prizes"
+          },
+          "prizes_collected": {
+            "default": 0,
+            "title": "Prizes Collected",
+            "type": "integer"
+          },
           "total": {
             "title": "Total",
+            "type": "integer"
+          },
+          "uncollected_prizes": {
+            "default": 0,
+            "title": "Uncollected Prizes",
             "type": "integer"
           }
         },
@@ -1840,6 +1888,13 @@
             "default": 1,
             "title": "Schema Version",
             "type": "integer"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/LabSkipped"
+            },
+            "title": "Skipped",
+            "type": "array"
           },
           "solver": {
             "$ref": "#/components/schemas/LabSolverInfo"
@@ -1995,6 +2050,26 @@
           "cost"
         ],
         "title": "LabRoute",
+        "type": "object"
+      },
+      "LabSkipped": {
+        "additionalProperties": false,
+        "description": "An optional client that no route visits, and the prize forgone.",
+        "properties": {
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "prize": {
+            "title": "Prize",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_id",
+          "prize"
+        ],
+        "title": "LabSkipped",
         "type": "object"
       },
       "LabSolver": {

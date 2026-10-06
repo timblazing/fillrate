@@ -56,6 +56,7 @@ def check_range(instance: LabInstance, matrices: LabMatrices) -> None:
             vt.fixed_cost + vt.unit_distance_cost * longest + vt.unit_duration_cost * slowest
         )
         worst += vt.count * per_route
+    worst += sum(c.prize_value for c in instance.clients)
     if worst >= MAX_VALUE // 4:
         raise LabBuildError(
             "objective_out_of_range",
@@ -80,6 +81,8 @@ def add_clients(model: pyvrp.Model, instance: LabInstance, locations: list) -> l
             locations[len(instance.depots) + i],
             delivery=instance.delivery_vector(client),
             service_duration=client.service_duration,
+            prize=client.prize_value,
+            required=client.is_required,
             name=client.id,
         )
         for i, client in enumerate(instance.clients)

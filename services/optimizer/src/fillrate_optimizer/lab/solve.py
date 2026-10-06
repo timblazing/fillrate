@@ -23,6 +23,10 @@ OBJECTIVE_DEFINITION = (
     "pyvrp-0.14 nominal: sum over used vehicles of fixed_cost + unit_distance_cost × distance "
     "+ unit_duration_cost × duration; closed routes"
 )
+PRIZE_DEFINITION = (
+    "; optional clients may be skipped and their prizes are added to the objective as uncollected "
+    "prizes, separately from costs"
+)
 
 
 class LabError(Exception):
@@ -35,6 +39,7 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
     """Identity of the mathematical problem (spec §10): visits, demands, fleet, raw matrices and
     objective definition. Names, labels, descriptions and solver settings are excluded."""
     matrices = matrices or lab_matrices(instance)
+    has_optional = any(not c.is_required for c in instance.clients)
     return content_hash(
         {
             "schema": "fillrate.lab.problem/1",
@@ -46,6 +51,8 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
                     "id": c.id,
                     "delivery": instance.delivery_vector(c),
                     "service_duration": c.service_duration,
+                    # Optional visits only, so instances without them keep their fingerprints.
+                    **({"required": False, "prize": c.prize_value} if not c.is_required else {}),
                 }
                 for c in instance.clients
             ],
@@ -79,7 +86,7 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
                 for v in instance.vehicle_types
             ],
             "matrix": matrices.identity(),
-            "objective": OBJECTIVE_DEFINITION,
+            "objective": OBJECTIVE_DEFINITION + (PRIZE_DEFINITION if has_optional else ""),
             "cost_unit": instance.cost_unit,
         }
     )
@@ -160,6 +167,19 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
                     )
                 )
 
+    # Prizes: PyVRP's uncollected and collected prizes must equal the recomputation.
+    for what, ours, theirs in (
+        ("uncollected prizes", plan.objective.uncollected_prizes, int(best.uncollected_prizes())),
+        ("collected prizes", plan.objective.prizes_collected, int(best.prizes())),
+    ):
+        if ours != theirs:
+            mismatches.append(
+                LabViolation(
+                    code="solver_mismatch",
+                    message=f"PyVRP reports {what} {theirs}; recomputed {ours}.",
+                )
+            )
+
     iterations = int(result.num_iterations)
     stopped = (
         "iterations"
@@ -181,6 +201,7 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
         validated_feasible=not violations,
         violations=violations,
         objective=plan.objective,
+        skipped=plan.skipped,
         totals=plan.totals,
         fleet=plan.fleet,
         routes=plan.routes,

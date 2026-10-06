@@ -332,6 +332,26 @@ BEHAVIORS = [
         ],
         fixture="tests/test_lab.py::test_reloads_let_one_vehicle_serve_more_than_its_capacity",
     ),
+    Behavior(
+        id="optional_clients",
+        provided_by="native",
+        description=(
+            "Lab clients may be optional (PyVRP Client required=false with a prize): the solver "
+            "may skip them, and the prize of every skipped client is added to PyVRP's objective "
+            "as an uncollected prize. Fillrate reports the nominal cost, the uncollected prizes "
+            "and their sum as separate terms and lists the skipped clients; the validator "
+            "requires every required client to be visited."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline has no optional visits.",
+            "A prize is in the instance's cost unit but is never part of a cost: the nominal "
+            "objective excludes it and the sum is shown beside it.",
+            "A required client cannot carry a prize; an optional client with no prize is "
+            "skipped unless visiting it is free.",
+            "Heuristic: a skipped client was judged not worth its detour, not proven so.",
+        ],
+        fixture="tests/test_lab.py::test_optional_clients_are_skipped_when_the_prize_does_not_pay",
+    ),
     *[
         Behavior(
             id=capability,
@@ -341,7 +361,6 @@ BEHAVIORS = [
             fixture=None,
         )
         for capability, text in (
-            ("optional_clients", "optional visits with prizes"),
             ("client_groups", "mutually exclusive client groups"),
             ("paired_shipments", "pickup and delivery pairs"),
             ("pickups_and_deliveries", "client pickup loads beside deliveries"),
