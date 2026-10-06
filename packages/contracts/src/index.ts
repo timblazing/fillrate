@@ -18,6 +18,10 @@ export type EvaluateRequest = components["schemas"]["EvaluateRequest"];
 export type EvaluateResponse = components["schemas"]["EvaluateResponse"];
 export type PlanEvaluation = components["schemas"]["PlanEvaluation"];
 export type PlanViolation = components["schemas"]["PlanViolation"];
+// Valhalla road geometry for one inspected truck (FastAPI /route-geometry, spec §4, §7).
+export type RouteGeometryRequest = components["schemas"]["RouteGeometryRequest"];
+export type RouteGeometryResponse = components["schemas"]["RouteGeometryResponse"];
+export type GeometryLeg = components["schemas"]["GeometryLeg"];
 export type LabInstance = components["schemas"]["LabInstance"];
 export type LabResult = components["schemas"]["LabResult"];
 export type WarmStartSource = components["schemas"]["WarmStartSource"];

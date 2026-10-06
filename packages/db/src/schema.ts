@@ -89,6 +89,16 @@ export const experimentRuns = sqliteTable("experiment_runs", {
   id: text().primaryKey(), experimentId: text().notNull().references(() => experiments.id),
   runId: text().notNull().unique().references(() => runs.id), position: integer().notNull(), varied: text().notNull(),
 }, t => [uniqueIndex("experiment_position").on(t.experimentId, t.position)]);
+// Saved manual baselines (spec §10, M6): a hand-edited plan for one cluster of a succeeded run, saved with the
+// evaluator's outcome at save time. Strictly owner-scoped (a bundled example's run may be baselined, but the
+// baseline belongs to whoever saved it). `valid` is the evaluator's verdict; only a valid baseline can be a warm
+// start source, and saving never implies solver feasibility.
+export const manualBaselines = sqliteTable("manual_baselines", {
+  id: text().primaryKey(), ownerId: text().notNull(), runId: text().notNull().references(() => runs.id),
+  clusterId: text().notNull(), name: text().notNull(), plan: text().notNull(), evaluation: text().notNull(),
+  valid: integer({mode: "boolean"}).notNull(), idempotencyKey: text().notNull().unique(), requestHash: text().notNull(),
+  createdAt: integer().notNull(),
+}, t => [index("baselines_by_run_owner").on(t.runId, t.ownerId, t.createdAt), index("baselines_by_owner").on(t.ownerId)]);
 // Global (not per-client) submission ledger for public rate limits; access never depends on forwarded headers.
 export const rateEvents = sqliteTable("rate_events", {
   id: text().primaryKey(), bucket: text().notNull(), cost: integer().notNull(), at: integer().notNull(),
@@ -121,6 +131,15 @@ export const travelSnapshots = sqliteTable("travel_snapshots", {
 export const travelSnapshotOwners = sqliteTable("travel_snapshot_owners", {
   snapshotId: text().notNull().references(() => travelSnapshots.id), ownerId: text().notNull(), createdAt: integer().notNull(),
 }, t => [primaryKey({ columns: [t.snapshotId, t.ownerId] }), index("snapshot_owner").on(t.ownerId)]);
+
+// Valhalla road geometry for one inspected truck (spec §4, §7), cached apart from run results. `key` is a
+// content hash of run, truck, snapshot identity and deployment identity; the payload is a content-addressed
+// artifact. Rows go with their run and are never read without the run's read check.
+export const routeGeometry = sqliteTable("route_geometry", {
+  key: text().primaryKey(), runId: text().notNull().references(() => runs.id), truckId: text().notNull(),
+  snapshotId: text().notNull(), deployment: text().notNull(), artifactHash: text().notNull().references(() => artifacts.hash),
+  createdAt: integer().notNull(),
+}, t => [index("route_geometry_by_run").on(t.runId)]);
 
 // Better Auth tables (hosted mode only; local mode never writes them). Column names follow Better Auth's
 // Drizzle SQLite schema. Owner IDs elsewhere are "user:" + user.id, so the provider stays replaceable.

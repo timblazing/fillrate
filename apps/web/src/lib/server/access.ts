@@ -201,6 +201,22 @@ export function evaluationAdmission(who: Principal, onExample: boolean): Admissi
   throw new ApiError(403, "forbidden", "A valid run key is required.")
 }
 
+/**
+ * Road geometry fetches (spec §7: fetched only for inspected solutions): bounded synchronous Valhalla work on a run
+ * the caller can read. Same budgeting as plan evaluation, with its own buckets.
+ */
+export function geometryAdmission(who: Principal, onExample: boolean): Admission | undefined {
+  const q = quotas()
+  if (who.kind === "user") return { ownerId: who.ownerId!, buckets: [day(`geometry:${who.ownerId}`, q.geometryFetchesPerDay, "daily road geometry fetches")] }
+  if (who.ownerId || who.runKey) return undefined
+  if (onExample && process.env.PUBLIC_SYNTHETIC_RUNS === "1")
+    return { ownerId: PUBLIC_OWNER, buckets: [{ bucket: "public:geometry:hour", limit: q.publicGeometryFetchesPerHour, windowMs: 3_600_000, label: "hourly public road geometry fetches" }] }
+  if (who.kind === "pending") throw accessError(who)
+  if (mode().mode === "hosted") throw new ApiError(401, "sign_in_required", "Sign in to fetch road geometry.")
+  if (!process.env.RUN_KEY) throw new ApiError(503, "runs_disabled", "Road geometry is not enabled on this server.")
+  throw new ApiError(403, "forbidden", "A valid run key is required.")
+}
+
 /** Quota status for the account page and `GET /api/v1/me`. */
 export function usage(store: Store, who: Principal) {
   if (who.kind !== "user") return null
@@ -214,6 +230,7 @@ export function usage(store: Store, who: Principal) {
     saves: read("save", q.savesPerDay),
     uploads: read("upload", q.uploadsPerDay),
     evaluations: read("evaluate", q.evaluationsPerDay),
+    geometry: read("geometry", q.geometryFetchesPerDay),
     upload_bytes: q.uploadBytes,
     max_sweep_runs: q.maxSweepRuns,
   }

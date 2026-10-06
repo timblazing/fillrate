@@ -3,6 +3,7 @@
 // replay script. k explorer jobs get their own bundle (`explorerReplayBundle`, M7). It runs without web credentials, network or live geocoding.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { createHash } from "node:crypto";
 import { crc32, deflateRawSync } from "node:zlib";
 import type { ExplorerSettings, ExplorerSummary, RunSummary } from "@fillrate/contracts";
 import type { Store } from "./index";
@@ -57,6 +58,9 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
     travel: snapshotId ? { provider: "snapshot", snapshot_id: snapshotId, summary: summary.travel ?? null } : { provider: "estimated", circuity: (settings as { travel_circuity?: number }).travel_circuity ?? 1.2 },
     iteration_based: Boolean((settings as { solver_max_iterations?: number | null }).solver_max_iterations),
     ...(warm ? { warm_start: warm } : {}),
+    // A fleet is part of the problem: its identity (hash of the vehicle types) must reproduce; trucks per type are
+    // solver results checked only for exact runs (fillrate_optimizer.replay).
+    ...(summary.fleet_usage && summary.settings.fleet ? { fleet: { id: createHash("sha256").update(canonical(summary.settings.fleet)).digest("hex"), usage: Object.fromEntries(summary.fleet_usage.map(u => [u.id, u.trucks])) } } : {}),
   };
   const json = (value: unknown) => Buffer.from(JSON.stringify(value, null, 1) + "\n");
   const files: [string, Buffer, boolean?][] = [
@@ -199,6 +203,8 @@ The script reruns the pipeline and checks:
    run on a directed travel snapshot, the snapshot in \`travel-snapshot.json\`: it must hash to the
    recorded identity and the recorded travel provenance must reproduce. A bundle that declared
    another provider would be refused instead of replayed with estimated travel.
+4. A run with a vehicle-type fleet in \`settings.json\` must reproduce the recorded fleet identity; the
+   trucks used per type are compared only when the run reproduces exactly.
 
 ${iterationBased
     ? "This run used an iteration budget, so on the same pinned versions and platform the solve is expected to reproduce exactly. A difference is reported and fails the replay."

@@ -90,11 +90,14 @@ def test_js_number_fast_path_matches_the_exact_formatter():
         assert js_number(value) == js_number_exact(value), value
 
 
-def test_directed_road_travel_stays_planned_until_browser_selection_exists():
+def test_directed_road_travel_is_implemented_with_its_restrictions():
     behavior = next(b for b in capabilities().behaviors if b.id == "directed_road_travel")
-    assert behavior.availability == "planned"
-    assert capabilities().travel_modes == ["haversine"]
-    assert any("browser" in text for text in behavior.restrictions)
+    assert behavior.availability == "implemented" and behavior.fixture
+    module, _, test = behavior.fixture.partition("::")
+    assert module == "tests/test_travel_snapshots.py" and test in globals()
+    assert capabilities().travel_modes == ["haversine", "imported", "valhalla"]
+    assert any("Static matrices only" in text for text in behavior.restrictions)
+    assert any("owner's production deployment is not verified" in t for t in behavior.restrictions)
 
 
 # ---- reachability uses the selected directed matrix ----------------------------------------------

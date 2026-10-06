@@ -8,20 +8,28 @@ import { TruckRouteTimeline } from "@/components/lab/truck-route-timeline"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { buildTimeline, cursorAt, formatDriveTime, timingSource } from "@/lib/timeline"
+import { legPaths, roadLabel as labelOf } from "@/lib/road-geometry"
+import { buildTimeline, cursorAt, formatDriveTime, timingSource, withRoadPaths } from "@/lib/timeline"
 import { formatFeet } from "@/lib/units"
+
+import { type RoadGeometry, RoadGeometryControl } from "./road-geometry"
 
 const TimelineMap = dynamic(() => import("./timeline-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
 /** Timeline tab: pick a shipment, scrub its planned route, and watch the map marker follow the cursor. */
-export function TimelinePanel({ summary }: { summary: RunSummary }) {
+export function TimelinePanel({ summary, geo, canFetch }: { summary: RunSummary; geo: RoadGeometry; canFetch: boolean }) {
   const trucks = summary.trucks
   const [truckId, setTruckId] = useState(trucks[0]?.id ?? "")
   const [cursor, setCursor] = useState(0)
   const places = useMemo(() => new globalThis.Map(summary.locations.map((l) => [l.id, l])), [summary])
   const truck = trucks.find((t) => t.id === truckId) ?? trucks[0]
-  const timeline = useMemo(() => (truck ? buildTimeline(truck, summary.depot, places, summary.time) : null), [truck, summary.depot, places, summary.time])
-  const source = timingSource(summary.travel)
+  const base = useMemo(() => (truck ? buildTimeline(truck, summary.depot, places, summary.time) : null), [truck, summary.depot, places, summary.time])
+  // Fetched road geometry only changes the drawn line and the cursor's path; timing stays the planned leg durations.
+  const geometry = truck ? geo.geometries[truck.id] : undefined
+  const roadShown = !!truck && !!geometry && geo.shown.has(truck.id)
+  const timeline = useMemo(() => (base && roadShown && geometry ? withRoadPaths(base, legPaths(geometry, base.stops.length)) : base), [base, roadShown, geometry])
+  const roadLabel = roadShown && geometry ? labelOf(geometry) : null
+  const source = timingSource(summary.travel, roadLabel)
 
   if (summary.validity === "invalid") {
     return (
@@ -84,11 +92,12 @@ export function TimelinePanel({ summary }: { summary: RunSummary }) {
         </div>
         <div className="h-[320px] overflow-hidden rounded-xl border sm:h-[400px] xl:h-auto xl:min-h-[440px] xl:flex-1">
           {timeline.located ? (
-            <TimelineMap timeline={timeline} cursor={state} routeIndex={clusterIndex} depotLabel={summary.depot.label} />
+            <TimelineMap timeline={timeline} cursor={state} routeIndex={clusterIndex} depotLabel={summary.depot.label} roadLabel={roadLabel} />
           ) : (
             <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-center text-sm">Map unavailable: a stop on this shipment has no coordinates.</div>
           )}
         </div>
+        <RoadGeometryControl geo={geo} truckId={truck.id} canFetch={canFetch} />
       </div>
       <TruckRouteTimeline timeline={timeline} source={source} cursor={cursor} onCursorChange={setCursor} depotLabel={summary.depot.label} clock={summary.time} />
     </div>

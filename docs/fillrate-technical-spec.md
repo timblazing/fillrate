@@ -349,7 +349,7 @@ The default objective is lexicographic: among validated plans for the **same man
 
 For the initial one-depot, homogeneous, open, distance-only model, implement this with a **derived dominance penalty**, not an arbitrary large cost. If there are n mandatory visits and the allowed physical-leg bound is L integer meters, a feasible open solution has n physical legs, so its distance is at most `B = n × L`. Set fixed truck penalty `F = B + 1`; objective is `F × trucks + physical distance`. Thus every feasible solution with fewer trucks outranks any feasible solution with more trucks. Record B, F, units, and the proof's assumptions. Check edge and total-objective ranges against pinned solver bounds; reject unsupported ranges rather than overflowing or silently weakening precedence. When a tighter bound is used, record its derivation.
 
-That scalarization orders **feasible** solutions only. Missing-edge penalties and solver infeasibility penalties must never override independent validation. The current spike defaults its fixed penalty to zero; integrating this objective is M1 follow-up, not already implemented. When trips, optional visits, monetary rates, or heterogeneous fleets change the assumptions, disable this adapter mode until a new bound or staged strategy is proven.
+That scalarization orders **feasible** solutions only. Missing-edge penalties and solver infeasibility penalties must never override independent validation. The current spike defaults its fixed penalty to zero; integrating this objective is M1 follow-up, not already implemented. When trips, optional visits, or monetary rates change the assumptions, disable this adapter mode until a new bound or staged strategy is proven. A heterogeneous fleet of vehicle types (M6) keeps the bound: every type carries the same F = n·L + 1, so any feasible plan's distance stays below F whatever the types and the truck count still dominates (see docs/decisions.md, "Fleet counts are fleet-wide").
 
 An advanced `weighted_distance` mode uses an explicit fixed penalty measured in equivalent miles/meters per truck, plus route distance. Require a user-supplied nonnegative penalty (zero is valid and means distance only); explain that an extra truck can win if it saves enough miles. Do not call the penalty a dollar cost. A monetary `cost` objective (integer cents per truck plus cents per mile) is the primary user's stated preference and lands in M3. For the current one-depot, homogeneous, open, distance-only model it is `weighted_distance` with penalty = truck cost ÷ mile cost, so it reuses that adapter; the UI shows dollars and records both rates and the conversion scale. Duration rates and heterogeneous fleet costs stay in M6.
 
@@ -516,7 +516,7 @@ Local mode needs no third-party secrets; hosted GitHub OAuth requires credential
 
 ### Hosted accounts and local mode (v1.10)
 
-The free hosted service retains server-side SQLite scenarios, immutable versions, jobs and results. Use Better Auth with Next.js and the Drizzle SQLite adapter for account/session handling. Start with GitHub OAuth to avoid an email delivery/password-reset service; retain a provider-neutral user ID. Authentication is required for hosted personal scenario imports, saved data, runs, sweeps, geocoding, matrices and private exports. Synthetic lessons remain publicly readable; anonymous compute, if retained, uses a separate tightly bounded demonstration budget. Account registration is free; no subscriptions or billing are planned.
+The free hosted service retains server-side SQLite scenarios, immutable versions, jobs and results. Use Better Auth with Next.js and the Drizzle SQLite adapter for account/session handling. Start with GitHub OAuth to avoid an email delivery/password-reset service; retain a provider-neutral user ID. Authentication is required for hosted personal scenario imports, saved data, runs, sweeps, geocoding, matrices and private exports. Hosted pages are limited to the landing page, privacy, `/dev` and `/dev/components` for unauthenticated visitors. Lessons and all product pages require authentication and approved access. The landing hero starts GitHub authentication under “Request access”; authenticated pending users can reach `/request-access`. Anonymous API demonstration budgets remain separately bounded. Account registration is free; no subscriptions or billing are planned.
 
 Authorization belongs in server endpoints and database queries, never in browser IDs or UI visibility. Bind scenarios, versions, jobs, artifacts, experiments, travel snapshots and exports to an authenticated owner. Check ownership on list/read/write/download/cancel, cache reuse, replay and worker job admission; guessed IDs and content hashes must not expose another account's data. Do not automatically claim existing operator data for the first signup. Keep it operator-only pending an explicit migration. Python remains a private worker and never opens SQLite.
 
@@ -563,13 +563,13 @@ services:
     volumes: ["./data:/data"]
     env_file: [{ path: .env, required: false }]
   valhalla:                              # enabled with `docker compose --profile valhalla up -d`
-    image: ghcr.io/valhalla/valhalla-scripted:<pinned tag>
+    image: ghcr.io/valhalla/valhalla-scripted:3.9.0@sha256:89daaf61…  # pinned multi-arch index
     profiles: ["valhalla"]
     restart: unless-stopped
-    volumes: ["./valhalla:/custom_files"] # extracts and config from deploy/valhalla/prepare.sh; tiles built on first start
+    volumes: ["${VALHALLA_DATA:-./valhalla-data}:/custom_files"] # extracts and config from deploy/valhalla/prepare.sh; tiles built on first start
 ```
 
-When the `valhalla` profile is used, set `VALHALLA_URL=http://valhalla:8002` in `.env`. The Valhalla service publishes no host port. Verify the pinned tag has an arm64 variant (the Raspberry Pi target) and record the result.
+When the `valhalla` profile is used, add the lines printed by `deploy/valhalla/prepare.sh env` (including `VALHALLA_URL=http://valhalla:8002`) to `.env`. The Valhalla service publishes no host port. The pinned 3.9.0 index has linux/amd64 and linux/arm64 variants (checked 2026-10-05; the arm64 image ran on Apple silicon, see `docs/valhalla.md`).
 
 The repository and GHCR image are public, so servers pull without a registry login. Real delivery data, customer addresses, and derived matrices never go into the repository, test fixtures, lesson data, or the image. Lessons use synthetic or public data. Real data exists only in the deployment's `/data` volume and in user-initiated exports.
 

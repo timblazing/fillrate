@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs", "baselines", "fleet", "road-geometry"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -23,6 +23,8 @@ const children = new Set();
 const sessions = new Set();
 let session;
 let stopping;
+let smokeBaseURL;
+let smokeOperatorKey;
 const testSecrets = [];
 const redact = (value) => testSecrets.reduce((text, secret) => text.replaceAll(secret, "[test-key]"), String(value));
 
@@ -131,6 +133,8 @@ function beginBrowserFlow(name) {
   if (session) spawnSync(agentBrowser, ["--session", session, "close"], { stdio: "ignore", timeout: 10_000 });
   session = `fillrate-${process.pid}-${name}-${randomBytes(4).toString("hex")}`;
   sessions.add(session);
+  browser("open", smokeBaseURL);
+  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(smokeOperatorKey)}; path=/; SameSite=Lax"`);
 }
 
 async function poll(get, done, label, timeout = 150_000) {
@@ -181,7 +185,7 @@ function checkBrowserDiagnostics(flow) {
 }
 
 async function lessonFlow(baseURL, runKey) {
-  console.log("Browser smoke: public fulfillment lesson");
+  console.log("Browser smoke: fulfillment lesson");
   beginBrowserFlow("lesson");
   browser("errors", "--clear");
   browser("console", "--clear");
@@ -196,8 +200,8 @@ async function lessonFlow(baseURL, runKey) {
   const runId = path.match(/^\/runs\/([0-9a-f-]+)/i)?.[1];
   expect(runId, `Could not identify the lesson run from the rendered page: ${page.slice(-1500)}`);
   browser("open", new URL(path, baseURL).toString());
-  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, runKey, "x-run-key"), (body) => body?.status === "succeeded" || body?.status === "failed", "Public lesson run");
-  checkRun(detail, "public lesson");
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, runKey, "x-run-key"), (body) => body?.status === "succeeded" || body?.status === "failed", "Lesson run");
+  checkRun(detail, "lesson");
   browser("wait", "--text", "Validated, complete", "--timeout", "20000");
   const resultText = browser("read");
   expect(resultText.includes("Planned revenue") && resultText.includes("Shipments"), "Lesson result is missing revenue or shipment output.");
@@ -207,8 +211,8 @@ async function lessonFlow(baseURL, runKey) {
   expect(exported.run.status === "succeeded" && exported.summary.validity === "valid" && exported.summary.coverage === "complete", "Lesson JSON export did not contain its valid complete run.");
   expect(exported.summary.totals.planned_cents > 0 && exported.summary.totals.trucks > 0, "Lesson JSON export has empty revenue or shipment totals.");
   expect(detail.summary.travel?.mode === "estimated" && detail.summary.trucks.every((t) => t.visits.every((v) => typeof v.leg_s === "number" && v.leg_s > 0)), "Lesson run should carry estimated travel with a duration on every leg.");
-  await checkTimeline(detail, "public lesson", { timing: "Estimated drive time (constant speed)" });
-  checkBrowserDiagnostics("public lesson");
+  await checkTimeline(detail, "lesson", { timing: "Estimated drive time (constant speed)" });
+  checkBrowserDiagnostics("lesson");
   console.log(`  passed: run ${runId.slice(0, 8)}, revenue ${exported.summary.totals.planned_cents} cents, ${exported.summary.totals.trucks} shipments, JSON export`);
 }
 
@@ -1138,6 +1142,289 @@ async function roadMatricesFlow(baseURL, runKey) {
   console.log(`  passed: estimated 2 trucks/${milesOf(est)} mi complete; recorded matrix ${snapshotId.slice(0, 10)} 1 truck/${milesOf(rec)} mi, ridge resort unreachable; comparison, timeline and exports`);
 }
 
+// Solver Lab lessons (spec §13): the load dimension and heterogeneous fleet lessons start their two bundled lab
+// examples from the page. The page's comparison table is read back and checked against the persisted lab runs, whose
+// observations are asserted in services/optimizer/tests/test_lab_examples.py.
+async function labLessonsFlow(baseURL, runKey) {
+  console.log("Browser smoke: Solver Lab lessons (load dimensions, heterogeneous fleets)");
+  beginBrowserFlow("lab-lessons");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const jsonEval = (js) => { const raw = evalValue(js); return typeof raw === "string" ? JSON.parse(raw) : raw; };
+  const labRunIds = () => jsonEval(`JSON.stringify([...document.querySelectorAll('a[href^="/labs/"]')].map((a) => a.getAttribute('href').split('/').pop().split('?')[0]))`);
+  const doneRun = (id, label) => poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${id}${access}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), label);
+  const pct = (ratio) => `${(ratio * 100).toFixed(0)}%`;
+  const num = (n) => n.toLocaleString("en-US");
+  const maxUtil = (result, dimension, type) => { const v = result.routes.filter((r) => !type || r.vehicle_type === type).map((r) => r.utilization[dimension]).filter((u) => u !== undefined); return v.length ? Math.max(...v) : null; };
+  const pctOrDash = (ratio) => (ratio === null ? "—" : pct(ratio));
+  const tableRows = () => Object.fromEntries(jsonEval(`JSON.stringify([...document.querySelectorAll('[data-testid="lab-compare"] tr[data-row]')].map((tr) => [tr.dataset.row, [...tr.cells].slice(1).map((c) => c.innerText.trim())]))`));
+
+  async function lesson({ path, heading, buttons, links, examples, check, expectRows }) {
+    open(`${baseURL}/learn/${path}${access}`);
+    expect(snapshot().includes(`heading "${heading}"`), `${heading} lesson did not load.`);
+    assertViewport(1440, 900);
+    assertViewport(393, 852);
+    setViewport(1440, 900);
+    expect(!String(parsedText()).includes("Side by side"), `${heading}: the comparison should wait for both runs.`);
+    const details = [];
+    for (const [i, example] of examples.entries()) {
+      clickButtonCentered(buttons[i]);
+      browser("wait", "--text", links[i], "--timeout", "20000");
+      const ids = labRunIds().filter((id) => !details.some((d) => d.id === id));
+      expect(/^[0-9a-f-]{36}$/.test(ids[0] ?? ""), `${heading}: run link for ${example} is unexpected: ${ids}`);
+      const detail = await doneRun(ids[0], `${heading}, ${example} lab run`);
+      expect(detail.status === "succeeded" && detail.kind === "lab" && detail.example === example, `${heading}: ${example} run did not succeed: ${JSON.stringify(detail).slice(0, 600)}`);
+      expect(detail.result.validated_feasible && detail.result.solver_feasible && detail.result.violations.length === 0 && detail.result.proof === "heuristic", `${heading}: ${example} result is not validated feasible.`);
+      details.push(detail);
+    }
+    const [first, second] = details.map((d) => d.result);
+    check(first, second);
+    browser("wait", "--text", "Side by side", "--timeout", "20000");
+    const rows = tableRows();
+    const expected = expectRows(first, second);
+    for (const [key, cells] of Object.entries(expected)) expect(stable(rows[key]) === stable(cells), `${heading}: comparison row "${key}" shows ${JSON.stringify(rows[key])}, persisted runs say ${JSON.stringify(cells)}.`);
+    expect(Object.keys(rows).length === Object.keys(expected).length, `${heading}: comparison has rows ${Object.keys(rows)}.`);
+    const text = String(parsedText());
+    expect(text.includes("Editable starter") && text.includes("Model fields this lesson uses") && text.includes("Not modeled:"), `${heading}: starter or model fields are missing.`);
+    assertViewport(1440, 900);
+    assertViewport(393, 852);
+    setViewport(1440, 900);
+    // The run is remembered across a reload, and Reset forgets it.
+    browser("reload");
+    browser("wait", "--text", "Side by side", "--timeout", "20000");
+    clickButtonCentered("Reset lesson");
+    browser("wait", "--text", "Run steps 1 and 2 first", "--timeout", "10000");
+    expect(!String(parsedText()).includes("Side by side"), `${heading}: reset should clear the comparison.`);
+    expect(labRunIds().length === 0, `${heading}: reset should forget the started runs.`);
+    return details;
+  }
+
+  const dims = await lesson({
+    path: "load-dimensions",
+    heading: "Multiple load dimensions",
+    buttons: ["Run with weight and volume", "Run with volume only"],
+    links: ["Open two-dimension run", "Open volume-only run"],
+    examples: ["dimensions", "dimensions_volume"],
+    check(both, volume) {
+      expect(both.totals.routes === 3 && both.totals.load.weight === 2860 && both.routes.every((r) => r.load.weight <= 1200), `Two-dimension run should need 3 trucks for 2,860 kg: ${JSON.stringify(both.totals)}`);
+      expect(maxUtil(both, "weight") >= 0.85 && maxUtil(both, "volume") < 0.6 && both.objective.fixed_cost === 300, "Weight should bind and volume stay under 60%.");
+      expect(volume.totals.routes === 2 && maxUtil(volume, "volume") < 0.7 && volume.objective.fixed_cost === 200 && volume.objective.total < both.objective.total && volume.problem_fingerprint !== both.problem_fingerprint, "Volume-only run should need 2 trucks, all under 70% volume, at a lower objective.");
+    },
+    expectRows: (both, volume) => Object.fromEntries([
+      ["feasible", ["yes", "yes"]],
+      ["trucks", [num(both.totals.routes), num(volume.totals.routes)]],
+      ["weight", [pctOrDash(maxUtil(both, "weight")), pctOrDash(maxUtil(volume, "weight"))]],
+      ["volume", [pctOrDash(maxUtil(both, "volume")), pctOrDash(maxUtil(volume, "volume"))]],
+      ["load", [`${num(both.totals.load.weight)} kg, ${num(both.totals.load.volume)} L`, `${num(volume.totals.load.volume)} L`]],
+      ["fixed", [num(both.objective.fixed_cost), num(volume.objective.fixed_cost)]],
+      ["distance", [num(both.objective.distance_cost), num(volume.objective.distance_cost)]],
+      ["objective", [num(both.objective.total), num(volume.objective.total)]],
+    ]),
+  });
+  checkBrowserDiagnostics("load dimensions lesson");
+
+  const fleet = await lesson({
+    path: "heterogeneous-fleet",
+    heading: "Heterogeneous fleets",
+    buttons: ["Run the mixed fleet", "Run trucks only"],
+    links: ["Open mixed-fleet run", "Open trucks-only run"],
+    examples: ["fleet", "fleet_trucks"],
+    check(mixed, trucks) {
+      const used = (r) => stable(Object.fromEntries(r.fleet.map((f) => [f.vehicle_type, [f.used, f.available]])));
+      expect(used(mixed) === stable({ "box-truck": [1, 3], van: [3, 3] }) && mixed.objective.fixed_cost === 85_000 && mixed.units.distance === "meters", `Mixed fleet should use every van and one truck: ${used(mixed)}`);
+      expect(maxUtil(mixed, "pallets", "van") === 1 && maxUtil(mixed, "pallets", "box-truck") < 1, "A van should be full and the box truck not.");
+      expect(used(trucks) === stable({ "box-truck": [3, 3] }) && trucks.objective.fixed_cost === 120_000 && maxUtil(trucks, "pallets") < 0.8, `Trucks-only run should use 3 trucks, none above 80%: ${used(trucks)}`);
+      expect(mixed.totals.load.pallets === 30 && trucks.totals.load.pallets === 30 && trucks.objective.total > mixed.objective.total, "Trucks only should cost more for the same 30 pallets.");
+    },
+    expectRows: (mixed, trucks) => {
+      const types = (r) => r.fleet.map((f) => `${f.vehicle_type} ${f.used} of ${f.available}`).join(", ");
+      const miles = (r) => `${num(Math.round(r.totals.distance / 1609.344))} mi`;
+      return Object.fromEntries([
+        ["feasible", ["yes", "yes"]],
+        ["vehicles", [num(mixed.totals.routes), num(trucks.totals.routes)]],
+        ["types", [types(mixed), types(trucks)]],
+        ["load", ["30 pallets", "30 pallets"]],
+        ["van-util", [pctOrDash(maxUtil(mixed, "pallets", "van")), pctOrDash(maxUtil(trucks, "pallets", "van"))]],
+        ["truck-util", [pctOrDash(maxUtil(mixed, "pallets", "box-truck")), pctOrDash(maxUtil(trucks, "pallets", "box-truck"))]],
+        ["distance", [miles(mixed), miles(trucks)]],
+        ["fixed", [num(mixed.objective.fixed_cost), num(trucks.objective.fixed_cost)]],
+        ["distance-cost", [num(mixed.objective.distance_cost), num(trucks.objective.distance_cost)]],
+        ["objective", [num(mixed.objective.total), num(trucks.objective.total)]],
+      ]);
+    },
+  });
+  checkBrowserDiagnostics("heterogeneous fleet lesson");
+
+  // The starter links preselect the example in the Solver Lab, and the lessons are linked from the index.
+  open(`${baseURL}/labs?example=fleet_trucks&key=${encodeURIComponent(runKey)}`);
+  browser("wait", "--text", "trucks only", "--timeout", "10000");
+  expect(String(parsedText()).includes("Heterogeneous fleet, trucks only"), "/labs?example=fleet_trucks should preselect the trucks-only example.");
+  open(`${baseURL}/learn${access}`);
+  const index = snapshot();
+  expect(index.includes('link "Multiple load dimensions"') && index.includes('link "Heterogeneous fleets"'), "The lessons index should link both Solver Lab lessons.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  checkBrowserDiagnostics("Solver Lab lessons");
+  console.log(`  passed: dimensions ${dims[0].result.totals.routes} then ${dims[1].result.totals.routes} trucks; fleet ${fleet[0].result.totals.routes} vehicles (3 vans + 1 truck) then ${fleet[1].result.totals.routes} box trucks; comparisons match persisted runs`);
+}
+
+// Manual plan evaluator (spec §10) and the manual versus optimized routes lesson: the lesson's dispatcher plans are
+// evaluated through the page, then the run's Manual plan tab is edited from the keyboard and evaluated. Every
+// number is checked against the persisted run and services/optimizer/tests/test_lesson_manual.py.
+async function manualPlanFlow(baseURL, runKey) {
+  console.log("Browser smoke: manual plan evaluator and manual routes lesson");
+  beginBrowserFlow("manual-plan");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  open(`${baseURL}/learn/manual-routes${access}`);
+  expect(snapshot().includes('heading "Manual versus optimized routes"'), "Manual routes lesson did not load.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  clickButton("Run the pipeline");
+  browser("wait", "--text", "Open run", "--timeout", "20000");
+  const runId = evalValue(`document.querySelector('a[href^="/runs/"]')?.getAttribute('href') ?? ''`).split("/").pop().split("?")[0];
+  expect(/^[0-9a-f-]{36}$/.test(runId), `Manual lesson run link is unexpected: ${runId}`);
+  const run = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}${access}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Manual lesson run");
+  checkRun(run, "manual lesson");
+  expect(run.summary.totals.trucks === 3 && run.summary.totals.capacity_lower_bound === 3 && milesOf(run.summary) === 273, `Manual lesson run should use 3 trucks at the bound and about 273 mi: ${run.summary.totals.trucks}, ${milesOf(run.summary)} mi.`);
+
+  clickButton("Evaluate the order-sequence plan");
+  browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
+  let page = String(parsedText());
+  expect(page.includes("714 mi") && page.includes("273 mi") && page.includes("Manual baseline, not a solver result"), "Order-sequence evaluation does not show 714 vs 273 loaded miles.");
+  clickButton("Evaluate the east–west plan");
+  browser("wait", "--text", "Over trailer capacity", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes("truck 2 load 6400 > capacity 5300") && page.includes("Manual plan invalid · 1 violation"), "East–west evaluation does not name the over-capacity shipment.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // Access: anyone may read the public example run's plan context; evaluating needs the run key here.
+  const context = await fetchJson(baseURL, `/api/v1/runs/${runId}/evaluate?cluster=C1`);
+  expect(context.response.status === 200 && context.body.visits.length === 10 && context.body.reference_routes.length === 3, "Plan context for a public example run is wrong.");
+  const keyless = await localFetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cluster_id: "C1", routes: context.body.reference_routes }) });
+  expect(keyless.status === 403, `Keyless evaluation should be refused, got ${keyless.status}.`);
+
+  // The run page's Manual plan tab, from the keyboard.
+  open(`${baseURL}/runs/${runId}${access}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", "--text", "Start from this run", "--timeout", "15000");
+  browser("wait", "[data-action=\"move\"]", "--timeout", "15000");
+  browser("focus", "button:not([disabled])[aria-label^=\"Move \"][aria-label$=\" later\"]");
+  const moved = evalValue("document.activeElement?.dataset.visit ?? ''");
+  browser("press", "Enter");
+  expect(evalValue("document.activeElement?.dataset.visit ?? ''") === moved, "Focus did not stay on the moved stop after a keyboard reorder.");
+  browser("find", "role", "button", "click", "--name", "Reset", "--exact");
+  // Builder yard (4 pallets) onto the other 10-pallet shipment overloads it: 5,600 > 5,300.
+  const trucks = run.summary.trucks;
+  const from = trucks.findIndex((t) => t.visits.some((v) => v.location_id === "MR-04"));
+  const to = trucks.findIndex((t, i) => i !== from && t.load === 4000);
+  expect(from >= 0 && to >= 0, "Lesson run has no 10-pallet shipment to overload.");
+  browser("focus", "button[aria-label=\"Move Builder yard to another shipment\"]");
+  browser("press", "Enter");
+  browser("find", "role", "menuitem", "click", "--name", `To Shipment ${to + 1}`, "--exact");
+  browser("focus", "button:not([disabled])[aria-label^=\"Move \"]");
+  browser("find", "role", "button", "click", "--name", "Evaluate", "--exact");
+  browser("wait", "--text", "Over trailer capacity", "--timeout", "20000");
+  page = String(parsedText());
+  expect(page.includes(`truck ${to + 1} load 5600 > capacity 5300`) && page.includes("Optimized (this run)"), `Manual plan tab does not show the over-capacity violation on shipment ${to + 1}.`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  browser("find", "role", "button", "click", "--name", "Reset", "--exact");
+  expect(!String(parsedText()).includes("Over trailer capacity"), "Reset did not clear the evaluation.");
+  browser("find", "role", "button", "click", "--name", "Evaluate", "--exact");
+  browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
+  checkBrowserDiagnostics("manual plan");
+  console.log(`  passed: run ${runId.slice(0, 8)} 3 trucks/273 mi; order-sequence plan valid at 714 mi; east-west plan over capacity; keyboard edit overloads shipment ${to + 1}`);
+}
+
+// Solver Lab (M6): a bundled planar example runs from /labs with the run key and its persisted, validated result is
+// what the page renders and exports; then an operator edits the instance JSON in the page and runs it as their own.
+async function labsFlow(baseURL, runKey, scenarioKey) {
+  console.log("Browser smoke: Solver Lab");
+  beginBrowserFlow("labs");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const keyed = `key=${encodeURIComponent(runKey)}`;
+  open(`${baseURL}/labs?example=dimensions&${keyed}`);
+  const landing = snapshot();
+  expect(landing.includes('heading "Solver Lab"') && /(link|tab) "Labs"/.test(landing), `Solver Lab page or its header link did not load: ${landing.slice(0, 1500)}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  clickButton("Run example");
+  browser("wait", "--url", "**/labs/**", "--timeout", "20000");
+  const runId = browser("get", "url").match(/\/labs\/([0-9a-f-]{36})/i)?.[1];
+  expect(runId, "Starting the lab example did not open its run page.");
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${runId}?${keyed}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), "Lab example run");
+  expect(detail.status === "succeeded" && detail.kind === "lab" && detail.example === "dimensions", `Lab example run did not succeed: ${JSON.stringify(detail).slice(0, 800)}`);
+  const result = detail.result;
+  // The observations services/optimizer/tests/test_lab_examples.py asserts: weight sets the truck count.
+  expect(result.validated_feasible && result.solver_feasible && result.violations.length === 0, "Lab example result is not validated feasible.");
+  expect(result.totals.routes === 3 && result.routes.every((r) => r.load.weight <= 1200) && Math.max(...result.routes.map((r) => r.utilization.volume)) < 0.6, `Unexpected lab example routes: ${JSON.stringify(result.totals)}`);
+  expect(result.proof === "heuristic" && result.objective.total === result.solver.nominal_cost, "Lab objective must be the recomputed nominal cost, labeled heuristic.");
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  const text = browser("read");
+  expect(text.includes("PyVRP: feasible") && text.includes("not proven optimal"), "Lab page does not separate solver and validated feasibility or claims optimality.");
+  expect(text.includes(result.problem_fingerprint) && text.includes(result.objective.total.toLocaleString("en-US")), "Lab page does not show the persisted fingerprint and objective.");
+  expect(text.includes("not latitude/longitude, so no map") && !text.includes("OpenStreetMap"), "Planar lab plot must be labeled abstract and drawn without a map.");
+  expect(Number(evalValue("document.querySelectorAll('svg polyline[data-route]').length")) === 3, "Lab plot should draw one path per route.");
+  expect(Number(evalValue("document.querySelectorAll('[data-testid=\"lab-routes\"] tbody tr').length")) === 3, "Route table should list three routes.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  const file = join(downloadDir, `fillrate-lab-${runId.slice(0, 8)}.json`);
+  clickLink("JSON");
+  await poll(() => existsSync(file), Boolean, "Lab JSON export", 10_000);
+  const exported = JSON.parse(readFileSync(file, "utf8"));
+  expect(exported.run.id === runId && stable(exported.result) === stable(result) && exported.instance.name === detail.instance.name, "Lab JSON export does not match the persisted run.");
+  const script = await (await localFetch(new URL(`/api/v1/lab/runs/${runId}/export?format=python&${keyed}`, baseURL), { headers: { "x-run-key": runKey }, signal: AbortSignal.timeout(8_000) })).text();
+  expect(script.includes("fillrate_optimizer.lab.replay") && script.includes(result.problem_fingerprint), "Lab Python export is missing its replay call or fingerprint.");
+
+  // Operator: edit the JSON (heavier trucks) and run it as an own instance; weight no longer binds, so 2 trucks.
+  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(scenarioKey)}; path=/; SameSite=Lax"`);
+  open(`${baseURL}/labs?example=dimensions`);
+  const edited = { ...detail.instance, name: "Browser smoke: heavier trucks", vehicle_types: detail.instance.vehicle_types.map((v) => ({ ...v, capacity: { ...v.capacity, weight: 3000 } })) };
+  fillCss("#lab-json", JSON.stringify(edited, null, 2));
+  browser("wait", "--text", "Edited", "--timeout", "10000");
+  clickButton("Run my instance");
+  browser("wait", "--url", "**/labs/**", "--timeout", "20000");
+  const ownId = browser("get", "url").match(/\/labs\/([0-9a-f-]{36})/i)?.[1];
+  expect(ownId && ownId !== runId, "Running the edited instance did not open a new run.");
+  const own = await poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${ownId}`, scenarioKey), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), "Edited lab run");
+  expect(own.status === "succeeded" && own.example === null && own.instance.name === edited.name, `Edited lab run did not succeed as an own instance: ${JSON.stringify(own).slice(0, 800)}`);
+  expect(own.result.validated_feasible && own.result.totals.routes === 2 && own.result.problem_fingerprint !== result.problem_fingerprint, `Edited instance should need 2 trucks: ${JSON.stringify(own.result?.totals)}`);
+  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
+  const denied = await fetchJson(baseURL, `/api/v1/lab/runs/${ownId}`);
+  expect(denied.response.status === 404, `A keyless read of the operator's lab run should be 404; received ${denied.response.status}.`);
+  const scenarios = await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey);
+  expect(!scenarios.scenarios.some((sc) => sc.name.includes("heavier trucks")), "A lab instance must not appear as a scenario.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  checkBrowserDiagnostics("Solver Lab");
+  console.log(`  passed: example run ${runId.slice(0, 8)} (3 routes, objective ${result.objective.total}), edited run ${ownId.slice(0, 8)} (2 routes), JSON and Python exports`);
+}
+
+async function stop() {
+  if (stopping) return stopping;
+  stopping = (async () => {
+    for (const browserSession of sessions) {
+      try { spawnSync(agentBrowser, ["--session", browserSession, "close"], { stdio: "ignore", timeout: 10_000 }); } catch {}
+    }
+    for (const child of children) child.kill("SIGTERM");
+    await Promise.race([Promise.all([...children].map((child) => new Promise((resolveExit) => child.once("exit", resolveExit)))), new Promise((resolveDelay) => setTimeout(resolveDelay, 5_000))]);
+    for (const child of children) child.kill("SIGKILL");
+    rmSync(dataDir, { recursive: true, force: true });
+  })();
+  return stopping;
+}
+
 // Solver Lab multiple depots (M6): the lesson starts the two-depot example and its one-depot twin from the page; the
 // persisted validated results are what the page compares, and the lab run page shows depots and per-route depots.
 // Every number is checked against services/optimizer/tests/test_lab_examples.py.
@@ -1525,161 +1812,384 @@ async function labPairsFlow(baseURL, runKey) {
   console.log(`  passed: capacity 12 -> 3 vans, pairs ride together (nominal ${a.objective.total}); capacity 6 -> 5 vans (nominal ${b.objective.total}); comparison, run pages and reset`);
 }
 
-// Manual plan evaluator (spec §10) and the manual versus optimized routes lesson: the lesson's dispatcher plans are
-// evaluated through the page, then the run's Manual plan tab is edited from the keyboard and evaluated. Every
-// number is checked against the persisted run and services/optimizer/tests/test_lesson_manual.py.
-async function manualPlanFlow(baseURL, runKey) {
-  console.log("Browser smoke: manual plan evaluator and manual routes lesson");
-  beginBrowserFlow("manual-plan");
+// Saved manual baselines (spec §10, M6): hand-edited plans on the manual routes lesson's run are saved from the Manual
+// plan tab (the operator owns them), survive a reload, list with their validity, load back into the editor, and a valid
+// one re-runs the scenario warm-started from the saved plan. An invalid one is saved but never offered as a start.
+async function baselinesFlow(baseURL, runKey, scenarioKey) {
+  console.log("Browser smoke: saved manual baselines");
+  beginBrowserFlow("baselines");
   browser("errors", "--clear");
   browser("console", "--clear");
   const access = `?key=${encodeURIComponent(runKey)}`;
-  open(`${baseURL}/learn/manual-routes${access}`);
-  expect(snapshot().includes('heading "Manual versus optimized routes"'), "Manual routes lesson did not load.");
-  assertViewport(1440, 900);
-  assertViewport(393, 852);
-  setViewport(1440, 900);
-  clickButton("Run the pipeline");
-  browser("wait", "--text", "Open run", "--timeout", "20000");
-  const runId = evalValue(`document.querySelector('a[href^="/runs/"]')?.getAttribute('href') ?? ''`).split("/").pop().split("?")[0];
-  expect(/^[0-9a-f-]{36}$/.test(runId), `Manual lesson run link is unexpected: ${runId}`);
-  const run = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}${access}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Manual lesson run");
-  checkRun(run, "manual lesson");
-  expect(run.summary.totals.trucks === 3 && run.summary.totals.capacity_lower_bound === 3 && milesOf(run.summary) === 273, `Manual lesson run should use 3 trucks at the bound and about 273 mi: ${run.summary.totals.trucks}, ${milesOf(run.summary)} mi.`);
+  const operator = { "x-scenario-key": scenarioKey };
+  const started = await localFetch(new URL("/api/v1/runs", baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "manual" }) });
+  const source = await started.json();
+  expect(started.status === 201 && source?.id, `Baseline source run was not queued: ${JSON.stringify(source)}`);
+  const run = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${source.id}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Baseline source run");
+  expect(run.status === "succeeded" && run.summary.totals.trucks === 3, `Baseline source run is unexpected: ${run.status}`);
 
-  clickButton("Evaluate the order-sequence plan");
-  browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
-  let page = String(parsedText());
-  expect(page.includes("714 mi") && page.includes("273 mi") && page.includes("Manual baseline, not a solver result"), "Order-sequence evaluation does not show 714 vs 273 loaded miles.");
-  clickButton("Evaluate the east–west plan");
-  browser("wait", "--text", "Over trailer capacity", "--timeout", "20000");
-  page = String(parsedText());
-  expect(page.includes("truck 2 load 6400 > capacity 5300") && page.includes("Manual plan invalid · 1 violation"), "East–west evaluation does not name the over-capacity shipment.");
-  assertViewport(1440, 900);
-  assertViewport(393, 852);
-  setViewport(1440, 900);
+  // Baselines belong to the operator: without the scenario key they are not readable or saveable, and there is nothing to list.
+  const keylessList = await localFetch(new URL(`/api/v1/runs/${source.id}/baselines`, baseURL), { headers: { "x-run-key": runKey } });
+  expect(keylessList.status === 403, `A run key alone must not list baselines, got ${keylessList.status}.`);
+  const keylessSave = await localFetch(new URL(`/api/v1/runs/${source.id}/baselines`, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ name: "x", plan: { cluster_id: "C1", routes: [["a"]] } }) });
+  expect(keylessSave.status === 403, `A run key alone must not save baselines, got ${keylessSave.status}.`);
 
-  // Access: anyone may read the public example run's plan context; evaluating needs the run key here.
-  const context = await fetchJson(baseURL, `/api/v1/runs/${runId}/evaluate?cluster=C1`);
-  expect(context.response.status === 200 && context.body.visits.length === 10 && context.body.reference_routes.length === 3, "Plan context for a public example run is wrong.");
-  const keyless = await localFetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cluster_id: "C1", routes: context.body.reference_routes }) });
-  expect(keyless.status === 403, `Keyless evaluation should be refused, got ${keyless.status}.`);
-
-  // The run page's Manual plan tab, from the keyboard.
-  open(`${baseURL}/runs/${runId}${access}`);
+  open(`${baseURL}/runs/${source.id}${access}`);
+  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(scenarioKey)}; path=/; SameSite=Lax"`);
+  open(`${baseURL}/runs/${source.id}${access}`);
   browser("wait", "--text", "Validated, complete", "--timeout", "20000");
   browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
-  browser("wait", "--text", "Start from this run", "--timeout", "15000");
-  browser("wait", "[data-action=\"move\"]", "--timeout", "15000");
-  browser("focus", "button:not([disabled])[aria-label^=\"Move \"][aria-label$=\" later\"]");
-  const moved = evalValue("document.activeElement?.dataset.visit ?? ''");
+  browser("wait", "--text", "Saved baselines", "--timeout", "15000");
+  browser("wait", '[data-action="move"]', "--timeout", "15000");
+  expect(String(parsedText()).includes("No baselines saved on this run yet."), "A fresh run should list no baselines.");
+
+  // 1. A valid hand edit: one stop later in its shipment. Saved with a name; the server evaluates it first.
+  browser("focus", 'button:not([disabled])[aria-label^="Move "][aria-label$=" later"]');
   browser("press", "Enter");
-  expect(evalValue("document.activeElement?.dataset.visit ?? ''") === moved, "Focus did not stay on the moved stop after a keyboard reorder.");
+  fillCss('input[aria-label="Baseline name"]', "Dispatcher plan");
+  clickButtonCentered("Save as baseline");
+  browser("wait", "[data-baseline]", "--timeout", "20000");
+  let list = (await fetchOkJson(baseURL, `/api/v1/runs/${source.id}/baselines`, scenarioKey)).baselines;
+  expect(list.length === 1 && list[0].name === "Dispatcher plan" && list[0].valid === true && list[0].cluster_id === "C1", `Valid baseline was not saved: ${JSON.stringify(list)}`);
+  const good = list[0];
+  expect(JSON.stringify(good.plan.routes) !== JSON.stringify(run.summary.trucks.map((t) => t.visits.map((v) => v.visit_id))), "The saved plan should differ from the optimized routes.");
+
+  // 2. An invalid plan (a shipment overloaded to 5,600 of 5,300) is saved too, marked invalid.
   browser("find", "role", "button", "click", "--name", "Reset", "--exact");
-  // Builder yard (4 pallets) onto the other 10-pallet shipment overloads it: 5,600 > 5,300.
   const trucks = run.summary.trucks;
   const from = trucks.findIndex((t) => t.visits.some((v) => v.location_id === "MR-04"));
   const to = trucks.findIndex((t, i) => i !== from && t.load === 4000);
   expect(from >= 0 && to >= 0, "Lesson run has no 10-pallet shipment to overload.");
-  browser("focus", "button[aria-label=\"Move Builder yard to another shipment\"]");
+  browser("focus", 'button[aria-label="Move Builder yard to another shipment"]');
   browser("press", "Enter");
   browser("find", "role", "menuitem", "click", "--name", `To Shipment ${to + 1}`, "--exact");
-  browser("focus", "button:not([disabled])[aria-label^=\"Move \"]");
-  browser("find", "role", "button", "click", "--name", "Evaluate", "--exact");
-  browser("wait", "--text", "Over trailer capacity", "--timeout", "20000");
-  page = String(parsedText());
-  expect(page.includes(`truck ${to + 1} load 5600 > capacity 5300`) && page.includes("Optimized (this run)"), `Manual plan tab does not show the over-capacity violation on shipment ${to + 1}.`);
+  fillCss('input[aria-label="Baseline name"]', "Overloaded");
+  // The first save's toast still sits over the lower right of the page; wait it out rather than click through it.
+  await poll(() => evalValue(`!document.body.innerText.includes("Baseline saved")`), (gone) => gone === true, "Save toast dismissal", 20_000);
+  clickButtonCentered("Save as baseline");
+  await poll(async () => (await fetchOkJson(baseURL, `/api/v1/runs/${source.id}/baselines`, scenarioKey)).baselines, (b) => b.length === 2, "Invalid baseline save", 20_000);
+  list = (await fetchOkJson(baseURL, `/api/v1/runs/${source.id}/baselines`, scenarioKey)).baselines;
+  const bad = list.find((b) => b.name === "Overloaded");
+  expect(bad && bad.valid === false && bad.violations.some((v) => v.code === "over_capacity"), `Invalid baseline should be saved and marked invalid: ${JSON.stringify(bad)}`);
+  const detail = await fetchOkJson(baseURL, `/api/v1/baselines/${good.id}`, scenarioKey);
+  expect(detail.evaluation.manual.valid === true && detail.evaluation.manual.trucks.length === 3, "A baseline's detail should carry the evaluator's outcome at save time.");
+
+  // 3. Reload: both are listed, labeled, and only the valid one offers the warm rerun.
+  open(`${baseURL}/runs/${source.id}${access}`);
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", "[data-baseline]", "--timeout", "20000");
+  const rows = evalValue(`JSON.stringify([...document.querySelectorAll("[data-baseline]")].map((r) => ({ id: r.dataset.baseline, valid: r.dataset.valid, text: r.innerText, rerun: [...r.querySelectorAll("button")].some((b) => b.innerText.includes("Re-run warm-started from this baseline")) })))`);
+  const found = typeof rows === "string" ? JSON.parse(rows) : rows;
+  expect(found.length === 2, `Reload should list both baselines: ${JSON.stringify(found)}`);
+  const goodRow = found.find((r) => r.id === good.id), badRow = found.find((r) => r.id === bad.id);
+  expect(goodRow.valid === "true" && goodRow.text.includes("Dispatcher plan") && goodRow.text.includes("Valid") && goodRow.rerun, `Valid row is wrong: ${JSON.stringify(goodRow)}`);
+  expect(badRow.valid === "false" && badRow.text.includes("Overloaded") && badRow.text.includes("Invalid") && badRow.text.includes("Over trailer capacity") && !badRow.rerun, `Invalid row must be labeled and offer no warm start: ${JSON.stringify(badRow)}`);
   assertViewport(1440, 900);
   assertViewport(393, 852);
   setViewport(1440, 900);
-  browser("find", "role", "button", "click", "--name", "Reset", "--exact");
-  expect(!String(parsedText()).includes("Over trailer capacity"), "Reset did not clear the evaluation.");
+
+  // Load puts the saved plan back in the editor (Reset becomes available: it differs from the optimized routes).
+  browser("eval", `document.querySelector('[data-baseline="${good.id}"] button').click()`);
+  expect(evalValue(`[...document.querySelectorAll("button")].find((b) => b.innerText.trim() === "Reset")?.disabled === false`) === true, "Loading a baseline did not change the editor.");
   browser("find", "role", "button", "click", "--name", "Evaluate", "--exact");
   browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
-  checkBrowserDiagnostics("manual plan");
-  console.log(`  passed: run ${runId.slice(0, 8)} 3 trucks/273 mi; order-sequence plan valid at 714 mi; east-west plan over capacity; keyboard edit overloads shipment ${to + 1}`);
+
+  // The server refuses to start from the invalid one, and keyless callers get nothing.
+  const refuse = await localFetch(new URL("/api/v1/runs", baseURL), { method: "POST", headers: { "content-type": "application/json", ...operator, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "manual", settings: { warm_start: { kind: "manual_baseline", baseline_id: bad.id } } }) });
+  const refused = await refuse.json();
+  expect(refuse.status === 409 && refused.error.code === "warm_start_baseline_invalid", `Invalid baseline must not start a run: ${refuse.status} ${JSON.stringify(refused)}`);
+  expect((await localFetch(new URL(`/api/v1/baselines/${good.id}`, baseURL), { headers: { "x-run-key": runKey } })).status === 404, "A keyless read of a baseline should be 404.");
+
+  // 4. Warm-start from the valid baseline.
+  clickButtonCentered("Re-run warm-started from this baseline");
+  const path = await poll(() => evalValue("location.pathname"), (p) => typeof p === "string" && /^\/runs\/[0-9a-f-]+$/i.test(p) && !p.endsWith(source.id), "Baseline warm rerun navigation", 20_000);
+  const runId = path.split("/").at(-1);
+  const warmRun = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey), (body) => ["succeeded", "failed"].includes(body?.status), "Baseline warm-started run");
+  expect(warmRun.status === "succeeded", `Warm-started run failed: ${JSON.stringify(warmRun.failure)}`);
+  const warm = warmRun.summary.warm_start;
+  const outcome = warmRun.summary.clusters.find((c) => c.id === "C1")?.warm_start;
+  expect(warmRun.settings.warm_start?.kind === "manual_baseline" && warmRun.settings.warm_start.baseline_id === good.id && warm?.source?.baseline_id === good.id, "Warm-started run does not name the baseline.");
+  expect(warm.used === 1 && warm.skipped === 0 && outcome?.status === "used" && outcome.final_cost <= outcome.initial_cost, `The saved plan should start its cluster and never end above its objective: ${JSON.stringify(outcome)}`);
+  expect(warmRun.stages.some((s) => s.stage === "warm_start") && warmRun.summary.validity === "valid", "Warm-started run lacks its warm_start stage or validity.");
+  browser("wait", "--text", "started from its validated plan", "--timeout", "20000");
+  const text = String(parsedText());
+  expect(text.includes("From saved manual baseline") && text.includes(good.id.slice(0, 8)) && text.includes("1 of 1 solved cluster started"), "Run page does not show the baseline warm-start panel.");
+  expect(evalValue(`document.querySelector('[aria-label="Warm start"]')?.dataset.warmSource`) === "manual_baseline", "Warm start panel does not record its source kind.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // 5. Delete from the source run's page.
+  open(`${baseURL}/runs/${source.id}${access}`);
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", "[data-baseline]", "--timeout", "20000");
+  browser("find", "role", "button", "click", "--name", "Delete baseline Overloaded", "--exact");
+  await poll(async () => (await fetchOkJson(baseURL, `/api/v1/runs/${source.id}/baselines`, scenarioKey)).baselines, (b) => b.length === 1 && b[0].id === good.id, "Baseline deletion", 20_000);
+  expect((await localFetch(new URL(`/api/v1/baselines/${bad.id}`, baseURL), { headers: operator })).status === 404, "A deleted baseline should be 404.");
+  checkBrowserDiagnostics("saved baselines");
+  console.log(`  passed: run ${source.id.slice(0, 8)}: valid and invalid baselines saved, listed after reload, valid one warm-started run ${runId.slice(0, 8)} (1 cluster used), invalid refused, delete`);
 }
 
-// Solver Lab (M6): a bundled planar example runs from /labs with the run key and its persisted, validated result is
-// what the page renders and exports; then an operator edits the instance JSON in the page and runs it as their own.
-async function labsFlow(baseURL, runKey, scenarioKey) {
-  console.log("Browser smoke: Solver Lab");
-  beginBrowserFlow("labs");
+// Heterogeneous fleet (M6): an operator sets a fleet in the workbench (validation, Basic/Advanced disclosure), runs it, and the
+// run page, shipment sheet and manual plan tab show the persisted per-type results measured against each truck's own capacity.
+async function fleetFlow(baseURL, scenarioKey) {
+  console.log("Browser smoke: heterogeneous fleet");
+  beginBrowserFlow("fleet");
   browser("errors", "--clear");
   browser("console", "--clear");
-  const keyed = `key=${encodeURIComponent(runKey)}`;
-  open(`${baseURL}/labs?example=dimensions&${keyed}`);
-  const landing = snapshot();
-  expect(landing.includes('heading "Solver Lab"') && /(link|tab) "Labs"/.test(landing), `Solver Lab page or its header link did not load: ${landing.slice(0, 1500)}`);
-  expect(browser("read").includes("Read-only: bundled examples run unchanged"), "A keyless visitor should see the example JSON as read-only.");
-  assertViewport(1440, 900);
-  assertViewport(393, 852);
-  assertViewport(1440, 900);
-  clickButton("Run example");
-  browser("wait", "--url", "**/labs/**", "--timeout", "20000");
-  const runId = browser("get", "url").match(/\/labs\/([0-9a-f-]{36})/i)?.[1];
-  expect(runId, "Starting the lab example did not open its run page.");
-  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${runId}?${keyed}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), "Lab example run");
-  expect(detail.status === "succeeded" && detail.kind === "lab" && detail.example === "dimensions", `Lab example run did not succeed: ${JSON.stringify(detail).slice(0, 800)}`);
-  const result = detail.result;
-  // The observations services/optimizer/tests/test_lab_examples.py asserts: weight sets the truck count.
-  expect(result.validated_feasible && result.solver_feasible && result.violations.length === 0, "Lab example result is not validated feasible.");
-  expect(result.totals.routes === 3 && result.routes.every((r) => r.load.weight <= 1200) && Math.max(...result.routes.map((r) => r.utilization.volume)) < 0.6, `Unexpected lab example routes: ${JSON.stringify(result.totals)}`);
-  expect(result.proof === "heuristic" && result.objective.total === result.solver.nominal_cost, "Lab objective must be the recomputed nominal cost, labeled heuristic.");
-  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
-  const text = browser("read");
-  expect(text.includes("PyVRP: feasible") && text.includes("not proven optimal"), "Lab page does not separate solver and validated feasibility or claims optimality.");
-  expect(text.includes(result.problem_fingerprint) && text.includes(result.objective.total.toLocaleString("en-US")), "Lab page does not show the persisted fingerprint and objective.");
-  expect(text.includes("not latitude/longitude, so no map") && !text.includes("OpenStreetMap"), "Planar lab plot must be labeled abstract and drawn without a map.");
-  expect(Number(evalValue("document.querySelectorAll('svg polyline[data-route]').length")) === 3, "Lab plot should draw one path per route.");
-  expect(Number(evalValue("document.querySelectorAll('[data-testid=\"lab-routes\"] tbody tr').length")) === 3, "Route table should list three routes.");
-  assertViewport(1440, 900);
-  assertViewport(393, 852);
-  assertViewport(1440, 900);
-  const file = join(downloadDir, `fillrate-lab-${runId.slice(0, 8)}.json`);
-  clickLink("JSON");
-  await poll(() => existsSync(file), Boolean, "Lab JSON export", 10_000);
-  const exported = JSON.parse(readFileSync(file, "utf8"));
-  expect(exported.run.id === runId && stable(exported.result) === stable(result) && exported.instance.name === detail.instance.name, "Lab JSON export does not match the persisted run.");
-  const script = await (await localFetch(new URL(`/api/v1/lab/runs/${runId}/export?format=python&${keyed}`, baseURL), { headers: { "x-run-key": runKey }, signal: AbortSignal.timeout(8_000) })).text();
-  expect(script.includes("fillrate_optimizer.lab.replay") && script.includes(result.problem_fingerprint), "Lab Python export is missing its replay call or fingerprint.");
+  const author = "Fleet smoke", name = "Fleet browser run";
+  // Six stops of 24 ft each: a 26 ft box truck carries one, a 53 ft trailer two.
+  const stops = [["A", 35.15, -89.0], ["B", 35.15, -88.5], ["C", 35.6, -89.5], ["D", 34.6, -89.7], ["E", 35.9, -90.2], ["F", 34.9, -90.9]];
+  await importInWorkbench(baseURL, scenarioKey, { author, name, inventory: "product,available_pieces\nFL-SKU,100\n", orders: stops.map(([id, lat, lon], i) => `FL-${i + 1},FL-L${i + 1},2026-10-01,Cust ${id},FL-${id},Stop ${id},${lat},${lon},FL-SKU,6,25.00,4.00,1`) });
+  openSavedScenario(baseURL, scenarioKey, author, `${name} · v1`);
+  fillLabel("Clusters (blank = auto)", "1");
+  fillLabel("Time per cluster (seconds)", "2");
 
-  // Operator: edit the JSON (heavier trucks) and run it as an own instance; weight no longer binds, so 2 trucks.
-  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(scenarioKey)}; path=/; SameSite=Lax"`);
-  open(`${baseURL}/labs?example=dimensions`);
-  const edited = { ...detail.instance, name: "Browser smoke: heavier trucks", vehicle_types: detail.instance.vehicle_types.map((v) => ({ ...v, capacity: { ...v.capacity, weight: 3000 } })) };
-  fillCss("#lab-json", JSON.stringify(edited, null, 2));
-  browser("wait", "--text", "Edited", "--timeout", "10000");
-  clickButton("Run my instance");
-  browser("wait", "--url", "**/labs/**", "--timeout", "20000");
-  const ownId = browser("get", "url").match(/\/labs\/([0-9a-f-]{36})/i)?.[1];
-  expect(ownId && ownId !== runId, "Running the edited instance did not open a new run.");
-  const own = await poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${ownId}`, scenarioKey), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), "Edited lab run");
-  expect(own.status === "succeeded" && own.example === null && own.instance.name === edited.name, `Edited lab run did not succeed as an own instance: ${JSON.stringify(own).slice(0, 800)}`);
-  expect(own.result.validated_feasible && own.result.totals.routes === 2 && own.result.problem_fingerprint !== result.problem_fingerprint, `Edited instance should need 2 trucks: ${JSON.stringify(own.result?.totals)}`);
-  browser("wait", "--text", "Validated feasible", "--timeout", "20000");
-  const denied = await fetchJson(baseURL, `/api/v1/lab/runs/${ownId}`);
-  expect(denied.response.status === 404, `A keyless read of the operator's lab run should be 404; received ${denied.response.status}.`);
-  const scenarios = await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey);
-  expect(!scenarios.scenarios.some((sc) => sc.name.includes("heavier trucks")), "A lab instance must not appear as a scenario.");
-  assertViewport(393, 852);
+  // Fleet section: off by default, then one trailer; Advanced shows ID and rates.
+  expect(evalValue(`document.querySelector('[data-testid="fleet-editor"]') === null || document.querySelector('[data-testid="fleet-row"]') === null`) === true, "A scenario should start without a fleet.");
+  browser("eval", `[...document.querySelectorAll('summary')].find((s) => s.textContent.trim() === 'Fleet')?.click()`);
+  browser("wait", '[data-testid="fleet-enabled"]', "--timeout", "10000");
   assertViewport(1440, 900);
-  checkBrowserDiagnostics("Solver Lab");
-  console.log(`  passed: example run ${runId.slice(0, 8)} (3 routes, objective ${result.objective.total}), edited run ${ownId.slice(0, 8)} (2 routes), JSON and Python exports`);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  browser("eval", `document.querySelector('[data-testid="fleet-enabled"]').scrollIntoView({ block: "center" })`);
+  browser("click", '[data-testid="fleet-enabled"]');
+  browser("wait", '[data-testid="fleet-row"]', "--timeout", "10000");
+  expect(evalValue(`document.querySelectorAll('[data-testid="fleet-row"]').length`) === 1, "Enabling the fleet should add one 53 ft trailer.");
+  expect(evalValue(`document.querySelector('[data-testid="fleet-capacity"]').value`) === "53", "The default type should be 53 ft long.");
+  // Validation: a zero count is refused with a message, and the run button waits.
+  fillCss('[data-testid="fleet-count"]', "0");
+  browser("wait", '[data-testid="fleet-problems"]', "--timeout", "10000");
+  expect(String(parsedText()).includes("the count is a whole number from 1 to 100,000"), "A zero count should be explained.");
+  expect(evalValue(`[...document.querySelectorAll('button')].find((b) => b.innerText.trim() === 'Review and run saved version').disabled`) === true, "An invalid fleet should disable the run button.");
+  fillCss('[data-testid="fleet-count"]', "1");
+  browser("wait", "--fn", `document.querySelector('[data-testid="fleet-problems"]') === null`, "--timeout", "10000");
+  // A second type: a 26 ft box truck, unlimited. The trailer is limited to one.
+  browser("click", '[data-testid="fleet-add"]');
+  browser("wait", "--fn", `document.querySelectorAll('[data-testid="fleet-row"]').length === 2`, "--timeout", "10000");
+  fillCss('[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-label"]', "26 ft box truck");
+  fillCss('[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-capacity"]', "26");
+  browser("eval", `document.querySelector('[data-testid="fleet-row"]:nth-child(2) summary').click()`);
+  browser("wait", '[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-id"]', "--timeout", "10000");
+  fillCss('[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-id"]', "box-26");
+  expect(evalValue(`document.querySelector('[data-testid="fleet-row"]:nth-child(2) [data-testid="fleet-capacity"]').value`) === "26", "The box truck length was not kept.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  clickButtonCentered("Review and run saved version");
+  browser("wait", "--url", "**/runs/**", "--timeout", "25000");
+  const runId = browser("get", "url").match(/\/runs\/([0-9a-f-]+)/i)?.[1];
+  expect(runId, "Fleet run did not open its run page.");
+
+  const detail = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey), (body) => ["succeeded", "failed"].includes(body?.status), "Fleet run");
+  checkRun(detail, "fleet");
+  const summary = detail.summary;
+  expect(stable(detail.settings.fleet.map((t) => [t.id, t.count ?? null, t.capacity])) === stable([["trailer-53", 1, 5300], ["box-26", null, 2600]]), `The persisted fleet is not what the workbench set: ${JSON.stringify(detail.settings.fleet)}`);
+  const persisted = Object.fromEntries(summary.fleet_usage.map((u) => [u.id, u.trucks]));
+  expect(stable(persisted) === stable({ "box-26": 4, "trailer-53": 1 }), `Expected 1 trailer and 4 box trucks: ${JSON.stringify(persisted)}`);
+  const capacityOf = Object.fromEntries(detail.settings.fleet.map((t) => [t.id, t.capacity]));
+  expect(summary.trucks.every((t) => t.load <= capacityOf[t.vehicle_type_id] && Math.abs(t.fill - t.load / capacityOf[t.vehicle_type_id]) < 1e-12), "A truck exceeds or is measured against the wrong capacity.");
+
+  // The run page renders exactly the persisted per-type results.
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  browser("wait", '[data-testid="fleet-usage"]', "--timeout", "15000");
+  for (const [id, trucks] of Object.entries(persisted)) {
+    expect(evalValue(`document.querySelector('[data-testid="fleet-usage-${id}"]')?.dataset.trucks`) === String(trucks), `The fleet table shows a different truck count for ${id}.`);
+  }
+  const usageText = String(evalValue(`document.querySelector('[data-testid="fleet-usage"]').innerText`));
+  expect(usageText.includes("1 / 1") && usageText.includes("4 / unlimited"), `The fleet table should show used / available: ${usageText}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+  browser("find", "role", "tab", "click", "--name", `Shipments (${summary.trucks.length})`, "--exact");
+  browser("wait", '[data-testid="shipment-vehicle"]', "--timeout", "15000");
+  const shown = evalValue(`JSON.stringify([...document.querySelectorAll('[data-testid="shipment-vehicle"]')].map((c) => c.dataset.vehicle))`);
+  expect(stable(JSON.parse(shown)) === stable(summary.trucks.map((t) => t.vehicle_type_id)), `The shipment table's vehicle types differ from the persisted run: ${shown}`);
+  expect(String(parsedText()).includes("Fill (own capacity)"), "Fill should be labelled as measured against each truck's own capacity.");
+  const box = summary.trucks.find((t) => t.vehicle_type_id === "box-26");
+  browser("eval", `document.querySelector('[data-testid="shipment-vehicle"][data-vehicle="box-26"]').closest('tr').querySelector('button[aria-pressed]').click()`);
+  browser("wait", '[data-testid="shipment-detail-vehicle"]', "--timeout", "10000");
+  expect(String(evalValue(`document.querySelector('[data-testid="shipment-detail-vehicle"]').innerText`)) === "26 ft box truck", "The shipment detail should name its vehicle type.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // The printable sheet names the type and draws the bar against the truck's own capacity.
+  open(`${baseURL}/runs/${runId}/sheet?shipment=${encodeURIComponent(box.id)}`);
+  browser("wait", '[data-testid="sheet-vehicle"]', "--timeout", "15000");
+  const sheet = String(parsedText());
+  expect(sheet.includes("26 ft box truck") && sheet.includes(`${Math.round(box.fill * 100)}% of 26 ft`), `Shipment sheet does not show the box truck against 26 ft: ${sheet.slice(0, 400)}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // Manual plan: each shipment keeps its type; the run's own plan is valid; a trailer load typed as a box is refused.
+  open(`${baseURL}/runs/${runId}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", '[data-testid="manual-vehicle-type"]', "--timeout", "15000");
+  expect(evalValue(`document.querySelectorAll('[data-testid="manual-vehicle-type"]').length`) === summary.trucks.length, "Every manual shipment should offer its vehicle type.");
+  clickButtonCentered("Evaluate");
+  browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
+  const context = await fetchOkJson(baseURL, `/api/v1/runs/${runId}/evaluate?cluster=C1`, scenarioKey);
+  expect(stable(context.vehicle_types.map((t) => t.id)) === stable(["trailer-53", "box-26"]) && stable(context.reference_vehicle_types) === stable(summary.trucks.map((t) => t.vehicle_type_id)), "Plan context does not carry the run's fleet and route types.");
+  const wrong = context.reference_vehicle_types.map(() => "box-26");
+  const refused = await localFetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-scenario-key": scenarioKey }, body: JSON.stringify({ cluster_id: "C1", routes: context.reference_routes, vehicle_types: wrong }) });
+  const refusedBody = await refused.json();
+  expect(refused.status === 200 && refusedBody.manual.valid === false && refusedBody.manual.violations.some((v) => v.code === "over_capacity"), `A trailer load typed as a box should be over capacity: ${JSON.stringify(refusedBody).slice(0, 400)}`);
+  const missing = await localFetch(new URL(`/api/v1/runs/${runId}/evaluate`, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-scenario-key": scenarioKey }, body: JSON.stringify({ cluster_id: "C1", routes: context.reference_routes }) });
+  expect(missing.status === 422, `A fleet plan without vehicle types should be refused, got ${missing.status}.`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  checkBrowserDiagnostics("fleet");
+  console.log(`  passed: run ${runId.slice(0, 8)} ${summary.totals.trucks} shipments (1 trailer, 4 box trucks) match the persisted run; invalid fleet blocked; wrong-type plan refused`);
 }
 
-async function stop() {
-  if (stopping) return stopping;
-  stopping = (async () => {
-    for (const browserSession of sessions) {
-      try { spawnSync(agentBrowser, ["--session", browserSession, "close"], { stdio: "ignore", timeout: 10_000 }); } catch {}
-    }
-    for (const child of children) child.kill("SIGTERM");
-    await Promise.race([Promise.all([...children].map((child) => new Promise((resolveExit) => child.once("exit", resolveExit)))), new Promise((resolveDelay) => setTimeout(resolveDelay, 5_000))]);
-    for (const child of children) child.kill("SIGKILL");
-    rmSync(dataDir, { recursive: true, force: true });
-  })();
-  return stopping;
+// The Valhalla environment the road-geometry flow needs (a live deployment; see docs/valhalla.md). Without it the flow is skipped.
+const VALHALLA_ENV = ["VALHALLA_URL", "VALHALLA_VERSION", "VALHALLA_DATASET_REVISION", "VALHALLA_GRAPH_CONFIG_HASH", "VALHALLA_COSTING_OPTIONS"];
+const valhallaEnv = () => Object.fromEntries([...VALHALLA_ENV, "VALHALLA_MAX_MATRIX_DISTANCE_M", "VALHALLA_MAX_MATRIX_PAIRS", "VALHALLA_MAX_MATRIX_LOCATIONS", "VALHALLA_MAX_ROUTE_LOCATIONS", "VALHALLA_BLOCK_SIZE"].filter((name) => process.env[name]).map((name) => [name, process.env[name]]));
+const valhallaConfigured = () => VALHALLA_ENV.every((name) => process.env[name]?.trim());
+
+// Inspected-route road geometry (spec §4, §7, §10, §13): build a Valhalla snapshot from the browser, run on it, fetch one
+// truck's roads, check the labels, legend, timeline cursor and GeoJSON, at desktop and phone sizes. Needs a live Valhalla.
+async function roadGeometryFlow(baseURL, scenarioKey, runKey) {
+  console.log("Browser smoke: Valhalla road geometry for an inspected truck");
+  beginBrowserFlow("road-geometry");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const author = "Road geometry smoke", name = "Road geometry TN-MS-AR";
+  // Memphis depot (the import default) and six stops in Tennessee, Mississippi and Arkansas.
+  const stops = [["RG-NAS", "Nashville", 36.1627, -86.7816], ["RG-JTN", "Jackson TN", 35.6145, -88.8139], ["RG-TUP", "Tupelo", 34.2576, -88.7034],
+    ["RG-JMS", "Jackson MS", 32.2988, -90.1848], ["RG-LIT", "Little Rock", 34.7465, -92.2896], ["RG-JON", "Jonesboro", 35.8423, -90.7043]];
+  await importInWorkbench(baseURL, scenarioKey, { author, name, inventory: "product,available_pieces\nRG-SKU,1000\n",
+    orders: stops.map(([id, label, lat, lon], i) => `RG-${i + 1},RG-L${i + 1},2026-10-01,Cust ${i + 1},${id},${label},${lat},${lon},RG-SKU,10,25.00,1.00,1`) });
+  expect(snapshot().includes("Build road matrix (Valhalla)"), "The workbench does not offer a Valhalla matrix build; is the Valhalla environment passed to the server?");
+  clickButtonCentered("Build road matrix (Valhalla)");
+  await poll(() => evalValue("(document.querySelector('select[aria-label=\"Run travel mode\"]')?.value ?? 'estimated').length > 20"), (built) => built === true, "Valhalla matrix build", 120_000);
+  const snapshotId = String(evalValue("document.querySelector('select[aria-label=\"Run travel mode\"]').value"));
+  expect(/^[0-9a-f]{64}$/.test(snapshotId), `The built Valhalla matrix was not selected: ${snapshotId}`);
+  const runId = runFromWorkbench(10);
+  const detailOf = () => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey);
+  const detail = await poll(detailOf, (body) => ["succeeded", "failed"].includes(body?.status), "Valhalla-backed run");
+  expect(detail.status === "succeeded" && detail.summary.validity === "valid", `Valhalla-backed run did not succeed: ${detail.status} ${JSON.stringify(detail.failure)}`);
+  const summary = detail.summary;
+  expect(summary.travel?.mode === "snapshot" && summary.travel.provider === "valhalla" && summary.travel.snapshot_id === snapshotId, `Run does not record the Valhalla snapshot: ${JSON.stringify(summary.travel)}`);
+  const truck = summary.trucks[0];
+  const visits = [...truck.visits].sort((a, b) => a.sequence - b.sequence);
+  const geometryUrl = (query = "") => new URL(`/api/v1/runs/${runId}/geometry${query}`, baseURL);
+  const owner = { "x-scenario-key": scenarioKey };
+
+  // API: eligible, nothing fetched yet; access follows the run's owner; refusals use the documented codes.
+  const status = await fetchOkJson(baseURL, `/api/v1/runs/${runId}/geometry`, scenarioKey);
+  expect(status.eligible === true && status.fetched_trucks.length === 0 && status.provider?.version === process.env.VALHALLA_VERSION && status.provider?.dataset_revision === process.env.VALHALLA_DATASET_REVISION, `Geometry status is wrong: ${JSON.stringify(status)}`);
+  const unfetched = await localFetch(geometryUrl(`?truck=${encodeURIComponent(truck.id)}`), { headers: owner });
+  expect(unfetched.status === 404 && (await unfetched.json()).error?.code === "geometry_not_fetched", "An unfetched truck should answer 404 geometry_not_fetched.");
+  const anonymous = await localFetch(geometryUrl(), { method: "POST", headers: { "content-type": "application/json", "idempotency-key": randomUUID() }, body: JSON.stringify({ truck: truck.id }) });
+  expect(anonymous.status === 404, `An anonymous caller must not reach another owner's run geometry; got ${anonymous.status}.`);
+  const keyless = await localFetch(geometryUrl(), { method: "POST", headers: { ...owner, "content-type": "application/json" }, body: JSON.stringify({ truck: truck.id }) });
+  expect(keyless.status === 400 && (await keyless.json()).error?.code === "invalid_idempotency_key", "Fetching without an Idempotency-Key should be refused.");
+
+  // Browser: the run page. The Timeline tab shows the control for its selected truck.
+  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(scenarioKey)}; path=/; SameSite=Lax"`);
+  open(`${baseURL}/runs/${runId}`);
+  browser("wait", "--text", "Validated", "--timeout", "30000");
+  setViewport(1440, 900);
+  browser("find", "role", "tab", "click", "--name", "Timeline", "--exact");
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"road-geometry-button\"]')", "--timeout", "20000");
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"route-legend\"]')", "--timeout", "30000");
+  let text = String(parsedText());
+  expect(text.includes("Schematic straight-line path") && text.includes("Schematic straight line"), `Before fetching, the Timeline should be labeled schematic: ${text.slice(-1500)}`);
+  expect(Number(evalValue("document.querySelectorAll('[data-layer=\"valhalla_road\"]').length")) === 0, "No road layer should be listed before geometry is fetched.");
+  clickButtonCentered("Show road geometry");
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"road-geometry-notes\"]')", "--timeout", "30000");
+  const dataset = process.env.VALHALLA_DATASET_REVISION;
+  const label = `Road geometry (Valhalla truck, ${dataset})`;
+  text = String(parsedText());
+  expect(text.includes(label), `Road geometry label "${label}" is missing.`);
+  expect(text.includes("not proof of what the solver used") && text.includes("optimized on the recorded travel matrix"), "The road-geometry explanation is missing.");
+  expect(text.includes("no live traffic or GPS") && text.includes("Simulation along planned leg durations"), "The simulation label is missing.");
+  const legend = evalValue("JSON.stringify([...document.querySelectorAll('[data-testid=\"route-legend\"] li')].map((li) => [li.dataset.layer, li.innerText.trim(), li.querySelector('svg line')?.getAttribute('stroke-dasharray') ?? null]))");
+  const layers = JSON.parse(typeof legend === "string" ? legend : JSON.stringify(legend));
+  expect(layers.length === 1 && layers[0][0] === "valhalla_road" && layers[0][1].includes(label) && layers[0][2] === null, `Legend should list only the solid road layer: ${JSON.stringify(layers)}`);
+  expect(evalValue("document.querySelector('[data-testid=\"route-legend\"]').getAttribute('aria-label')") === "Route layers", "The route legend needs an accessible label.");
+  const rows = Number(evalValue("document.querySelectorAll('[data-testid=\"road-geometry-legs\"] tbody tr').length"));
+  expect(rows === visits.length, `Discrepancy table should list ${visits.length} legs, got ${rows}.`);
+  browser("find", "role", "button", "click", "--name", "Hide road geometry", "--exact");
+  browser("wait", "--fn", "document.querySelectorAll('[data-layer=\"valhalla_road\"]').length === 0 && !!document.querySelector('[data-layer=\"schematic_straight_line\"]')", "--timeout", "10000");
+  clickButtonCentered("Show road geometry");
+  browser("wait", "--fn", "document.querySelectorAll('[data-layer=\"valhalla_road\"]').length === 1", "--timeout", "10000");
+
+  // Cursor: it moves along the road line (the drive state reports a road position).
+  const stateText = () => String(evalValue("document.querySelector('[data-testid=\"timeline-map-state\"]')?.innerText ?? ''"));
+  const markerAt = () => String(evalValue("(() => { const m = document.querySelector('[data-testid=\"timeline-cursor-marker\"]'); const r = m?.getBoundingClientRect(); return r ? Math.round(r.x) + ',' + Math.round(r.y) : ''; })()"));
+  browser("find", "role", "button", "click", "--name", "Next stop", "--exact");
+  const atStop = markerAt();
+  browser("focus", 'input[type="range"]');
+  for (let i = 0; i < 4; i++) browser("press", "PageUp");
+  browser("wait", "--fn", "(document.querySelector('[data-testid=\"timeline-map-state\"]')?.innerText ?? '').includes('Driving')", "--timeout", "10000");
+  expect(stateText().includes("Driving") && stateText().includes("No live traffic or GPS"), `The map should show the driving state and the simulation label: ${stateText()}`);
+  expect(markerAt() !== atStop && markerAt() !== "", `The cursor marker did not move along the road (at stop ${atStop}, now ${markerAt()}).`);
+  for (const [width, height] of [[1440, 900], [393, 852]]) {
+    assertViewport(width, height);
+    const box = JSON.parse(String(evalValue("JSON.stringify((() => { const l = document.querySelector('[data-testid=\"route-legend\"]').getBoundingClientRect(); const m = document.querySelector('[data-testid=\"timeline-cursor-marker\"]')?.closest('.maplibregl-map, .relative')?.getBoundingClientRect(); const v = document.documentElement.clientWidth; return { left: l.left, right: l.right, width: v, mapRight: m?.right ?? v }; })())")));
+    expect(box.left >= 0 && box.right <= box.width + 1, `Route legend overflows the ${width}px viewport: ${JSON.stringify(box)}`);
+    browser("eval", "document.querySelector('[data-testid=\"route-legend\"]')?.scrollIntoView({ block: 'center' })");
+  }
+  setViewport(1440, 900);
+
+  // API: the cached geometry matches the planned legs, with every discrepancy recorded.
+  const geometry = await fetchOkJson(baseURL, `/api/v1/runs/${runId}/geometry?truck=${encodeURIComponent(truck.id)}`, scenarioKey);
+  expect(geometry.kind === "valhalla_road" && geometry.snapshot_id === snapshotId && geometry.legs.length === visits.length && geometry.chunks.resequenced === false, "Cached geometry is not this truck's legs in order.");
+  expect(geometry.provider.version === process.env.VALHALLA_VERSION && geometry.provider.graph_config_hash === process.env.VALHALLA_GRAPH_CONFIG_HASH && geometry.provider.costing === "truck", "Cached geometry does not record the provider context.");
+  const previousIds = ["depot", ...visits.map((v) => v.location_id)];
+  geometry.legs.forEach((leg, i) => {
+    expect(leg.to_id === visits[i].location_id && leg.status === "ok" && leg.coordinates.length > 2, `Leg ${i} is not the validated stop sequence or has no road line: ${JSON.stringify({ ...leg, coordinates: leg.coordinates?.length })}`);
+    expect(leg.matrix_m === visits[i].leg_m && leg.matrix_s === visits[i].leg_s, `Leg ${i} should carry the run's matrix values (${visits[i].leg_m} m, ${visits[i].leg_s} s), not ${leg.matrix_m} m, ${leg.matrix_s} s.`);
+    expect(Math.abs(leg.relative_m) < 0.15, `Leg ${i} road length differs from the matrix by ${(leg.relative_m * 100).toFixed(1)}%.`);
+  });
+  const lastPoint = geometry.legs.at(-1).coordinates.at(-1);
+  expect(Math.abs(lastPoint[0] - stops.find((st) => st[0] === visits.at(-1).location_id)[3]) < 0.01, "The last leg must end at the last stop; there is no return leg.");
+  console.log(`  legs: ${geometry.legs.map((l, i) => `${previousIds[i]}>${l.to_id} matrix ${(l.matrix_m / 1000).toFixed(1)} km road ${(l.route_m / 1000).toFixed(1)} km (${(l.relative_m * 100).toFixed(1)}%)`).join("; ")}`);
+  const again = await localFetch(geometryUrl(), { method: "POST", headers: { ...owner, "content-type": "application/json", "idempotency-key": randomUUID() }, body: JSON.stringify({ truck: truck.id }) });
+  expect(again.status === 200 && (await again.json()).cached === true, "Fetching an already fetched truck should be served from the cache.");
+
+  // GeoJSON: the default export stays schematic; road geometry is opt-in and labeled.
+  const plain = await (await localFetch(new URL(`/api/v1/runs/${runId}/export?format=geojson`, baseURL), { headers: owner })).json();
+  expect(plain.fillrate.geometry === "schematic_straight_line" && plain.features.every((f) => f.properties.geometry !== "valhalla_road"), "The default GeoJSON export must stay schematic.");
+  const file = join(downloadDir, `fillrate-run-${runId.slice(0, 8)}.geojson`);
+  expect(!existsSync(file), "The GeoJSON download should be new.");
+  clickButtonCentered("Export");
+  clickMenuItem("GeoJSON routes with fetched road geometry");
+  await poll(() => existsSync(file), Boolean, "Road GeoJSON download", 15_000);
+  const road = JSON.parse(readFileSync(file, "utf8"));
+  const roadLegs = road.features.filter((f) => f.properties.role === "route_leg");
+  expect(road.fillrate.geometry === "mixed" && roadLegs.length === visits.length && roadLegs.every((f) => f.properties.geometry === "valhalla_road" && f.properties.dataset_revision === dataset && f.properties.graph_config_hash === process.env.VALHALLA_GRAPH_CONFIG_HASH && f.properties.costing === "truck" && String(f.properties.note).includes("do not prove which roads the solver used")), "Road GeoJSON legs are not labeled valhalla_road with provider context.");
+  const schematicRoutes = road.features.filter((f) => f.properties.role === "route");
+  expect(schematicRoutes.length === summary.trucks.length - 1 && schematicRoutes.every((f) => f.properties.truck_id !== truck.id && f.properties.geometry === "schematic_straight_line") && road.features.filter((f) => f.properties.role === "stop").length === stops.length, "Road GeoJSON should replace the fetched truck's schematic line and keep the stops.");
+
+  // Reload: the fetched truck is remembered server-side, and the Map tab draws road lines with the legend.
+  open(`${baseURL}/runs/${runId}`);
+  browser("wait", "--text", "Validated", "--timeout", "30000");
+  expect((await fetchOkJson(baseURL, `/api/v1/runs/${runId}/geometry`, scenarioKey)).fetched_trucks.join() === truck.id, "The fetched truck should be listed after a reload.");
+  browser("find", "role", "tab", "click", "--name", "Map", "--exact");
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"road-geometry-button\"]')", "--timeout", "20000");
+  for (const [width, height] of [[393, 852], [1440, 900]]) assertViewport(width, height);
+
+  // An estimated run has no road geometry, and nothing is fetched for it.
+  const started = await localFetch(new URL("/api/v1/runs", baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "matrix_estimated" }) });
+  const estimatedId = (await started.json()).id;
+  expect(started.status < 300 && estimatedId, `Could not start the estimated example run: ${started.status}`);
+  const estimated = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${estimatedId}?key=${encodeURIComponent(runKey)}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Estimated example run");
+  const refused = await localFetch(new URL(`/api/v1/runs/${estimatedId}/geometry?truck=${encodeURIComponent(estimated.summary.trucks[0].id)}`, baseURL), { headers: { "x-run-key": runKey } });
+  const refusal = await refused.json();
+  expect(refused.status === 409 && refusal.error.code === "geometry_unavailable" && refusal.error.reason === "estimated_travel", `An estimated run must refuse road geometry: ${refused.status} ${JSON.stringify(refusal)}`);
+  open(`${baseURL}/runs/${estimatedId}?key=${encodeURIComponent(runKey)}`);
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"road-geometry-ineligible\"]')", "--timeout", "30000");
+  expect(String(parsedText()).includes("No road geometry: this run used estimated travel") && !hasButton("Show road geometry"), "An estimated run page should explain that it has no road geometry and offer no fetch.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  checkBrowserDiagnostics("road geometry");
+  console.log(`  passed: run ${runId.slice(0, 8)} on snapshot ${snapshotId.slice(0, 10)}, ${visits.length} road legs with discrepancies, labels, legend, cursor, GeoJSON; estimated run refused`);
 }
 
 process.once("SIGINT", () => void stop().finally(() => process.exit(130)));
@@ -1710,13 +2220,20 @@ try {
     SCENARIO_KEY: scenarioKey,
     NEXT_TELEMETRY_DISABLED: "1",
   };
+  // Valhalla settings reach the web and optimizer processes only for the road-geometry flow (it needs a live deployment).
+  const roadGeometrySelected = flows.includes("road-geometry");
+  const roadGeometryReady = roadGeometrySelected && valhallaConfigured();
+  if (roadGeometrySelected && !roadGeometryReady) console.log(`Browser smoke: road geometry SKIPPED. Set ${VALHALLA_ENV.join(", ")} (and optionally VALHALLA_MAX_ROUTE_LOCATIONS) to a live Valhalla deployment to run it.`);
+  if (roadGeometryReady) Object.assign(commonEnv, valhallaEnv());
   const web = launch(process.execPath, [join(standaloneAppDir, "server.js")], { cwd: standaloneAppDir, env: { ...commonEnv, PORT: String(webPort), HOSTNAME: "127.0.0.1" } });
   const baseURL = `http://127.0.0.1:${webPort}`;
+  smokeBaseURL = baseURL;
+  smokeOperatorKey = scenarioKey;
   await waitForWeb(`${baseURL}/learn/fulfillment-pipeline?key=${encodeURIComponent(runKey)}`, web);
   // The optimizer as the container runs it: FastAPI on loopback (manual plan evaluation) with the worker supervisor.
   launch("uv", ["run", "--locked", "fillrate-optimizer"], {
     cwd: optimizerDir,
-    env: { ...commonEnv, UV_PYTHON: "3.13", FILLRATE_WORKER: "1", OPTIMIZER_PORT: String(optimizerPort), FILLRATE_INTERNAL_URL: `http://127.0.0.1:${internalPort}`, WORKER_ID: `browser-smoke-${process.pid}`, WORKER_POLL_SECONDS: "0.2" },
+    env: { ...commonEnv, UV_PYTHON: process.env.UV_PYTHON ?? "3.13", FILLRATE_WORKER: "1", OPTIMIZER_PORT: String(optimizerPort), FILLRATE_INTERNAL_URL: `http://127.0.0.1:${internalPort}`, WORKER_ID: `browser-smoke-${process.pid}`, WORKER_POLL_SECONDS: "0.2" },
   });
   for (const flow of flows) {
     if (flow === "lesson") await lessonFlow(baseURL, runKey);
@@ -1731,11 +2248,15 @@ try {
     if (flow === "edit") await editFlow(baseURL, scenarioKey);
     if (flow === "labs") await labsFlow(baseURL, runKey, scenarioKey);
     if (flow === "warm-start") await warmStartFlow(baseURL, runKey);
+    if (flow === "lab-lessons") await labLessonsFlow(baseURL, runKey);
     if (flow === "lab-depots") await labDepotsFlow(baseURL, runKey);
     if (flow === "lab-reloads") await labReloadsFlow(baseURL, runKey);
     if (flow === "lab-prizes") await labPrizesFlow(baseURL, runKey);
     if (flow === "lab-groups") await labGroupsFlow(baseURL, runKey);
     if (flow === "lab-pairs") await labPairsFlow(baseURL, runKey);
+    if (flow === "baselines") await baselinesFlow(baseURL, runKey, scenarioKey);
+    if (flow === "fleet") await fleetFlow(baseURL, scenarioKey);
+    if (flow === "road-geometry" && roadGeometryReady) await roadGeometryFlow(baseURL, scenarioKey, runKey);
   }
   await stop();
 } catch (error) {

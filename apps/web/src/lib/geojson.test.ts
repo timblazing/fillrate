@@ -49,3 +49,32 @@ test("stops are one Point per location, split stops list every truck, and metada
   })
   expect(JSON.parse(JSON.stringify(collection))).toEqual(collection)
 })
+
+test("road geometry is opt-in per truck, labeled valhalla_road with provider context, and never replaces schematic lines elsewhere", () => {
+  const road = {
+    kind: "valhalla_road", snapshot_id: "ab".repeat(32), truck_id: "T1",
+    provider: { provider: "valhalla", version: "3.9.0", dataset_revision: "extract-1", graph_config_hash: "sha256:g", costing: "truck", costing_options: { length: 21.64 } },
+    legs: [
+      { index: 0, from_id: "D", to_id: "A", status: "ok", coordinates: [[-90, 35], [-90.1, 35.05], [-90.2, 35.1]], route_m: 1100, route_s: 70, matrix_m: 1000, matrix_s: 60, delta_m: 100, delta_s: 10, relative_m: 0.1, relative_s: 0.17, notable: true },
+      { index: 1, from_id: "A", to_id: "B", status: "no_route", coordinates: null, error: "no path", matrix_m: 2000, matrix_s: 90 },
+    ],
+    summary: { legs: 2, drawn: 1, missing: 1 },
+  } as never
+  const plain = buildRouteGeoJson("run-1", summary)
+  expect(plain.features.filter(f => f.properties.role === "route_leg")).toHaveLength(0)
+  expect(plain.fillrate.geometry).toBe("schematic_straight_line")
+
+  const mixed = buildRouteGeoJson("run-1", summary, new Map([["T1", road]]))
+  const legs = mixed.features.filter(f => f.properties.role === "route_leg")
+  expect(legs).toHaveLength(1) // the leg with no route is absent, not a straight line
+  expect(legs[0].geometry.coordinates).toHaveLength(3)
+  expect(legs[0].properties).toMatchObject({ geometry: "valhalla_road", provider: "valhalla", provider_version: "3.9.0", dataset_revision: "extract-1", graph_config_hash: "sha256:g", costing: "truck", delta_m: 100, discrepancy_notable: true })
+  expect(String(legs[0].properties.note)).toContain("do not prove which roads the solver used")
+  // T1 has road legs instead of its schematic line; T2 stays schematic.
+  const routes = mixed.features.filter(f => f.properties.role === "route")
+  expect(routes.map(f => f.properties.truck_id)).toEqual(["T2"])
+  expect(routes[0].properties.geometry).toBe("schematic_straight_line")
+  expect(mixed.fillrate.geometry).toBe("mixed")
+  expect(mixed.fillrate.road_geometry).toMatchObject({ trucks: ["T1"], legs_without_route: { T1: [{ leg_index: 1, from_id: "A", to_id: "B", status: "no_route" }] } })
+  expect(mixed.fillrate.counts).toMatchObject({ routes: 1, road_legs: 1 })
+})

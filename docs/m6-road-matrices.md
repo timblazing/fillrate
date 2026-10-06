@@ -2,9 +2,9 @@
 
 The first M6 increment added Python providers and fixtures. The second (below) stores
 immutable snapshots, binds them to run settings and lets the worker route over them.
-Estimated travel stays the default. `directed_road_travel` stays `planned` in the
-capabilities document until the browser can select a matrix and the matrix inspector,
-imported-matrix preview and a live pinned Valhalla deployment exist.
+Estimated travel stays the default. `directed_road_travel` is `implemented` (2026-10-05):
+the browser selects and inspects matrices, and the pinned Valhalla service was verified live
+on local hardware (`docs/valhalla.md`); the owner's production deployment is not verified.
 
 `travel_provider.py` defines `TravelProvider`, `TravelNode`, and `TravelSnapshot`.
 Estimated, imported, and Valhalla providers return the same snapshot format. A snapshot
@@ -156,11 +156,12 @@ Next M6 increments:
 3. Fetch geometry only for inspected routes, with independent chunk/segment checks.
 4. Add advanced fleet/window/depot features, manual evaluation and warm starts one at a time.
 
-## Durable Valhalla snapshot job (fixture-verified)
+## Durable Valhalla snapshot job
 
 A run of kind `travel_snapshot` builds one directed snapshot for a saved scenario version. It is
-verified against loopback fake Valhalla servers only; no live Valhalla has been run, and
-`directed_road_travel` stays `planned`.
+covered by loopback fake Valhalla servers in tests and was verified against the pinned live service
+on local hardware with `deploy/smoke_valhalla.py` (`docs/valhalla.md`). Nodes outside the deployment's
+coverage (found with `/locate` first) get unreachable edges and an `outside_coverage` warning.
 
 - `POST /api/v1/travel-snapshots/jobs` with `{versionId, idempotencyKey}` (an `Idempotency-Key`
   header also works) queues the job for a version you own. It is admitted and charged in the
@@ -194,3 +195,8 @@ network, not real roads). The web server stores it for the `examples` owner by c
 ordinary snapshot path above. Regenerate with `uv run python -m fillrate_optimizer.lesson_matrix`; the settings'
 `travel_snapshot_id` changes with any change to the document, and pytest and Vitest check both agree.
 
+
+## Road geometry for inspected routes
+
+Valhalla `/route` geometry for one inspected truck, with its context rule, chunking, discrepancy recording, cache and
+GeoJSON semantics, is documented in [route-geometry.md](route-geometry.md). It does not change the matrix or the solve.

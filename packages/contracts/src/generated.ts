@@ -59,6 +59,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/route-geometry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Route Geometry
+         * @description Road geometry for one inspected truck (spec §4, §7): bounded synchronous Valhalla `/route`
+         *     calls in the thread pool. Only Next.js calls it, with the worker bearer token.
+         */
+        post: operations["post_route_geometry_route_geometry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/route-geometry/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Route Geometry Context
+         * @description This deployment's Valhalla identity (no endpoint), for the web's eligibility check.
+         */
+        get: operations["get_route_geometry_context_route_geometry_context_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -187,6 +228,8 @@ export interface components {
             cluster_id: string;
             /** Routes */
             routes: string[][];
+            /** Vehicle Types */
+            vehicle_types?: string[] | null;
         };
         /** ClusterSummary */
         ClusterSummary: {
@@ -265,7 +308,7 @@ export interface components {
              * Reason
              * @default null
              */
-            reason: ("travel_changed" | "visit_set_changed" | "demand_changed" | "source_invalid" | "invalid_on_new_problem" | "solver_rejected") | null;
+            reason: ("travel_changed" | "visit_set_changed" | "demand_changed" | "source_invalid" | "invalid_on_new_problem" | "solver_rejected" | "fleet_changed") | null;
             /**
              * Source Cluster Id
              * @default null
@@ -568,6 +611,60 @@ export interface components {
             };
         };
         /**
+         * FleetTypeUse
+         * @description What a fleet run used of one vehicle type, fleet-wide (all clusters).
+         */
+        FleetTypeUse: {
+            /** Avg Fill */
+            avg_fill: number | null;
+            /** Capacity */
+            capacity: number;
+            /** Count */
+            count: number | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Load */
+            load: number;
+            /** Min Fill */
+            min_fill: number | null;
+            /** Trucks */
+            trucks: number;
+        };
+        /**
+         * FleetVehicleType
+         * @description One vehicle type of an optional heterogeneous fleet (spec §3, M6).
+         *
+         *     `count` is the number of vehicles of this type available to the whole dispatch (all clusters
+         *     together); null means unlimited, which is how the single trailer behaves today. `capacity` is
+         *     in the pipeline's capacity unit, integer hundredths of a foot. The two rates are used only by
+         *     the `cost` objective, which requires them on every type.
+         */
+        FleetVehicleType: {
+            /** Capacity */
+            capacity: number;
+            /**
+             * Count
+             * @default null
+             */
+            count: number | null;
+            /**
+             * Fixed Cost Cents
+             * @default null
+             */
+            fixed_cost_cents: number | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Per Mile Cents
+             * @default null
+             */
+            per_mile_cents: number | null;
+        };
+        /**
          * GeocodeMatch
          * @description How an address became a coordinate (spec §6). Records the match, never a confidence score.
          *
@@ -604,6 +701,62 @@ export interface components {
              * @default null
              */
             zcta: string | null;
+        };
+        /** GeometryLeg */
+        GeometryLeg: {
+            /** Coordinates */
+            coordinates?: number[][] | null;
+            /** Delta M */
+            delta_m?: number | null;
+            /** Delta S */
+            delta_s?: number | null;
+            /** Error */
+            error?: string | null;
+            /** From Id */
+            from_id: string;
+            /** Index */
+            index: number;
+            /** Matrix M */
+            matrix_m?: number | null;
+            /** Matrix S */
+            matrix_s?: number | null;
+            /**
+             * Notable
+             * @default false
+             */
+            notable: boolean;
+            /** Relative M */
+            relative_m?: number | null;
+            /** Relative S */
+            relative_s?: number | null;
+            /** Route M */
+            route_m?: number | null;
+            /** Route S */
+            route_s?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "same_location" | "no_route" | "rejected";
+            /** To Id */
+            to_id: string;
+        };
+        /**
+         * GeometryStop
+         * @description A node of the truck's physical sequence: the depot, then each visit's location in order.
+         */
+        GeometryStop: {
+            /** Id */
+            id: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /** InventoryItem */
         InventoryItem: {
@@ -1522,7 +1675,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "unknown_visit" | "unreachable_visit" | "duplicate_visit" | "missing_visit" | "empty_truck" | "over_capacity" | "leg_missing" | "leg_over_limit" | "leg_mismatch" | "leg_no_duration" | "window_late" | "horizon_exceeded" | "cluster_diameter";
+            code: "unknown_visit" | "unreachable_visit" | "duplicate_visit" | "missing_visit" | "empty_truck" | "over_capacity" | "leg_missing" | "leg_over_limit" | "leg_mismatch" | "leg_no_duration" | "window_late" | "horizon_exceeded" | "cluster_diameter" | "vehicle_type_missing" | "unknown_vehicle_type" | "fleet_count_exceeded";
             /** Message */
             message: string;
             /** Truck */
@@ -1636,6 +1789,68 @@ export interface components {
              */
             reason: "diameter" | "solve_size" | "degenerate_size";
         };
+        /** RouteGeometryRequest */
+        RouteGeometryRequest: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Snapshot */
+            snapshot: {
+                [key: string]: unknown;
+            };
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Stops */
+            stops: components["schemas"]["GeometryStop"][];
+            /** Truck Id */
+            truck_id: string;
+        };
+        /** RouteGeometryResponse */
+        RouteGeometryResponse: {
+            /** Chunks */
+            chunks: {
+                [key: string]: unknown;
+            };
+            /**
+             * Geometry Version
+             * @default fillrate-route-geometry/1
+             */
+            geometry_version: string;
+            /**
+             * Kind
+             * @default valhalla_road
+             * @constant
+             */
+            kind: "valhalla_road";
+            /** Legs */
+            legs: components["schemas"]["GeometryLeg"][];
+            /**
+             * Note
+             * @default Valhalla's route for the same legs, shown for display. The plan was optimized on the recorded travel matrix; these paths do not prove which roads the solver used.
+             */
+            note: string;
+            /** Provider */
+            provider: {
+                [key: string]: unknown;
+            };
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: 1;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Summary */
+            summary: {
+                [key: string]: unknown;
+            };
+            /** Truck Id */
+            truck_id: string;
+        };
         /** RunSettings */
         RunSettings: {
             /**
@@ -1683,6 +1898,8 @@ export interface components {
             cost_per_truck_cents: number | null;
             /** Excluded Line Ids */
             excluded_line_ids?: string[];
+            /** Fleet */
+            fleet?: components["schemas"]["FleetVehicleType"][] | null;
             /**
              * Fulfillment Policy
              * @default piece
@@ -1799,6 +2016,8 @@ export interface components {
             depot: components["schemas"]["Depot"];
             /** Diagnostics */
             diagnostics: components["schemas"]["Diagnostic"][];
+            /** Fleet Usage */
+            fleet_usage?: components["schemas"]["FleetTypeUse"][] | null;
             /** Locations */
             locations: components["schemas"]["MapLocation"][];
             /** Preflight */
@@ -2046,6 +2265,8 @@ export interface components {
             service_s_total?: number | null;
             /** Shift Start S */
             shift_start_s?: number | null;
+            /** Vehicle Type Id */
+            vehicle_type_id?: string | null;
             /** Visits */
             visits: components["schemas"]["TruckVisit"][];
             /** Wait S Total */
@@ -2130,9 +2351,23 @@ export interface components {
              */
             stage: "preflight" | "allocation" | "problem" | "solve" | "validation";
         };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+        };
         /**
          * WarmStartCluster
          * @description A source cluster: validated ones carry their routes in service order; others carry none.
+         *     Fleet plans also carry each route's vehicle type ID, parallel to `routes`.
          */
         WarmStartCluster: {
             /** Cluster Id */
@@ -2146,6 +2381,8 @@ export interface components {
              * @enum {string}
              */
             status: "validated" | "invalid_candidate" | "no_candidate" | "nothing_to_solve";
+            /** Vehicle Types */
+            vehicle_types?: string[] | null;
         };
         /**
          * WarmStartPlan
@@ -2156,6 +2393,8 @@ export interface components {
         WarmStartPlan: {
             /** Clusters */
             clusters: components["schemas"]["WarmStartCluster"][];
+            /** Fleet */
+            fleet?: string[] | null;
             /**
              * Schema Version
              * @default 1
@@ -2167,20 +2406,24 @@ export interface components {
         };
         /**
          * WarmStartSource
-         * @description Where a warm start's plan comes from (spec §10, M6). Today only a succeeded pipeline run the
-         *     submitter can read; the web resolves it with owner checks and the worker receives its validated
-         *     plan over the loopback transport as a `WarmStartPlan`. Another source (a saved manual baseline)
-         *     would be a new `kind` producing the same plan document.
+         * @description Where a warm start's plan comes from (spec §10, M6). Either a succeeded pipeline run the
+         *     submitter can read (`{kind: "run", run_id}`) or one of the submitter's saved manual baselines
+         *     (`{kind: "manual_baseline", baseline_id}`). The web resolves it with owner checks and the
+         *     worker receives the source over the loopback transport; Python turns either into the same
+         *     `WarmStartPlan` document. The id field of the other kind is left out of dumps, so `run`
+         *     sources keep their original content hash.
          */
         WarmStartSource: {
+            /** Baseline Id */
+            baseline_id?: string | null;
             /**
              * Kind
              * @default run
-             * @constant
+             * @enum {string}
              */
-            kind: "run";
+            kind: "run" | "manual_baseline";
             /** Run Id */
-            run_id: string;
+            run_id?: string | null;
         };
         /** WarmStartSummary */
         WarmStartSummary: {
@@ -2325,6 +2568,100 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    post_route_geometry_route_geometry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RouteGeometryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteGeometryResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_route_geometry_context_route_geometry_context_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

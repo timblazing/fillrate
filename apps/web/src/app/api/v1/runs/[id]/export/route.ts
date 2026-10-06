@@ -9,12 +9,13 @@ import type { SheetColumn } from "@/lib/shipment-sheet"
 import { buildRouteGeoJson } from "@/lib/geojson"
 import { ApiError, errorResponse, runDetail } from "@/lib/server/runs"
 import { accessError, assertRunRead, principal } from "@/lib/server/access"
+import { cachedGeometries } from "@/lib/server/route-geometry"
 import { labExportResponse } from "@/lib/server/lab"
 
 export const dynamic = "force-dynamic"
 
 // ?format=json (default), ?format=python (replay bundle .zip; also for succeeded k explorer jobs) or ?format=csv&table=loads|unplanned|clusters|products|sheet
-// ?format=geojson (schematic truck routes) and ?format=matrix&as=csv|json (the travel snapshot the run used; estimated
+// ?format=geojson (schematic truck routes; add &geometry=road to draw Valhalla road legs for trucks whose geometry was fetched) and ?format=matrix&as=csv|json (the travel snapshot the run used; estimated
 // runs have no recorded matrix, so they answer 409 matrix_not_recorded). The sheet table takes optional &truck=<truck id> and &columns=location,pieces.
 export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]/export">) {
   try {
@@ -47,7 +48,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
       if (detail.kind !== "pipeline" || detail.status !== "succeeded" || !detail.summary) throw new ApiError(409, "run_not_succeeded", "Only succeeded pipeline runs with results can be exported in this format.")
       const summary = detail.summary
       if (format === "geojson") {
-        return new Response(JSON.stringify(buildRouteGeoJson(id, summary)), {
+        return new Response(JSON.stringify(buildRouteGeoJson(id, summary, params.get("geometry") === "road" ? cachedGeometries(store, id) : undefined)), {
           headers: { "Cache-Control": "private, no-store", "content-type": "application/geo+json", "content-disposition": `attachment; filename="${name}.geojson"` },
         })
       }

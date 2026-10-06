@@ -44,7 +44,7 @@ class NoRedirects(HTTPRedirectHandler):
         raise ProviderError("Valhalla redirects are not allowed")
 
 
-def post_json(endpoint: str, body: dict, timeout: float) -> dict:
+def post_json(endpoint: str, body: dict, timeout: float) -> dict | list:
     request = Request(
         endpoint,
         data=json.dumps(body, allow_nan=False).encode(),
@@ -69,7 +69,8 @@ def post_json(endpoint: str, body: dict, timeout: float) -> dict:
         result = json.loads(raw)
     except (ValueError, UnicodeDecodeError) as error:
         raise ProviderError("Valhalla returned invalid JSON") from error
-    if not isinstance(result, dict):
+    # /locate answers with a list; every other action with an object (checked by the caller).
+    if not isinstance(result, (dict, list)):
         raise ProviderError("Valhalla returned a non-object response")
     return result
 
@@ -90,6 +91,10 @@ class ValhallaConfig:
     timeout_s: float = 15
     total_timeout_s: float = 300
     retries: int = 2
+    # Ask /locate which nodes snap to the deployed graph before building the matrix. A node outside
+    # the built coverage then gets unreachable edges and an `outside_coverage` warning instead of
+    # failing every block it appears in (spec §7: never approximated, never silently dropped).
+    check_coverage: bool = True
 
     def __post_init__(self):
         parsed = urlsplit(self.url)
@@ -168,6 +173,45 @@ class ValhallaTravel:
         self.clock = clock
         self.sleep = sleep
 
+    def coverage(self, nodes: list[TravelNode], check: Callable[[], None]) -> list[bool]:
+        """True for each node that /locate snaps to at least one edge or node of the graph."""
+        config = self.config
+        covered: list[bool] = []
+        step = max(1, config.max_locations // 2)
+        for start in range(0, len(nodes), step):
+            chunk = nodes[start : start + step]
+            body = {
+                "locations": [{"lat": node.lat, "lon": node.lon} for node in chunk],
+                "costing": config.costing,
+                "costing_options": {config.costing: config.costing_options},
+                "verbose": False,
+            }
+            for attempt in range(config.retries + 1):
+                check()
+                try:
+                    result = self.transport(
+                        config.url.rstrip("/") + "/locate", body, config.timeout_s
+                    )
+                    break
+                except TransientProviderError:
+                    if attempt == config.retries:
+                        raise
+                    for _ in range(2**attempt):
+                        check()
+                        self.sleep(0.25)
+            if not isinstance(result, list) or len(result) != len(chunk):
+                raise ProviderError("Valhalla locate response does not match the request")
+            for entry in result:
+                if not isinstance(entry, dict):
+                    raise ProviderError("Valhalla locate entry is invalid")
+                edges, graph_nodes = entry.get("edges"), entry.get("nodes")
+                if edges is not None and not isinstance(edges, list):
+                    raise ProviderError("Valhalla locate edges are invalid")
+                if graph_nodes is not None and not isinstance(graph_nodes, list):
+                    raise ProviderError("Valhalla locate nodes are invalid")
+                covered.append(bool(edges) or bool(graph_nodes))
+        return covered
+
     def matrix(self, nodes: list[TravelNode], *, progress=None, check_cancelled=None):
         validate_nodes(nodes)
         config = self.config
@@ -180,27 +224,41 @@ class ValhallaTravel:
                 raise ProviderError("Valhalla matrix exceeded its total time limit")
 
         check()
-        spatial = haversine_m(np.array([(node.lat, node.lon) for node in nodes]))
-        if spatial.max() > config.max_matrix_distance_m:
+        n = len(nodes)
+        covered = self.coverage(nodes, check) if config.check_coverage else [True] * n
+        inside = [index for index in range(n) if covered[index]]
+        spatial = haversine_m(np.array([(nodes[i].lat, nodes[i].lon) for i in inside]))
+        if inside and spatial.max() > config.max_matrix_distance_m:
             raise ProviderError(
                 "Point extent exceeds deployed max_matrix_distance; raise the provider limit. "
                 "This request limit does not prove route unreachability."
             )
         size = min(config.block_size, math.isqrt(config.max_pairs), config.max_locations // 2)
-        n = len(nodes)
-        starts = range(0, n, size)
+        starts = range(0, len(inside), size) if len(inside) > 1 else range(0)
         total = len(starts) ** 2
-        distances = [[None] * n for _ in nodes]
-        durations = [[None] * n for _ in nodes]
+        distances = [[0 if i == j else None for j in range(n)] for i in range(n)]
+        durations = [[0 if i == j else None for j in range(n)] for i in range(n)]
         warnings = []
+        outside = [nodes[i].id for i in range(n) if not covered[i]]
+        if outside:
+            warnings.append(
+                {
+                    "code": "outside_coverage",
+                    "text": "No road in the deployed coverage near these nodes; their edges are "
+                    "unreachable (not approximated).",
+                    "nodes": outside,
+                }
+            )
         algorithms = set()
         completed = 0
         if progress:
             progress(0, total)
         for source in starts:
-            sources = nodes[source : source + size]
+            source_ids = inside[source : source + size]
+            sources = [nodes[i] for i in source_ids]
             for target in starts:
-                targets = nodes[target : target + size]
+                target_ids = inside[target : target + size]
+                targets = [nodes[j] for j in target_ids]
                 body = {
                     "sources": [{"lat": node.lat, "lon": node.lon} for node in sources],
                     "targets": [{"lat": node.lat, "lon": node.lon} for node in targets],
@@ -226,6 +284,8 @@ class ValhallaTravel:
                             check()
                             self.sleep(min(0.25, max(0, deadline - self.clock())))
                 check()
+                if not isinstance(result, dict):
+                    raise ProviderError("Valhalla returned a non-object response")
                 if result.get("error") or result.get("error_code"):
                     raise ProviderError("Valhalla rejected matrix request")
                 if result.get("units") != "kilometers":
@@ -265,10 +325,11 @@ class ValhallaTravel:
                             for value in (d, t)
                         ):
                             raise ProviderError("Valhalla matrix distance/time is invalid")
-                        if source + i == target + j and (d != 0 or t != 0):
+                        row, column = source_ids[i], target_ids[j]
+                        if row == column and (d != 0 or t != 0):
                             raise ProviderError("Valhalla matrix diagonal must be zero")
-                        distances[source + i][target + j] = entry["distance"]
-                        durations[source + i][target + j] = entry["time"]
+                        distances[row][column] = entry["distance"]
+                        durations[row][column] = entry["time"]
                 if len(pairs) != len(sources) * len(targets):
                     raise ProviderError("Valhalla matrix block is incomplete")
                 algorithm = result.get("algorithm")
@@ -296,6 +357,9 @@ class ValhallaTravel:
                     "costing_options": config.costing_options,
                     "graph_config_hash": config.graph_config_hash,
                     "algorithms": sorted(algorithms),
+                    # CostMatrix results can depend on which locations share a request.
+                    "block_size": size,
+                    **({"coverage_check": "locate"} if config.check_coverage else {}),
                 },
                 distance_units="kilometers",
                 duration_units="seconds",

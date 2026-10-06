@@ -93,6 +93,8 @@ The Python script embeds the instance and the recorded outcome and calls `fillra
 | `pairs` | `lab-pairs.json` | Planar, 6 pickup-delivery pairs of 6 parcels (pickups west, deliveries east), one 1-parcel return stop, vans of 12 parcels with a 450-unit route limit. 3 vans each carry two pairs at once (peak 12 of 12), pickups before deliveries; nominal cost 1,226 (300 fixed + 926 distance). Seeds 0–3 agree on the cost (not always on which pairs ride together). |
 | `pairs_small` | `lab-pairs-small.json` | Vans of 6: no two pairs ride together, routes run longer and the limit needs 5 vans; nominal cost 2,069 (500 + 1,569). Learn: `/learn/pickup-delivery-pairs`. |
 
+The `dimensions`/`dimensions_volume` and `fleet`/`fleet_trucks` pairs back the lessons `/learn/load-dimensions` and `/learn/heterogeneous-fleet`, which start them from the page and compare the persisted results.
+
 ## Adding a capability
 
 Each later PR should stay small and touch only its own pieces:

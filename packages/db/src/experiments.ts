@@ -85,7 +85,11 @@ export function comparisonSignature(versionId: string, settings: RunSettings, ve
     // a decision method compared within one (like k). Added only when set, so piece-level signatures
     // from before M5 are unchanged.
     ...(settings.fulfillment_policy === "whole_order" ? { fulfillment: "whole_order" } : {}),
-    units: { capacity: settings.trailer_capacity, distance: "m", money: "cents" },
+    // A fleet replaces the trailer capacity (then unused). The fleet is part of the problem: vehicle type IDs, counts and
+    // capacities (not labels or cost rates) form their own cohort. Added only when set, so single-trailer signatures
+    // are unchanged.
+    units: { capacity: settings.fleet?.length ? null : settings.trailer_capacity, distance: "m", money: "cents" },
+    ...(settings.fleet?.length ? { fleet: fleetDefinition(settings.fleet) } : {}),
     // A selected travel snapshot replaces the estimating circuity: its identity (a hash of its coordinates,
     // provider, dataset, profile, options and every raw value) is the travel assumption. Added only when
     // set, so signatures of estimated runs are unchanged.
@@ -94,6 +98,11 @@ export function comparisonSignature(versionId: string, settings: RunSettings, ve
     validation: { max_leg_m: settings.max_leg_m, max_cluster_diameter_m: settings.max_cluster_diameter_m, pipeline: versions.pipeline ?? null },
   };
   return { signature: createHash("sha256").update(canonical(definition)).digest("hex"), definition };
+}
+
+/** Vehicle types as the signature sees them: physical limits only, in a stable order. */
+function fleetDefinition(fleet: NonNullable<RunSettings["fleet"]>) {
+  return fleet.map(t => ({ id: t.id, count: t.count ?? null, capacity: t.capacity })).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /** The approximate-coordinates policy (M5) appears only when it blocks, so earlier signatures are unchanged. */
@@ -111,7 +120,9 @@ export function changedAssumptions(base: RunSettings, settings: RunSettings) {
   if (settings.cluster_circuity !== base.cluster_circuity) out.push(`Cluster circuity ${settings.cluster_circuity}`);
   if (settings.max_leg_m !== base.max_leg_m) out.push(`Leg limit ${Math.round(settings.max_leg_m / 1609.344)} mi`);
   if (settings.max_cluster_diameter_m !== base.max_cluster_diameter_m) out.push("Diameter policy");
-  if (settings.trailer_capacity !== base.trailer_capacity) out.push("Trailer capacity");
+  const fleet = (x: RunSettings) => (x.fleet?.length ? canonical(fleetDefinition(x.fleet)) : null);
+  if (fleet(settings) !== fleet(base)) out.push("Vehicle fleet");
+  else if (!settings.fleet?.length && settings.trailer_capacity !== base.trailer_capacity) out.push("Trailer capacity");
   if ((settings.fulfillment_policy ?? "piece") !== (base.fulfillment_policy ?? "piece")) out.push(settings.fulfillment_policy === "whole_order" ? "Whole orders only" : "Partial lines allowed");
   if (canonical(eligibilityPolicy(settings.preflight)) !== canonical(eligibilityPolicy(base.preflight)) || canonical(settings.excluded_line_ids ?? []) !== canonical(base.excluded_line_ids ?? [])) out.push("Eligibility");
   return out;
