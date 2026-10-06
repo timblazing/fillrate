@@ -21,6 +21,12 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - Three 601-node matrix UI previews took 1,594.7–1,617.4 ms. The 1,001-node/9.8 MB API preview validated in 226 ms, but browser UI completion was not observed and remains an explicit measurement gap.
 - Validation: `bun run build` and browser flows `lesson`, `import`, `experiment`, `matrix` passed on the task branch with isolated synthetic data. No runtime optimization or milestone completion is claimed; dashboard integration and final candidate gates remain open.
 
+## 2026-10-06: M8 persisted shipment results responsiveness (Codex)
+- Paginated the persisted 443-shipment table at 50 rows per page, retaining stable shipment selection, map-driven cluster filtering and keyboard-accessible table scrolling. The affected browser flow confirms global page 2, selection without a full-result refetch, and selection details retained across the selected cluster's page change.
+- Repeated the 2,000-order synthetic result at 1440×900 and 393×852. Desktop Map → Shipments response: 44.6, 116.0, 112.6 ms (median 112.6); phone: 114.9, 139.6, 136.6 ms (median 136.6). Each view mounted 50 rows / 1,336 DOM nodes, down from 443 / 9,775. Three page-scroll actions produced no >200 ms long task; no task over 200 ms began during a measured tab click. Full results and method limits are in [the responsiveness review](reviews/m8-results-responsiveness-2026-10-06.md), with paired screenshots.
+- Verification: `bun run test:browser --flow=lesson` passed on an isolated production build and generated synthetic data. `bun run lint` and `bun run typecheck` passed; lint retains one existing exhaustive-deps warning in `apps/web/src/components/ui/globe.tsx`. `bun run build` passed.
+- This closes the shipment-table transition slice only. The 601-node matrix UI timing and 1,001-node UI path remain open; shipment-sheet print and unshipped-reason acceptance, recovery states and other dashboard audit gaps remain open. M8 is not complete.
+
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
   - [x] SQLite durable jobs, leased Python worker, real PyVRP pipeline, independent validation and persisted exports.
@@ -63,6 +69,8 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 ## Known gaps
 
 - Dashboard coverage, responsive/accessibility review and measured frontend performance remain open under frontend-spec.md. Matrix heatmap cell rendering needs profiling at large sizes; no optimization is claimed.
+- The 443-shipment persisted results transition now meets the proposed 200 ms response target in three warm local trials per viewport; the table pages 50 rows and selection does not fetch the full result. This does not close matrix, whole-dashboard, cold-load or target-device performance acceptance. The 1,001-node matrix browser path remains unmeasured.
+- The printable shipment sheet and complete unshipped-reason/print review remain open. Queued, running, failed, cancelled and retry recovery-state review remains open, alongside remaining keyboard/focus, theme, reduced-motion and six-Block integration checks.
 - The `e95f3cb` image is published (PR #72); deployment is separately owned by the user and is not inferred from a successful image workflow. Dashboard runtime changes still need a later image release.
 - VPS Valhalla coverage/timings are absent. Local pinned/provider/geometry evidence is distinct from hosted evidence.
 - Basemap public-use/provider terms record referenced by the spec is missing; create it after inspecting the shipped configuration.
@@ -83,4 +91,4 @@ See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for live 
 
 ## Next step
 
-Implement the highest-impact dashboard fixes from the [coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md), starting with the 443-row result-tab responsiveness issue; then complete missing sheet, recovery-state, accessibility and near-limit matrix UI acceptance. The current image publication is complete in #72; owner deployment remains separate. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
+Continue the dashboard work from the [coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md): establish the 1,001-node matrix browser UI timing and address the measured matrix preview path, then complete shipment-sheet print, recovery-state and remaining accessibility/integration acceptance. The 443-shipment results transition slice is recorded separately and does not complete M8. The current image publication is complete in #72; owner deployment remains separate. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
