@@ -8,6 +8,8 @@ const WARN_ONLY = new Set<PreflightCheck>(["far_via_stop"]);
 export type PreflightFinding = { check: PreflightCheck; action: "block" | "warn"; location_ids: string[]; line_ids: string[]; message: string };
 export type PreflightSettings = {
   trailer_capacity?: number;
+  /** Optional vehicle-type fleet: stops are checked against its largest capacity and `trailer_capacity` is unused. */
+  fleet?: { capacity: number }[] | null;
   travel_circuity?: number;
   max_leg_m?: number;
   /** Identity of the selected directed travel snapshot; the caller must then pass that snapshot. */
@@ -15,6 +17,9 @@ export type PreflightSettings = {
   excluded_line_ids?: string[];
   preflight?: Partial<Record<Exclude<PreflightCheck, "far_via_stop">, "block" | "warn">>;
 };
+/** The largest single-vehicle capacity: the biggest fleet type, or the trailer (mirrors RunSettings.max_capacity). */
+export const largestCapacity = (settings: Pick<PreflightSettings, "trailer_capacity" | "fleet">) =>
+  settings.fleet?.length ? Math.max(...settings.fleet.map(t => t.capacity)) : settings.trailer_capacity ?? 5300;
 const EARTH_RADIUS_M = 6_371_008.8;
 const FIVE_HUNDRED_MILES_M = 804_672;
 const rad = (degrees: number) => degrees * Math.PI / 180;
@@ -116,7 +121,7 @@ export function preflightChecks(scenario: ScenarioDocument, settings: PreflightS
   }
   const { far, chained } = farStops(scenario, points, maxLeg, circuity, snapshot);
   for (const id of [...far].sort()) for (const lineId of locatedLines.get(id) ?? []) add(chained.has(id) ? "far_via_stop" : "far_from_depot", id, lineId);
-  for (const [key, group] of grouped) if (group.load > (settings.trailer_capacity ?? 5300)) {
+  for (const [key, group] of grouped) if (group.load > largestCapacity(settings)) {
     const [id] = JSON.parse(key) as [string, string];
     for (const lineId of group.ids) add("oversize_stop", id, lineId);
   }

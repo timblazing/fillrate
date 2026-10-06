@@ -1,24 +1,41 @@
 "use client"
 
 import type { RunSummary } from "@fillrate/contracts"
-import { ArrowDown, ArrowUp, ArrowRightLeft, RotateCcw, Scale } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowRightLeft, Bookmark, FolderOpen, RotateCcw, Scale, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { ClusterSwatch } from "@/components/lab/route-swatch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { Input } from "@/components/ui/input"
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "@/components/ui/menu"
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toastManager } from "@/components/ui/toast"
 import { shipmentLabel } from "@/lib/copy"
-import { fillBand, formatFeet, formatPercent } from "@/lib/units"
+import { METERS_PER_MILE } from "@/lib/shipment-sheet"
+import { fillBand, formatFeet, formatMiles, formatPercent, plural } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
-import { type Evaluation, PlanComparison } from "./plan-comparison"
+import { type Evaluation, PlanComparison, violationLabel } from "./plan-comparison"
+import { type WarmRerun, WarmRerunButton } from "./warm-rerun"
 
 type Visit = { visit_id: string; location_id: string; load: number }
-type Context = { cluster_id: string; objective: string; visits: Visit[]; blocked: (Visit & { reason: string })[]; solve_status: string; reference_routes: string[][] | null }
+type FleetType = { id: string; label: string; capacity: number; count: number | null }
+type Context = { cluster_id: string; objective: string; visits: Visit[]; blocked: (Visit & { reason: string })[]; solve_status: string; reference_routes: string[][] | null; vehicle_types?: FleetType[]; reference_vehicle_types?: string[] | null }
+/** A saved manual baseline as `GET /api/v1/runs/<id>/baselines` lists it (the caller's own only). */
+type Baseline = {
+  id: string
+  name: string
+  cluster_id: string
+  valid: boolean
+  created_at: number
+  plan: { cluster_id: string; routes: string[][]; vehicle_types?: string[] }
+  violations: { code: keyof typeof violationLabel; message: string }[]
+  metrics: { trucks: number; loaded_distance_m: number | null }
+}
 type Focus = { visit: string; action: "up" | "down" | "move" } | null
 
 const moveWithin = (routes: string[][], truck: number, from: number, to: number) =>
@@ -31,12 +48,16 @@ const moveWithin = (routes: string[][], truck: number, from: number, to: number)
   })
 
 /** Moves a visit to the end of another shipment (`to` = routes.length starts a new one); empty shipments are removed. */
-const moveAcross = (routes: string[][], from: number, visit: string, to: number) => {
+const moveAcross = (routes: string[][], from: number, visit: string, to: number, types: string[] = []) => {
   const next = routes.map((r) => [...r])
+  const nextTypes = [...types]
   next[from] = next[from].filter((v) => v !== visit)
-  if (to === next.length) next.push([visit])
-  else next[to].push(visit)
-  return next.filter((r) => r.length)
+  if (to === next.length) {
+    next.push([visit])
+    nextTypes.push(types[from]) // a new shipment starts as the source shipment's vehicle type
+  } else next[to].push(visit)
+  const keep = next.map((r) => r.length > 0)
+  return { routes: next.filter((_, i) => keep[i]), types: nextTypes.filter((_, i) => keep[i]) }
 }
 
 /**
@@ -44,16 +65,22 @@ const moveAcross = (routes: string[][], from: number, visit: string, to: number)
  * to a new one, then evaluate it against the run's recorded problem next to the optimized routes. Every
  * control is a button or menu, so the editor works from the keyboard.
  */
-export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summary: RunSummary; runId: string; runKey?: string; canEvaluate: boolean }) {
+export function ManualPlanPanel({ summary, runId, runKey, canEvaluate, rerun = null }: { summary: RunSummary; runId: string; runKey?: string; canEvaluate: boolean; rerun?: WarmRerun | null }) {
   const clusters = summary.clusters.filter((c) => c.visit_count > 0 && c.status !== "nothing_to_solve")
   const [clusterId, setClusterId] = useState(clusters[0]?.id ?? "")
   const [context, setContext] = useState<Context | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [routes, setRoutes] = useState<string[][]>([])
+  // Fleet runs: the vehicle type of each shipment, parallel to `routes` (empty without a fleet).
+  const [types, setTypes] = useState<string[]>([])
   const [result, setResult] = useState<{ evaluation: Evaluation; plan: string } | null>(null)
   const [evaluating, setEvaluating] = useState(false)
   const [evalError, setEvalError] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState("")
+  const [baselines, setBaselines] = useState<Baseline[] | null>(null)
+  const [baselineName, setBaselineName] = useState("")
+  const [saving, setSaving] = useState(false)
+  const pendingLoad = useRef<Baseline | null>(null)
   const focus = useRef<Focus>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const headers = useMemo((): Record<string, string> => (runKey ? { "x-run-key": runKey } : {}), [runKey])
@@ -72,7 +99,11 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
         if (cancelled) return
         setContext(ctx)
         setLoadError(null)
-        setRoutes(initialRoutes(ctx))
+        // A baseline picked from another cluster's list opens here once its cluster has loaded.
+        const picked = pendingLoad.current?.cluster_id === ctx.cluster_id ? pendingLoad.current : null
+        pendingLoad.current = null
+        setRoutes(picked ? picked.plan.routes.map((r) => [...r]) : initialRoutes(ctx))
+        setTypes(picked?.plan.vehicle_types ? [...picked.plan.vehicle_types] : initialTypes(ctx))
         setResult(null)
         setEvalError(null)
       })
@@ -81,6 +112,18 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
       cancelled = true
     }
   }, [clusterId, runId, headers])
+
+  // Your saved baselines on this run. Anyone without an owner (anonymous callers) simply has none to show.
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/v1/runs/${runId}/baselines`, { headers, cache: "no-store" })
+      .then(async (res) => (res.ok ? ((await res.json()).baselines as Baseline[]) : null))
+      .then((list) => !cancelled && setBaselines(list))
+      .catch(() => !cancelled && setBaselines(null))
+    return () => {
+      cancelled = true
+    }
+  }, [runId, headers])
 
   // Keyboard users keep their place: after a move, focus returns to the moved stop's control.
   useEffect(() => {
@@ -103,14 +146,17 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
 
   const visits = new Map((context?.visits ?? []).map((v) => [v.visit_id, v]))
   const label = (id: string) => places.get(visits.get(id)?.location_id ?? "") ?? id
-  const capacity = summary.settings.trailer_capacity
-  const planKey = JSON.stringify(routes)
-  const changed = context ? planKey !== JSON.stringify(initialRoutes(context)) : false
+  const fleet = context?.vehicle_types
+  const fleetTypes = new Map((fleet ?? []).map((t) => [t.id, t]))
+  const capacityOf = (t: number) => fleetTypes.get(types[t])?.capacity ?? summary.settings.trailer_capacity
+  const planKey = JSON.stringify([routes, types])
+  const changed = context ? planKey !== JSON.stringify([initialRoutes(context), initialTypes(context)]) : false
   const clusterIndex = summary.clusters.findIndex((c) => c.id === clusterId) + 1
   const items = clusters.map((c) => ({ value: c.id, label: `Cluster ${summary.clusters.indexOf(c) + 1} · ${c.visit_count} ${c.visit_count === 1 ? "stop" : "stops"}` }))
 
-  function update(next: string[][], message: string, nextFocus: Focus) {
+  function update(next: string[][], message: string, nextFocus: Focus, nextTypes: string[] = types) {
     setRoutes(next)
+    setTypes(nextTypes)
     setAnnouncement(message)
     focus.current = nextFocus
   }
@@ -122,7 +168,7 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
       const res = await fetch(`/api/v1/runs/${runId}/evaluate`, {
         method: "POST",
         headers: { "content-type": "application/json", ...headers },
-        body: JSON.stringify({ cluster_id: clusterId, routes }),
+        body: JSON.stringify({ cluster_id: clusterId, routes, ...(fleet ? { vehicle_types: types } : {}) }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error?.message ?? "Evaluation failed.")
@@ -135,9 +181,59 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
     }
   }
 
+  async function saveBaseline() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/v1/runs/${runId}/baselines`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...headers },
+        body: JSON.stringify({ name: baselineName, plan: { cluster_id: clusterId, routes, ...(fleet ? { vehicle_types: types } : {}) } }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error?.message ?? "Could not save the baseline.")
+      setBaselines((list) => [body as Baseline, ...(list ?? [])])
+      setBaselineName("")
+      toastManager.add({
+        type: body.valid ? "success" : "warning",
+        title: body.valid ? "Baseline saved" : "Saved as invalid",
+        description: body.valid ? "It passed the validator and can start a warm-started run." : "It failed the validator, so it cannot start a run. Fix the plan and save again.",
+      })
+      setAnnouncement(`Baseline ${body.name} saved, ${body.valid ? "valid" : "invalid"}.`)
+    } catch (error) {
+      toastManager.add({ type: "error", title: "Baseline not saved", description: error instanceof Error ? error.message : undefined })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function loadBaseline(b: Baseline) {
+    if (b.cluster_id !== clusterId) {
+      pendingLoad.current = b
+      setClusterId(b.cluster_id)
+    } else {
+      setRoutes(b.plan.routes.map((r) => [...r]))
+      if (context) setTypes(b.plan.vehicle_types ? [...b.plan.vehicle_types] : initialTypes(context))
+      setResult(null)
+      setEvalError(null)
+    }
+    setAnnouncement(`Loaded baseline ${b.name} into the editor.`)
+  }
+
+  async function removeBaseline(b: Baseline) {
+    const res = await fetch(`/api/v1/baselines/${b.id}`, { method: "DELETE", headers })
+    if (res.ok) {
+      setBaselines((list) => list?.filter((x) => x.id !== b.id) ?? null)
+      setAnnouncement(`Baseline ${b.name} deleted.`)
+    } else {
+      const body = await res.json().catch(() => null)
+      toastManager.add({ type: "error", title: "Baseline not deleted", description: body?.error?.message })
+    }
+  }
+
   function reset() {
     if (!context) return
     setRoutes(initialRoutes(context))
+    setTypes(initialTypes(context))
     setResult(null)
     setEvalError(null)
     setAnnouncement("Manual plan reset to the optimized routes.")
@@ -208,6 +304,7 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
           <div ref={listRef} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {routes.map((route, t) => {
               const load = route.reduce((n, id) => n + (visits.get(id)?.load ?? 0), 0)
+              const capacity = capacityOf(t)
               const fill = load / capacity
               return (
                 <section key={t} className="bg-card flex min-w-0 flex-col rounded-xl border" aria-label={`Manual ${shipmentLabel(t + 1)}`}>
@@ -216,6 +313,24 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
                     <span className={cn("text-xs tabular-nums", fill > 1 ? "text-destructive-foreground font-medium" : fillBand(fill) === "low" ? "text-warning-foreground" : "text-muted-foreground")}>
                       {formatFeet(load)} of {formatFeet(capacity, 0)} · {formatPercent(fill)}
                     </span>
+                    {fleet && (
+                      <Select
+                        value={types[t]}
+                        onValueChange={(v) => update(routes, `${shipmentLabel(t + 1)} is now a ${fleetTypes.get(v as string)?.label}.`, null, types.map((x, i) => (i === t ? (v as string) : x)))}
+                        items={fleet.map((f) => ({ value: f.id, label: f.label }))}
+                      >
+                        <SelectTrigger size="sm" className="ml-auto w-40" aria-label={`Vehicle type of manual ${shipmentLabel(t + 1)}`} data-testid="manual-vehicle-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectPopup>
+                          {fleet.map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectPopup>
+                      </Select>
+                    )}
                   </header>
                   <ol className="divide-y">
                     {route.map((id, i) => (
@@ -257,8 +372,8 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
                                 <MenuItem
                                   key={j}
                                   onClick={() => {
-                                    const next = moveAcross(routes, t, id, j)
-                                    update(next, `${label(id)} moved to the end of ${shipmentLabel(next.findIndex((r) => r.includes(id)) + 1)}.`, { visit: id, action: "move" })
+                                    const next = moveAcross(routes, t, id, j, types)
+                                    update(next.routes, `${label(id)} moved to the end of ${shipmentLabel(next.routes.findIndex((r) => r.includes(id)) + 1)}.`, { visit: id, action: "move" }, next.types)
                                   }}
                                 >
                                   To {shipmentLabel(j + 1)}
@@ -268,7 +383,10 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
                             {routes.length > 1 && <MenuSeparator />}
                             <MenuItem
                               disabled={route.length === 1}
-                              onClick={() => update(moveAcross(routes, t, id, routes.length), `${label(id)} moved to a new ${shipmentLabel(routes.length + 1)}.`, { visit: id, action: "move" })}
+                              onClick={() => {
+                                const next = moveAcross(routes, t, id, routes.length, types)
+                                update(next.routes, `${label(id)} moved to a new ${shipmentLabel(routes.length + 1)}.`, { visit: id, action: "move" }, next.types)
+                              }}
                             >
                               To a new shipment
                             </MenuItem>
@@ -288,6 +406,66 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
             </Alert>
           )}
           {result && <PlanComparison result={result.evaluation} places={places} stale={result.plan !== planKey} />}
+          <section className="bg-card flex flex-col gap-3 rounded-xl border p-3" aria-label="Saved baselines">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="text-sm font-medium">Saved baselines</h4>
+              <span className="text-muted-foreground text-xs">Yours only. A valid one can start a warm-started run; saving never means the solver can match it.</span>
+            </div>
+            <form
+              className="flex flex-wrap items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (baselineName.trim() && !saving) void saveBaseline()
+              }}
+            >
+              <Input className="min-w-0 flex-1 basis-48" value={baselineName} onChange={(e) => setBaselineName(e.target.value)} placeholder="Baseline name" maxLength={100} aria-label="Baseline name" disabled={!canEvaluate} />
+              <Button type="submit" size="sm" variant="outline" loading={saving} disabled={!canEvaluate || !baselineName.trim() || !routes.length}>
+                <Bookmark aria-hidden /> Save as baseline
+              </Button>
+            </form>
+            {baselines && baselines.length > 0 ? (
+              <ul className="flex flex-col divide-y">
+                {baselines.map((b) => {
+                  const n = summary.clusters.findIndex((c) => c.id === b.cluster_id) + 1
+                  return (
+                    <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-sm" data-baseline={b.id} data-valid={b.valid}>
+                      <span className="flex min-w-0 flex-1 basis-56 flex-col">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate font-medium">{b.name}</span>
+                          <Badge variant={b.valid ? "success" : "error"}>{b.valid ? "Valid" : "Invalid"}</Badge>
+                        </span>
+                        <span className="text-muted-foreground text-xs tabular-nums">
+                          Cluster {n || b.cluster_id} · {plural(b.metrics.trucks, "shipment")}
+                          {b.metrics.loaded_distance_m != null && ` · ${formatMiles(b.metrics.loaded_distance_m / METERS_PER_MILE)}`}
+                          {!b.valid && ` · ${[...new Set(b.violations.map((v) => violationLabel[v.code] ?? v.code))].slice(0, 3).join(", ")}`}
+                        </span>
+                      </span>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <Button size="xs" variant="outline" onClick={() => loadBaseline(b)}>
+                          <FolderOpen aria-hidden /> Load
+                        </Button>
+                        {b.valid && rerun && (
+                          <WarmRerunButton
+                            size="xs"
+                            source={{ kind: "manual_baseline", baseline_id: b.id }}
+                            rerun={rerun}
+                            runKey={runKey}
+                            label="Re-run warm-started from this baseline"
+                            title="Same scenario and settings; this baseline's cluster starts from your saved plan if it still validates, others start cold"
+                          />
+                        )}
+                        <Button size="icon-xs" variant="ghost" aria-label={`Delete baseline ${b.name}`} onClick={() => void removeBaseline(b)}>
+                          <Trash2 />
+                        </Button>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground text-xs">{baselines ? "No baselines saved on this run yet." : "Sign in (or use the operator key) to save baselines; they belong to your account."}</p>
+            )}
+          </section>
         </>
       )}
     </div>
@@ -297,4 +475,12 @@ export function ManualPlanPanel({ summary, runId, runKey, canEvaluate }: { summa
 /** The run's optimized routes or, without a candidate, one shipment per stop. */
 function initialRoutes(context: Context) {
   return context.reference_routes?.map((r) => [...r]) ?? context.visits.map((v) => [v.visit_id])
+}
+
+/** Fleet runs: each optimized route's vehicle type or, without a candidate, the largest type for every shipment. */
+function initialTypes(context: Context) {
+  if (!context.vehicle_types) return []
+  if (context.reference_routes && context.reference_vehicle_types) return [...context.reference_vehicle_types]
+  const largest = context.vehicle_types.reduce((a, b) => (b.capacity > a.capacity ? b : a))
+  return initialRoutes(context).map(() => largest.id)
 }

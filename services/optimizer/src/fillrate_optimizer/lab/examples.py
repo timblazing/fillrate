@@ -9,6 +9,22 @@
   small cargo vans and three larger, costlier box trucks. ``fleet(vans=False)`` keeps only the
   trucks, which costs more for the same deliveries.
 
+- ``depots()``: a planar instance with two depots, West (-60, 0) and East (60, 0), a cluster of six
+  stops near each, and two vans based at each depot (``start_depot`` and ``end_depot``).
+  ``depots(single=True)`` keeps the same stops and four vans but only the West depot, so every
+  East stop is a long trip from it and the plan costs more.
+
+- ``reloads()``: a planar instance with a DC at the origin, a yard at (60, 0) and eight stops of
+  5 parcels around x = 70..110. One van of 10 parcels starts and ends at the DC and may reload
+  at the yard up to 3 times, so it makes four trips. ``reloads(allowed=False)`` removes the
+  reload (and the yard) and gives four vans, each with a long single trip from the DC.
+
+- ``prizes()``: a planar instance with five required stops near the depot and three optional,
+  remote stops, each with a prize of 60 cost units. The detour to the remote cluster costs far
+  more than the 180 of prizes it would collect, so the solver skips them and pays 180 of
+  uncollected prizes. ``prizes(prize=400)`` raises each prize to 400, so the same solver visits
+  all three and collects 1,200.
+
 The observations each page states are asserted in tests/test_lab_examples.py. Regenerate with
 `uv run python -m fillrate_optimizer.lab.examples` (writes examples/lab-*.json).
 """
@@ -67,6 +83,53 @@ TRUCK = {
     "fixed_cost": 40_000,
     "unit_distance_cost": 2,
 }
+# id, label, x, y, parcels. West cluster first, then East.
+DEPOT_CLIENTS = [
+    ("W-1", "West stop", -75, 12, 4),
+    ("W-2", "West stop", -68, -14, 4),
+    ("W-3", "West stop", -52, 18, 4),
+    ("W-4", "West stop", -45, -8, 4),
+    ("W-5", "West stop", -80, -2, 4),
+    ("W-6", "West stop", -58, -22, 4),
+    ("E-1", "East stop", 74, 10, 4),
+    ("E-2", "East stop", 66, -16, 4),
+    ("E-3", "East stop", 50, 15, 4),
+    ("E-4", "East stop", 46, -10, 4),
+    ("E-5", "East stop", 82, -4, 4),
+    ("E-6", "East stop", 57, -24, 4),
+]
+DEPOT_VAN_CAPACITY = 12
+DEPOTS = [
+    {"id": "west", "label": "West depot", "x": -60, "y": 0},
+    {"id": "east", "label": "East depot", "x": 60, "y": 0},
+]
+
+# id, label, x, y, parcels
+RELOAD_CLIENTS = [
+    ("R-1", "Store", 72, 20, 5),
+    ("R-2", "Store", 78, -22, 5),
+    ("R-3", "Store", 88, 8, 5),
+    ("R-4", "Store", 95, -12, 5),
+    ("R-5", "Store", 70, 0, 5),
+    ("R-6", "Store", 100, 22, 5),
+    ("R-7", "Store", 108, -4, 5),
+    ("R-8", "Store", 90, -28, 5),
+]
+RELOAD_VAN_CAPACITY = 10
+
+# id, label, x, y, parcels, optional
+PRIZE_CLIENTS = [
+    ("P-1", "Nearby stop", 25, 10, 2, False),
+    ("P-2", "Nearby stop", 35, -15, 2, False),
+    ("P-3", "Nearby stop", -20, 25, 2, False),
+    ("P-4", "Nearby stop", -30, -20, 2, False),
+    ("P-5", "Nearby stop", 10, 40, 2, False),
+    ("P-6", "Remote stop", 190, 10, 2, True),
+    ("P-7", "Remote stop", 200, -12, 2, True),
+    ("P-8", "Remote stop", 215, 4, 2, True),
+]
+PRIZE_VAN_CAPACITY = 10
+
 # An iteration budget makes results repeat across machines; the runtime is only a safety cap.
 SOLVER = {"seed": 0, "max_iterations": 2_000, "max_runtime_s": 30}
 
@@ -154,11 +217,151 @@ def fleet(vans: bool = True) -> LabInstance:
     )
 
 
+def depots(single: bool = False) -> LabInstance:
+    def van(vid: str, label: str, depot: str, count: int) -> dict:
+        return {
+            "id": vid,
+            "label": label,
+            "count": count,
+            "capacity": {"parcels": DEPOT_VAN_CAPACITY},
+            "fixed_cost": 100,
+            "unit_distance_cost": 1,
+            "start_depot": depot,
+            "end_depot": depot,
+        }
+
+    return LabInstance.model_validate(
+        {
+            "name": "Two depots" + (", West only" if single else "") + " (planar, 12 clients)",
+            "description": (
+                "Abstract planar coordinates. All four vans (12 parcels each) are based at the "
+                "West depot; the six East stops are far from it."
+                if single
+                else "Abstract planar coordinates. Two vans are based at the West depot and two at "
+                "the East depot (each van starts and ends at its own depot). Six stops sit near "
+                "each depot, 4 parcels each."
+            ),
+            "coordinates": "planar",
+            "dimensions": [{"id": "parcels", "label": "Parcels", "unit": "parcels"}],
+            "depots": DEPOTS[:1] if single else DEPOTS,
+            "clients": [
+                {
+                    "id": cid,
+                    "label": label,
+                    "x": x,
+                    "y": y,
+                    "delivery": {"parcels": parcels},
+                    "service_duration": 10,
+                }
+                for cid, label, x, y, parcels in DEPOT_CLIENTS
+            ],
+            "vehicle_types": (
+                [van("van", "Van", "west", 4)]
+                if single
+                else [
+                    van("west-van", "West van", "west", 2),
+                    van("east-van", "East van", "east", 2),
+                ]
+            ),
+            "solver": SOLVER,
+        }
+    )
+
+
+def reloads(allowed: bool = True) -> LabInstance:
+    van = {
+        "id": "van",
+        "label": "Van",
+        "count": 1 if allowed else 4,
+        "capacity": {"parcels": RELOAD_VAN_CAPACITY},
+        "fixed_cost": 100,
+        "unit_distance_cost": 1,
+    }
+    if allowed:
+        van |= {"reload_depots": ["yard"], "max_reloads": 3}
+    return LabInstance.model_validate(
+        {
+            "name": "Reloads" + ("" if allowed else " off") + " (planar, 8 clients)",
+            "description": (
+                "Abstract planar coordinates. One van (10 parcels) starts and ends at the DC and "
+                "may reload at the yard up to 3 times; eight stops of 5 parcels lie beyond it."
+                if allowed
+                else "The same stops without reloading: four vans, one trip each from the DC."
+            ),
+            "coordinates": "planar",
+            "dimensions": [{"id": "parcels", "label": "Parcels", "unit": "parcels"}],
+            "depots": [
+                {"id": "dc", "label": "Distribution center", "x": 0, "y": 0},
+                *([{"id": "yard", "label": "Reload yard", "x": 60, "y": 0}] if allowed else []),
+            ],
+            "clients": [
+                {
+                    "id": cid,
+                    "label": label,
+                    "x": x,
+                    "y": y,
+                    "delivery": {"parcels": parcels},
+                    "service_duration": 10,
+                }
+                for cid, label, x, y, parcels in RELOAD_CLIENTS
+            ],
+            "vehicle_types": [van],
+            "solver": SOLVER,
+        }
+    )
+
+
+def prizes(prize: int = 60) -> LabInstance:
+    return LabInstance.model_validate(
+        {
+            "name": f"Optional stops, prize {prize} (planar, 8 clients)",
+            "description": (
+                "Abstract planar coordinates. Five required stops lie near the depot; three "
+                f"optional stops are far away and each carries a prize of {prize} cost units that "
+                "the solver pays if it skips the stop. Vans carry 10 parcels, cost 100 per use "
+                "and 1 per planar unit."
+            ),
+            "coordinates": "planar",
+            "dimensions": [{"id": "parcels", "label": "Parcels", "unit": "parcels"}],
+            "depots": [{"id": "depot", "label": "Depot", "x": 0, "y": 0}],
+            "clients": [
+                {
+                    "id": cid,
+                    "label": label,
+                    "x": x,
+                    "y": y,
+                    "delivery": {"parcels": parcels},
+                    "service_duration": 10,
+                }
+                | ({"required": False, "prize": prize} if optional else {})
+                for cid, label, x, y, parcels, optional in PRIZE_CLIENTS
+            ],
+            "vehicle_types": [
+                {
+                    "id": "van",
+                    "label": "Van",
+                    "count": 3,
+                    "capacity": {"parcels": PRIZE_VAN_CAPACITY},
+                    "fixed_cost": 100,
+                    "unit_distance_cost": 1,
+                }
+            ],
+            "solver": SOLVER,
+        }
+    )
+
+
 EXAMPLES = {
     "lab-dimensions.json": lambda: dimensions(True),
     "lab-dimensions-volume.json": lambda: dimensions(False),
     "lab-fleet.json": lambda: fleet(True),
     "lab-fleet-trucks.json": lambda: fleet(False),
+    "lab-depots.json": lambda: depots(False),
+    "lab-depots-single.json": lambda: depots(True),
+    "lab-reloads.json": lambda: reloads(True),
+    "lab-reloads-off.json": lambda: reloads(False),
+    "lab-prizes.json": lambda: prizes(60),
+    "lab-prizes-high.json": lambda: prizes(400),
 }
 
 

@@ -89,7 +89,7 @@ export function LabRunView({ initial, canCancel, observations, runKey }: { initi
         <span className="font-medium">{instance.name}</span>
         <Badge variant="outline">{instance.coordinates === "planar" ? "Planar, abstract units" : "Geographic"}</Badge>
         <span className="text-muted-foreground text-xs tabular-nums">
-          {instance.clients.length} clients · {instance.dimensions.map((d) => `${d.id} (${d.unit})`).join(", ")} · {instance.vehicle_types.map((v) => `${v.count} × ${v.id}`).join(", ")}
+          {instance.depots.length > 1 ? `${instance.depots.length} depots · ` : ""}{instance.clients.length} clients · {instance.dimensions.map((d) => `${d.id} (${d.unit})`).join(", ")} · {instance.vehicle_types.map((v) => `${v.count} × ${v.id}`).join(", ")}
           {" · "}seed {instance.solver?.seed ?? 0}, {instance.solver?.max_iterations ? `${n(instance.solver.max_iterations)} iterations` : "runtime budget"}
         </span>
       </div>
@@ -113,6 +113,11 @@ export function LabRunView({ initial, canCancel, observations, runKey }: { initi
 function Result({ instance, result, observations }: { instance: LabInstance; result: LabResult; observations: string[] }) {
   const dims = instance.dimensions.map((d) => d.id)
   const capacity = new Map(instance.vehicle_types.map((v) => [v.id, v.capacity]))
+  const several = instance.depots.length > 1
+  const optional = instance.clients.filter((c) => c.required === false)
+  const skipped = result.skipped ?? []
+  const reloading = result.routes.some((r) => (r.trips?.length ?? 0) > 1)
+  const label = (id: string | null | undefined) => id ?? instance.depots[0].id
   const u = result.units
   return (
     <div className="flex flex-col gap-6">
@@ -124,8 +129,8 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
         <Badge variant="outline" size="lg">Heuristic: best found, not proven optimal</Badge>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatTile label="Objective" value={n(result.objective.total)} unit={u.cost} />
-        <StatTile label="Routes" value={n(result.totals.routes)} footnote={`${result.totals.clients_served} of ${result.totals.clients_total} clients`} />
+        <StatTile label={optional.length ? "Nominal cost" : "Objective"} value={n(result.objective.total)} unit={u.cost} footnote={optional.length ? `+ ${n(result.objective.uncollected_prizes ?? 0)} uncollected prizes` : undefined} />
+        <StatTile label="Routes" value={n(result.totals.routes)} footnote={`${result.totals.clients_served} of ${result.totals.clients_total} clients${skipped.length ? ` (${skipped.length} skipped)` : ""}`} />
         <StatTile label="Distance" value={n(result.totals.distance)} unit={u.distance} />
         <StatTile label="Duration" value={n(result.totals.duration)} unit={u.duration} footnote={`travel ${n(result.totals.travel_duration)}, service ${n(result.totals.service_duration)}`} />
       </div>
@@ -139,8 +144,15 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
                   <TableRow><TableCell>Fixed vehicle costs</TableCell><TableCell className="text-right tabular-nums">{n(result.objective.fixed_cost)}</TableCell></TableRow>
                   <TableRow><TableCell>Distance costs</TableCell><TableCell className="text-right tabular-nums">{n(result.objective.distance_cost)}</TableCell></TableRow>
                   <TableRow><TableCell>Duration costs</TableCell><TableCell className="text-right tabular-nums">{n(result.objective.duration_cost)}</TableCell></TableRow>
-                  <TableRow className="font-medium"><TableCell>Total (recomputed by Fillrate)</TableCell><TableCell className="text-right tabular-nums" data-testid="lab-objective-total">{n(result.objective.total)}</TableCell></TableRow>
+                  <TableRow className="font-medium"><TableCell>{optional.length ? "Nominal cost (recomputed by Fillrate)" : "Total (recomputed by Fillrate)"}</TableCell><TableCell className="text-right tabular-nums" data-testid="lab-objective-total">{n(result.objective.total)}</TableCell></TableRow>
                   <TableRow><TableCell className="text-muted-foreground">PyVRP nominal cost (no penalties)</TableCell><TableCell className="text-muted-foreground text-right tabular-nums">{n(result.solver.nominal_cost)}</TableCell></TableRow>
+                  {optional.length > 0 && (
+                    <>
+                      <TableRow><TableCell className="whitespace-normal">Uncollected prizes (skipped clients, not a cost)</TableCell><TableCell className="text-right tabular-nums" data-testid="lab-uncollected-prizes">{n(result.objective.uncollected_prizes ?? 0)}</TableCell></TableRow>
+                      <TableRow className="font-medium"><TableCell className="whitespace-normal">Objective PyVRP minimizes (nominal cost + uncollected prizes)</TableCell><TableCell className="text-right tabular-nums" data-testid="lab-objective-with-prizes">{n(result.objective.objective_with_prizes ?? result.objective.total)}</TableCell></TableRow>
+                      <TableRow><TableCell className="text-muted-foreground whitespace-normal">Prizes collected by visiting (information only)</TableCell><TableCell className="text-muted-foreground text-right tabular-nums" data-testid="lab-prizes-collected">{n(result.objective.prizes_collected ?? 0)}</TableCell></TableRow>
+                    </>
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -168,6 +180,83 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
               </Table>
             </div>
           </section>
+          {optional.length > 0 && (
+            <section className="flex flex-col gap-2" aria-labelledby="lab-optional">
+              <h2 id="lab-optional" className="text-sm font-medium">Optional clients: {optional.length - skipped.length} visited, {skipped.length} skipped</h2>
+              <div className="overflow-x-auto rounded-xl border">
+                <Table data-testid="lab-optional">
+                  <TableHeader>
+                    <TableRow><TableHead>Client</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Prize ({u.cost})</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {optional.map((c) => {
+                      const isSkipped = skipped.some((s) => s.client_id === c.id)
+                      return (
+                        <TableRow key={c.id} data-testid={`lab-optional-${c.id}`}>
+                          <TableCell className="font-mono text-xs">{c.id}</TableCell>
+                          <TableCell>{isSkipped ? <Badge variant="warning">Skipped: prize missed</Badge> : <Badge variant="success">Visited: prize collected</Badge>}</TableCell>
+                          <TableCell className="text-right tabular-nums">{n(c.prize ?? 0)}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-muted-foreground text-xs text-pretty">A prize is what PyVRP pays to skip a client, in {u.cost}; a visited client costs the distance to reach it instead. Prizes are never part of the nominal cost. A skipped client was judged not worth its detour by a heuristic search, not proven so.</p>
+            </section>
+          )}
+          {several && (
+            <section className="flex flex-col gap-2" aria-labelledby="lab-depots">
+              <h2 id="lab-depots" className="text-sm font-medium">Depots</h2>
+              <div className="overflow-x-auto rounded-xl border">
+                <Table>
+                  <TableHeader>
+                    <TableRow><TableHead>Depot</TableHead><TableHead>Vehicles based here (used / available)</TableHead><TableHead className="text-right">Routes</TableHead><TableHead className="text-right">Clients</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {instance.depots.map((depot) => {
+                      const types = instance.vehicle_types.filter((v) => (v.start_depot ?? instance.depots[0].id) === depot.id)
+                      const routes = result.routes.filter((r) => label(r.start_depot) === depot.id)
+                      return (
+                        <TableRow key={depot.id} data-testid={`lab-depot-${depot.id}`}>
+                          <TableCell className="font-mono text-xs">{depot.id}</TableCell>
+                          <TableCell className="text-xs">
+                            {types.length === 0 ? "none" : types.map((v) => { const f = result.fleet.find((x) => x.vehicle_type === v.id); return `${v.id} ${f?.used ?? 0} / ${v.count}` }).join(", ")}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{routes.length}</TableCell>
+                          <TableCell className="text-right tabular-nums">{routes.reduce((sum, r) => sum + r.visits.length, 0)}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
+          {reloading && (
+            <section className="flex flex-col gap-2" aria-labelledby="lab-trips">
+              <h2 id="lab-trips" className="text-sm font-medium">Trips (load resets at every reload)</h2>
+              <div className="overflow-x-auto rounded-xl border">
+                <Table data-testid="lab-trips">
+                  <TableHeader>
+                    <TableRow><TableHead>Route</TableHead><TableHead>Trip</TableHead><TableHead>From → to</TableHead><TableHead>Visits</TableHead>{dims.map((d) => <TableHead key={d} className="text-right">{d}</TableHead>)}<TableHead className="text-right">Distance</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.routes.flatMap((r) => (r.trips ?? []).map((t) => (
+                      <TableRow key={`${r.index}-${t.index}`} data-testid={`lab-trip-${r.index}-${t.index}`}>
+                        <TableCell className="tabular-nums">{r.index + 1}</TableCell>
+                        <TableCell className="tabular-nums">{t.index + 1}</TableCell>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">{t.from_depot} → {t.to_depot}</TableCell>
+                        <TableCell className="text-xs text-pretty">{t.client_ids.join(" → ")}</TableCell>
+                        {dims.map((d) => <TableCell key={d} className="text-right text-xs whitespace-nowrap tabular-nums">{n(t.load[d])} / {n(capacity.get(r.vehicle_type)?.[d] ?? 0)} <span className="text-muted-foreground">({pct(t.utilization[d])})</span></TableCell>)}
+                        <TableCell className="text-right tabular-nums">{n(t.distance)}</TableCell>
+                      </TableRow>
+                    )))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
           {result.violations.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-violations">
               <h2 id="lab-violations" className="text-sm font-medium">Violations</h2>
@@ -192,6 +281,8 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
               <TableRow>
                 <TableHead>#</TableHead>
                 <TableHead>Vehicle</TableHead>
+                {several && <TableHead>Depot</TableHead>}
+                {reloading && <TableHead className="text-right">Trips</TableHead>}
                 <TableHead>Visits</TableHead>
                 {dims.map((d) => <TableHead key={d} className="text-right">{d} ({u.dimensions[d]})</TableHead>)}
                 <TableHead className="text-right">Distance</TableHead>
@@ -207,10 +298,12 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
                     {r.index + 1}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{r.vehicle_type}</TableCell>
+                  {several && <TableCell className="font-mono text-xs whitespace-nowrap">{label(r.start_depot) === label(r.end_depot) ? label(r.start_depot) : `${label(r.start_depot)} → ${label(r.end_depot)}`}</TableCell>}
+                  {reloading && <TableCell className="text-right tabular-nums">{r.trips?.length ?? 1}</TableCell>}
                   <TableCell className="max-w-72 text-xs text-pretty">{r.visits.map((v) => v.client_id).join(" → ")}</TableCell>
                   {dims.map((d) => (
                     <TableCell key={d} className="text-right text-xs whitespace-nowrap tabular-nums">
-                      {n(r.load[d])} / {n(capacity.get(r.vehicle_type)?.[d] ?? 0)} <span className="text-muted-foreground">({pct(r.utilization[d])})</span>
+                      {reloading && (r.trips?.length ?? 1) > 1 ? `${n(r.load[d])} in ${r.trips?.length ?? 1} trips of ≤ ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}` : `${n(r.load[d])} / ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}`} <span className="text-muted-foreground">({pct(r.utilization[d])}{reloading ? " fullest trip" : ""})</span>
                     </TableCell>
                   ))}
                   <TableCell className="text-right tabular-nums">{n(r.distance)}</TableCell>
@@ -221,7 +314,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
             </TableBody>
           </Table>
         </div>
-        <p className="text-muted-foreground text-xs">Distance in {u.distance}, duration in {u.duration}, cost in {u.cost}. Routes return to the depot; load is what the vehicle carries out.</p>
+        <p className="text-muted-foreground text-xs">Distance in {u.distance}, duration in {u.duration}, cost in {u.cost}. {several ? "Each route starts at its vehicle type's start depot and ends at its end depot" : "Routes return to the depot"}; {reloading ? "the load column is the total delivered over all trips, with the fullest trip's share in brackets" : "load is what the vehicle carries out"}.</p>
       </section>
       {observations.length > 0 && (
         <section className="bg-card rounded-xl border p-4">

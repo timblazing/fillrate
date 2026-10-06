@@ -1,4 +1,5 @@
-"""Raw travel matrices for a lab instance. Node 0 is the depot, then clients in input order.
+"""Raw travel matrices for a lab instance. Nodes are the depots in input order (0..D-1), then the
+clients in input order (D..D+n-1).
 
 Planar: rounded euclidean distance in abstract units, and the same number of abstract time units.
 Geographic: haversine × circuity in integer meters (the pipeline's estimated travel) and seconds at
@@ -18,7 +19,7 @@ from .schema import LabInstance
 
 @dataclass(frozen=True)
 class LabMatrices:
-    distance: np.ndarray  # int64, (n + 1) × (n + 1)
+    distance: np.ndarray  # int64, (D + n) × (D + n)
     duration: np.ndarray
     distance_unit: str
     duration_unit: str
@@ -35,8 +36,8 @@ class LabMatrices:
 
 
 def node_points(instance: LabInstance) -> np.ndarray:
-    """(n + 1) × 2 coordinates: [x, y] for planar, [lat, lon] for geographic."""
-    places = [instance.depot, *instance.clients]
+    """(D + n) × 2 coordinates: [x, y] for planar, [lat, lon] for geographic."""
+    places = [*instance.depots, *instance.clients]
     if instance.coordinates == "planar":
         return np.array([[p.x, p.y] for p in places], dtype=float)
     return np.array([[p.lat, p.lon] for p in places], dtype=float)
@@ -51,3 +52,14 @@ def lab_matrices(instance: LabInstance) -> LabMatrices:
     distance = distance_matrix_m(points, instance.travel.circuity)
     duration = np.rint(distance / instance.travel.speed_m_per_s).astype(np.int64)
     return LabMatrices(distance, duration, "meters", "seconds")
+
+
+def depot_nodes(instance: LabInstance) -> dict[str, int]:
+    """Depot id → matrix node (depots come first)."""
+    return {d.id: i for i, d in enumerate(instance.depots)}
+
+
+def client_nodes(instance: LabInstance) -> dict[str, int]:
+    """Client id → matrix node (clients follow the depots)."""
+    offset = len(instance.depots)
+    return {c.id: offset + i for i, c in enumerate(instance.clients)}

@@ -41,6 +41,11 @@ beforeEach(async () => {
     const chunks: Buffer[] = [];
     req.on("data", c => chunks.push(c as Buffer));
     req.on("end", () => {
+      if (req.url?.endsWith("/locate")) {
+        const { locations } = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { locations: Point[] };
+        res.writeHead(200, { "content-type": "application/json" });
+        return res.end(JSON.stringify(locations.map(() => ({ edges: [{ way_id: 1 }], nodes: [] }))));
+      }
       fakeCalls++;
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { sources: Point[]; targets: Point[] };
       setTimeout(() => {

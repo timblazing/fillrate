@@ -271,23 +271,299 @@ def test_planar_coordinates_are_not_latitude_longitude():
     assert lab_matrices(instance).distance[0, 1] == 5_831
 
 
+def two_depot_instance(**extra) -> LabInstance:
+    """Clients cluster near each of two depots; one vehicle type is based at each depot."""
+    clients = [
+        client("w1", -48, 5, load=3),
+        client("w2", -52, -5, load=3),
+        client("e1", 48, 5, load=3),
+        client("e2", 52, -5, load=3),
+    ]
+    types = [
+        {
+            "id": "west",
+            "count": 2,
+            "capacity": {"load": 10},
+            "fixed_cost": 50,
+            "start_depot": "A",
+            "end_depot": "A",
+        },
+        {
+            "id": "east",
+            "count": 2,
+            "capacity": {"load": 10},
+            "fixed_cost": 50,
+            "start_depot": "B",
+            "end_depot": "B",
+        },
+    ]
+    return planar(
+        clients,
+        types,
+        depots=[{"id": "A", "x": -50, "y": 0}, {"id": "B", "x": 50, "y": 0}],
+    )
+
+
+def test_vehicles_start_and_end_at_their_types_depots():
+    instance = two_depot_instance()
+    result = run_lab(instance)
+    assert result.solver_feasible and result.validated_feasible and not result.violations
+    served = {r.vehicle_type: {v.client_id for v in r.visits} for r in result.routes}
+    # Each side is served from its own depot, and nothing crosses the 100-unit gap.
+    assert served == {"west": {"w1", "w2"}, "east": {"e1", "e2"}}
+    assert {(r.vehicle_type, r.start_depot, r.end_depot) for r in result.routes} == {
+        ("west", "A", "A"),
+        ("east", "B", "B"),
+    }
+    assert result.totals.distance < 50
+    # The matrices list the depots first, then the clients.
+    matrices = lab_matrices(instance)
+    assert matrices.distance.shape == (6, 6) and matrices.distance[0, 1] == 100
+    # A different start/end assignment is a different problem; naming the default is not.
+    swapped = LabInstance.model_validate(
+        instance.model_dump()
+        | {
+            "vehicle_types": [
+                dict(t, start_depot=("B" if t["id"] == "west" else "A"), end_depot="A")
+                for t in instance.model_dump()["vehicle_types"]
+            ]
+        }
+    )
+    assert problem_fingerprint(swapped) != problem_fingerprint(instance)
+    # A route may start at one depot and end at another.
+    far = LabInstance.model_validate(
+        instance.model_dump()
+        | {
+            "vehicle_types": [
+                dict(t, end_depot="B") for t in instance.model_dump()["vehicle_types"]
+            ]
+        }
+    )
+    one_way = run_lab(far)
+    assert one_way.validated_feasible
+    assert all(r.start_depot != r.end_depot for r in one_way.routes if r.vehicle_type == "west")
+
+
+def test_validator_rejects_routes_that_use_the_wrong_depot():
+    instance = two_depot_instance()
+    matrices = lab_matrices(instance)
+    good = CandidateRoute("west", ["w1", "w2"])
+    ok = validate_plan(instance, matrices, [good, CandidateRoute("east", ["e1", "e2"])])
+    assert ok.feasible
+    # A west-based van written as if it started at the East depot: flagged, and its distance is
+    # recomputed from the depot it actually used (100 units farther each way).
+    wrong = validate_plan(
+        instance,
+        matrices,
+        [CandidateRoute("west", ["w1", "w2"], "B", "B"), CandidateRoute("east", ["e1", "e2"])],
+    )
+    assert {(v.code, v.route) for v in wrong.violations} == {("wrong_depot", 0)}
+    assert len(wrong.violations) == 2  # start and end
+    assert wrong.routes[0].distance > ok.routes[0].distance + 180
+    assert (wrong.routes[0].start_depot, wrong.routes[0].end_depot) == ("B", "B")
+    unknown = validate_plan(
+        instance, matrices, [CandidateRoute("west", ["w1", "w2"], "nowhere"), good]
+    )
+    assert "unknown_depot" in {v.code for v in unknown.violations}
+    # Serving a client from the wrong side is legal but costs: distance is from the type's depot.
+    cross = validate_plan(instance, matrices, [CandidateRoute("west", ["e1"])])
+    assert cross.routes[0].distance == 2 * 98
+
+
+def test_depot_references_and_preflight_use_each_types_depots():
+    with pytest.raises(ValidationError, match="start_depot 'nowhere' is not a depot id"):
+        planar(
+            [client("a", 1, 1, load=1)],
+            [{"id": "t", "count": 1, "capacity": {"load": 1}, "start_depot": "nowhere"}],
+        )
+    with pytest.raises(ValidationError, match="duplicate location id"):
+        planar(
+            [client("a", 1, 1, load=1)],
+            [{"id": "t", "count": 1, "capacity": {"load": 1}}],
+            depots=[{"id": "d", "x": 0, "y": 0}, {"id": "d", "x": 5, "y": 5}],
+        )
+    # "far" is 100 from the first depot but 2 from the second: servable only from depot two.
+    base = {"id": "t", "count": 1, "capacity": {"load": 1}, "max_distance": 10}
+    depots = [{"id": "d1", "x": 0, "y": 0}, {"id": "d2", "x": 100, "y": 0}]
+    ok = planar(
+        [client("far", 102, 0, load=1)],
+        [base | {"start_depot": "d2", "end_depot": "d2"}],
+        depots=depots,
+    )
+    assert run_lab(ok).validated_feasible
+    blocked = planar([client("far", 102, 0, load=1)], [base], depots=depots)
+    with pytest.raises(LabError, match="far: no vehicle type can carry it") as error:
+        run_lab(blocked)
+    assert error.value.code == "preflight_blocked"
+
+
+def reload_instance(max_reloads=3, count=1, **extra) -> LabInstance:
+    """Six stops of 5 beyond a yard; one van of capacity 10 can reload at the yard."""
+    clients = [client(f"s{i}", 60 + 10 * i, (-1) ** i * 5, load=5) for i in range(1, 7)]
+    van = {"id": "van", "count": count, "capacity": {"load": 10}, "fixed_cost": 100}
+    if max_reloads:
+        van |= {"reload_depots": ["yard"], "max_reloads": max_reloads}
+    return planar(
+        clients,
+        [van],
+        depots=[{"id": "depot", "x": 0, "y": 0}, {"id": "yard", "x": 50, "y": 0}],
+        **extra,
+    )
+
+
+def test_reloads_let_one_vehicle_serve_more_than_its_capacity():
+    instance = reload_instance()
+    result = run_lab(instance)
+    assert result.solver_feasible and result.validated_feasible and not result.violations
+    (route,) = result.routes  # one vehicle carries 30 with capacity 10
+    assert len(route.trips) == 3 and result.fleet[0].used == 1
+    assert route.load == {"load": 30} and all(t.load == {"load": 10} for t in route.trips)
+    assert [t.from_depot for t in route.trips] == ["depot", "yard", "yard"]
+    assert [t.to_depot for t in route.trips] == ["yard", "yard", "depot"]
+    assert all(v.load_before["load"] <= 10 for v in route.visits)
+    assert sorted(v.trip for v in route.visits) == [0, 0, 1, 1, 2, 2]
+    assert route.distance == sum(t.distance for t in route.trips)
+    # Without reloads the same stops need three vehicles, and the fixed cost shows it.
+    plain = run_lab(reload_instance(max_reloads=0, count=3))
+    assert plain.validated_feasible and plain.totals.routes == 3
+    assert plain.objective.fixed_cost == 300 > result.objective.fixed_cost == 100
+    # Reloading is part of the problem identity; naming nothing is not.
+    assert problem_fingerprint(instance) != problem_fingerprint(reload_instance(max_reloads=2))
+
+
+def test_validator_checks_loads_per_trip_and_rejects_bad_reloads():
+    instance = reload_instance()
+    matrices = lab_matrices(instance)
+    ids = [f"s{i}" for i in range(1, 7)]
+    ok = validate_plan(
+        instance,
+        matrices,
+        [CandidateRoute("van", [], trips=[ids[:2], ids[2:4], ids[4:]], reload_depots=["yard"] * 2)],
+    )
+    assert ok.feasible
+    # The same stops as one trip overload the van (30 > 10); with trips the loads reset instead.
+    single = validate_plan(instance, matrices, [CandidateRoute("van", ids)])
+    assert [v.code for v in single.violations] == ["over_capacity"]
+    # A trip of three stops overloads only that trip.
+    lopsided = validate_plan(
+        instance, matrices, [CandidateRoute("van", [], trips=[ids[:3], ids[3:5], ids[5:]])]
+    )
+    assert [(v.code, v.trip) for v in lopsided.violations] == [("over_capacity", 0)]
+    # Too many reloads, an empty trip, and a depot the type may not reload at.
+    four = validate_plan(
+        instance,
+        matrices,
+        [CandidateRoute("van", [], trips=[ids[:2], ids[2:4], ids[4:5], ids[5:]])],
+    )
+    assert "too_many_reloads" not in {v.code for v in four.violations}
+    tight = reload_instance(max_reloads=1)
+    over = validate_plan(
+        tight,
+        lab_matrices(tight),
+        [CandidateRoute("van", [], trips=[ids[:2], ids[2:4], ids[4:]], reload_depots=["yard"] * 2)],
+    )
+    assert "too_many_reloads" in {v.code for v in over.violations}
+    wrong = validate_plan(
+        instance,
+        matrices,
+        [
+            CandidateRoute(
+                "van", [], trips=[ids[:2], ids[2:4], ids[4:]], reload_depots=["depot", "yard"]
+            )
+        ],
+    )
+    assert [v.code for v in wrong.violations] == ["wrong_reload_depot"]
+    empty = validate_plan(
+        instance, matrices, [CandidateRoute("van", [], trips=[ids[:2], [], ids[2:]])]
+    )
+    assert "empty_trip" in {v.code for v in empty.violations}
+    # Distance includes the stop at the reload depot: reloading at the DC instead costs more.
+    assert wrong.routes[0].distance > ok.routes[0].distance
+
+
+def test_reload_fields_are_checked():
+    van = {"id": "van", "count": 1, "capacity": {"load": 1}}
+    two = [{"id": "d1", "x": 0, "y": 0}, {"id": "d2", "x": 5, "y": 5}]
+    with pytest.raises(ValidationError, match="reload depot 'nowhere' is not a depot id"):
+        planar(
+            [client("a", 1, 1, load=1)],
+            [van | {"reload_depots": ["nowhere"], "max_reloads": 1}],
+            depots=two,
+        )
+    with pytest.raises(ValidationError, match="need max_reloads of at least 1"):
+        planar([client("a", 1, 1, load=1)], [van | {"reload_depots": ["d2"]}], depots=two)
+    with pytest.raises(ValidationError, match="max_reloads needs at least one reload depot"):
+        planar([client("a", 1, 1, load=1)], [van | {"max_reloads": 2}], depots=two)
+
+
+def prize_instance(prize: int) -> LabInstance:
+    """Two near required stops and one far optional stop worth ``prize`` to skip."""
+    clients = [client("a", 10, 0, load=1), client("b", 12, 3, load=1)]
+    clients.append(client("far", 100, 0, load=1) | {"required": False, "prize": prize})
+    return planar(clients, [{"id": "t", "count": 2, "capacity": {"load": 5}}])
+
+
+def test_optional_clients_are_skipped_when_the_prize_does_not_pay():
+    # The far stop's detour costs about 180 distance: a prize of 50 is not worth it, 500 is.
+    low = run_lab(prize_instance(50))
+    assert low.solver_feasible and low.validated_feasible and not low.violations
+    assert [(s.client_id, s.prize) for s in low.skipped] == [("far", 50)]
+    assert low.totals.clients_served == 2 and low.totals.clients_total == 3
+    assert low.objective.uncollected_prizes == 50 and low.objective.prizes_collected == 0
+    # Prizes are a separate term, never folded into the nominal cost.
+    assert low.objective.total == low.objective.distance_cost + low.objective.fixed_cost
+    assert low.objective.objective_with_prizes == low.objective.total + 50
+    assert low.solver.nominal_cost == low.objective.total
+    high = run_lab(prize_instance(500))
+    assert high.validated_feasible and high.skipped == []
+    assert high.objective.uncollected_prizes == 0 and high.objective.prizes_collected == 500
+    assert high.objective.total > low.objective.total
+    # Skipping at this prize would cost the low plan's nominal cost plus 500; visiting is cheaper.
+    assert high.objective.objective_with_prizes < low.objective.total + 500
+    # The prize is part of the problem; instances without optional clients keep their fingerprint.
+    assert problem_fingerprint(prize_instance(50)) != problem_fingerprint(prize_instance(500))
+
+
+def test_validator_requires_required_clients_and_reports_skipped_ones():
+    instance = prize_instance(50)
+    matrices = lab_matrices(instance)
+    skipping = validate_plan(instance, matrices, [CandidateRoute("t", ["a", "b"])])
+    assert skipping.feasible
+    assert [(s.client_id, s.prize) for s in skipping.skipped] == [("far", 50)]
+    assert skipping.objective.uncollected_prizes == 50
+    # Skipping a required client is a violation, with no prize to excuse it.
+    missing = validate_plan(instance, matrices, [CandidateRoute("t", ["a", "far"])])
+    assert [(v.code, v.client_id) for v in missing.violations] == [("client_not_visited", "b")]
+    assert missing.objective.prizes_collected == 50 and missing.skipped == []
+    twice = validate_plan(
+        instance, matrices, [CandidateRoute("t", ["a", "b", "far"]), CandidateRoute("t", ["far"])]
+    )
+    assert [(v.code, v.client_id) for v in twice.violations] == [("duplicate_visit", "far")]
+
+
+def test_prize_fields_are_checked():
+    required_prize = client("a", 1, 1, load=1) | {"prize": 5}
+    with pytest.raises(ValidationError, match="has a prize but is required"):
+        planar([required_prize], [{"id": "t", "count": 1, "capacity": {"load": 1}}])
+    with pytest.raises(ValidationError, match="Input should be a valid boolean"):
+        planar(
+            [client("a", 1, 1, load=1) | {"required": "maybe"}],
+            [{"id": "t", "count": 1, "capacity": {"load": 1}}],
+        )
+
+
 @pytest.mark.parametrize(
     ("patch", "capability"),
     [
         (
-            {"depots": [{"id": "d1", "x": 0, "y": 0}, {"id": "d2", "x": 1, "y": 1}]},
-            "multiple_depots",
-        ),
-        ({"shipments": []}, "paired_shipments"),
-        ({"clients": [{"id": "a", "x": 1, "y": 1, "prize": 5}]}, "optional_clients"),
-        (
             {
                 "vehicle_types": [
-                    {"id": "t", "count": 1, "capacity": {"load": 1}, "reload_depots": ["depot"]}
+                    {"id": "t", "count": 1, "capacity": {"load": 1}, "profile": "bike"}
                 ]
             },
-            "reloads",
+            "routing_profiles",
         ),
+        ({"shipments": []}, "paired_shipments"),
         ({"clients": [{"id": "a", "x": 1, "y": 1, "group": "g"}]}, "client_groups"),
     ],
 )

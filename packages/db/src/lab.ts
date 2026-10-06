@@ -13,10 +13,9 @@ export const MAX_LAB_BYTES = 2 * 1024 * 1024;
 // are planned but not implemented are refused by name, not as a generic unknown field.
 const PLANNED: [where: "instance" | "client" | "vehicle_type", field: string, capability: string][] = [
   ["instance", "shipments", "paired_shipments"], ["instance", "groups", "client_groups"], ["instance", "client_groups", "client_groups"],
-  ["client", "pickup", "pickups_and_deliveries"], ["client", "prize", "optional_clients"], ["client", "required", "optional_clients"],
+  ["client", "pickup", "pickups_and_deliveries"],
   ["client", "group", "client_groups"], ["client", "tw_early", "lab_time_windows"], ["client", "tw_late", "lab_time_windows"],
-  ["client", "release_time", "lab_time_windows"], ["vehicle_type", "start_depot", "multiple_depots"], ["vehicle_type", "end_depot", "multiple_depots"],
-  ["vehicle_type", "reload_depots", "reloads"], ["vehicle_type", "max_reloads", "reloads"], ["vehicle_type", "initial_load", "reloads"],
+  ["client", "release_time", "lab_time_windows"],
   ["vehicle_type", "tw_early", "lab_time_windows"], ["vehicle_type", "tw_late", "lab_time_windows"], ["vehicle_type", "profile", "routing_profiles"],
 ];
 
@@ -37,7 +36,6 @@ export function validateLabInstance(input: unknown): LabInstance {
     const list = items[where];
     if (Array.isArray(list) && list.some(x => isObject(x) && field in x)) throw new LabInstanceError("planned_capability", `planned capability ${capability}: ${where} field "${field}" is not supported yet.`, [where === "instance" ? field : `${where}s.${field}`]);
   }
-  if (Array.isArray(input.depots) && input.depots.length > 1) throw new LabInstanceError("planned_capability", "planned capability multiple_depots: Solver Lab instances have exactly one depot for now.", ["depots"]);
   const bytes = Buffer.byteLength(canonical(input));
   if (bytes > MAX_LAB_BYTES) throw new LabInstanceError("lab_instance_too_large", `The instance is ${bytes} bytes; the limit is ${MAX_LAB_BYTES}.`);
   // The two constants default in Pydantic, but JSON Schema validation does not fill defaults, and the stored version
@@ -61,12 +59,22 @@ export function labInstanceProblems(doc: LabInstance) {
   unique("dimension", dims);
   unique("location", [...doc.depots.map(d => d.id), ...doc.clients.map(c => c.id)]);
   unique("vehicle type", doc.vehicle_types.map(v => v.id));
+  const depotIds = new Set(doc.depots.map(d => d.id));
+  for (const v of doc.vehicle_types) {
+    const reloads = v.reload_depots ?? [], max = v.max_reloads ?? 0;
+    for (const id of reloads) if (!depotIds.has(id)) problems.push(`vehicle type ${v.id} reload depot "${id}" is not a depot id`);
+    if (new Set(reloads).size !== reloads.length) problems.push(`vehicle type ${v.id} lists a reload depot twice`);
+    if (max > 0 && reloads.length === 0) problems.push(`vehicle type ${v.id} max_reloads needs at least one reload depot`);
+    if (reloads.length > 0 && max === 0) problems.push(`vehicle type ${v.id} reload_depots need max_reloads of at least 1`);
+  }
+  for (const v of doc.vehicle_types) for (const [role, id] of [["start_depot", v.start_depot], ["end_depot", v.end_depot]] as const) if (id != null && !depotIds.has(id)) problems.push(`vehicle type ${v.id} ${role} "${id}" is not a depot id`);
   const planar = doc.coordinates === "planar";
   for (const place of [...doc.depots, ...doc.clients]) {
     const has = (k: "x" | "y" | "lat" | "lon") => place[k] !== undefined && place[k] !== null;
     if (planar && !(has("x") && has("y") && !has("lat") && !has("lon"))) problems.push(`${place.id}: planar instances need x and y (and no lat/lon)`);
     if (!planar && !(has("lat") && has("lon") && !has("x") && !has("y"))) problems.push(`${place.id}: geographic instances need lat and lon (and no x/y)`);
   }
+  for (const c of doc.clients) if ((c.prize ?? 0) > 0 && c.required !== false) problems.push(`client ${c.id} has a prize but is required: set required to false to let it be skipped, or remove the prize`);
   const known = new Set(dims);
   for (const c of doc.clients) for (const key of Object.keys(c.delivery ?? {})) if (!known.has(key)) problems.push(`client ${c.id} delivers unknown dimension "${key}"`);
   for (const v of doc.vehicle_types) {
