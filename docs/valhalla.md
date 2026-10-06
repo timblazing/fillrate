@@ -101,6 +101,8 @@ together; `dataset_revision` `geofabrik:tennessee@2026-10-05T15:47:33Z#bc7ba8acc
 - The live pytest file passed 7/7; `smoke_valhalla.py` passed against a local production build and worker
   (snapshot job for 8 nodes in about 5 s, the same content hash on every rebuild with the same block size;
   one truck over about 1,000 road mi; offline `REPLAY OK` of that run's bundle without Valhalla).
+- Compose: a local arm64 build of the Fillrate image with `--profile valhalla` passed `smoke_valhalla.py`
+  through the Compose network (`docs/release-verification.md`).
 - Valhalla warns that tiles built from several extracts can mishandle ways crossing the extract borders
   ([valhalla#3925](https://github.com/valhalla/valhalla/issues/3925)); merging extracts first (for example
   with osmium) avoids it. No cross-border failure was observed in these checks.

@@ -10,6 +10,10 @@ Native Bun/npm distribution and the reproducible handoff (`local.md`, `handoff.m
 
 The target-hardware harness is `deploy/target_check.py` (2026-10-01). It replaces the unrecoverable `3772136` claim. It runs against one tested image and only touches disposable containers and volumes. Its results for release `fa9c0b8` are below; raw outputs are kept on each host, outside Git. The owner accepted the hosted release after a real admin sign-in and waived a second live GitHub account check; the resulting evidence and limits are recorded below.
 
+### Local arm64 image and Valhalla Compose check (2026-10-06, not release evidence)
+
+A one-off local build, not a published image: `DOCKER_BUILDKIT=0 docker build -t fillrate:local-arm64 .` from branch `claude/valhalla-local` (commit `bbc55b7`) in Colima on Apple silicon (linux/arm64, 4 vCPU / 12 GiB VM), 6 min 20 s, 1.38 GB. `deploy/smoke.sh fillrate:local-arm64` passed (synthetic pipeline, `smoke_import.py`, `smoke_geocode.py` with live Census, `smoke_experiments.py`, `smoke_travel.py`, keyless local mode). `deploy/compose.yaml --profile valhalla` with that image (local mode) and the pinned Valhalla on TN/MS/AR tiles: `/api/health` reported `road.valhalla` with the recorded version/dataset/graph hash, the Valhalla service published no host port and answered the app on `http://valhalla:8002`, and `deploy/smoke_valhalla.py` passed (same snapshot content hash as the native run). The local image was removed afterwards and never pushed; the published image always comes from `image.yml`.
+
 ### Results: image `sha256:740aee91…6d08c` (commit `fa9c0b8`, image 36956880394)
 
 Probe: 2,000 synthetic orders, 640 locations, k=8, run inside the image. Every run was valid, with no failed attempts.
