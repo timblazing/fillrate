@@ -23,6 +23,10 @@ OBJECTIVE_DEFINITION = (
     "pyvrp-0.14 nominal: sum over used vehicles of fixed_cost + unit_distance_cost × distance "
     "+ unit_duration_cost × duration; closed routes"
 )
+PRIZE_DEFINITION = (
+    "; optional clients may be skipped and their prizes are added to the objective as uncollected "
+    "prizes, separately from costs"
+)
 
 
 class LabError(Exception):
@@ -35,6 +39,7 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
     """Identity of the mathematical problem (spec §10): visits, demands, fleet, raw matrices and
     objective definition. Names, labels, descriptions and solver settings are excluded."""
     matrices = matrices or lab_matrices(instance)
+    has_optional = any(not c.is_required for c in instance.clients)
     return content_hash(
         {
             "schema": "fillrate.lab.problem/1",
@@ -46,11 +51,29 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
                     "id": c.id,
                     "delivery": instance.delivery_vector(c),
                     "service_duration": c.service_duration,
+                    # Optional visits only, so instances without them keep their fingerprints.
+                    **({"required": False, "prize": c.prize_value} if not c.is_required else {}),
                 }
                 for c in instance.clients
             ],
             "fleet": [
                 {
+                    # Depot assignment only enters with several depots, so single-depot
+                    # fingerprints from before multiple depots stay valid.
+                    **(
+                        {
+                            "start_depot": instance.start_depot_of(v),
+                            "end_depot": instance.end_depot_of(v),
+                        }
+                        if len(instance.depots) > 1
+                        else {}
+                    ),
+                    # Same for reloads: only types that reload add to the hashed document.
+                    **(
+                        {"reload_depots": v.reload_depots, "max_reloads": v.max_reloads or 0}
+                        if v.reload_depots
+                        else {}
+                    ),
                     "id": v.id,
                     "count": v.count,
                     "capacity": instance.capacity_vector(v),
@@ -63,7 +86,7 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
                 for v in instance.vehicle_types
             ],
             "matrix": matrices.identity(),
-            "objective": OBJECTIVE_DEFINITION,
+            "objective": OBJECTIVE_DEFINITION + (PRIZE_DEFINITION if has_optional else ""),
             "cost_unit": instance.cost_unit,
         }
     )
@@ -93,8 +116,28 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
     candidate, reported = [], []
     for route in best.routes():
         type_id = instance.vehicle_types[route.vehicle_type()].id
-        ids = [instance.clients[a.idx].id for a in route if a.is_client()]
-        candidate.append(CandidateRoute(type_id, ids))
+        # Trips are split at PyVRP's depot activities: the first and last are the route's start and
+        # end depots, any in between are reloads.
+        trips: list[list[str]] = [[]]
+        reload_ids: list[str] = []
+        activities = list(route)
+        for position, a in enumerate(activities):
+            if a.is_client():
+                trips[-1].append(instance.clients[a.idx].id)
+            elif 0 < position < len(activities) - 1:
+                reload_ids.append(instance.depots[a.idx].id)
+                trips.append([])
+        # The depots PyVRP actually used, so a mismatch with the type's depots is caught.
+        candidate.append(
+            CandidateRoute(
+                type_id,
+                [],
+                instance.depots[route.start_depot()].id,
+                instance.depots[route.end_depot()].id,
+                trips=trips,
+                reload_depots=reload_ids,
+            )
+        )
         reported.append(route)
     plan = validate_plan(instance, matrices, candidate)
 
@@ -102,6 +145,7 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
     mismatches: list[LabViolation] = []
     for built_route, route in zip(plan.routes, reported, strict=True):
         pairs = [
+            ("trips", len(built_route.trips), int(route.num_trips())),
             ("distance", built_route.distance, int(route.distance())),
             ("duration", built_route.duration, int(route.duration())),
             (
@@ -122,6 +166,19 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
                         vehicle_type=built_route.vehicle_type,
                     )
                 )
+
+    # Prizes: PyVRP's uncollected and collected prizes must equal the recomputation.
+    for what, ours, theirs in (
+        ("uncollected prizes", plan.objective.uncollected_prizes, int(best.uncollected_prizes())),
+        ("collected prizes", plan.objective.prizes_collected, int(best.prizes())),
+    ):
+        if ours != theirs:
+            mismatches.append(
+                LabViolation(
+                    code="solver_mismatch",
+                    message=f"PyVRP reports {what} {theirs}; recomputed {ours}.",
+                )
+            )
 
     iterations = int(result.num_iterations)
     stopped = (
@@ -144,6 +201,7 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
         validated_feasible=not violations,
         violations=violations,
         objective=plan.objective,
+        skipped=plan.skipped,
         totals=plan.totals,
         fleet=plan.fleet,
         routes=plan.routes,

@@ -203,8 +203,8 @@ try {
     // Solver Lab (M6): an account's own instance is private and is not a scenario; anonymous callers need sign-in.
     check("anonymous lab run needs sign-in (401)", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { example: "dimensions" }, headers: { "idempotency-key": randomUUID() } })).status === 401);
     check("anonymous own lab instance needs sign-in (401)", (await call(b, "/api/v1/lab/runs", { method: "POST", body: { instance: labInstance }, headers: { "idempotency-key": randomUUID() } })).status === 401);
-    const planned = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, depots: [...labInstance.depots, { id: "depot-2", x: 5, y: 5 }] } }, headers: { "idempotency-key": randomUUID() } }));
-    check("a planned lab capability is refused by name (422)", planned.status === 422 && planned.body?.error?.code === "planned_capability" && /multiple_depots/.test(planned.body?.error?.message ?? ""), JSON.stringify(planned.body));
+    const planned = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, shipments: [] } }, headers: { "idempotency-key": randomUUID() } }));
+    check("a planned lab capability is refused by name (422)", planned.status === 422 && planned.body?.error?.code === "planned_capability" && /paired_shipments/.test(planned.body?.error?.message ?? ""), JSON.stringify(planned.body));
     const lab = await call(b, "/api/v1/lab/runs", as(B, { method: "POST", body: { instance: { ...labInstance, name: "Bob's lab" } }, headers: { "idempotency-key": randomUUID() } }));
     check("B queues a lab run on an own instance", lab.status === 201 && lab.body?.kind === "lab" && lab.body?.example === null, JSON.stringify(lab.body).slice(0, 300));
     const labId = lab.body?.id;
@@ -236,7 +236,7 @@ try {
     const left = db.prepare("SELECT (SELECT count(*) FROM user WHERE id=?) + (SELECT count(*) FROM session WHERE user_id=?) + (SELECT count(*) FROM access_requests WHERE user_id=?) + (SELECT count(*) FROM scenarios WHERE ownerId=?) + (SELECT count(*) FROM runs WHERE ownerId=?) + (SELECT count(*) FROM manual_baselines WHERE ownerId=?) AS n").get(A.userId, A.userId, A.userId, `user:${A.userId}`, `user:${A.userId}`, `user:${A.userId}`).n;
     check("nothing of A remains", left === 0);
     check("A's old cookie no longer works", (await call(b, "/api/v1/scenarios", as(A))).status === 401);
-    check("lessons stay public", (await fetch(`${b}/learn/fulfillment-pipeline`)).status === 200);
+    check("signed-out lesson redirects home", (await fetch(`${b}/learn/fulfillment-pipeline`, { redirect: "manual" })).headers.get("location") === "/");
     db.close();
     await server.stop();
   }
@@ -264,14 +264,24 @@ try {
     check("pending run list is 403", (await call(b, "/api/v1/runs", as(user))).body?.error?.code === "access_pending");
     check("pending export is 403", (await call(b, "/api/v1/me/export", as(user))).status === 403);
     check("pending page redirects", (await fetch(`${b}/scenarios`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
-    check("lessons remain public", (await fetch(`${b}/learn/fulfillment-pipeline`)).status === 200);
+    for (const path of ["/scenarios", "/runs", "/experiments", "/labs", "/learn", "/learn/fulfillment-pipeline", "/account", "/admin", "/request-access", "/dev/blocks/app-header"]) {
+      check(`anonymous page ${path} redirects home`, (await fetch(`${b}${path}`, { redirect: "manual" })).headers.get("location") === "/");
+    }
+    for (const path of ["/", "/privacy", "/dev", "/dev/components"]) {
+      check(`public page ${path} stays available`, (await fetch(`${b}${path}`)).status === 200);
+    }
+    check("pending lesson redirects to request", (await fetch(`${b}/learn/fulfillment-pipeline`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
+    check("authenticated request form is available", (await fetch(`${b}/request-access`, { headers: user.headers })).status === 200);
+    check("approved lesson is available", (await fetch(`${b}/learn/fulfillment-pipeline`, { headers: admin.headers })).status === 200);
+    const landing = await (await fetch(`${b}/`, { headers: admin.headers })).text();
+    check("landing CTA requests access", landing.includes("Request access") && !landing.includes("Open Fillrate"));
     check("pending note saves", (await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Testing with sample orders" } }))).status === 200);
     check("note is stored", db.prepare("SELECT note FROM access_requests WHERE user_id=?").get(user.userId)?.note === "Testing with sample orders");
     for (let i = 0; i < 9; i++) await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: `Update ${i}` } }));
     const overNote = await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Too many" } }));
     check("eleventh note update is rate limited", overNote.status === 429 && overNote.body?.error?.code === "quota_exceeded", JSON.stringify(overNote.body));
     check("stranger cannot list requests", (await call(b, "/api/v1/admin/access-requests", as(stranger))).status === 404);
-    check("pending user cannot open admin page", (await fetch(`${b}/admin`, { headers: user.headers, redirect: "manual" })).status === 404);
+    check("pending admin page redirects to request", (await fetch(`${b}/admin`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
     check("stranger cannot forge approval", (await call(b, `/api/v1/admin/access-requests/${user.userId}`, as(stranger, { method: "POST", body: { action: "approve" } }))).status === 404);
     const decision = (target, action, who = admin, headers = {}) => call(b, `/api/v1/admin/access-requests/${target.userId}`, as(who, { method: "POST", body: { action }, headers }));
     check("cross-origin admin POST is refused", (await decision(user, "approve", admin, { origin: "https://evil.example" })).status === 403);

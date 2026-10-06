@@ -296,3 +296,11 @@
     transition: none;
   }
 }
+
+/* Phones show dialogs as bottom sheets, where the toast stack (z-60, bottom of the screen) would cover
+   the dialog's actions. While a modal dialog is open on a narrow screen, keep toasts under it. */
+@media (width < 40rem) {
+  body:has([role="alertdialog"], [role="dialog"][aria-modal="true"]) [data-slot="toast-viewport"] {
+    z-index: 40;
+  }
+}

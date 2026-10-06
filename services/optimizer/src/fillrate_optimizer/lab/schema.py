@@ -11,7 +11,7 @@ in abstract units, and one abstract time unit elapses per distance unit. Geograp
 haversine × circuity in meters and constant-speed durations in seconds. Costs are integers in
 `cost_unit`.
 
-Adding a capability (multiple depots, reloads, optional clients, client groups, shipments) adds
+Adding a capability (client groups, shipments) adds
 fields here and removes their entry from ``PLANNED_FIELDS``; see docs/solver-lab.md.
 """
 
@@ -31,6 +31,8 @@ Lat = Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
 Lon = Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
 
 MAX_CLIENTS = 500
+MAX_DEPOTS = 10
+MAX_RELOADS = 50
 MAX_DIMENSIONS = 8
 MAX_VEHICLE_TYPES = 10
 MAX_VEHICLES_PER_TYPE = 500
@@ -42,17 +44,10 @@ PLANNED_FIELDS: dict[tuple[str, str], str] = {
     ("instance", "groups"): "client_groups",
     ("instance", "client_groups"): "client_groups",
     ("client", "pickup"): "pickups_and_deliveries",
-    ("client", "prize"): "optional_clients",
-    ("client", "required"): "optional_clients",
     ("client", "group"): "client_groups",
     ("client", "tw_early"): "lab_time_windows",
     ("client", "tw_late"): "lab_time_windows",
     ("client", "release_time"): "lab_time_windows",
-    ("vehicle_type", "start_depot"): "multiple_depots",
-    ("vehicle_type", "end_depot"): "multiple_depots",
-    ("vehicle_type", "reload_depots"): "reloads",
-    ("vehicle_type", "max_reloads"): "reloads",
-    ("vehicle_type", "initial_load"): "reloads",
     ("vehicle_type", "tw_early"): "lab_time_windows",
     ("vehicle_type", "tw_late"): "lab_time_windows",
     ("vehicle_type", "profile"): "routing_profiles",
@@ -80,9 +75,6 @@ def planned_fields(raw: object) -> list[tuple[str, str, str]]:
         }[where]
         if isinstance(items, list) and any(isinstance(i, dict) and name in i for i in items):
             found.append((where, name, capability))
-    depots = raw.get("depots")
-    if isinstance(depots, list) and len(depots) > 1:
-        found.append(("instance", "depots", "multiple_depots"))
     return found
 
 
@@ -121,11 +113,26 @@ class LabClient(LabDoc):
     delivery: dict[str, Amount] = Field(default_factory=dict)
     # Duration units: abstract (planar) or seconds (geographic).
     service_duration: Amount = 0
+    # Optional visits (PyVRP Client.required/prize). Absent means a required client with no prize.
+    # An optional client (``required: false``) may be skipped; the solver then pays its ``prize``
+    # (in the instance's cost unit) as an uncollected prize. Prizes are never folded into costs.
+    required: bool | None = None
+    prize: Amount | None = None
+
+    @property
+    def is_required(self) -> bool:
+        return self.required is not False
+
+    @property
+    def prize_value(self) -> int:
+        return self.prize or 0
 
 
 class LabVehicleType(LabDoc):
-    """A vehicle type with a finite count. Every vehicle starts and ends at the single depot
-    (closed routes; PyVRP-native, no open-route workaround). Capacity names every dimension."""
+    """A vehicle type with a finite count. Every vehicle starts at ``start_depot`` and ends at
+    ``end_depot`` (depot ids; both default to the first depot, so a single-depot instance needs
+    neither). Routes are closed in the sense that every route returns to a depot; there is no open
+    route workaround. Capacity names every dimension."""
 
     id: LabId
     label: Label = ""
@@ -137,6 +144,15 @@ class LabVehicleType(LabDoc):
     # Per-route limits in distance / duration units (PyVRP max_distance, shift_duration).
     max_distance: Annotated[int, Field(strict=True, ge=1, le=1_000_000_000)] | None = None
     shift_duration: Annotated[int, Field(strict=True, ge=1, le=1_000_000_000)] | None = None
+    start_depot: LabId | None = None
+    end_depot: LabId | None = None
+    # Reloads (PyVRP reload depots): between trips a vehicle returns to one of ``reload_depots``
+    # (depot ids), reloads to full capacity there at no time cost, and starts its next trip. At
+    # most ``max_reloads`` times per route, so a route has up to max_reloads + 1 trips. Capacity
+    # applies per trip; max_distance and shift_duration apply to the whole route. Absent (None)
+    # means the vehicle never reloads.
+    reload_depots: list[LabId] | None = Field(default=None, max_length=MAX_DEPOTS)
+    max_reloads: Annotated[int, Field(strict=True, ge=0, le=MAX_RELOADS)] | None = None
 
 
 class LabTravel(LabDoc):
@@ -165,8 +181,7 @@ class LabInstance(LabDoc):
     travel: LabTravel = Field(default_factory=LabTravel)
     cost_unit: Annotated[str, Field(min_length=1, max_length=40)] = "cost units"
     dimensions: Annotated[list[LabDimension], Field(min_length=1, max_length=MAX_DIMENSIONS)]
-    # Exactly one depot for now; more is the planned `multiple_depots` capability.
-    depots: Annotated[list[LabDepot], Field(min_length=1, max_length=1)]
+    depots: Annotated[list[LabDepot], Field(min_length=1, max_length=MAX_DEPOTS)]
     clients: Annotated[list[LabClient], Field(min_length=1, max_length=MAX_CLIENTS)]
     vehicle_types: Annotated[
         list[LabVehicleType], Field(min_length=1, max_length=MAX_VEHICLE_TYPES)
@@ -179,12 +194,7 @@ class LabInstance(LabDoc):
         found = planned_fields(data)
         if found:
             where, name, capability = found[0]
-            detail = (
-                "Solver Lab instances have exactly one depot for now"
-                if name == "depots"
-                else f"{where} field {name!r} is not supported yet"
-            )
-            raise PlannedCapabilityError(capability, detail)
+            raise PlannedCapabilityError(capability, f"{where} field {name!r} is not supported yet")
         return data
 
     @model_validator(mode="after")
@@ -198,7 +208,14 @@ class LabInstance(LabDoc):
 
     @property
     def depot(self) -> LabDepot:
+        """The first depot: the default start and end of every vehicle type."""
         return self.depots[0]
+
+    def start_depot_of(self, vehicle_type: LabVehicleType) -> str:
+        return vehicle_type.start_depot or self.depots[0].id
+
+    def end_depot_of(self, vehicle_type: LabVehicleType) -> str:
+        return vehicle_type.end_depot or self.depots[0].id
 
     def dimension_ids(self) -> list[str]:
         return [d.id for d in self.dimensions]
@@ -222,10 +239,13 @@ class LabViolation(LabDoc):
     client_id: str | None = None
     vehicle_type: str | None = None
     dimension: str | None = None
+    trip: int | None = None
 
 
 class LabVisit(LabDoc):
     client_id: str
+    # Trip of the route this visit belongs to (0 unless the vehicle reloads).
+    trip: int = 0
     # Load on board before and after serving this visit, per dimension (delivery only).
     load_before: Loads
     load_after: Loads
@@ -236,12 +256,31 @@ class LabVisit(LabDoc):
     departure: int
 
 
+class LabTrip(LabDoc):
+    """One trip of a route: from the route's start depot or a reload depot to the next reload
+    depot or the route's end depot. Loads are per trip (full again after every reload)."""
+
+    index: int
+    from_depot: str
+    to_depot: str
+    client_ids: list[str]
+    load: Loads
+    utilization: dict[str, float]
+    distance: int
+
+
 class LabRoute(LabDoc):
     index: int
     vehicle_type: str
+    # Depot ids the route starts and ends at (absent in results stored before multiple depots).
+    start_depot: str | None = None
+    end_depot: str | None = None
+    # Trips between reloads (one when the vehicle never reloads; absent in results stored earlier).
+    trips: list[LabTrip] = Field(default_factory=list)
     visits: list[LabVisit]
+    # Total delivered over all trips; each trip is checked against capacity on its own.
     load: Loads
-    # load / capacity per dimension, 0–1 when feasible (above 1 means overloaded).
+    # Fullest trip's load / capacity per dimension, 0–1 when feasible (above 1 means overloaded).
     utilization: dict[str, float]
     distance: int
     duration: int
@@ -256,12 +295,25 @@ class LabRoute(LabDoc):
 class LabObjective(LabDoc):
     """Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle
     its fixed cost, plus unit_distance_cost × route distance and unit_duration_cost × route
-    duration. Infeasibility penalties are never part of it."""
+    duration. ``total`` is this nominal cost only. Infeasibility penalties are never part of it.
+    With optional clients PyVRP minimizes ``total`` plus the prizes of the clients it skips:
+    ``uncollected_prizes`` is reported as its own term and ``objective_with_prizes`` is the sum
+    PyVRP optimized. Prizes are in the instance's cost unit but are never costs."""
 
     fixed_cost: int
     distance_cost: int
     duration_cost: int
     total: int
+    uncollected_prizes: int = 0
+    prizes_collected: int = 0
+    objective_with_prizes: int | None = None
+
+
+class LabSkipped(LabDoc):
+    """An optional client that no route visits, and the prize forgone."""
+
+    client_id: str
+    prize: int
 
 
 class LabFleetUse(LabDoc):
@@ -319,6 +371,8 @@ class LabResult(LabDoc):
     validated_feasible: bool
     violations: list[LabViolation]
     objective: LabObjective
+    # Optional clients not visited (empty unless the instance has optional clients).
+    skipped: list[LabSkipped] = Field(default_factory=list)
     totals: LabTotals
     fleet: list[LabFleetUse]
     routes: list[LabRoute]

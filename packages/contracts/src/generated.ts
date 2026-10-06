@@ -641,6 +641,16 @@ export interface components {
              */
             lon: number | null;
             /**
+             * Prize
+             * @default null
+             */
+            prize: number | null;
+            /**
+             * Required
+             * @default null
+             */
+            required: boolean | null;
+            /**
              * Service Duration
              * @default 0
              */
@@ -756,7 +766,10 @@ export interface components {
          * LabObjective
          * @description Nominal objective recomputed from the instance (PyVRP 0.14 semantics): per used vehicle
          *     its fixed cost, plus unit_distance_cost × route distance and unit_duration_cost × route
-         *     duration. Infeasibility penalties are never part of it.
+         *     duration. ``total`` is this nominal cost only. Infeasibility penalties are never part of it.
+         *     With optional clients PyVRP minimizes ``total`` plus the prizes of the clients it skips:
+         *     ``uncollected_prizes`` is reported as its own term and ``objective_with_prizes`` is the sum
+         *     PyVRP optimized. Prizes are in the instance's cost unit but are never costs.
          */
         LabObjective: {
             /** Distance Cost */
@@ -765,8 +778,23 @@ export interface components {
             duration_cost: number;
             /** Fixed Cost */
             fixed_cost: number;
+            /**
+             * Objective With Prizes
+             * @default null
+             */
+            objective_with_prizes: number | null;
+            /**
+             * Prizes Collected
+             * @default 0
+             */
+            prizes_collected: number;
             /** Total */
             total: number;
+            /**
+             * Uncollected Prizes
+             * @default 0
+             */
+            uncollected_prizes: number;
         };
         /** LabResult */
         LabResult: {
@@ -802,6 +830,8 @@ export interface components {
              * @constant
              */
             schema_version: 1;
+            /** Skipped */
+            skipped?: components["schemas"]["LabSkipped"][];
             solver: components["schemas"]["LabSolverInfo"];
             /** Solver Feasible */
             solver_feasible: boolean;
@@ -824,6 +854,11 @@ export interface components {
             duration: number;
             /** Duration Cost */
             duration_cost: number;
+            /**
+             * End Depot
+             * @default null
+             */
+            end_depot: string | null;
             /** Fixed Cost */
             fixed_cost: number;
             /** Index */
@@ -834,8 +869,15 @@ export interface components {
             };
             /** Service Duration */
             service_duration: number;
+            /**
+             * Start Depot
+             * @default null
+             */
+            start_depot: string | null;
             /** Travel Duration */
             travel_duration: number;
+            /** Trips */
+            trips?: components["schemas"]["LabTrip"][];
             /** Utilization */
             utilization: {
                 [key: string]: number;
@@ -844,6 +886,16 @@ export interface components {
             vehicle_type: string;
             /** Visits */
             visits: components["schemas"]["LabVisit"][];
+        };
+        /**
+         * LabSkipped
+         * @description An optional client that no route visits, and the prize forgone.
+         */
+        LabSkipped: {
+            /** Client Id */
+            client_id: string;
+            /** Prize */
+            prize: number;
         };
         /**
          * LabSolver
@@ -943,6 +995,31 @@ export interface components {
              */
             speed_m_per_s: number;
         };
+        /**
+         * LabTrip
+         * @description One trip of a route: from the route's start depot or a reload depot to the next reload
+         *     depot or the route's end depot. Loads are per trip (full again after every reload).
+         */
+        LabTrip: {
+            /** Client Ids */
+            client_ids: string[];
+            /** Distance */
+            distance: number;
+            /** From Depot */
+            from_depot: string;
+            /** Index */
+            index: number;
+            /** Load */
+            load: {
+                [key: string]: number;
+            };
+            /** To Depot */
+            to_depot: string;
+            /** Utilization */
+            utilization: {
+                [key: string]: number;
+            };
+        };
         /** LabUnits */
         LabUnits: {
             /** Cost */
@@ -958,8 +1035,10 @@ export interface components {
         };
         /**
          * LabVehicleType
-         * @description A vehicle type with a finite count. Every vehicle starts and ends at the single depot
-         *     (closed routes; PyVRP-native, no open-route workaround). Capacity names every dimension.
+         * @description A vehicle type with a finite count. Every vehicle starts at ``start_depot`` and ends at
+         *     ``end_depot`` (depot ids; both default to the first depot, so a single-depot instance needs
+         *     neither). Routes are closed in the sense that every route returns to a depot; there is no open
+         *     route workaround. Capacity names every dimension.
          */
         LabVehicleType: {
             /** Capacity */
@@ -968,6 +1047,11 @@ export interface components {
             };
             /** Count */
             count: number;
+            /**
+             * End Depot
+             * @default null
+             */
+            end_depot: string | null;
             /**
              * Fixed Cost
              * @default 0
@@ -986,10 +1070,25 @@ export interface components {
              */
             max_distance: number | null;
             /**
+             * Max Reloads
+             * @default null
+             */
+            max_reloads: number | null;
+            /**
+             * Reload Depots
+             * @default null
+             */
+            reload_depots: string[] | null;
+            /**
              * Shift Duration
              * @default null
              */
             shift_duration: number | null;
+            /**
+             * Start Depot
+             * @default null
+             */
+            start_depot: string | null;
             /**
              * Unit Distance Cost
              * @default 1
@@ -1023,6 +1122,11 @@ export interface components {
              */
             route: number | null;
             /**
+             * Trip
+             * @default null
+             */
+            trip: number | null;
+            /**
              * Vehicle Type
              * @default null
              */
@@ -1050,6 +1154,11 @@ export interface components {
             };
             /** Service Duration */
             service_duration: number;
+            /**
+             * Trip
+             * @default 0
+             */
+            trip: number;
         };
         /** Lease */
         Lease: {
