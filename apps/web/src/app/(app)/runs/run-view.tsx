@@ -27,7 +27,10 @@ import { METERS_PER_MILE } from "@/lib/shipment-sheet"
 import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, formatPercent, plural, travelBasis } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
+import { legPaths, roadLabel } from "@/lib/road-geometry"
+
 import { ManualPlanPanel } from "./manual-plan"
+import { type RoadGeometry, RoadGeometryControl, useRoadGeometry } from "./road-geometry"
 import { TimelinePanel } from "./timeline-panel"
 import { type WarmRerun, WarmRerunButton } from "./warm-rerun"
 
@@ -80,6 +83,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
   const active = ACTIVE.has(run.status)
   const listHref = `/runs${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`
   const failureCode = String(run.failure?.code ?? "error")
+  const geo = useRoadGeometry(run.id, runKey, run.status === "succeeded" && !!run.summary)
 
   async function cancel() {
     setCancelling(true)
@@ -114,7 +118,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
               <Button variant="outline" size="sm" render={<Link href={`/runs/${run.id}/sheet`} />}>
                 <Printer aria-hidden /> Shipment sheets
               </Button>
-              <ExportMenu id={run.id} hasMatrix={run.summary?.travel?.mode === "snapshot"} />
+              <ExportMenu id={run.id} hasMatrix={run.summary?.travel?.mode === "snapshot"} roads={geo.status?.eligible === true && (Object.keys(geo.geometries).length > 0 || geo.status.fetched_trucks.length > 0)} />
               {rerun && <WarmRerunButton source={{ kind: "run", run_id: run.id }} rerun={rerun} runKey={runKey} />}
             </>
           )}
@@ -144,7 +148,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
           <AlertDescription>The worker stopped responding on every attempt ({run.max_attempts}). Start a new run.</AlertDescription>
         </Alert>
       )}
-      {run.summary && <Results summary={run.summary} run={run} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun ?? null} />}
+      {run.summary && <Results summary={run.summary} run={run} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun ?? null} geo={geo} />}
     </>
   )
 }
@@ -209,7 +213,7 @@ function WarmStartNotes({ summary }: { summary: RunSummary }) {
   )
 }
 
-function ExportMenu({ id, hasMatrix }: { id: string; hasMatrix: boolean }) {
+function ExportMenu({ id, hasMatrix, roads }: { id: string; hasMatrix: boolean; roads: boolean }) {
   const href = (q: string) => `/api/v1/runs/${id}/export?${q}`
   return (
     <Menu>
@@ -225,6 +229,7 @@ function ExportMenu({ id, hasMatrix }: { id: string; hasMatrix: boolean }) {
           ["format=csv&table=clusters", "Clusters CSV"],
           ["format=csv&table=products", "Stock reconciliation CSV"],
           ["format=geojson", "GeoJSON routes (schematic lines)"],
+          ...(roads ? [["format=geojson&geometry=road", "GeoJSON routes with fetched road geometry"]] : []),
           ...(hasMatrix ? [["format=matrix&as=csv", "Travel matrix CSV"], ["format=matrix&as=json", "Travel matrix JSON (with node binding)"]] : []),
           ["format=python", "Python replay bundle (.zip)"],
         ].map(([q, label]) => (
@@ -290,7 +295,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   )
 }
 
-function Results({ summary, run, runKey, canEvaluate, rerun }: { summary: RunSummary; run: PipelineDetail; runKey?: string; canEvaluate: boolean; rerun: WarmRerun | null }) {
+function Results({ summary, run, runKey, canEvaluate, rerun, geo }: { summary: RunSummary; run: PipelineDetail; runKey?: string; canEvaluate: boolean; rerun: WarmRerun | null; geo: RoadGeometry }) {
   const [cluster, setCluster] = useState<string | null>(null)
   const [hexes, setHexes] = useState(false)
   const [truck, setTruck] = useState<string | null>(null)
@@ -300,6 +305,11 @@ function Results({ summary, run, runKey, canEvaluate, rerun }: { summary: RunSum
   const clusterIndex = (id: string | null | undefined) => (id ? summary.clusters.findIndex((c) => c.id === id) + 1 : 0)
   const unshippedAmount = summary.unplanned.reduce((s, u) => s + u.amount_cents, 0)
   const lowCount = summary.trucks.filter((x) => fillBand(x.fill) === "low").length
+  const road = useMemo(() => {
+    const ids = [...geo.shown].filter((id) => geo.geometries[id])
+    if (!ids.length) return null
+    return { label: roadLabel(geo.geometries[ids[0]]), paths: Object.fromEntries(ids.map((id) => [id, legPaths(geo.geometries[id], summary.trucks.find((x) => x.id === id)?.visits.length ?? 0)])) }
+  }, [geo.shown, geo.geometries, summary.trucks])
   const selectTruck = (id: string | null) => {
     setTruck(id)
     if (id) setCluster(summary.trucks.find((x) => x.id === id)?.cluster_id ?? null)
@@ -359,8 +369,9 @@ function Results({ summary, run, runKey, canEvaluate, rerun }: { summary: RunSum
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="flex flex-col gap-2">
               <div className="h-[360px] overflow-hidden rounded-xl border sm:h-[440px] xl:h-auto xl:min-h-[480px] xl:flex-1">
-                <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} h3Resolution={hexes ? 5 : null} />
+                <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} h3Resolution={hexes ? 5 : null} road={road} />
               </div>
+              <RoadGeometryControl geo={geo} truckId={truck} canFetch={canEvaluate} />
               <label className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Switch checked={hexes} onCheckedChange={setHexes} />
                 H3 cells (resolution 5, shaded by stop count). A map layer only; it does not change clusters.
@@ -373,7 +384,7 @@ function Results({ summary, run, runKey, canEvaluate, rerun }: { summary: RunSum
           <ShipmentTable summary={summary} clusterIndex={clusterIndex} truck={truck} onSelect={selectTruck} cluster={cluster} onClearCluster={() => setCluster(null)} runId={run.id} />
         </TabsPanel>
         <TabsPanel value="timeline" className="pt-3">
-          <TimelinePanel summary={summary} />
+          <TimelinePanel summary={summary} geo={geo} canFetch={canEvaluate} />
         </TabsPanel>
         <TabsPanel value="manual" className="pt-3">
           <ManualPlanPanel summary={summary} runId={run.id} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun} />

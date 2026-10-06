@@ -120,7 +120,7 @@ export class Store {
       if (!row.valid) throw new Error("warm_start_baseline_invalid: this baseline did not pass the validator when it was saved, so it cannot start a solve");
       const run = this.db.select({ settings: s.runs.settings }).from(s.runs).where(eq(s.runs.id, row.runId)).get();
       if (!run) throw missing;
-      const plan = JSON.parse(row.plan) as { cluster_id: string; routes: string[][]; vehicle_types?: string[] };
+      const plan = JSON.parse(row.plan) as { cluster_id: string; routes: string[][]; vehicle_types?: string[] | null };
       const manual = (JSON.parse(row.evaluation) as { manual: { trucks: unknown[] } }).manual;
       return { baseline: { id: row.id, run_id: row.runId, cluster_id: row.clusterId, routes: plan.routes, ...(plan.vehicle_types ? { vehicle_types: plan.vehicle_types } : {}), valid: row.valid, trucks: manual.trucks, settings: (JSON.parse(run.settings) as Snapshot).document } };
     }
@@ -165,7 +165,7 @@ export class Store {
    * own scenario's, or a bundled example's) and the run must have succeeded; the baseline then belongs to
    * `ownerId`. Invalid plans are saved too, marked invalid. `admission` is charged in the same transaction.
    */
-  saveBaseline(input: { runId: string; ownerId: string; name: string; plan: { cluster_id: string; routes: string[][]; vehicle_types?: string[] }; evaluation: { manual: { valid: boolean } } & Record<string, unknown>; idempotencyKey: string; admission?: Admission; maxPerOwner?: number }, now = Date.now()) {
+  saveBaseline(input: { runId: string; ownerId: string; name: string; plan: { cluster_id: string; routes: string[][]; vehicle_types?: string[] | null }; evaluation: { manual: { valid: boolean } } & Record<string, unknown>; idempotencyKey: string; admission?: Admission; maxPerOwner?: number }, now = Date.now()) {
     if (!input.idempotencyKey || input.idempotencyKey.length > 200) throw new Error("invalid_idempotency_key");
     const name = input.name.trim();
     if (!name || name.length > 100) throw new Error("invalid_baseline_name");
@@ -491,6 +491,7 @@ export class Store {
       this.sqlite.prepare("DELETE FROM experiment_runs WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM manual_baselines WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM stage_cache WHERE runId=?").run(runId);
+      this.sqlite.prepare("DELETE FROM route_geometry WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM run_artifacts WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM cluster_jobs WHERE runId=?").run(runId);
       if (job) {
@@ -505,7 +506,7 @@ export class Store {
   /** Content-addressed artifacts that no run, cache entry or geocoding answer references any more. */
   private purgeUnreferenced() {
     this.sqlite.prepare(`DELETE FROM artifacts WHERE hash NOT IN (SELECT artifactHash FROM run_artifacts)
-      AND hash NOT IN (SELECT artifactHash FROM stage_cache) AND hash NOT IN (SELECT responseRef FROM geocode_cache WHERE responseRef IS NOT NULL)`).run();
+      AND hash NOT IN (SELECT artifactHash FROM stage_cache) AND hash NOT IN (SELECT artifactHash FROM route_geometry) AND hash NOT IN (SELECT responseRef FROM geocode_cache WHERE responseRef IS NOT NULL)`).run();
   }
 
   claim(workerId: string, now = Date.now(), leaseMs = 60_000) {
@@ -712,6 +713,30 @@ export class Store {
   queueStats() {
     const rows = this.sqlite.prepare("SELECT status, count(*) AS n FROM jobs GROUP BY status").all() as { status: string; n: number }[];
     return Object.fromEntries(rows.map(r => [r.status, r.n])) as Record<string, number>;
+  }
+
+  /** Stores one truck's road geometry beside, not inside, the run's results. Idempotent by key. */
+  saveRouteGeometry(input: { key: string; runId: string; truckId: string; snapshotId: string; deployment: string }, payload: unknown, now = Date.now()) {
+    const bytes = Buffer.from(canonical(payload));
+    if (bytes.length > MAX_ARTIFACT_BYTES) throw new Error("artifact_too_large");
+    const hash = contentHash(bytes);
+    this.db.transaction(tx => {
+      tx.insert(s.artifacts).values({ hash, compressed: gzipSync(bytes), byteLength: bytes.length }).onConflictDoNothing().run();
+      tx.insert(s.routeGeometry).values({ ...input, artifactHash: hash, createdAt: now }).onConflictDoUpdate({ target: s.routeGeometry.key, set: { artifactHash: hash, createdAt: now } }).run();
+    }, { behavior: "immediate" });
+    return hash;
+  }
+
+  /** The cached geometry for a key, or null. Callers must have passed the run's read check. */
+  routeGeometry(key: string): unknown | null {
+    const row = this.db.select().from(s.routeGeometry).where(eq(s.routeGeometry.key, key)).get();
+    return row ? this.readArtifact(row.artifactHash) : null;
+  }
+
+  /** Truck IDs with cached geometry for a run under one deployment identity. */
+  routeGeometryTrucks(runId: string, deployment: string): string[] {
+    return this.db.select({ truckId: s.routeGeometry.truckId }).from(s.routeGeometry)
+      .where(and(eq(s.routeGeometry.runId, runId), eq(s.routeGeometry.deployment, deployment))).all().map(r => r.truckId);
   }
 
   readArtifact(hash: string): unknown {

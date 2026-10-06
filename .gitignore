@@ -2,6 +2,7 @@ node_modules/
 .next/
 out/
 data/
+!services/optimizer/tests/data/
 *.sqlite*
 .env
 .env.local

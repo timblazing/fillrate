@@ -76,7 +76,7 @@ export default function LessonsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Lessons</h1>
           <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
             Each lesson starts real runs on a synthetic scenario and lists what to look for, not fixed answers. Lessons use only features the app runs today: estimated travel,
-            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and the Solver Lab's routing features (each lesson lists its model fields).
+            the allocation strategies, trailer capacity in linear feet, k-means seeds, delivery windows with service durations, the PyVRP shipment builder, the manual plan evaluator, recorded directed travel matrices and the routing features of the Solver Lab (each lesson lists its model fields).
           </p>
         </section>
         <ul className="grid gap-3 sm:grid-cols-2">

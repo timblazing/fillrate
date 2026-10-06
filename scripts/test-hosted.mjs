@@ -147,6 +147,12 @@ try {
     check("B cannot read A's manual plan context (404)", (await call(b, `/api/v1/runs/${runId}/evaluate?cluster=C1`, as(B))).status === 404);
     check("B cannot evaluate a plan on A's run (404)", (await call(b, `/api/v1/runs/${runId}/evaluate`, as(B, { method: "POST", body: { cluster_id: "C1", routes: [["x"]] } }))).status === 404);
     check("anonymous cannot evaluate a plan on A's run (404)", (await call(b, `/api/v1/runs/${runId}/evaluate`, { method: "POST", body: { cluster_id: "C1", routes: [["x"]] } })).status === 404);
+    check("B cannot read A's road geometry status (404)", (await call(b, `/api/v1/runs/${runId}/geometry`, as(B))).status === 404);
+    check("B cannot read A's cached road geometry (404)", (await call(b, `/api/v1/runs/${runId}/geometry?truck=C1-T1`, as(B))).status === 404);
+    check("B cannot fetch road geometry on A's run (404)", (await call(b, `/api/v1/runs/${runId}/geometry`, as(B, { method: "POST", body: { truck: "C1-T1" }, headers: { "idempotency-key": randomUUID() } }))).status === 404);
+    check("anonymous cannot fetch road geometry on A's run (404)", (await call(b, `/api/v1/runs/${runId}/geometry`, { method: "POST", body: { truck: "C1-T1" }, headers: { "idempotency-key": randomUUID() } })).status === 404);
+    check("B cannot export A's road geometry (404)", (await call(b, `/api/v1/runs/${runId}/export?format=geojson&geometry=road`, as(B))).status === 404);
+    check("A's unfinished run has no geometry yet (409 run_not_succeeded)", (await call(b, `/api/v1/runs/${runId}/geometry`, as(A))).body?.error?.code === "run_not_succeeded");
     check("A's unfinished run has no plan to evaluate (409)", (await call(b, `/api/v1/runs/${runId}/evaluate?cluster=C1`, as(A))).body?.error?.code === "run_not_finished");
     check("B's run list omits A's run", !(await call(b, "/api/v1/runs", as(B))).body?.runs?.some(r => r.id === runId));
     check("A's run list has it", (await call(b, "/api/v1/runs", as(A))).body?.runs?.some(r => r.id === runId));

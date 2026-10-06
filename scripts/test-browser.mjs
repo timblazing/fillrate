@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "baselines", "fleet"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "baselines", "fleet", "road-geometry"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1891,6 +1891,153 @@ async function fleetFlow(baseURL, scenarioKey) {
   console.log(`  passed: run ${runId.slice(0, 8)} ${summary.totals.trucks} shipments (1 trailer, 4 box trucks) match the persisted run; invalid fleet blocked; wrong-type plan refused`);
 }
 
+// The Valhalla environment the road-geometry flow needs (a live deployment; see docs/valhalla.md). Without it the flow is skipped.
+const VALHALLA_ENV = ["VALHALLA_URL", "VALHALLA_VERSION", "VALHALLA_DATASET_REVISION", "VALHALLA_GRAPH_CONFIG_HASH", "VALHALLA_COSTING_OPTIONS"];
+const valhallaEnv = () => Object.fromEntries([...VALHALLA_ENV, "VALHALLA_MAX_MATRIX_DISTANCE_M", "VALHALLA_MAX_MATRIX_PAIRS", "VALHALLA_MAX_MATRIX_LOCATIONS", "VALHALLA_MAX_ROUTE_LOCATIONS", "VALHALLA_BLOCK_SIZE"].filter((name) => process.env[name]).map((name) => [name, process.env[name]]));
+const valhallaConfigured = () => VALHALLA_ENV.every((name) => process.env[name]?.trim());
+
+// Inspected-route road geometry (spec §4, §7, §10, §13): build a Valhalla snapshot from the browser, run on it, fetch one
+// truck's roads, check the labels, legend, timeline cursor and GeoJSON, at desktop and phone sizes. Needs a live Valhalla.
+async function roadGeometryFlow(baseURL, scenarioKey, runKey) {
+  console.log("Browser smoke: Valhalla road geometry for an inspected truck");
+  beginBrowserFlow("road-geometry");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const author = "Road geometry smoke", name = "Road geometry TN-MS-AR";
+  // Memphis depot (the import default) and six stops in Tennessee, Mississippi and Arkansas.
+  const stops = [["RG-NAS", "Nashville", 36.1627, -86.7816], ["RG-JTN", "Jackson TN", 35.6145, -88.8139], ["RG-TUP", "Tupelo", 34.2576, -88.7034],
+    ["RG-JMS", "Jackson MS", 32.2988, -90.1848], ["RG-LIT", "Little Rock", 34.7465, -92.2896], ["RG-JON", "Jonesboro", 35.8423, -90.7043]];
+  await importInWorkbench(baseURL, scenarioKey, { author, name, inventory: "product,available_pieces\nRG-SKU,1000\n",
+    orders: stops.map(([id, label, lat, lon], i) => `RG-${i + 1},RG-L${i + 1},2026-10-01,Cust ${i + 1},${id},${label},${lat},${lon},RG-SKU,10,25.00,1.00,1`) });
+  expect(snapshot().includes("Build road matrix (Valhalla)"), "The workbench does not offer a Valhalla matrix build; is the Valhalla environment passed to the server?");
+  clickButtonCentered("Build road matrix (Valhalla)");
+  await poll(() => evalValue("(document.querySelector('select[aria-label=\"Run travel mode\"]')?.value ?? 'estimated').length > 20"), (built) => built === true, "Valhalla matrix build", 120_000);
+  const snapshotId = String(evalValue("document.querySelector('select[aria-label=\"Run travel mode\"]').value"));
+  expect(/^[0-9a-f]{64}$/.test(snapshotId), `The built Valhalla matrix was not selected: ${snapshotId}`);
+  const runId = runFromWorkbench(10);
+  const detailOf = () => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey);
+  const detail = await poll(detailOf, (body) => ["succeeded", "failed"].includes(body?.status), "Valhalla-backed run");
+  expect(detail.status === "succeeded" && detail.summary.validity === "valid", `Valhalla-backed run did not succeed: ${detail.status} ${JSON.stringify(detail.failure)}`);
+  const summary = detail.summary;
+  expect(summary.travel?.mode === "snapshot" && summary.travel.provider === "valhalla" && summary.travel.snapshot_id === snapshotId, `Run does not record the Valhalla snapshot: ${JSON.stringify(summary.travel)}`);
+  const truck = summary.trucks[0];
+  const visits = [...truck.visits].sort((a, b) => a.sequence - b.sequence);
+  const geometryUrl = (query = "") => new URL(`/api/v1/runs/${runId}/geometry${query}`, baseURL);
+  const owner = { "x-scenario-key": scenarioKey };
+
+  // API: eligible, nothing fetched yet; access follows the run's owner; refusals use the documented codes.
+  const status = await fetchOkJson(baseURL, `/api/v1/runs/${runId}/geometry`, scenarioKey);
+  expect(status.eligible === true && status.fetched_trucks.length === 0 && status.provider?.version === process.env.VALHALLA_VERSION && status.provider?.dataset_revision === process.env.VALHALLA_DATASET_REVISION, `Geometry status is wrong: ${JSON.stringify(status)}`);
+  const unfetched = await localFetch(geometryUrl(`?truck=${encodeURIComponent(truck.id)}`), { headers: owner });
+  expect(unfetched.status === 404 && (await unfetched.json()).error?.code === "geometry_not_fetched", "An unfetched truck should answer 404 geometry_not_fetched.");
+  const anonymous = await localFetch(geometryUrl(), { method: "POST", headers: { "content-type": "application/json", "idempotency-key": randomUUID() }, body: JSON.stringify({ truck: truck.id }) });
+  expect(anonymous.status === 404, `An anonymous caller must not reach another owner's run geometry; got ${anonymous.status}.`);
+  const keyless = await localFetch(geometryUrl(), { method: "POST", headers: { ...owner, "content-type": "application/json" }, body: JSON.stringify({ truck: truck.id }) });
+  expect(keyless.status === 400 && (await keyless.json()).error?.code === "invalid_idempotency_key", "Fetching without an Idempotency-Key should be refused.");
+
+  // Browser: the run page. The Timeline tab shows the control for its selected truck.
+  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(scenarioKey)}; path=/; SameSite=Lax"`);
+  open(`${baseURL}/runs/${runId}`);
+  browser("wait", "--text", "Validated", "--timeout", "30000");
+  setViewport(1440, 900);
+  browser("find", "role", "tab", "click", "--name", "Timeline", "--exact");
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"road-geometry-button\"]')", "--timeout", "20000");
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"route-legend\"]')", "--timeout", "30000");
+  let text = String(parsedText());
+  expect(text.includes("Schematic straight-line path") && text.includes("Schematic straight line"), `Before fetching, the Timeline should be labeled schematic: ${text.slice(-1500)}`);
+  expect(Number(evalValue("document.querySelectorAll('[data-layer=\"valhalla_road\"]').length")) === 0, "No road layer should be listed before geometry is fetched.");
+  clickButtonCentered("Show road geometry");
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"road-geometry-notes\"]')", "--timeout", "30000");
+  const dataset = process.env.VALHALLA_DATASET_REVISION;
+  const label = `Road geometry (Valhalla truck, ${dataset})`;
+  text = String(parsedText());
+  expect(text.includes(label), `Road geometry label "${label}" is missing.`);
+  expect(text.includes("not proof of what the solver used") && text.includes("optimized on the recorded travel matrix"), "The road-geometry explanation is missing.");
+  expect(text.includes("no live traffic or GPS") && text.includes("Simulation along planned leg durations"), "The simulation label is missing.");
+  const legend = evalValue("JSON.stringify([...document.querySelectorAll('[data-testid=\"route-legend\"] li')].map((li) => [li.dataset.layer, li.innerText.trim(), li.querySelector('svg line')?.getAttribute('stroke-dasharray') ?? null]))");
+  const layers = JSON.parse(typeof legend === "string" ? legend : JSON.stringify(legend));
+  expect(layers.length === 1 && layers[0][0] === "valhalla_road" && layers[0][1].includes(label) && layers[0][2] === null, `Legend should list only the solid road layer: ${JSON.stringify(layers)}`);
+  expect(evalValue("document.querySelector('[data-testid=\"route-legend\"]').getAttribute('aria-label')") === "Route layers", "The route legend needs an accessible label.");
+  const rows = Number(evalValue("document.querySelectorAll('[data-testid=\"road-geometry-legs\"] tbody tr').length"));
+  expect(rows === visits.length, `Discrepancy table should list ${visits.length} legs, got ${rows}.`);
+  browser("find", "role", "button", "click", "--name", "Hide road geometry", "--exact");
+  browser("wait", "--fn", "document.querySelectorAll('[data-layer=\"valhalla_road\"]').length === 0 && !!document.querySelector('[data-layer=\"schematic_straight_line\"]')", "--timeout", "10000");
+  clickButtonCentered("Show road geometry");
+  browser("wait", "--fn", "document.querySelectorAll('[data-layer=\"valhalla_road\"]').length === 1", "--timeout", "10000");
+
+  // Cursor: it moves along the road line (the drive state reports a road position).
+  const stateText = () => String(evalValue("document.querySelector('[data-testid=\"timeline-map-state\"]')?.innerText ?? ''"));
+  const markerAt = () => String(evalValue("(() => { const m = document.querySelector('[data-testid=\"timeline-cursor-marker\"]'); const r = m?.getBoundingClientRect(); return r ? Math.round(r.x) + ',' + Math.round(r.y) : ''; })()"));
+  browser("find", "role", "button", "click", "--name", "Next stop", "--exact");
+  const atStop = markerAt();
+  browser("focus", 'input[type="range"]');
+  for (let i = 0; i < 4; i++) browser("press", "PageUp");
+  browser("wait", "--fn", "(document.querySelector('[data-testid=\"timeline-map-state\"]')?.innerText ?? '').includes('Driving')", "--timeout", "10000");
+  expect(stateText().includes("Driving") && stateText().includes("No live traffic or GPS"), `The map should show the driving state and the simulation label: ${stateText()}`);
+  expect(markerAt() !== atStop && markerAt() !== "", `The cursor marker did not move along the road (at stop ${atStop}, now ${markerAt()}).`);
+  for (const [width, height] of [[1440, 900], [393, 852]]) {
+    assertViewport(width, height);
+    const box = JSON.parse(String(evalValue("JSON.stringify((() => { const l = document.querySelector('[data-testid=\"route-legend\"]').getBoundingClientRect(); const m = document.querySelector('[data-testid=\"timeline-cursor-marker\"]')?.closest('.maplibregl-map, .relative')?.getBoundingClientRect(); const v = document.documentElement.clientWidth; return { left: l.left, right: l.right, width: v, mapRight: m?.right ?? v }; })())")));
+    expect(box.left >= 0 && box.right <= box.width + 1, `Route legend overflows the ${width}px viewport: ${JSON.stringify(box)}`);
+    browser("eval", "document.querySelector('[data-testid=\"route-legend\"]')?.scrollIntoView({ block: 'center' })");
+  }
+  setViewport(1440, 900);
+
+  // API: the cached geometry matches the planned legs, with every discrepancy recorded.
+  const geometry = await fetchOkJson(baseURL, `/api/v1/runs/${runId}/geometry?truck=${encodeURIComponent(truck.id)}`, scenarioKey);
+  expect(geometry.kind === "valhalla_road" && geometry.snapshot_id === snapshotId && geometry.legs.length === visits.length && geometry.chunks.resequenced === false, "Cached geometry is not this truck's legs in order.");
+  expect(geometry.provider.version === process.env.VALHALLA_VERSION && geometry.provider.graph_config_hash === process.env.VALHALLA_GRAPH_CONFIG_HASH && geometry.provider.costing === "truck", "Cached geometry does not record the provider context.");
+  const previousIds = ["depot", ...visits.map((v) => v.location_id)];
+  geometry.legs.forEach((leg, i) => {
+    expect(leg.to_id === visits[i].location_id && leg.status === "ok" && leg.coordinates.length > 2, `Leg ${i} is not the validated stop sequence or has no road line: ${JSON.stringify({ ...leg, coordinates: leg.coordinates?.length })}`);
+    expect(leg.matrix_m === visits[i].leg_m && leg.matrix_s === visits[i].leg_s, `Leg ${i} should carry the run's matrix values (${visits[i].leg_m} m, ${visits[i].leg_s} s), not ${leg.matrix_m} m, ${leg.matrix_s} s.`);
+    expect(Math.abs(leg.relative_m) < 0.15, `Leg ${i} road length differs from the matrix by ${(leg.relative_m * 100).toFixed(1)}%.`);
+  });
+  const lastPoint = geometry.legs.at(-1).coordinates.at(-1);
+  expect(Math.abs(lastPoint[0] - stops.find((st) => st[0] === visits.at(-1).location_id)[3]) < 0.01, "The last leg must end at the last stop; there is no return leg.");
+  console.log(`  legs: ${geometry.legs.map((l, i) => `${previousIds[i]}>${l.to_id} matrix ${(l.matrix_m / 1000).toFixed(1)} km road ${(l.route_m / 1000).toFixed(1)} km (${(l.relative_m * 100).toFixed(1)}%)`).join("; ")}`);
+  const again = await localFetch(geometryUrl(), { method: "POST", headers: { ...owner, "content-type": "application/json", "idempotency-key": randomUUID() }, body: JSON.stringify({ truck: truck.id }) });
+  expect(again.status === 200 && (await again.json()).cached === true, "Fetching an already fetched truck should be served from the cache.");
+
+  // GeoJSON: the default export stays schematic; road geometry is opt-in and labeled.
+  const plain = await (await localFetch(new URL(`/api/v1/runs/${runId}/export?format=geojson`, baseURL), { headers: owner })).json();
+  expect(plain.fillrate.geometry === "schematic_straight_line" && plain.features.every((f) => f.properties.geometry !== "valhalla_road"), "The default GeoJSON export must stay schematic.");
+  const file = join(downloadDir, `fillrate-run-${runId.slice(0, 8)}.geojson`);
+  expect(!existsSync(file), "The GeoJSON download should be new.");
+  clickButtonCentered("Export");
+  clickMenuItem("GeoJSON routes with fetched road geometry");
+  await poll(() => existsSync(file), Boolean, "Road GeoJSON download", 15_000);
+  const road = JSON.parse(readFileSync(file, "utf8"));
+  const roadLegs = road.features.filter((f) => f.properties.role === "route_leg");
+  expect(road.fillrate.geometry === "mixed" && roadLegs.length === visits.length && roadLegs.every((f) => f.properties.geometry === "valhalla_road" && f.properties.dataset_revision === dataset && f.properties.graph_config_hash === process.env.VALHALLA_GRAPH_CONFIG_HASH && f.properties.costing === "truck" && String(f.properties.note).includes("do not prove which roads the solver used")), "Road GeoJSON legs are not labeled valhalla_road with provider context.");
+  const schematicRoutes = road.features.filter((f) => f.properties.role === "route");
+  expect(schematicRoutes.length === summary.trucks.length - 1 && schematicRoutes.every((f) => f.properties.truck_id !== truck.id && f.properties.geometry === "schematic_straight_line") && road.features.filter((f) => f.properties.role === "stop").length === stops.length, "Road GeoJSON should replace the fetched truck's schematic line and keep the stops.");
+
+  // Reload: the fetched truck is remembered server-side, and the Map tab draws road lines with the legend.
+  open(`${baseURL}/runs/${runId}`);
+  browser("wait", "--text", "Validated", "--timeout", "30000");
+  expect((await fetchOkJson(baseURL, `/api/v1/runs/${runId}/geometry`, scenarioKey)).fetched_trucks.join() === truck.id, "The fetched truck should be listed after a reload.");
+  browser("find", "role", "tab", "click", "--name", "Map", "--exact");
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"road-geometry-button\"]')", "--timeout", "20000");
+  for (const [width, height] of [[393, 852], [1440, 900]]) assertViewport(width, height);
+
+  // An estimated run has no road geometry, and nothing is fetched for it.
+  const started = await localFetch(new URL("/api/v1/runs", baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "matrix_estimated" }) });
+  const estimatedId = (await started.json()).id;
+  expect(started.status < 300 && estimatedId, `Could not start the estimated example run: ${started.status}`);
+  const estimated = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${estimatedId}?key=${encodeURIComponent(runKey)}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Estimated example run");
+  const refused = await localFetch(new URL(`/api/v1/runs/${estimatedId}/geometry?truck=${encodeURIComponent(estimated.summary.trucks[0].id)}`, baseURL), { headers: { "x-run-key": runKey } });
+  const refusal = await refused.json();
+  expect(refused.status === 409 && refusal.error.code === "geometry_unavailable" && refusal.error.reason === "estimated_travel", `An estimated run must refuse road geometry: ${refused.status} ${JSON.stringify(refusal)}`);
+  open(`${baseURL}/runs/${estimatedId}?key=${encodeURIComponent(runKey)}`);
+  browser("wait", "--fn", "!!document.querySelector('[data-testid=\"road-geometry-ineligible\"]')", "--timeout", "30000");
+  expect(String(parsedText()).includes("No road geometry: this run used estimated travel") && !hasButton("Show road geometry"), "An estimated run page should explain that it has no road geometry and offer no fetch.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  checkBrowserDiagnostics("road geometry");
+  console.log(`  passed: run ${runId.slice(0, 8)} on snapshot ${snapshotId.slice(0, 10)}, ${visits.length} road legs with discrepancies, labels, legend, cursor, GeoJSON; estimated run refused`);
+}
+
 process.once("SIGINT", () => void stop().finally(() => process.exit(130)));
 process.once("SIGTERM", () => void stop().finally(() => process.exit(143)));
 
@@ -1919,6 +2066,11 @@ try {
     SCENARIO_KEY: scenarioKey,
     NEXT_TELEMETRY_DISABLED: "1",
   };
+  // Valhalla settings reach the web and optimizer processes only for the road-geometry flow (it needs a live deployment).
+  const roadGeometrySelected = flows.includes("road-geometry");
+  const roadGeometryReady = roadGeometrySelected && valhallaConfigured();
+  if (roadGeometrySelected && !roadGeometryReady) console.log(`Browser smoke: road geometry SKIPPED. Set ${VALHALLA_ENV.join(", ")} (and optionally VALHALLA_MAX_ROUTE_LOCATIONS) to a live Valhalla deployment to run it.`);
+  if (roadGeometryReady) Object.assign(commonEnv, valhallaEnv());
   const web = launch(process.execPath, [join(standaloneAppDir, "server.js")], { cwd: standaloneAppDir, env: { ...commonEnv, PORT: String(webPort), HOSTNAME: "127.0.0.1" } });
   const baseURL = `http://127.0.0.1:${webPort}`;
   smokeBaseURL = baseURL;
@@ -1948,6 +2100,7 @@ try {
     if (flow === "lab-prizes") await labPrizesFlow(baseURL, runKey);
     if (flow === "baselines") await baselinesFlow(baseURL, runKey, scenarioKey);
     if (flow === "fleet") await fleetFlow(baseURL, scenarioKey);
+    if (flow === "road-geometry" && roadGeometryReady) await roadGeometryFlow(baseURL, scenarioKey, runKey);
   }
   await stop();
 } catch (error) {
