@@ -13,7 +13,7 @@
       "weight": 10,
       "done": 100,
       "state": "done",
-      "notes": "Complete for the accepted scope: round two accepted every revised Block, /runs/<id> and the shipment sheet (2026-10-01); applied ★ = Best trade-off, far-via-stop warning, oversize-stop split default, and no cost rates. The owner deferred the optional fillrate.fig/OpenPencil follow-up (2026-10-05); it does not block M2."
+      "notes": "Accepted design direction and round-two review remain complete. Owner removed fillrate.fig/OpenPencil work from completion scope; the separate production dashboard integration/performance pass is required under M8."
     },
     "M3": {
       "weight": 20,
@@ -47,13 +47,14 @@
     },
     "M8": {
       "weight": 7,
-      "done": 92,
+      "done": 75,
       "state": "active",
-      "notes": "Done: agent-browser production flows for every product area (21 flows) at desktop and iPhone 16; hosted/local acceptance (144 checks); the /request-access and /admin phone review; npm-compatible scripts and a Node 24 npm CI job; docs/local.md and docs/handoff.md; image target/recovery evidence on VPS and Pi 5. Remaining: native timings on the targets and an image release for the latest runtime changes."
+      "notes": "Planning estimate revised from 92% to 75% for expanded dashboard completion scope; no runtime regression implied. Prior browser/hosted checks, distribution docs and image recovery evidence remain. Required: six-Block production audit/integration, measured frontend performance, basemap terms, final candidate release/deployment and native target timings."
     }
   },
   "nextUp": [
-    "Release: dispatch image.yml for the merged runtime changes; owner deploys the digest.",
-    "Owner: VPS Valhalla deployment with recorded coverage; native timings on VPS/Pi 5; real sample data and cost rates."
+    "M8 priority: audit six gallery Blocks against the real dashboard and measure frontend performance; implement workflow/composition gaps.",
+    "Image publication for e95f3cb is recorded in merged PR #72; owner deploys the tested digest. Final dashboard runtime changes need another image release.",
+    "Owner: conditional VPS Valhalla coverage/timings and native VPS/Pi evidence; real sample rows and monetary rates remain optional."
   ]
 }
