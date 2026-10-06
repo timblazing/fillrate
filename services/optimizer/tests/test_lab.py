@@ -397,6 +397,105 @@ def test_depot_references_and_preflight_use_each_types_depots():
     assert error.value.code == "preflight_blocked"
 
 
+def reload_instance(max_reloads=3, count=1, **extra) -> LabInstance:
+    """Six stops of 5 beyond a yard; one van of capacity 10 can reload at the yard."""
+    clients = [client(f"s{i}", 60 + 10 * i, (-1) ** i * 5, load=5) for i in range(1, 7)]
+    van = {"id": "van", "count": count, "capacity": {"load": 10}, "fixed_cost": 100}
+    if max_reloads:
+        van |= {"reload_depots": ["yard"], "max_reloads": max_reloads}
+    return planar(
+        clients,
+        [van],
+        depots=[{"id": "depot", "x": 0, "y": 0}, {"id": "yard", "x": 50, "y": 0}],
+        **extra,
+    )
+
+
+def test_reloads_let_one_vehicle_serve_more_than_its_capacity():
+    instance = reload_instance()
+    result = run_lab(instance)
+    assert result.solver_feasible and result.validated_feasible and not result.violations
+    (route,) = result.routes  # one vehicle carries 30 with capacity 10
+    assert len(route.trips) == 3 and result.fleet[0].used == 1
+    assert route.load == {"load": 30} and all(t.load == {"load": 10} for t in route.trips)
+    assert [t.from_depot for t in route.trips] == ["depot", "yard", "yard"]
+    assert [t.to_depot for t in route.trips] == ["yard", "yard", "depot"]
+    assert all(v.load_before["load"] <= 10 for v in route.visits)
+    assert sorted(v.trip for v in route.visits) == [0, 0, 1, 1, 2, 2]
+    assert route.distance == sum(t.distance for t in route.trips)
+    # Without reloads the same stops need three vehicles, and the fixed cost shows it.
+    plain = run_lab(reload_instance(max_reloads=0, count=3))
+    assert plain.validated_feasible and plain.totals.routes == 3
+    assert plain.objective.fixed_cost == 300 > result.objective.fixed_cost == 100
+    # Reloading is part of the problem identity; naming nothing is not.
+    assert problem_fingerprint(instance) != problem_fingerprint(reload_instance(max_reloads=2))
+
+
+def test_validator_checks_loads_per_trip_and_rejects_bad_reloads():
+    instance = reload_instance()
+    matrices = lab_matrices(instance)
+    ids = [f"s{i}" for i in range(1, 7)]
+    ok = validate_plan(
+        instance,
+        matrices,
+        [CandidateRoute("van", [], trips=[ids[:2], ids[2:4], ids[4:]], reload_depots=["yard"] * 2)],
+    )
+    assert ok.feasible
+    # The same stops as one trip overload the van (30 > 10); with trips the loads reset instead.
+    single = validate_plan(instance, matrices, [CandidateRoute("van", ids)])
+    assert [v.code for v in single.violations] == ["over_capacity"]
+    # A trip of three stops overloads only that trip.
+    lopsided = validate_plan(
+        instance, matrices, [CandidateRoute("van", [], trips=[ids[:3], ids[3:5], ids[5:]])]
+    )
+    assert [(v.code, v.trip) for v in lopsided.violations] == [("over_capacity", 0)]
+    # Too many reloads, an empty trip, and a depot the type may not reload at.
+    four = validate_plan(
+        instance,
+        matrices,
+        [CandidateRoute("van", [], trips=[ids[:2], ids[2:4], ids[4:5], ids[5:]])],
+    )
+    assert "too_many_reloads" not in {v.code for v in four.violations}
+    tight = reload_instance(max_reloads=1)
+    over = validate_plan(
+        tight,
+        lab_matrices(tight),
+        [CandidateRoute("van", [], trips=[ids[:2], ids[2:4], ids[4:]], reload_depots=["yard"] * 2)],
+    )
+    assert "too_many_reloads" in {v.code for v in over.violations}
+    wrong = validate_plan(
+        instance,
+        matrices,
+        [
+            CandidateRoute(
+                "van", [], trips=[ids[:2], ids[2:4], ids[4:]], reload_depots=["depot", "yard"]
+            )
+        ],
+    )
+    assert [v.code for v in wrong.violations] == ["wrong_reload_depot"]
+    empty = validate_plan(
+        instance, matrices, [CandidateRoute("van", [], trips=[ids[:2], [], ids[2:]])]
+    )
+    assert "empty_trip" in {v.code for v in empty.violations}
+    # Distance includes the stop at the reload depot: reloading at the DC instead costs more.
+    assert wrong.routes[0].distance > ok.routes[0].distance
+
+
+def test_reload_fields_are_checked():
+    van = {"id": "van", "count": 1, "capacity": {"load": 1}}
+    two = [{"id": "d1", "x": 0, "y": 0}, {"id": "d2", "x": 5, "y": 5}]
+    with pytest.raises(ValidationError, match="reload depot 'nowhere' is not a depot id"):
+        planar(
+            [client("a", 1, 1, load=1)],
+            [van | {"reload_depots": ["nowhere"], "max_reloads": 1}],
+            depots=two,
+        )
+    with pytest.raises(ValidationError, match="need max_reloads of at least 1"):
+        planar([client("a", 1, 1, load=1)], [van | {"reload_depots": ["d2"]}], depots=two)
+    with pytest.raises(ValidationError, match="max_reloads needs at least one reload depot"):
+        planar([client("a", 1, 1, load=1)], [van | {"max_reloads": 2}], depots=two)
+
+
 @pytest.mark.parametrize(
     ("patch", "capability"),
     [
@@ -410,14 +509,6 @@ def test_depot_references_and_preflight_use_each_types_depots():
         ),
         ({"shipments": []}, "paired_shipments"),
         ({"clients": [{"id": "a", "x": 1, "y": 1, "prize": 5}]}, "optional_clients"),
-        (
-            {
-                "vehicle_types": [
-                    {"id": "t", "count": 1, "capacity": {"load": 1}, "reload_depots": ["depot"]}
-                ]
-            },
-            "reloads",
-        ),
         ({"clients": [{"id": "a", "x": 1, "y": 1, "group": "g"}]}, "client_groups"),
     ],
 )

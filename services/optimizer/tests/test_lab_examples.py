@@ -27,6 +27,8 @@ def runs():
         "trucks": lab_examples.fleet(False),
         "depots": lab_examples.depots(False),
         "single": lab_examples.depots(True),
+        "reloads": lab_examples.reloads(True),
+        "reloads_off": lab_examples.reloads(False),
     }
     return {
         (name, seed): run_lab(with_seed(b, seed)) for name, b in builds.items() for seed in SEEDS
@@ -154,3 +156,33 @@ def test_one_depot_makes_the_same_stops_cost_more(runs):
         east = [r for r in one.routes if all(v.client_id.startswith("E") for v in r.visits)]
         assert len(east) == 2 and all(r.start_depot == "west" for r in east)
         assert min(r.distance for r in east) > 2 * 100
+
+
+def test_one_van_reloads_four_times_at_the_yard(runs):
+    for seed in SEEDS:
+        result = runs["reloads", seed]
+        assert result.validated_feasible and result.solver_feasible
+        assert result.problem_fingerprint == runs["reloads", 0].problem_fingerprint
+        assert result.objective.total == runs["reloads", 0].objective.total == 533
+        (route,) = result.routes
+        assert result.fleet[0].used == 1 and route.load == {"parcels": 40}
+        assert len(route.trips) == 4 and all(len(t.client_ids) == 2 for t in route.trips)
+        assert all(
+            t.load == {"parcels": 10} and t.utilization["parcels"] == 1.0 for t in route.trips
+        )
+        assert [t.from_depot for t in route.trips] == ["dc", "yard", "yard", "yard"]
+        assert [t.to_depot for t in route.trips] == ["yard", "yard", "yard", "dc"]
+        assert result.objective.fixed_cost == 100 and result.totals.distance == 433
+
+
+def test_without_reloads_four_vans_drive_from_the_dc(runs):
+    for seed in SEEDS:
+        on, off = runs["reloads", seed], runs["reloads_off", seed]
+        assert off.validated_feasible and off.totals.routes == 4
+        assert all(len(r.trips) == 1 and r.start_depot == r.end_depot == "dc" for r in off.routes)
+        assert off.problem_fingerprint != on.problem_fingerprint
+        assert off.objective.fixed_cost == 400 and on.objective.fixed_cost == 100
+        assert off.objective.total == runs["reloads_off", 0].objective.total == 1_180
+        assert off.totals.distance == 780 > on.totals.distance
+        # The one reloading van works for longer than any single-trip van: its route is the day.
+        assert on.routes[0].duration > max(r.duration for r in off.routes)

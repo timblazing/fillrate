@@ -11,7 +11,7 @@ in abstract units, and one abstract time unit elapses per distance unit. Geograp
 haversine × circuity in meters and constant-speed durations in seconds. Costs are integers in
 `cost_unit`.
 
-Adding a capability (reloads, optional clients, client groups, shipments) adds
+Adding a capability (optional clients, client groups, shipments) adds
 fields here and removes their entry from ``PLANNED_FIELDS``; see docs/solver-lab.md.
 """
 
@@ -32,6 +32,7 @@ Lon = Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
 
 MAX_CLIENTS = 500
 MAX_DEPOTS = 10
+MAX_RELOADS = 50
 MAX_DIMENSIONS = 8
 MAX_VEHICLE_TYPES = 10
 MAX_VEHICLES_PER_TYPE = 500
@@ -49,9 +50,6 @@ PLANNED_FIELDS: dict[tuple[str, str], str] = {
     ("client", "tw_early"): "lab_time_windows",
     ("client", "tw_late"): "lab_time_windows",
     ("client", "release_time"): "lab_time_windows",
-    ("vehicle_type", "reload_depots"): "reloads",
-    ("vehicle_type", "max_reloads"): "reloads",
-    ("vehicle_type", "initial_load"): "reloads",
     ("vehicle_type", "tw_early"): "lab_time_windows",
     ("vehicle_type", "tw_late"): "lab_time_windows",
     ("vehicle_type", "profile"): "routing_profiles",
@@ -137,6 +135,13 @@ class LabVehicleType(LabDoc):
     shift_duration: Annotated[int, Field(strict=True, ge=1, le=1_000_000_000)] | None = None
     start_depot: LabId | None = None
     end_depot: LabId | None = None
+    # Reloads (PyVRP reload depots): between trips a vehicle returns to one of ``reload_depots``
+    # (depot ids), reloads to full capacity there at no time cost, and starts its next trip. At
+    # most ``max_reloads`` times per route, so a route has up to max_reloads + 1 trips. Capacity
+    # applies per trip; max_distance and shift_duration apply to the whole route. Absent (None)
+    # means the vehicle never reloads.
+    reload_depots: list[LabId] | None = Field(default=None, max_length=MAX_DEPOTS)
+    max_reloads: Annotated[int, Field(strict=True, ge=0, le=MAX_RELOADS)] | None = None
 
 
 class LabTravel(LabDoc):
@@ -223,10 +228,13 @@ class LabViolation(LabDoc):
     client_id: str | None = None
     vehicle_type: str | None = None
     dimension: str | None = None
+    trip: int | None = None
 
 
 class LabVisit(LabDoc):
     client_id: str
+    # Trip of the route this visit belongs to (0 unless the vehicle reloads).
+    trip: int = 0
     # Load on board before and after serving this visit, per dimension (delivery only).
     load_before: Loads
     load_after: Loads
@@ -237,15 +245,31 @@ class LabVisit(LabDoc):
     departure: int
 
 
+class LabTrip(LabDoc):
+    """One trip of a route: from the route's start depot or a reload depot to the next reload
+    depot or the route's end depot. Loads are per trip (full again after every reload)."""
+
+    index: int
+    from_depot: str
+    to_depot: str
+    client_ids: list[str]
+    load: Loads
+    utilization: dict[str, float]
+    distance: int
+
+
 class LabRoute(LabDoc):
     index: int
     vehicle_type: str
     # Depot ids the route starts and ends at (absent in results stored before multiple depots).
     start_depot: str | None = None
     end_depot: str | None = None
+    # Trips between reloads (one when the vehicle never reloads; absent in results stored earlier).
+    trips: list[LabTrip] = Field(default_factory=list)
     visits: list[LabVisit]
+    # Total delivered over all trips; each trip is checked against capacity on its own.
     load: Loads
-    # load / capacity per dimension, 0–1 when feasible (above 1 means overloaded).
+    # Fullest trip's load / capacity per dimension, 0–1 when feasible (above 1 means overloaded).
     utilization: dict[str, float]
     distance: int
     duration: int

@@ -321,6 +321,24 @@ BEHAVIORS = [
         ],
         fixture="tests/test_lab.py::test_vehicles_start_and_end_at_their_types_depots",
     ),
+    Behavior(
+        id="reloads",
+        provided_by="native",
+        description=(
+            "Lab vehicle types may list reload depots and a maximum number of reloads (PyVRP "
+            "VehicleType reload_depots/max_reloads): a vehicle returns to a reload depot, is full "
+            "again, and starts another trip, so one vehicle can serve more than its capacity in "
+            "one route. The validator splits every route into trips, resets the load at each "
+            "reload and checks capacity per trip, the reload count and the reload depots."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline has no reloads.",
+            "A reload takes no time and costs nothing beyond the distance driven; max distance "
+            "and shift duration apply to the whole route.",
+            "Delivery loads only: every trip starts full and is never restocked partially.",
+        ],
+        fixture="tests/test_lab.py::test_reloads_let_one_vehicle_serve_more_than_its_capacity",
+    ),
     *[
         Behavior(
             id=capability,
@@ -330,7 +348,6 @@ BEHAVIORS = [
             fixture=None,
         )
         for capability, text in (
-            ("reloads", "reload depots and multiple trips per vehicle"),
             ("optional_clients", "optional visits with prizes"),
             ("client_groups", "mutually exclusive client groups"),
             ("paired_shipments", "pickup and delivery pairs"),

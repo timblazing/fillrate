@@ -61,6 +61,12 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
                         if len(instance.depots) > 1
                         else {}
                     ),
+                    # Same for reloads: only types that reload add to the hashed document.
+                    **(
+                        {"reload_depots": v.reload_depots, "max_reloads": v.max_reloads or 0}
+                        if v.reload_depots
+                        else {}
+                    ),
                     "id": v.id,
                     "count": v.count,
                     "capacity": instance.capacity_vector(v),
@@ -103,14 +109,26 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
     candidate, reported = [], []
     for route in best.routes():
         type_id = instance.vehicle_types[route.vehicle_type()].id
-        ids = [instance.clients[a.idx].id for a in route if a.is_client()]
+        # Trips are split at PyVRP's depot activities: the first and last are the route's start and
+        # end depots, any in between are reloads.
+        trips: list[list[str]] = [[]]
+        reload_ids: list[str] = []
+        activities = list(route)
+        for position, a in enumerate(activities):
+            if a.is_client():
+                trips[-1].append(instance.clients[a.idx].id)
+            elif 0 < position < len(activities) - 1:
+                reload_ids.append(instance.depots[a.idx].id)
+                trips.append([])
         # The depots PyVRP actually used, so a mismatch with the type's depots is caught.
         candidate.append(
             CandidateRoute(
                 type_id,
-                ids,
+                [],
                 instance.depots[route.start_depot()].id,
                 instance.depots[route.end_depot()].id,
+                trips=trips,
+                reload_depots=reload_ids,
             )
         )
         reported.append(route)
@@ -120,6 +138,7 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
     mismatches: list[LabViolation] = []
     for built_route, route in zip(plan.routes, reported, strict=True):
         pairs = [
+            ("trips", len(built_route.trips), int(route.num_trips())),
             ("distance", built_route.distance, int(route.distance())),
             ("duration", built_route.duration, int(route.duration())),
             (

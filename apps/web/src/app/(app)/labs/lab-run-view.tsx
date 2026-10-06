@@ -114,6 +114,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
   const dims = instance.dimensions.map((d) => d.id)
   const capacity = new Map(instance.vehicle_types.map((v) => [v.id, v.capacity]))
   const several = instance.depots.length > 1
+  const reloading = result.routes.some((r) => (r.trips?.length ?? 0) > 1)
   const label = (id: string | null | undefined) => id ?? instance.depots[0].id
   const u = result.units
   return (
@@ -198,6 +199,30 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
               </div>
             </section>
           )}
+          {reloading && (
+            <section className="flex flex-col gap-2" aria-labelledby="lab-trips">
+              <h2 id="lab-trips" className="text-sm font-medium">Trips (load resets at every reload)</h2>
+              <div className="overflow-x-auto rounded-xl border">
+                <Table data-testid="lab-trips">
+                  <TableHeader>
+                    <TableRow><TableHead>Route</TableHead><TableHead>Trip</TableHead><TableHead>From → to</TableHead><TableHead>Visits</TableHead>{dims.map((d) => <TableHead key={d} className="text-right">{d}</TableHead>)}<TableHead className="text-right">Distance</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.routes.flatMap((r) => (r.trips ?? []).map((t) => (
+                      <TableRow key={`${r.index}-${t.index}`} data-testid={`lab-trip-${r.index}-${t.index}`}>
+                        <TableCell className="tabular-nums">{r.index + 1}</TableCell>
+                        <TableCell className="tabular-nums">{t.index + 1}</TableCell>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">{t.from_depot} → {t.to_depot}</TableCell>
+                        <TableCell className="text-xs text-pretty">{t.client_ids.join(" → ")}</TableCell>
+                        {dims.map((d) => <TableCell key={d} className="text-right text-xs whitespace-nowrap tabular-nums">{n(t.load[d])} / {n(capacity.get(r.vehicle_type)?.[d] ?? 0)} <span className="text-muted-foreground">({pct(t.utilization[d])})</span></TableCell>)}
+                        <TableCell className="text-right tabular-nums">{n(t.distance)}</TableCell>
+                      </TableRow>
+                    )))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
           {result.violations.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-violations">
               <h2 id="lab-violations" className="text-sm font-medium">Violations</h2>
@@ -223,6 +248,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
                 <TableHead>#</TableHead>
                 <TableHead>Vehicle</TableHead>
                 {several && <TableHead>Depot</TableHead>}
+                {reloading && <TableHead className="text-right">Trips</TableHead>}
                 <TableHead>Visits</TableHead>
                 {dims.map((d) => <TableHead key={d} className="text-right">{d} ({u.dimensions[d]})</TableHead>)}
                 <TableHead className="text-right">Distance</TableHead>
@@ -239,10 +265,11 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
                   </TableCell>
                   <TableCell className="font-mono text-xs">{r.vehicle_type}</TableCell>
                   {several && <TableCell className="font-mono text-xs whitespace-nowrap">{label(r.start_depot) === label(r.end_depot) ? label(r.start_depot) : `${label(r.start_depot)} → ${label(r.end_depot)}`}</TableCell>}
+                  {reloading && <TableCell className="text-right tabular-nums">{r.trips?.length ?? 1}</TableCell>}
                   <TableCell className="max-w-72 text-xs text-pretty">{r.visits.map((v) => v.client_id).join(" → ")}</TableCell>
                   {dims.map((d) => (
                     <TableCell key={d} className="text-right text-xs whitespace-nowrap tabular-nums">
-                      {n(r.load[d])} / {n(capacity.get(r.vehicle_type)?.[d] ?? 0)} <span className="text-muted-foreground">({pct(r.utilization[d])})</span>
+                      {reloading && (r.trips?.length ?? 1) > 1 ? `${n(r.load[d])} in ${r.trips?.length ?? 1} trips of ≤ ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}` : `${n(r.load[d])} / ${n(capacity.get(r.vehicle_type)?.[d] ?? 0)}`} <span className="text-muted-foreground">({pct(r.utilization[d])}{reloading ? " fullest trip" : ""})</span>
                     </TableCell>
                   ))}
                   <TableCell className="text-right tabular-nums">{n(r.distance)}</TableCell>
@@ -253,7 +280,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
             </TableBody>
           </Table>
         </div>
-        <p className="text-muted-foreground text-xs">Distance in {u.distance}, duration in {u.duration}, cost in {u.cost}. {several ? "Each route starts at its vehicle type's start depot and ends at its end depot" : "Routes return to the depot"}; load is what the vehicle carries out.</p>
+        <p className="text-muted-foreground text-xs">Distance in {u.distance}, duration in {u.duration}, cost in {u.cost}. {several ? "Each route starts at its vehicle type's start depot and ends at its end depot" : "Routes return to the depot"}; {reloading ? "the load column is the total delivered over all trips, with the fullest trip's share in brackets" : "load is what the vehicle carries out"}.</p>
       </section>
       {observations.length > 0 && (
         <section className="bg-card rounded-xl border p-4">

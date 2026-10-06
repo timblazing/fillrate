@@ -4,7 +4,7 @@ Every mapping here is native PyVRP: named dimensions become capacity/delivery ve
 instance's dimension order, vehicle types keep their count, costs and limits, and every edge
 carries the raw distance and duration. There are no synthetic terminal edges (every route
 returns to a depot) and no omitted arcs. The builder is split per entity so a later capability
-(reloads, optional clients, groups, shipments) changes one function.
+(optional clients, groups, shipments) changes one function.
 """
 
 from __future__ import annotations
@@ -37,7 +37,15 @@ class LabBuildError(ValueError):
 
 def check_range(instance: LabInstance, matrices: LabMatrices) -> None:
     """Keep every objective term well below PyVRP's MAX_VALUE so nothing overflows or saturates."""
-    n = len(instance.clients) + len(instance.depots) - 1
+    # Reloads add one depot stop per reload to a route's path.
+    n = (
+        len(instance.clients)
+        + len(instance.depots)
+        - 1
+        + max(
+            ((vt.max_reloads or 0) for vt in instance.vehicle_types if vt.reload_depots), default=0
+        )
+    )
     longest = int(matrices.distance.max()) * (n + 1)
     slowest = int(matrices.duration.max()) * (n + 1) + sum(
         c.service_duration for c in instance.clients
@@ -93,6 +101,8 @@ def add_vehicle_types(model: pyvrp.Model, instance: LabInstance, depots: list) -
                 capacity=instance.capacity_vector(vt),
                 start_depot=depot_by_id[instance.start_depot_of(vt)],
                 end_depot=depot_by_id[instance.end_depot_of(vt)],
+                reload_depots=[depot_by_id[d] for d in vt.reload_depots or []],
+                max_reloads=(vt.max_reloads or 0) if vt.reload_depots else 0,
                 fixed_cost=vt.fixed_cost,
                 unit_distance_cost=vt.unit_distance_cost,
                 unit_duration_cost=vt.unit_duration_cost,

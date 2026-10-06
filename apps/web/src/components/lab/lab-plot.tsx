@@ -28,6 +28,8 @@ export function LabPlot({ instance, result, className }: { instance: LabInstance
   const width = 2 * pad + ((maxX - minX) / span) * inner, height = 2 * pad + ((maxY - minY) / span) * inner
   const byId = new Map(clients.map((p) => [p.id, p]))
   const routes = result?.routes ?? []
+  const reloadCount = new Map<string, number>()
+  for (const r of routes) for (const t of (r.trips ?? []).slice(0, -1)) reloadCount.set(t.to_depot, (reloadCount.get(t.to_depot) ?? 0) + 1)
   const routeOf = new Map(routes.flatMap((r, i) => r.visits.map((v) => [v.client_id, i] as const)))
 
   return (
@@ -36,7 +38,11 @@ export function LabPlot({ instance, result, className }: { instance: LabInstance
         {routes.map((r, i) => {
           const start = homeById.get(r.start_depot ?? instance.depots[0].id) ?? homes[0]
           const end = homeById.get(r.end_depot ?? instance.depots[0].id) ?? homes[0]
-          const path = [start, ...r.visits.map((v) => byId.get(v.client_id)!).filter(Boolean), end]
+          // With reloads the path goes through each reload depot between trips.
+          const trips = r.trips?.length ? r.trips : null
+          const path = trips
+            ? [start, ...trips.flatMap((t, ti) => [...t.client_ids.map((id) => byId.get(id)!).filter(Boolean), ti < trips.length - 1 ? (homeById.get(t.to_depot) ?? homes[0]) : end])]
+            : [start, ...r.visits.map((v) => byId.get(v.client_id)!).filter(Boolean), end]
           return (
             <polyline
               key={i}
@@ -60,8 +66,11 @@ export function LabPlot({ instance, result, className }: { instance: LabInstance
         })}
         {homes.map((home) => (
           <rect key={home.id} data-depot={home.id} x={sx(home.x) - 6} y={sy(home.y) - 6} width={12} height={12} rx={2} className="fill-foreground stroke-background" strokeWidth={1.5}>
-            <title>{`Depot ${home.id}`}</title>
+            <title>{reloadCount.has(home.id) ? `Depot ${home.id}: ${reloadCount.get(home.id)} reload${reloadCount.get(home.id) === 1 ? "" : "s"}` : `Depot ${home.id}`}</title>
           </rect>
+        ))}
+        {homes.map((home) => reloadCount.has(home.id) && (
+          <rect key={`reload-${home.id}`} data-reload={home.id} x={sx(home.x) - 10} y={sy(home.y) - 10} width={20} height={20} rx={4} fill="none" strokeWidth={1.5} strokeDasharray="3 2" className="stroke-foreground" />
         ))}
         {homes.length > 1 &&
           homes.map((home) => (
@@ -74,7 +83,7 @@ export function LabPlot({ instance, result, className }: { instance: LabInstance
         {planar
           ? "Planar instance: abstract coordinates on equal axes (not latitude/longitude, so no map)."
           : "Geographic instance, schematic: longitude × cos(latitude) against latitude, no basemap."}{" "}
-        {homes.length === 1 ? "Square: depot." : "Squares: depots (labeled)."} Straight lines show visit order from the start depot to the end depot, not roads.
+        {homes.length === 1 ? "Square: depot." : "Squares: depots (labeled)."} {reloadCount.size > 0 && "Dashed square: a reload depot (the vehicle returns there between trips)."} Straight lines show visit order from the start depot to the end depot, not roads.
       </figcaption>
     </figure>
   )
