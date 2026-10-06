@@ -74,6 +74,8 @@ The Python script embeds the instance and the recorded outcome and calls `fillra
 | `fleet` | `lab-fleet.json` | Geographic (Memphis), 10 clients, 30 pallets; 3 vans (6 pallets) and 3 box trucks (14 pallets). Uses all 3 vans and 1 truck; fixed costs 85,000. |
 | `fleet_trucks` | `lab-fleet-trucks.json` | Trucks only: 3 trucks, higher fixed and total cost. |
 
+The `dimensions`/`dimensions_volume` and `fleet`/`fleet_trucks` pairs back the lessons `/learn/load-dimensions` and `/learn/heterogeneous-fleet`, which start them from the page and compare the persisted results.
+
 ## Adding a capability
 
 Each later PR should stay small and touch only its own pieces:

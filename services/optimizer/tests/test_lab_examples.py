@@ -59,6 +59,9 @@ def test_weight_sets_the_truck_count(runs):
         assert result.totals.routes == math.ceil(weight / 1_200) == 3
         assert max(r.utilization["weight"] for r in result.routes) >= 0.85
         assert max(r.utilization["volume"] for r in result.routes) < 0.6
+        assert max(r.utilization["weight"] for r in result.routes) <= 1
+        # The lesson page reads these per-dimension maxima and the cost split.
+        assert result.objective.fixed_cost == 3 * 100
         assert result.objective.total == runs["dimensions", 0].objective.total
 
 
@@ -67,6 +70,9 @@ def test_without_weight_two_trucks_suffice_but_overload_weight(runs):
     for seed in SEEDS:
         result = runs["volume", seed]
         assert result.validated_feasible and result.totals.routes == 2
+        assert result.objective.fixed_cost == 2 * 100
+        assert set(result.units.dimensions) == {"volume"}
+        assert all(r.utilization["volume"] < 0.7 for r in result.routes)
         assert result.objective.total < runs["dimensions", seed].objective.total
         assert result.problem_fingerprint != runs["dimensions", seed].problem_fingerprint
         # The same routes, checked against the two-dimension instance: every truck is too heavy.
@@ -93,6 +99,10 @@ def test_mixed_fleet_uses_every_van_and_one_truck(runs):
         assert used == {"van": (3, 3), "box-truck": (1, 3)}
         assert all(r.load["pallets"] <= 6 for r in result.routes if r.vehicle_type == "van")
         assert result.objective.fixed_cost == 3 * 15_000 + 40_000
+        # A van fills to its 6 pallets, and the box truck is not full; the page reads these maxima.
+        van = [r.utilization["pallets"] for r in result.routes if r.vehicle_type == "van"]
+        truck = [r.utilization["pallets"] for r in result.routes if r.vehicle_type == "box-truck"]
+        assert max(van) == 1 and max(truck) < 1
         assert result.objective.total == runs["fleet", 0].objective.total
 
 
@@ -102,5 +112,7 @@ def test_trucks_only_costs_more_for_the_same_deliveries(runs):
         assert trucks.validated_feasible
         assert {f.vehicle_type: f.used for f in trucks.fleet} == {"box-truck": 3}
         assert trucks.totals.load == mixed.totals.load == {"pallets": 30}
+        assert trucks.objective.fixed_cost == 3 * 40_000
+        assert max(r.utilization["pallets"] for r in trucks.routes) < 0.8
         assert trucks.objective.total > mixed.objective.total
         assert trucks.objective.fixed_cost > mixed.objective.fixed_cost
