@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -68,7 +68,7 @@ function browser(...args) {
   const result = spawnSync(agentBrowser, ["--session", session, "--download-path", downloadDir, ...browserArgs, ...args], {
     cwd: root,
     encoding: "utf8",
-    timeout: 35_000,
+    timeout: Number(process.env.AGENT_BROWSER_TIMEOUT_MS ?? 35_000),
     env: {
       PATH: process.env.PATH,
       HOME: process.env.HOME,
@@ -489,6 +489,7 @@ async function matrixFlow(baseURL, scenarioKey) {
   const previewText = browser("read");
   expect(previewText.includes("Valid snapshot · 4 nodes · 12 / 12 directed edges present") && previewText.includes("imported smoke-import/1") && previewText.includes("kilometers / seconds"),
     `Matrix preview is missing provider, units or full coverage:\n${previewText.slice(-1800)}`);
+  if (process.env.MATRIX_PERF_PROFILE === "1") await profileLargeMatrixPreview(JSON.stringify(matrix));
   assertViewport(1440, 900);
   assertViewport(393, 852);
   assertViewport(1440, 900);
@@ -603,6 +604,82 @@ async function matrixFlow(baseURL, scenarioKey) {
   assertViewport(393, 852);
   checkBrowserDiagnostics("directed matrix");
   console.log(`  passed: snapshot ${snapshotId.slice(0, 10)}, ${checked} directed legs match the matrix, stale edit refused (travel_snapshot_stale)`);
+}
+
+async function profileLargeMatrixPreview(restoreText) {
+  console.log("  profiling synthetic 1,001-node matrix preview at desktop and phone viewports");
+  const nodes = Array.from({ length: 1001 }, (_, i) => ({ id: `P${i}`, lat: 35 + i / 10000, lon: -90 - i / 10000 }));
+  const values = nodes.map((_, i) => nodes.map((__, j) => i === j ? 0 : (i * 3 + j * 5) % 1000 + 1));
+  const matrix = {
+    schema_version: 1, nodes, provider: "imported", provider_version: "m8-profile/1", dataset_revision: "synthetic-1001-v1", profile: "truck", options: {},
+    distance_units: "meters", duration_units: "seconds", distances: values, durations: values, warnings: [], conversion: "nearest-integer-ties-to-even/v1",
+  };
+  const matrixText = JSON.stringify(matrix);
+  const report = { generatedAt: new Date().toISOString(), payloadBytes: Buffer.byteLength(matrixText), nodes: nodes.length, trials: [] };
+  const decodeEval = (expression) => { const result = evalValue(expression); return typeof result === "string" ? JSON.parse(result) : result; };
+  browser("eval", `(() => {
+    const state = window.__matrixProfile = { starts: [], completions: [], reserved: new Set(), longTasks: [], resources: [], fileLoads: [], visibleNodes: 0 };
+    new PerformanceObserver(list => state.longTasks.push(...list.getEntries().map(e => ({ startTime: e.startTime, duration: e.duration }))))
+      .observe({ type: "longtask", buffered: true });
+    new PerformanceObserver(list => state.resources.push(...list.getEntries().filter(e => e.name.includes("/api/v1/travel-snapshots/preview")).map(e => ({ name: e.name, startTime: e.startTime, duration: e.duration, transferSize: e.transferSize, encodedBodySize: e.encodedBodySize, decodedBodySize: e.decodedBodySize }))))
+      .observe({ type: "resource", buffered: true });
+    document.querySelector('input[aria-label="Travel matrix JSON file"]').addEventListener('change', () => {
+      const started = performance.now(); state.fileLoads.push({ start: started, end: null });
+      const observer = new MutationObserver(() => {
+        if (document.querySelector('p[role="status"]')?.textContent.includes('loaded. Preview it before saving.')) {
+          state.fileLoads.at(-1).end = performance.now(); observer.disconnect();
+        }
+      }); observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
+    document.addEventListener('click', event => {
+      if (event.target.closest('button')?.innerText.trim() === 'Preview matrix') state.starts.push(performance.now());
+    }, true);
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('p[role="status"]')?.textContent.includes('Matrix is valid. Review its direction, units, coverage, and sample before saving.')) {
+        const end = performance.now(), start = state.starts[state.completions.length];
+        if (start != null && !state.reserved.has(start)) { state.reserved.add(start); requestAnimationFrame(() => requestAnimationFrame(() => {
+          state.completions.push({ start, end, paint: performance.now(), durationMs: end - start, clickToPaintMs: performance.now() - start });
+          state.visibleNodes = document.querySelectorAll('body *').length;
+        })); }
+      }
+    }); observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return true;
+  })()`);
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 393, height: 852 }]) {
+    if (viewport.width === 393) { browser("set", "device", "iPhone 16"); browser("set", "viewport", "393", "852", "1"); }
+    else setViewport(1440, 900);
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const matrixPath = join(dataDir, `matrix-1001-profile-${viewport.width}-${attempt}.json`);
+      writeFileSync(matrixPath, matrixText);
+      browser("upload", 'input[aria-label="Travel matrix JSON file"]', matrixPath);
+      browser("wait", "--text", "loaded. Preview it before saving.", "--timeout", "20000");
+      browser("find", "text", "Preview matrix", "click", "--exact");
+      browser("wait", "--fn", "Array.from(document.querySelectorAll('p')).some(p => p.textContent.startsWith('Valid snapshot · 1001 nodes')) || !!document.querySelector('[role=alert]')", "--timeout", "20000");
+      const outcome = decodeEval("JSON.stringify({ success: Array.from(document.querySelectorAll('p')).some(p => p.textContent.startsWith('Valid snapshot · 1001 nodes')), error: document.querySelector('[role=alert]')?.textContent ?? null })");
+      expect(outcome.success, `1,001-node matrix preview was rejected: ${outcome.error ?? "preview did not complete"}`);
+      browser("wait", "--fn", `window.__matrixProfile && window.__matrixProfile.completions.length >= ${attempt + (viewport.width === 393 ? 3 : 0)}`, "--timeout", "10000");
+      const trial = decodeEval(`JSON.stringify((() => {
+        const s = window.__matrixProfile, start = s.starts.at(-1), completion = s.completions.at(-1);
+        const taskEnd = completion?.paint ?? performance.now();
+        return { viewport: ${JSON.stringify(`${viewport.width}x${viewport.height}`)}, attempt: ${attempt}, fileLoadMs: s.fileLoads.at(-1)?.end - s.fileLoads.at(-1)?.start,
+          previewMs: completion?.durationMs, clickToPaintMs: completion?.clickToPaintMs,
+          mainThreadTasks: s.longTasks.filter(t => t.startTime < taskEnd && t.startTime + t.duration > start),
+          previewResources: s.resources.filter(r => r.startTime >= start), visibleDomNodes: s.visibleNodes };
+      })())`);
+      report.trials.push(trial);
+      console.log(`    ${trial.viewport} trial ${attempt}: file ${trial.fileLoadMs?.toFixed(1)} ms; preview ${trial.previewMs?.toFixed(1)} ms; click-to-paint ${trial.clickToPaintMs?.toFixed(1)} ms; tasks ${trial.mainThreadTasks.map(t => t.duration.toFixed(1)).join(",") || "none"} ms`);
+      if (attempt === 1) {
+        const shotDir = process.env.MATRIX_PROFILE_SHOTS;
+        if (shotDir) { mkdirSync(shotDir, { recursive: true }); browser("screenshot", "--full", join(shotDir, `matrix-1001-${viewport.width}.png`)); }
+      }
+    }
+  }
+  const output = process.env.MATRIX_PROFILE_OUT;
+  if (output) { mkdirSync(dirname(output), { recursive: true }); writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`); }
+  fillCss('textarea[aria-label="Travel matrix JSON content"]', restoreText);
+  browser("find", "text", "Preview matrix", "click", "--exact");
+  browser("wait", "--fn", "Array.from(document.querySelectorAll('p')).some(p => p.textContent.startsWith('Valid snapshot · 4 nodes'))", "--timeout", "20000");
+  console.log(`  profile payload: ${report.payloadBytes.toLocaleString()} bytes; captured ${report.trials.length} trials`);
 }
 
 async function timeWindowsFlow(baseURL, scenarioKey) {

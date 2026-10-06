@@ -80,14 +80,14 @@ export function TravelMatrixPanel({
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [build, setBuild] = useState<BuildJob | null>(null)
 
-  async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  async function request<T>(path: string, method = "GET", body?: unknown, rawJson = false): Promise<T> {
     const response = await fetch(path, {
       method,
       headers: {
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         ...(accessMode === "operator" && operatorKey ? { "x-scenario-key": operatorKey } : {}),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : rawJson ? body as string : JSON.stringify(body),
       cache: "no-store",
     })
     const data: unknown = await response.json()
@@ -211,8 +211,8 @@ export function TravelMatrixPanel({
     setBusy(true); setMessage(""); setLoadError(""); setPreview(null)
     try {
       if (new Blob([text]).size > MAX_MATRIX_FILE_BYTES) throw new Error("Matrix file exceeds 64 MiB.")
-      const input: unknown = JSON.parse(text)
-      const result = await request<SnapshotPreview>("/api/v1/travel-snapshots/preview", "POST", input)
+      // Keep large imported matrices as JSON text; parsing then stringifying the million-cell arrays blocks the UI.
+      const result = await request<SnapshotPreview>("/api/v1/travel-snapshots/preview", "POST", text, true)
       setPreview(result)
       setMessage("Matrix is valid. Review its direction, units, coverage, and sample before saving.")
     } catch (error) { setLoadError(error instanceof Error ? error.message : "Could not preview this matrix.") }
@@ -224,8 +224,7 @@ export function TravelMatrixPanel({
     setBusy(true); setMessage(""); setLoadError("")
     try {
       if (new Blob([text]).size > MAX_MATRIX_FILE_BYTES) throw new Error("Matrix file exceeds 64 MiB.")
-      const input: unknown = JSON.parse(text)
-      const saved = await request<SnapshotInfo>("/api/v1/travel-snapshots", "POST", input)
+      const saved = await request<SnapshotInfo>("/api/v1/travel-snapshots", "POST", text, true)
       if (saved.id !== preview.id) throw new Error("The saved matrix identity differs from the preview. Preview it again before selecting it.")
       setSnapshots(current => [saved, ...current.filter(row => row.id !== saved.id)])
       setInspected(preview)

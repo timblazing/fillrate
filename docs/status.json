@@ -49,11 +49,11 @@
       "weight": 7,
       "done": 76,
       "state": "active",
-      "notes": "Planning estimate: 76%. The persisted 443-shipment results transition now meets the proposed response target in three warm local trials at desktop and phone sizes; selection avoids a full-result refetch and the table mounts 50 rows. Still required: near-limit matrix UI timing/optimization, full six-Block integration and acceptance, shipment-sheet print, recovery states, basemap terms, final candidate release/deployment and native target timings."
+      "notes": "Planning estimate: 76%. The 443-shipment results transition meets the proposed response target in three warm local trials per viewport; selection avoids a full-result refetch and the table mounts 50 rows. The 1,001-node matrix flow passed again on the refreshed branch; latest local preview medians were 211.8 ms desktop and 207.2 ms phone (three trials, not p95 evidence). Full six-Block integration/accessibility, matrix acceptance, shipment-sheet print, recovery states, basemap terms, final candidate release/deployment and native target timings remain open."
     }
   },
   "nextUp": [
-    "M8 priority: establish and improve the 1,001-node matrix browser UI timing; complete sheet-print, recovery-state, accessibility and dashboard integration acceptance.",
+    "M8 priority: repeat and improve near-limit matrix UI performance on the final candidate, then complete shipment print, recovery-state, accessibility and dashboard integration acceptance.",
     "Image publication for e95f3cb is recorded in merged PR #72; owner deploys the tested digest. Final dashboard runtime changes need another image release.",
     "Owner: conditional VPS Valhalla coverage/timings and native VPS/Pi evidence; real sample rows and monetary rates remain optional."
   ]
