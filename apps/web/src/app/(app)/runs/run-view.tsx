@@ -38,6 +38,7 @@ const RunMap = dynamic(() => import("./run-map"), { ssr: false, loading: () => <
 
 const STAGES = ["preflight", "allocation", "aggregation", "clustering", "travel", "solve", "validation", "summary"] as const
 const ACTIVE = new Set(["queued", "claimed", "running"])
+const SHIPMENT_PAGE_SIZE = 50
 const miles = (m: number) => formatMiles(m / METERS_PER_MILE)
 
 type PipelineDetail = Extract<RunDetail, { kind: "pipeline" }>
@@ -603,8 +604,16 @@ function ShipmentTable({
   onClearCluster: () => void
   runId: string
 }) {
+  const [pagination, setPagination] = useState({ cluster, page: 0 })
+  const page = pagination.cluster === cluster ? pagination.page : 0
+  const setPage = (nextPage: number) => setPagination({ cluster, page: nextPage })
   const number = new Map(summary.trucks.map((x, i) => [x.id, i + 1]))
   const rows = cluster ? summary.trucks.filter((x) => x.cluster_id === cluster) : summary.trucks
+  const pageCount = Math.max(1, Math.ceil(rows.length / SHIPMENT_PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount - 1)
+  const visibleRows = rows.slice(currentPage * SHIPMENT_PAGE_SIZE, (currentPage + 1) * SHIPMENT_PAGE_SIZE)
+  const firstShown = rows.length ? currentPage * SHIPMENT_PAGE_SIZE + 1 : 0
+  const lastShown = Math.min((currentPage + 1) * SHIPMENT_PAGE_SIZE, rows.length)
   const labels = new Map(summary.locations.map((l) => [l.id, l.label]))
   const selected = summary.trucks.find((x) => x.id === truck)
   const fleet = summary.settings.fleet ? new Map(summary.settings.fleet.map((v) => [v.id, v])) : null
@@ -625,8 +634,10 @@ function ShipmentTable({
         )}
         <FillBandLegend className="ml-auto" />
       </div>
-      <div className="overflow-x-auto rounded-xl border">
-        <Table>
+      <Table
+        className="min-w-[48rem]"
+        render={<div className="relative w-full overflow-x-auto rounded-xl border focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-2" role="region" aria-label="Shipment results table" tabIndex={0} />}
+      >
           <TableHeader>
             <TableRow>
               <TableHead>Shipment</TableHead>
@@ -640,7 +651,7 @@ function ShipmentTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((x) => (
+            {visibleRows.map((x) => (
               <TableRow key={x.id} data-state={truck === x.id ? "selected" : undefined} className="cursor-pointer" onClick={() => onSelect(truck === x.id ? null : x.id)}>
                 <TableCell>
                   <button
@@ -680,8 +691,25 @@ function ShipmentTable({
               </TableRow>
             ))}
           </TableBody>
-        </Table>
-      </div>
+      </Table>
+      {rows.length > SHIPMENT_PAGE_SIZE && (
+        <nav className="flex flex-wrap items-center justify-between gap-2" aria-label="Shipment pages">
+          <span className="text-muted-foreground text-xs tabular-nums" role="status" aria-live="polite">
+            Showing {firstShown}–{lastShown} of {formatCount(rows.length)} shipments
+          </span>
+          <div className="flex items-center gap-2">
+            <Button size="xs" variant="outline" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 0}>
+              Previous shipments
+            </Button>
+            <span className="text-muted-foreground text-xs tabular-nums" aria-label={`Page ${currentPage + 1} of ${pageCount}`}>
+              {currentPage + 1} / {pageCount}
+            </span>
+            <Button size="xs" variant="outline" onClick={() => setPage(currentPage + 1)} disabled={currentPage + 1 === pageCount}>
+              Next shipments
+            </Button>
+          </div>
+        </nav>
+      )}
       {selected ? (
         <ShipmentDetail summary={summary} truck={selected} index={number.get(selected.id) ?? 0} cluster={clusterIndex(selected.cluster_id)} runId={runId} />
       ) : (

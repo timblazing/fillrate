@@ -47,13 +47,13 @@
     },
     "M8": {
       "weight": 7,
-      "done": 75,
+      "done": 76,
       "state": "active",
-      "notes": "Planning estimate revised from 92% to 75% for expanded dashboard completion scope; no runtime regression implied. Prior browser/hosted checks, distribution docs and image recovery evidence remain. Required: six-Block production audit/integration, measured frontend performance, basemap terms, final candidate release/deployment and native target timings."
+      "notes": "Planning estimate: 76%. The persisted 443-shipment results transition now meets the proposed response target in three warm local trials at desktop and phone sizes; selection avoids a full-result refetch and the table mounts 50 rows. Still required: near-limit matrix UI timing/optimization, full six-Block integration and acceptance, shipment-sheet print, recovery states, basemap terms, final candidate release/deployment and native target timings."
     }
   },
   "nextUp": [
-    "M8 priority: audit six gallery Blocks against the real dashboard and measure frontend performance; implement workflow/composition gaps.",
+    "M8 priority: establish and improve the 1,001-node matrix browser UI timing; complete sheet-print, recovery-state, accessibility and dashboard integration acceptance.",
     "Image publication for e95f3cb is recorded in merged PR #72; owner deploys the tested digest. Final dashboard runtime changes need another image release.",
     "Owner: conditional VPS Valhalla coverage/timings and native VPS/Pi evidence; real sample rows and monetary rates remain optional."
   ]
