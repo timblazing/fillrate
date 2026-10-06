@@ -21,6 +21,12 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - Three 601-node matrix UI previews took 1,594.7–1,617.4 ms. The 1,001-node/9.8 MB API preview validated in 226 ms, but browser UI completion was not observed and remains an explicit measurement gap.
 - Validation: `bun run build` and browser flows `lesson`, `import`, `experiment`, `matrix` passed on the task branch with isolated synthetic data. No runtime optimization or milestone completion is claimed; dashboard integration and final candidate gates remain open.
 
+## 2026-10-06: M8 near-limit matrix preview profile (Codex)
+- Profiled the real imported-matrix browser preview with a synthetic 1,001-node, 1,001,000-edge, 7,844,814-byte snapshot at 1440×900 and 393×852, three trials per viewport. Raw trial timings, preview-resource sizes, observed >50 ms main-thread tasks and paired screenshots are linked from [the frontend baseline follow-up](reviews/m8-frontend-performance-baseline-2026-10-06.md).
+- Small improvement: preview/save send the bounded-size JSON text directly to the existing JSON endpoints, removing the browser's full `JSON.parse`/`JSON.stringify` pass. With the same task-overlap observer, desktop preview median changed 265.0→203.6 ms and click-to-paint 292.0→229.9 ms; phone preview changed 228.6→254.2 ms and click-to-paint 273.2→285.9 ms, so the phone sample showed no improvement. All directed edges validated and the API returned the same bounded sample. Three-trial local medians are observations, not p95 or physical-device evidence.
+- `MATRIX_PERF_PROFILE=1 bun run test:browser --flow=matrix` passed the six profile trials and the existing preview/save/select, worker-leg, export and stale-coordinate-refusal flow against isolated temporary data. `bun run build`, `bun run lint`, and `bun run typecheck` passed; lint retains the existing `globe.tsx` hook-dependency warning.
+- This closes the 1,001-node browser-measurement gap only. It does not complete M8. The separate 2,000-order shipment-view response budget remains open (PR #75 is still open); shipment-sheet print, pipeline recovery states, the rest of the six-Block/a11y/theme audit, basemap terms, final image/deployment evidence and native target timings remain explicit candidate/owner gates.
+
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
   - [x] SQLite durable jobs, leased Python worker, real PyVRP pipeline, independent validation and persisted exports.
@@ -62,7 +68,9 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 
 ## Known gaps
 
-- Dashboard coverage, responsive/accessibility review and measured frontend performance remain open under frontend-spec.md. Matrix heatmap cell rendering needs profiling at large sizes; no optimization is claimed.
+- Dashboard coverage, responsive/accessibility review and measured frontend performance remain open under frontend-spec.md. The near-limit matrix path has before/after local browser evidence; desktop improved in three trials, while the phone sample did not, so repeat candidate trials remain useful. The displayed heatmap stays at its bounded 12×12 sample.
+- The 2,000-order result responsiveness gate remains open.
+- Shipment-sheet print output and queued/running/failed/cancelled/retry recovery states have not passed the production candidate audit.
 - The `e95f3cb` image is published (PR #72); deployment is separately owned by the user and is not inferred from a successful image workflow. Dashboard runtime changes still need a later image release.
 - VPS Valhalla coverage/timings are absent. Local pinned/provider/geometry evidence is distinct from hosted evidence.
 - Basemap public-use/provider terms record referenced by the spec is missing; create it after inspecting the shipped configuration.

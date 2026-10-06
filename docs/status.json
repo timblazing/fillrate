@@ -47,13 +47,13 @@
     },
     "M8": {
       "weight": 7,
-      "done": 75,
+      "done": 76,
       "state": "active",
-      "notes": "Planning estimate revised from 92% to 75% for expanded dashboard completion scope; no runtime regression implied. Prior browser/hosted checks, distribution docs and image recovery evidence remain. Required: six-Block production audit/integration, measured frontend performance, basemap terms, final candidate release/deployment and native target timings."
+      "notes": "Planning estimate revised from 75% to 76% after recording a 1,001-node browser preview profile and reducing client-side preview work. The three desktop trials improved; the phone trials did not, so no cross-viewport win is claimed. Six-Block integration/accessibility, the 2,000-order result response budget, shipment-sheet print, recovery states, basemap terms, final candidate release/deployment and native target timings remain open."
     }
   },
   "nextUp": [
-    "M8 priority: audit six gallery Blocks against the real dashboard and measure frontend performance; implement workflow/composition gaps.",
+    "M8 priority: complete the 2,000-order result responsiveness work (PR #75 is open), then verify shipment print, recovery and remaining six-Block acceptance gaps.",
     "Image publication for e95f3cb is recorded in merged PR #72; owner deploys the tested digest. Final dashboard runtime changes need another image release.",
     "Owner: conditional VPS Valhalla coverage/timings and native VPS/Pi evidence; real sample rows and monetary rates remain optional."
   ]

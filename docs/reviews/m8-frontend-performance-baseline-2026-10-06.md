@@ -42,3 +42,16 @@ These are warm local route-navigation observations, not field/Core Web Vitals or
 ## Captures
 
 Product screenshots are in [`assets/m8-dashboard-audit/production/`](assets/m8-dashboard-audit/production/). The audit record explains each paired screen and the corresponding gallery Block.
+
+## 1,001-node browser follow-up — 2026-10-06
+
+Measured the complete imported-matrix preview on the M8 task branch, before and after sending the existing JSON text directly to the preview/save endpoints. The original app source was `281b16e` (`origin/main`); the follow-up adds no new API contract. Hardware, Chrome, warm production build and viewports match the environment above. The synthetic matrix has 1,001 nodes, 1,001,000 directed edges and a 7,844,814-byte JSON payload. Each viewport has three preview trials. Preview time is click to the visible valid-snapshot summary; click-to-paint adds two animation frames. `PerformanceObserver` records browser long tasks (>50 ms), and Resource Timing records the preview response.
+
+| Viewport | Preview median, before → after | Click-to-paint median, before → after | Preview response median, before → after | Main-thread tasks during preview (>50 ms) |
+| --- | --- | --- | --- | --- |
+| 1440×900 | 265.0 → 203.6 ms (−23.2%) | 292.0 → 229.9 ms (−21.3%) | 216.9 → 177.9 ms | Before: 73, 55 ms. After: 61, 62, 62 ms. |
+| 393×852 (iPhone 16 profile) | 228.6 → 254.2 ms (+11.2%, slower in this sample) | 273.2 → 285.9 ms (+4.6%) | 173.6 → 187.9 ms | Before: 62, 108, 63, 59 ms. After: 67, 73, 71 ms. |
+
+The response remained 43,983 encoded bytes with a bounded 12×12 heatmap sample; all 1,001,000 directed edges validated. The desktop samples improved after removing the browser's full-matrix `JSON.parse` and `JSON.stringify`; the phone samples did not show an improvement, so no cross-viewport performance win is claimed. All observed preview tasks were below 200 ms, but these three-sample local results are not stable p95s and the phone variance warrants more candidate trials. The profile measures preview interaction, not steady scrolling, cold-cache behavior, remote transfer or physical-phone performance, and does not close the separate 2,000-order result-table budget.
+
+Raw trials and captures: [before profile](assets/m8-matrix-profile-before-2026-10-06.json), [after profile](assets/m8-matrix-profile-after-2026-10-06.json), [desktop before](assets/m8-matrix-preview/before/matrix-1001-1440.png), [desktop after](assets/m8-matrix-preview/after/matrix-1001-1440.png), [phone before](assets/m8-matrix-preview/before/matrix-1001-393.png), [phone after](assets/m8-matrix-preview/after/matrix-1001-393.png). Reproduce with `MATRIX_PERF_PROFILE=1 MATRIX_PROFILE_OUT=<report.json> MATRIX_PROFILE_SHOTS=<capture-dir> UV_PYTHON=<python-3.13-path> bun run test:browser --flow=matrix` on the task branch. The profile runner uses the same synthetic data and records three trials at both viewports before the existing matrix save/run/export checks continue.

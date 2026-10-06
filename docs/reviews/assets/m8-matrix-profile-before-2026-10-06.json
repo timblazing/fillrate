@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-10-06T17:28:17.756Z",
+  "payloadBytes": 7844814,
+  "nodes": 1001,
+  "trials": [
+    {
+      "viewport": "1440x900",
+      "attempt": 1,
+      "fileLoadMs": 35.299999952316284,
+      "previewMs": 225.5,
+      "clickToPaintMs": 247.19999992847443,
+      "mainThreadTasks": [],
+      "previewResources": [
+        {
+          "name": "http://127.0.0.1:56733/api/v1/travel-snapshots/preview",
+          "startTime": 2156.100000023842,
+          "duration": 179.5,
+          "transferSize": 44283,
+          "encodedBodySize": 43983,
+          "decodedBodySize": 43983
+        }
+      ],
+      "visibleDomNodes": 662
+    },
+    {
+      "viewport": "1440x900",
+      "attempt": 2,
+      "fileLoadMs": 13.700000047683716,
+      "previewMs": 331.5,
+      "clickToPaintMs": 352.7999999523163,
+      "mainThreadTasks": [
+        {
+          "startTime": 14689.799999952316,
+          "duration": 73
+        }
+      ],
+      "previewResources": [
+        {
+          "name": "http://127.0.0.1:56733/api/v1/travel-snapshots/preview",
+          "startTime": 14752.299999952316,
+          "duration": 263.8000000715256,
+          "transferSize": 44283,
+          "encodedBodySize": 43983,
+          "decodedBodySize": 43983
+        }
+      ],
+      "visibleDomNodes": 662
+    },
+    {
+      "viewport": "1440x900",
+      "attempt": 3,
+      "fileLoadMs": 12.700000047683716,
+      "previewMs": 265,
+      "clickToPaintMs": 292,
+      "mainThreadTasks": [
+        {
+          "startTime": 15382.600000023842,
+          "duration": 55
+        }
+      ],
+      "previewResources": [
+        {
+          "name": "http://127.0.0.1:56733/api/v1/travel-snapshots/preview",
+          "startTime": 15428.799999952316,
+          "duration": 216.89999997615814,
+          "transferSize": 44283,
+          "encodedBodySize": 43983,
+          "decodedBodySize": 43983
+        }
+      ],
+      "visibleDomNodes": 662
+    },
+    {
+      "viewport": "393x852",
+      "attempt": 1,
+      "fileLoadMs": 19.5,
+      "previewMs": 228.60000002384186,
+      "clickToPaintMs": 339.5,
+      "mainThreadTasks": [
+        {
+          "startTime": 17532.600000023842,
+          "duration": 62
+        },
+        {
+          "startTime": 17763.600000023842,
+          "duration": 108
+        }
+      ],
+      "previewResources": [
+        {
+          "name": "http://127.0.0.1:56733/api/v1/travel-snapshots/preview",
+          "startTime": 17581,
+          "duration": 164.29999995231628,
+          "transferSize": 44283,
+          "encodedBodySize": 43983,
+          "decodedBodySize": 43983
+        }
+      ],
+      "visibleDomNodes": 662
+    },
+    {
+      "viewport": "393x852",
+      "attempt": 2,
+      "fileLoadMs": 20.699999928474426,
+      "previewMs": 242,
+      "clickToPaintMs": 273.2000000476837,
+      "mainThreadTasks": [
+        {
+          "startTime": 29373.699999928474,
+          "duration": 63
+        }
+      ],
+      "previewResources": [
+        {
+          "name": "http://127.0.0.1:56733/api/v1/travel-snapshots/preview",
+          "startTime": 29423.5,
+          "duration": 188.89999997615814,
+          "transferSize": 44283,
+          "encodedBodySize": 43983,
+          "decodedBodySize": 43983
+        }
+      ],
+      "visibleDomNodes": 662
+    },
+    {
+      "viewport": "393x852",
+      "attempt": 3,
+      "fileLoadMs": 19.5,
+      "previewMs": 221.39999997615814,
+      "clickToPaintMs": 245.29999995231628,
+      "mainThreadTasks": [
+        {
+          "startTime": 29985.600000023842,
+          "duration": 59
+        }
+      ],
+      "previewResources": [
+        {
+          "name": "http://127.0.0.1:56733/api/v1/travel-snapshots/preview",
+          "startTime": 30031.799999952316,
+          "duration": 173.60000002384186,
+          "transferSize": 44283,
+          "encodedBodySize": 43983,
+          "decodedBodySize": 43983
+        }
+      ],
+      "visibleDomNodes": 662
+    }
+  ]
+}
