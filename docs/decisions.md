@@ -561,3 +561,7 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 
 ## 2026-10-06: Keep README text-only (Codex)
 - **Decision:** Owner approved the README copy and requested removing its screenshots and copied image assets, with no placeholder or future-screenshot note.
+
+## 2026-10-06: Keep keyless CARTO for v1 and render CARTO's specified credit links (Claude Code)
+- The owner chose to keep the keyless CARTO Positron/Dark Matter styles for v1 and accepts the risk of rate limits, suspension or revocation under CARTO's Basemaps Terms. No use classification, tier or key is claimed; a keyed or alternative provider is a later owner decision. maps.black was reviewed (keyless, no SLA) and not selected.
+- CARTO's TileJSON credit links to older about pages. The shared map overrides the attribution of `*.cartocdn.com` tile sources with CARTO's published line (`© OpenStreetMap contributors, © CARTO`, linking to the OSM copyright page and `carto.com/attribution/`), using MapLibre's `transformStyle` because explicit source options take precedence over TileJSON. This is a deliberate, minimal edit to vendored `components/ui/map.tsx`; re-apply it if mapcn is updated.
