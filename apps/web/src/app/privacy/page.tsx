@@ -27,7 +27,7 @@ export default function PrivacyPage() {
         <section className="flex flex-col gap-2">
           <h2 className="text-base font-semibold">Limits and logs</h2>
           <p>Free accounts have daily limits on solves, geocoding, saves and uploads, shown on the account page. Server logs record job IDs, timings and error codes, not addresses or tokens.</p>
-          <p>Lessons and bundled examples are synthetic and open to everyone, signed in or not.</p>
+          <p>Lessons and bundled examples use synthetic data. On the hosted service, product pages require sign-in and approved access.</p>
         </section>
       </main>
     </div>

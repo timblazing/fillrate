@@ -79,6 +79,8 @@ The Python script embeds the instance and the recorded outcome and calls `fillra
 | `depots` | `lab-depots.json` | Planar, 12 clients, West and East depots 120 units apart, 2 vans of 12 parcels at each. Each route starts and ends at its van's depot and serves 3 stops on that side; objective 689 (400 fixed). Seeds 0–3 agree. |
 | `depots_single` | `lab-depots-single.json` | The same stops and 4 vans, all at the West depot: two routes drive out to the East stops (each over 200 units), objective 1,096, same fixed cost. Learn: `/learn/multiple-depots`. |
 
+The `dimensions`/`dimensions_volume` and `fleet`/`fleet_trucks` pairs back the lessons `/learn/load-dimensions` and `/learn/heterogeneous-fleet`, which start them from the page and compare the persisted results.
+
 ## Adding a capability
 
 Each later PR should stay small and touch only its own pieces:
