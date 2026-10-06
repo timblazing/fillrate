@@ -70,22 +70,29 @@ class Capabilities(BaseModel):
 BEHAVIORS = [
     Behavior(
         id="directed_road_travel",
-        availability="planned",
+        availability="implemented",
         provided_by="preprocessing",
         description=(
             "M6: immutable directed travel snapshots (imported or Valhalla truck matrices) are "
-            "stored by content hash and selected in run settings; the worker's travel stage, "
-            "reachability and the submission preflight read that matrix. A durable job can "
-            "build a Valhalla snapshot for a scenario version; that job is verified against "
-            "fixtures only."
+            "stored by content hash and selected in run settings or the /scenarios workbench; "
+            "the worker's travel stage, reachability, the submission preflight and the "
+            "independent validator read that matrix. A durable job builds a Valhalla `truck` "
+            "snapshot from the deployment's pinned service (docs/valhalla.md); stops outside "
+            "its coverage get unreachable edges, never an estimate."
         ),
         restrictions=[
-            "Selectable only through the operator API (travel_snapshot_id) and the worker; "
-            "no browser control or matrix preview yet.",
-            "No live Valhalla deployment or route geometry has been verified; the snapshot "
-            "building job runs against fixtures only.",
+            "Static matrices only: no traffic or time-dependent travel. A recorded snapshot is "
+            "immutable and replays exactly; rebuilding can differ slightly because Valhalla's "
+            "CostMatrix results depend on which locations share a request (the block size is "
+            "recorded).",
+            "Live Valhalla verified on local Colima on Apple silicon (arm64) with the pinned "
+            "valhalla-scripted 3.9.0 image and Geofabrik Tennessee/Mississippi/Arkansas "
+            "extracts dated 2026-10-05; each deployment records its own coverage, and the "
+            "owner's production deployment is not verified.",
+            "Coverage is whatever the deployment built: a stop outside it is unreachable.",
+            "Valhalla is optional; estimated haversine x circuity stays the default.",
         ],
-        fixture=None,
+        fixture="tests/test_travel_snapshots.py::test_snapshot_legs_and_reachability_replace_the_estimate",
     ),
     Behavior(
         id="capacitated_loads",
@@ -361,7 +368,7 @@ def capabilities() -> Capabilities:
         python=sys.version.split()[0],
         platform=f"{platform.system().lower()}-{platform.machine()}",
         versions={name: version(name) for name in PINNED},
-        travel_modes=["haversine"],
+        travel_modes=["haversine", "imported", "valhalla"],
         behaviors=BEHAVIORS,
         limits=Limits(),
         defaults=Defaults(),

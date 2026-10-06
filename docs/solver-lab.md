@@ -83,6 +83,8 @@ The Python script embeds the instance and the recorded outcome and calls `fillra
 | `reloads` | `lab-reloads.json` | Planar, 8 stops of 5 parcels beyond a yard; one van of 10 parcels reloads at the yard (max 3): one route of 4 full trips (dc→yard, yard→yard ×2, yard→dc), objective 533 (100 fixed + 433). Seeds 0–3 agree. |
 | `reloads_off` | `lab-reloads-off.json` | The same stops without reloading: 4 vans of one trip each, fixed cost 400, distance 780, objective 1,180; the reloading van's route is longer than any of these. Learn: `/learn/reloads`. |
 
+The `dimensions`/`dimensions_volume` and `fleet`/`fleet_trucks` pairs back the lessons `/learn/load-dimensions` and `/learn/heterogeneous-fleet`, which start them from the page and compare the persisted results.
+
 ## Adding a capability
 
 Each later PR should stay small and touch only its own pieces:

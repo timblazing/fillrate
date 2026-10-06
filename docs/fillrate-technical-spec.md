@@ -516,7 +516,7 @@ Local mode needs no third-party secrets; hosted GitHub OAuth requires credential
 
 ### Hosted accounts and local mode (v1.10)
 
-The free hosted service retains server-side SQLite scenarios, immutable versions, jobs and results. Use Better Auth with Next.js and the Drizzle SQLite adapter for account/session handling. Start with GitHub OAuth to avoid an email delivery/password-reset service; retain a provider-neutral user ID. Authentication is required for hosted personal scenario imports, saved data, runs, sweeps, geocoding, matrices and private exports. Synthetic lessons remain publicly readable; anonymous compute, if retained, uses a separate tightly bounded demonstration budget. Account registration is free; no subscriptions or billing are planned.
+The free hosted service retains server-side SQLite scenarios, immutable versions, jobs and results. Use Better Auth with Next.js and the Drizzle SQLite adapter for account/session handling. Start with GitHub OAuth to avoid an email delivery/password-reset service; retain a provider-neutral user ID. Authentication is required for hosted personal scenario imports, saved data, runs, sweeps, geocoding, matrices and private exports. Hosted pages are limited to the landing page, privacy, `/dev` and `/dev/components` for unauthenticated visitors. Lessons and all product pages require authentication and approved access. The landing hero starts GitHub authentication under “Request access”; authenticated pending users can reach `/request-access`. Anonymous API demonstration budgets remain separately bounded. Account registration is free; no subscriptions or billing are planned.
 
 Authorization belongs in server endpoints and database queries, never in browser IDs or UI visibility. Bind scenarios, versions, jobs, artifacts, experiments, travel snapshots and exports to an authenticated owner. Check ownership on list/read/write/download/cancel, cache reuse, replay and worker job admission; guessed IDs and content hashes must not expose another account's data. Do not automatically claim existing operator data for the first signup. Keep it operator-only pending an explicit migration. Python remains a private worker and never opens SQLite.
 
@@ -563,13 +563,13 @@ services:
     volumes: ["./data:/data"]
     env_file: [{ path: .env, required: false }]
   valhalla:                              # enabled with `docker compose --profile valhalla up -d`
-    image: ghcr.io/valhalla/valhalla-scripted:<pinned tag>
+    image: ghcr.io/valhalla/valhalla-scripted:3.9.0@sha256:89daaf61…  # pinned multi-arch index
     profiles: ["valhalla"]
     restart: unless-stopped
-    volumes: ["./valhalla:/custom_files"] # extracts and config from deploy/valhalla/prepare.sh; tiles built on first start
+    volumes: ["${VALHALLA_DATA:-./valhalla-data}:/custom_files"] # extracts and config from deploy/valhalla/prepare.sh; tiles built on first start
 ```
 
-When the `valhalla` profile is used, set `VALHALLA_URL=http://valhalla:8002` in `.env`. The Valhalla service publishes no host port. Verify the pinned tag has an arm64 variant (the Raspberry Pi target) and record the result.
+When the `valhalla` profile is used, add the lines printed by `deploy/valhalla/prepare.sh env` (including `VALHALLA_URL=http://valhalla:8002`) to `.env`. The Valhalla service publishes no host port. The pinned 3.9.0 index has linux/amd64 and linux/arm64 variants (checked 2026-10-05; the arm64 image ran on Apple silicon, see `docs/valhalla.md`).
 
 The repository and GHCR image are public, so servers pull without a registry login. Real delivery data, customer addresses, and derived matrices never go into the repository, test fixtures, lesson data, or the image. Lessons use synthetic or public data. Real data exists only in the deployment's `/data` volume and in user-initiated exports.
 
