@@ -190,11 +190,12 @@ BEHAVIORS = [
         id="warm_start",
         provided_by="native",
         description=(
-            "Run setting warm_start {kind: run, run_id}: each cluster starts PyVRP's search from "
-            "the source run's validated plan (pyvrp.solve initial_solution). With a feasible "
-            "initial solution the pinned search keeps it as the incumbent, so the returned "
-            "objective is never higher. Fillrate passes a plan only after the independent "
-            "validator accepts it on the new problem; every cluster records used or skipped "
+            "Run setting warm_start {kind: run, run_id} or {kind: manual_baseline, baseline_id}: "
+            "each cluster starts PyVRP's search from the source's validated plan "
+            "(pyvrp.solve initial_solution). With a feasible initial solution the pinned search "
+            "keeps it as the incumbent, so the returned objective is never higher. Fillrate "
+            "passes a plan only after the independent validator accepts it on the new problem; "
+            "every cluster records used or skipped "
             "with a reason, and the plan is a recorded input of the solve stage."
         ),
         restrictions=[
@@ -206,8 +207,10 @@ BEHAVIORS = [
             "(invalid_on_new_problem) and be complete and feasible to PyVRP (solver_rejected). "
             "Pinned PyVRP accepts infeasible, incomplete or mismatched initial solutions without "
             "an error (tests/test_warm_start.py), so Fillrate refuses them instead.",
-            "Sources are succeeded pipeline runs the submitter can read; manual baselines are "
-            "not a source yet.",
+            "Sources are succeeded pipeline runs the submitter can read, or the submitter's saved "
+            "manual baselines that the evaluator found valid when saved. A baseline covers one "
+            "cluster of the run it was made on; other clusters are solved cold "
+            "(visit_set_changed). An invalid baseline is never a source.",
             "Warm starts change solver provenance only, never the comparison signature.",
         ],
         fixture="tests/test_warm_start.py::test_feasible_initial_solution_is_never_worsened",
@@ -237,8 +240,9 @@ BEHAVIORS = [
         restrictions=[
             "One cluster at a time, within that cluster's visits; visits cannot move between "
             "clusters.",
-            "Evaluation only: a valid manual plan is a baseline, not a solver result, and is "
-            "not saved or used as a warm start.",
+            "Evaluation alone stores nothing: a valid manual plan is a baseline, not a solver "
+            "result. A saved baseline (separate endpoint) can be a warm-start source only "
+            "while it is valid.",
         ],
         fixture=(
             "tests/test_evaluate.py::"

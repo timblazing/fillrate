@@ -71,6 +71,13 @@
       "when": 1790955870107,
       "tag": "0009_lumpy_timeslip",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791248312376,
+      "tag": "0010_lyrical_maggott",
+      "breakpoints": true
     }
   ]
 }

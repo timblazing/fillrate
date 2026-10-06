@@ -44,7 +44,7 @@ final_cost, detail}`; `RunSummary.warm_start` records the source, plan identity 
 
 ## Identity and provenance
 
-- `RunSettings.warm_start = {kind: "run", run_id}` (left out of dumps when unset, so earlier
+- `RunSettings.warm_start = {kind: "run", run_id}` or `{kind: "manual_baseline", baseline_id}` (left out of dumps when unset, so earlier
   settings, summaries and bundled examples keep their hashes).
 - The worker records the source plan as a `warm_start` stage artifact (no parents; its output hash is
   the plan identity). The solve stage lists it as a parent and adds `warm_start` to its effective
@@ -74,9 +74,32 @@ The pipeline consumes a `WarmStartPlan` (Pydantic, exported to the contracts as 
 ```
 
 `plan_from_summary` builds it from a run summary (validated clusters carry routes in service order;
-others carry none). A saved manual baseline could become a source by adding a `kind` to
-`WarmStartSource`, a store method that owner-checks it, and a loader that returns the same document;
-the compatibility rule and validator gate apply unchanged. Manual plans are not a source today.
+others carry none). A saved manual baseline is a second source (below); the compatibility rule
+and validator gate apply to it unchanged.
+
+## Saved manual baselines (source kind `manual_baseline`)
+
+- **Table `manual_baselines`** (migration `0010_lyrical_maggott`): id, owner, run, cluster, name, plan `{cluster_id, routes}`,
+  the evaluator's outcome at save time (valid, violations, metrics, trucks with location and load per visit), `valid`,
+  idempotency key and request hash. Owner-scoped: list, read, delete and warm start use the saver's owner only; another
+  owner's baseline (or a deleted one) is `404`. Saving needs an owner (account, operator or local mode), read access to a
+  *succeeded* pipeline run, and charges the daily `save:<owner>` bucket inside the saving transaction (plus the evaluation
+  bucket for the evaluator call; a replayed key is free). At most 200 baselines per owner.
+- **Example runs:** accounts, the operator and local mode may baseline a bundled example's run; the baseline belongs to the
+  saver. Run keys and anonymous callers cannot save (no owner).
+- **API:** `POST /api/v1/runs/<id>/baselines` (`Idempotency-Key`, `{name, plan}`) evaluates the plan through the existing
+  evaluator and stores the outcome; invalid plans are saved marked `valid: false`. `GET /api/v1/runs/<id>/baselines`,
+  `GET|DELETE /api/v1/baselines/<id>`. Delete is `409 baseline_in_use` while a queued or running run names it. Baselines are in
+  `/api/v1/me/export`, are deleted with the run (scenario deletion) and with the account.
+- **Warm start:** settings `{kind: "manual_baseline", baseline_id}`. `POST /api/v1/runs` and `/api/v1/scenarios/runs` check the
+  caller owns it (`404 warm_start_source_not_found`) and that it is valid (`409 warm_start_baseline_invalid`); `Store.enqueue`,
+  `createExperiment` and the worker transport `/internal/worker/warm_start` repeat both checks against the run's owner. The
+  transport answers `{baseline: {id, run_id, cluster_id, routes, trucks, settings}}`; Python's `plan_from_baseline` builds a
+  `WarmStartPlan` with one validated cluster and the source run's travel identity. Other clusters of the new run are skipped
+  `visit_set_changed`; the baseline's cluster still passes rules 1-5. `RunSummary.warm_start.source` and `warm-start.json` record
+  the kind and replay needs no baseline table.
+- **UI:** Manual plan tab: name + **Save as baseline**, the list (valid or invalid badge, **Load**, delete) and, for valid ones,
+  **Re-run warm-started from this baseline**. Saving never implies solver feasibility.
 
 ## Replay
 

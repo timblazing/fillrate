@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "baselines", "cancel", "edit", "labs", "warm-start", "road-matrices"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1213,6 +1213,124 @@ async function manualPlanFlow(baseURL, runKey) {
   console.log(`  passed: run ${runId.slice(0, 8)} 3 trucks/273 mi; order-sequence plan valid at 714 mi; east-west plan over capacity; keyboard edit overloads shipment ${to + 1}`);
 }
 
+// Saved manual baselines (spec §10, M6): hand-edited plans on the manual routes lesson's run are saved from the Manual
+// plan tab (the operator owns them), survive a reload, list with their validity, load back into the editor, and a valid
+// one re-runs the scenario warm-started from the saved plan. An invalid one is saved but never offered as a start.
+async function baselinesFlow(baseURL, runKey, scenarioKey) {
+  console.log("Browser smoke: saved manual baselines");
+  beginBrowserFlow("baselines");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const operator = { "x-scenario-key": scenarioKey };
+  const started = await localFetch(new URL("/api/v1/runs", baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "manual" }) });
+  const source = await started.json();
+  expect(started.status === 201 && source?.id, `Baseline source run was not queued: ${JSON.stringify(source)}`);
+  const run = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${source.id}`, runKey, "x-run-key"), (body) => ["succeeded", "failed"].includes(body?.status), "Baseline source run");
+  expect(run.status === "succeeded" && run.summary.totals.trucks === 3, `Baseline source run is unexpected: ${run.status}`);
+
+  // Baselines belong to the operator: without the scenario key they are not readable or saveable, and there is nothing to list.
+  const keylessList = await localFetch(new URL(`/api/v1/runs/${source.id}/baselines`, baseURL), { headers: { "x-run-key": runKey } });
+  expect(keylessList.status === 403, `A run key alone must not list baselines, got ${keylessList.status}.`);
+  const keylessSave = await localFetch(new URL(`/api/v1/runs/${source.id}/baselines`, baseURL), { method: "POST", headers: { "content-type": "application/json", "x-run-key": runKey, "idempotency-key": randomUUID() }, body: JSON.stringify({ name: "x", plan: { cluster_id: "C1", routes: [["a"]] } }) });
+  expect(keylessSave.status === 403, `A run key alone must not save baselines, got ${keylessSave.status}.`);
+
+  open(`${baseURL}/runs/${source.id}${access}`);
+  browser("eval", `document.cookie = "fillrate_operator=${encodeURIComponent(scenarioKey)}; path=/; SameSite=Lax"`);
+  open(`${baseURL}/runs/${source.id}${access}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", "--text", "Saved baselines", "--timeout", "15000");
+  browser("wait", '[data-action="move"]', "--timeout", "15000");
+  expect(String(parsedText()).includes("No baselines saved on this run yet."), "A fresh run should list no baselines.");
+
+  // 1. A valid hand edit: one stop later in its shipment. Saved with a name; the server evaluates it first.
+  browser("focus", 'button:not([disabled])[aria-label^="Move "][aria-label$=" later"]');
+  browser("press", "Enter");
+  fillCss('input[aria-label="Baseline name"]', "Dispatcher plan");
+  clickButtonCentered("Save as baseline");
+  browser("wait", "[data-baseline]", "--timeout", "20000");
+  let list = (await fetchOkJson(baseURL, `/api/v1/runs/${source.id}/baselines`, scenarioKey)).baselines;
+  expect(list.length === 1 && list[0].name === "Dispatcher plan" && list[0].valid === true && list[0].cluster_id === "C1", `Valid baseline was not saved: ${JSON.stringify(list)}`);
+  const good = list[0];
+  expect(JSON.stringify(good.plan.routes) !== JSON.stringify(run.summary.trucks.map((t) => t.visits.map((v) => v.visit_id))), "The saved plan should differ from the optimized routes.");
+
+  // 2. An invalid plan (a shipment overloaded to 5,600 of 5,300) is saved too, marked invalid.
+  browser("find", "role", "button", "click", "--name", "Reset", "--exact");
+  const trucks = run.summary.trucks;
+  const from = trucks.findIndex((t) => t.visits.some((v) => v.location_id === "MR-04"));
+  const to = trucks.findIndex((t, i) => i !== from && t.load === 4000);
+  expect(from >= 0 && to >= 0, "Lesson run has no 10-pallet shipment to overload.");
+  browser("focus", 'button[aria-label="Move Builder yard to another shipment"]');
+  browser("press", "Enter");
+  browser("find", "role", "menuitem", "click", "--name", `To Shipment ${to + 1}`, "--exact");
+  fillCss('input[aria-label="Baseline name"]', "Overloaded");
+  // The first save's toast still sits over the lower right of the page; wait it out rather than click through it.
+  await poll(() => evalValue(`!document.body.innerText.includes("Baseline saved")`), (gone) => gone === true, "Save toast dismissal", 20_000);
+  clickButtonCentered("Save as baseline");
+  await poll(async () => (await fetchOkJson(baseURL, `/api/v1/runs/${source.id}/baselines`, scenarioKey)).baselines, (b) => b.length === 2, "Invalid baseline save", 20_000);
+  list = (await fetchOkJson(baseURL, `/api/v1/runs/${source.id}/baselines`, scenarioKey)).baselines;
+  const bad = list.find((b) => b.name === "Overloaded");
+  expect(bad && bad.valid === false && bad.violations.some((v) => v.code === "over_capacity"), `Invalid baseline should be saved and marked invalid: ${JSON.stringify(bad)}`);
+  const detail = await fetchOkJson(baseURL, `/api/v1/baselines/${good.id}`, scenarioKey);
+  expect(detail.evaluation.manual.valid === true && detail.evaluation.manual.trucks.length === 3, "A baseline's detail should carry the evaluator's outcome at save time.");
+
+  // 3. Reload: both are listed, labeled, and only the valid one offers the warm rerun.
+  open(`${baseURL}/runs/${source.id}${access}`);
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", "[data-baseline]", "--timeout", "20000");
+  const rows = evalValue(`JSON.stringify([...document.querySelectorAll("[data-baseline]")].map((r) => ({ id: r.dataset.baseline, valid: r.dataset.valid, text: r.innerText, rerun: [...r.querySelectorAll("button")].some((b) => b.innerText.includes("Re-run warm-started from this baseline")) })))`);
+  const found = typeof rows === "string" ? JSON.parse(rows) : rows;
+  expect(found.length === 2, `Reload should list both baselines: ${JSON.stringify(found)}`);
+  const goodRow = found.find((r) => r.id === good.id), badRow = found.find((r) => r.id === bad.id);
+  expect(goodRow.valid === "true" && goodRow.text.includes("Dispatcher plan") && goodRow.text.includes("Valid") && goodRow.rerun, `Valid row is wrong: ${JSON.stringify(goodRow)}`);
+  expect(badRow.valid === "false" && badRow.text.includes("Overloaded") && badRow.text.includes("Invalid") && badRow.text.includes("Over trailer capacity") && !badRow.rerun, `Invalid row must be labeled and offer no warm start: ${JSON.stringify(badRow)}`);
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // Load puts the saved plan back in the editor (Reset becomes available: it differs from the optimized routes).
+  browser("eval", `document.querySelector('[data-baseline="${good.id}"] button').click()`);
+  expect(evalValue(`[...document.querySelectorAll("button")].find((b) => b.innerText.trim() === "Reset")?.disabled === false`) === true, "Loading a baseline did not change the editor.");
+  browser("find", "role", "button", "click", "--name", "Evaluate", "--exact");
+  browser("wait", "--text", "Manual plan valid", "--timeout", "20000");
+
+  // The server refuses to start from the invalid one, and keyless callers get nothing.
+  const refuse = await localFetch(new URL("/api/v1/runs", baseURL), { method: "POST", headers: { "content-type": "application/json", ...operator, "idempotency-key": randomUUID() }, body: JSON.stringify({ example: "manual", settings: { warm_start: { kind: "manual_baseline", baseline_id: bad.id } } }) });
+  const refused = await refuse.json();
+  expect(refuse.status === 409 && refused.error.code === "warm_start_baseline_invalid", `Invalid baseline must not start a run: ${refuse.status} ${JSON.stringify(refused)}`);
+  expect((await localFetch(new URL(`/api/v1/baselines/${good.id}`, baseURL), { headers: { "x-run-key": runKey } })).status === 404, "A keyless read of a baseline should be 404.");
+
+  // 4. Warm-start from the valid baseline.
+  clickButtonCentered("Re-run warm-started from this baseline");
+  const path = await poll(() => evalValue("location.pathname"), (p) => typeof p === "string" && /^\/runs\/[0-9a-f-]+$/i.test(p) && !p.endsWith(source.id), "Baseline warm rerun navigation", 20_000);
+  const runId = path.split("/").at(-1);
+  const warmRun = await poll(() => fetchOkJson(baseURL, `/api/v1/runs/${runId}`, scenarioKey), (body) => ["succeeded", "failed"].includes(body?.status), "Baseline warm-started run");
+  expect(warmRun.status === "succeeded", `Warm-started run failed: ${JSON.stringify(warmRun.failure)}`);
+  const warm = warmRun.summary.warm_start;
+  const outcome = warmRun.summary.clusters.find((c) => c.id === "C1")?.warm_start;
+  expect(warmRun.settings.warm_start?.kind === "manual_baseline" && warmRun.settings.warm_start.baseline_id === good.id && warm?.source?.baseline_id === good.id, "Warm-started run does not name the baseline.");
+  expect(warm.used === 1 && warm.skipped === 0 && outcome?.status === "used" && outcome.final_cost <= outcome.initial_cost, `The saved plan should start its cluster and never end above its objective: ${JSON.stringify(outcome)}`);
+  expect(warmRun.stages.some((s) => s.stage === "warm_start") && warmRun.summary.validity === "valid", "Warm-started run lacks its warm_start stage or validity.");
+  browser("wait", "--text", "started from its validated plan", "--timeout", "20000");
+  const text = String(parsedText());
+  expect(text.includes("From saved manual baseline") && text.includes(good.id.slice(0, 8)) && text.includes("1 of 1 solved cluster started"), "Run page does not show the baseline warm-start panel.");
+  expect(evalValue(`document.querySelector('[aria-label="Warm start"]')?.dataset.warmSource`) === "manual_baseline", "Warm start panel does not record its source kind.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  setViewport(1440, 900);
+
+  // 5. Delete from the source run's page.
+  open(`${baseURL}/runs/${source.id}${access}`);
+  browser("find", "role", "tab", "click", "--name", "Manual plan", "--exact");
+  browser("wait", "[data-baseline]", "--timeout", "20000");
+  browser("find", "role", "button", "click", "--name", "Delete baseline Overloaded", "--exact");
+  await poll(async () => (await fetchOkJson(baseURL, `/api/v1/runs/${source.id}/baselines`, scenarioKey)).baselines, (b) => b.length === 1 && b[0].id === good.id, "Baseline deletion", 20_000);
+  expect((await localFetch(new URL(`/api/v1/baselines/${bad.id}`, baseURL), { headers: operator })).status === 404, "A deleted baseline should be 404.");
+  checkBrowserDiagnostics("saved baselines");
+  console.log(`  passed: run ${source.id.slice(0, 8)}: valid and invalid baselines saved, listed after reload, valid one warm-started run ${runId.slice(0, 8)} (1 cluster used), invalid refused, delete`);
+}
+
 // Solver Lab (M6): a bundled planar example runs from /labs with the run key and its persisted, validated result is
 // what the page renders and exports; then an operator edits the instance JSON in the page and runs it as their own.
 async function labsFlow(baseURL, runKey, scenarioKey) {
@@ -1340,6 +1458,7 @@ try {
     if (flow === "time-windows") await timeWindowsFlow(baseURL, scenarioKey);
     if (flow === "road-matrices") await roadMatricesFlow(baseURL, runKey);
     if (flow === "manual-plan") await manualPlanFlow(baseURL, runKey);
+    if (flow === "baselines") await baselinesFlow(baseURL, runKey, scenarioKey);
     if (flow === "cancel") await cancelFlow(baseURL, scenarioKey);
     if (flow === "edit") await editFlow(baseURL, scenarioKey);
     if (flow === "labs") await labsFlow(baseURL, runKey, scenarioKey);
