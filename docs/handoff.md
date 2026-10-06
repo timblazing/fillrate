@@ -5,6 +5,9 @@ Everything someone new needs to set up, verify, operate and continue Fillrate fr
 | Record | Holds |
 | --- | --- |
 | [`fillrate-technical-spec.md`](fillrate-technical-spec.md) | Intended behavior, milestones (§15), verification requirements (§16) |
+| [`completion-plan.md`](completion-plan.md) | Remaining delivery order and launch gates |
+| [`frontend-spec.md`](frontend-spec.md) | Production dashboard and performance acceptance |
+| [`owner-actions.md`](owner-actions.md) | Owner deployment actions and business inputs |
 | [`progress.md`](progress.md) | Milestone checklists, dated evidence, known gaps, remaining work |
 | [`decisions.md`](decisions.md) | Accepted decisions with dates and authors |
 | [`status.json`](status.json) | Hand-kept milestone estimates shown on `/dev` |
@@ -16,24 +19,15 @@ Everything someone new needs to set up, verify, operate and continue Fillrate fr
 
 ## What Fillrate is
 
-An open-source planning workbench for order fulfillment and truckload planning: allocate limited inventory to open orders, group delivery stops, build 53-foot trailer loads with a real vehicle-routing solver (PyVRP), validate every result independently, and compare plans by truck fill, geographic tightness and planned revenue. It is not a dispatch or navigation system. Travel is estimated (haversine × circuity at constant speed) unless an imported directed matrix is selected.
+An open-source planning workbench for order fulfillment and truckload planning: allocate limited inventory to open orders, group delivery stops, build 53-foot trailer loads with a real vehicle-routing solver (PyVRP), validate every result independently, and compare plans by truck fill, geographic tightness and planned revenue. It is not a dispatch or navigation system. Travel is estimated (haversine × circuity at constant speed) unless a recorded directed matrix (imported or Valhalla) is selected.
 
 It runs as a free hosted site with request-only GitHub accounts (`FILLRATE_MODE=hosted`), as an account-free single-user install (`FILLRATE_MODE=local`), or in the original operator mode (mode unset, key-protected in production).
 
 ## Current state
 
-Per milestone, as of 2026-10-05. States follow the hand-kept estimates in `status.json` (also shown on `/dev`); the checklists and evidence are in `progress.md`.
+Reviewed against `main` at `e95f3cb` on 2026-10-06. M1–M5 and M7 are complete for accepted scopes. M6 implementations are merged (Valhalla snapshots/geometry, windows, manual baselines/warm starts, pipeline fleets and advanced Solver Lab adapters); VPS Valhalla coverage/timings remain. M8 now requires the production dashboard integration/performance pass plus final release/deployment evidence and native target timings. M2 review acceptance does not close that new frontend gate.
 
-| Milestone | State | Summary |
-| --- | --- | --- |
-| M1 Thin durable fulfillment slice | done | Durable SQLite jobs, leased Python worker, staged pipeline on PyVRP, independent validation, exports, CI and multi-arch image |
-| M2 Accepted design | done | Owner-accepted Blocks, `/runs/<id>` and shipment sheet; optional `fillrate.fig` follow-up deferred by the owner |
-| M3 Operational core | done | CSV import, versioned scenarios with branches, preflight, cost objective, stage reuse, 2,000-order benchmark |
-| M4 Trustworthy experiments / first release | done | k explorer, bounded sweeps, flagship lesson; Better Auth with GitHub, request-only signup, owner isolation, quotas, live owner sign-in on the deployed image |
-| M5 Allocation and import depth | done | Five allocation strategies, whole-order mode, CP-SAT, Census geocoding with ZIP/ZCTA fallback |
-| M6 Roads and advanced routing | active | Directed travel snapshots, imported matrices, fixture-verified Valhalla job, time windows and service durations; no pinned Valhalla deployment |
-| M7 Learning and export depth | active | Fulfillment, allocation, capacity, seed and time-window lessons; schematic timeline; replay bundles |
-| M8 Verification and handoff | active | Browser acceptance flows, target-hardware/recovery evidence, native Bun/npm distribution (this page and `local.md`) |
+Use [completion-plan.md](completion-plan.md) for delivery order, [frontend-spec.md](frontend-spec.md) for dashboard acceptance, [owner-actions.md](owner-actions.md) for owner tasks, and [progress.md](progress.md) for current evidence. Existing image/release evidence is digest-specific. Another session owns the current image publication; publication does not prove deployment. `fillrate.fig`/OpenPencil maintenance is outside completion scope.
 
 ## Architecture
 
@@ -128,12 +122,12 @@ Native timings on the VPS and Pi 5 have not been collected.
 What is not verified or not built. The full list of known gaps is in `progress.md`.
 
 - **Second live account:** cross-account isolation and quotas are verified by automated production-build tests (`test:hosted`), not with two live GitHub accounts on the deployed site; the owner waived that check.
-- **Road travel:** no pinned Valhalla deployment exists. The Valhalla snapshot job is verified against fixtures and a synthetic local service only; `directed_road_travel` stays planned. Route paths are schematic straight lines.
+- **Road travel:** pinned Valhalla and snapshot/geometry workflows have local evidence. VPS coverage/resources/timings remain unverified. Estimated/imported travel and schematic versus road paths stay explicitly labeled.
 - **Native timings on targets:** the VPS and Pi 5 timings are for the image. Native Bun/npm timings exist only for the shared cloud dev container above.
-- **npm on Node 24:** the full native npm workflow (install through a real worker run) was run on Node 22 in the dev container. Node 24 + npm is covered by the CI `npm` job (install, lockfile alignment, typecheck, Vitest with the real worker, build); its first run is on the pull request that adds it.
-- **Docker Compose local mode:** checked by the image smoke (keyless local startup and a run on amd64 and arm64). `docker compose up` with `deploy/compose.yaml` in local mode was not run for this handoff.
+- **npm on Node 24:** the full native npm workflow (install through a real worker run) was run on Node 22 in the dev container. Node 24 + npm is covered by the CI `npm` job (install, lockfile alignment, typecheck, Vitest with the real worker, build); this documentation pass did not rerun it.
+- **Docker Compose local mode:** historical image smokes cover keyless startup; local arm64 Compose/Valhalla evidence is recorded in release verification. This is not proof of latest multi-architecture publication or VPS deployment.
 - **Platforms:** Linux x86_64 native and Linux amd64/arm64 images are verified. macOS native is unverified; native Windows is unsupported.
 - **Backups:** on-server only; they do not survive server or disk loss. Off-server backup was deferred by the owner.
-- **Browser coverage:** cancellation and scenario edit/branch browser flows, and the optional `/request-access`/`/admin` phone review, are still open (M8).
+- **Dashboard coverage:** cancellation/edit/branch flows and request-access/admin phone review have prior evidence. Full gallery-to-product composition and measured frontend performance remain open under frontend-spec.md.
 - **Single worker:** one worker solves one job at a time; a full hosted queue can wait about 14 minutes at default budgets (`release-verification.md`).
-- **Remaining roadmap:** M6 routing adapters (fleets, depots, reloads, pickup-delivery), verified road geometry and playback, and the remaining M7 lessons.
+- **Remaining work:** frontend integration/performance, final release/deployment, conditional VPS Valhalla evidence and native target timings; see completion-plan.md.
