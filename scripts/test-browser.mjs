@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -1142,6 +1142,133 @@ async function roadMatricesFlow(baseURL, runKey) {
   console.log(`  passed: estimated 2 trucks/${milesOf(est)} mi complete; recorded matrix ${snapshotId.slice(0, 10)} 1 truck/${milesOf(rec)} mi, ridge resort unreachable; comparison, timeline and exports`);
 }
 
+// Solver Lab lessons (spec §13): the load dimension and heterogeneous fleet lessons start their two bundled lab
+// examples from the page. The page's comparison table is read back and checked against the persisted lab runs, whose
+// observations are asserted in services/optimizer/tests/test_lab_examples.py.
+async function labLessonsFlow(baseURL, runKey) {
+  console.log("Browser smoke: Solver Lab lessons (load dimensions, heterogeneous fleets)");
+  beginBrowserFlow("lab-lessons");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const jsonEval = (js) => { const raw = evalValue(js); return typeof raw === "string" ? JSON.parse(raw) : raw; };
+  const labRunIds = () => jsonEval(`JSON.stringify([...document.querySelectorAll('a[href^="/labs/"]')].map((a) => a.getAttribute('href').split('/').pop().split('?')[0]))`);
+  const doneRun = (id, label) => poll(() => fetchOkJson(baseURL, `/api/v1/lab/runs/${id}${access}`, runKey, "x-run-key"), (body) => ["succeeded", "failed", "cancelled"].includes(body?.status), label);
+  const pct = (ratio) => `${(ratio * 100).toFixed(0)}%`;
+  const num = (n) => n.toLocaleString("en-US");
+  const maxUtil = (result, dimension, type) => { const v = result.routes.filter((r) => !type || r.vehicle_type === type).map((r) => r.utilization[dimension]).filter((u) => u !== undefined); return v.length ? Math.max(...v) : null; };
+  const pctOrDash = (ratio) => (ratio === null ? "—" : pct(ratio));
+  const tableRows = () => Object.fromEntries(jsonEval(`JSON.stringify([...document.querySelectorAll('[data-testid="lab-compare"] tr[data-row]')].map((tr) => [tr.dataset.row, [...tr.cells].slice(1).map((c) => c.innerText.trim())]))`));
+
+  async function lesson({ path, heading, buttons, links, examples, check, expectRows }) {
+    open(`${baseURL}/learn/${path}${access}`);
+    expect(snapshot().includes(`heading "${heading}"`), `${heading} lesson did not load.`);
+    assertViewport(1440, 900);
+    assertViewport(393, 852);
+    setViewport(1440, 900);
+    expect(!String(parsedText()).includes("Side by side"), `${heading}: the comparison should wait for both runs.`);
+    const details = [];
+    for (const [i, example] of examples.entries()) {
+      clickButtonCentered(buttons[i]);
+      browser("wait", "--text", links[i], "--timeout", "20000");
+      const ids = labRunIds().filter((id) => !details.some((d) => d.id === id));
+      expect(/^[0-9a-f-]{36}$/.test(ids[0] ?? ""), `${heading}: run link for ${example} is unexpected: ${ids}`);
+      const detail = await doneRun(ids[0], `${heading}, ${example} lab run`);
+      expect(detail.status === "succeeded" && detail.kind === "lab" && detail.example === example, `${heading}: ${example} run did not succeed: ${JSON.stringify(detail).slice(0, 600)}`);
+      expect(detail.result.validated_feasible && detail.result.solver_feasible && detail.result.violations.length === 0 && detail.result.proof === "heuristic", `${heading}: ${example} result is not validated feasible.`);
+      details.push(detail);
+    }
+    const [first, second] = details.map((d) => d.result);
+    check(first, second);
+    browser("wait", "--text", "Side by side", "--timeout", "20000");
+    const rows = tableRows();
+    const expected = expectRows(first, second);
+    for (const [key, cells] of Object.entries(expected)) expect(stable(rows[key]) === stable(cells), `${heading}: comparison row "${key}" shows ${JSON.stringify(rows[key])}, persisted runs say ${JSON.stringify(cells)}.`);
+    expect(Object.keys(rows).length === Object.keys(expected).length, `${heading}: comparison has rows ${Object.keys(rows)}.`);
+    const text = String(parsedText());
+    expect(text.includes("Editable starter") && text.includes("Model fields this lesson uses") && text.includes("Not modeled:"), `${heading}: starter or model fields are missing.`);
+    assertViewport(1440, 900);
+    assertViewport(393, 852);
+    setViewport(1440, 900);
+    // The run is remembered across a reload, and Reset forgets it.
+    browser("reload");
+    browser("wait", "--text", "Side by side", "--timeout", "20000");
+    clickButtonCentered("Reset lesson");
+    browser("wait", "--text", "Run steps 1 and 2 first", "--timeout", "10000");
+    expect(!String(parsedText()).includes("Side by side"), `${heading}: reset should clear the comparison.`);
+    expect(labRunIds().length === 0, `${heading}: reset should forget the started runs.`);
+    return details;
+  }
+
+  const dims = await lesson({
+    path: "load-dimensions",
+    heading: "Multiple load dimensions",
+    buttons: ["Run with weight and volume", "Run with volume only"],
+    links: ["Open two-dimension run", "Open volume-only run"],
+    examples: ["dimensions", "dimensions_volume"],
+    check(both, volume) {
+      expect(both.totals.routes === 3 && both.totals.load.weight === 2860 && both.routes.every((r) => r.load.weight <= 1200), `Two-dimension run should need 3 trucks for 2,860 kg: ${JSON.stringify(both.totals)}`);
+      expect(maxUtil(both, "weight") >= 0.85 && maxUtil(both, "volume") < 0.6 && both.objective.fixed_cost === 300, "Weight should bind and volume stay under 60%.");
+      expect(volume.totals.routes === 2 && maxUtil(volume, "volume") < 0.7 && volume.objective.fixed_cost === 200 && volume.objective.total < both.objective.total && volume.problem_fingerprint !== both.problem_fingerprint, "Volume-only run should need 2 trucks, all under 70% volume, at a lower objective.");
+    },
+    expectRows: (both, volume) => Object.fromEntries([
+      ["feasible", ["yes", "yes"]],
+      ["trucks", [num(both.totals.routes), num(volume.totals.routes)]],
+      ["weight", [pctOrDash(maxUtil(both, "weight")), pctOrDash(maxUtil(volume, "weight"))]],
+      ["volume", [pctOrDash(maxUtil(both, "volume")), pctOrDash(maxUtil(volume, "volume"))]],
+      ["load", [`${num(both.totals.load.weight)} kg, ${num(both.totals.load.volume)} L`, `${num(volume.totals.load.volume)} L`]],
+      ["fixed", [num(both.objective.fixed_cost), num(volume.objective.fixed_cost)]],
+      ["distance", [num(both.objective.distance_cost), num(volume.objective.distance_cost)]],
+      ["objective", [num(both.objective.total), num(volume.objective.total)]],
+    ]),
+  });
+  checkBrowserDiagnostics("load dimensions lesson");
+
+  const fleet = await lesson({
+    path: "heterogeneous-fleet",
+    heading: "Heterogeneous fleets",
+    buttons: ["Run the mixed fleet", "Run trucks only"],
+    links: ["Open mixed-fleet run", "Open trucks-only run"],
+    examples: ["fleet", "fleet_trucks"],
+    check(mixed, trucks) {
+      const used = (r) => stable(Object.fromEntries(r.fleet.map((f) => [f.vehicle_type, [f.used, f.available]])));
+      expect(used(mixed) === stable({ "box-truck": [1, 3], van: [3, 3] }) && mixed.objective.fixed_cost === 85_000 && mixed.units.distance === "meters", `Mixed fleet should use every van and one truck: ${used(mixed)}`);
+      expect(maxUtil(mixed, "pallets", "van") === 1 && maxUtil(mixed, "pallets", "box-truck") < 1, "A van should be full and the box truck not.");
+      expect(used(trucks) === stable({ "box-truck": [3, 3] }) && trucks.objective.fixed_cost === 120_000 && maxUtil(trucks, "pallets") < 0.8, `Trucks-only run should use 3 trucks, none above 80%: ${used(trucks)}`);
+      expect(mixed.totals.load.pallets === 30 && trucks.totals.load.pallets === 30 && trucks.objective.total > mixed.objective.total, "Trucks only should cost more for the same 30 pallets.");
+    },
+    expectRows: (mixed, trucks) => {
+      const types = (r) => r.fleet.map((f) => `${f.vehicle_type} ${f.used} of ${f.available}`).join(", ");
+      const miles = (r) => `${num(Math.round(r.totals.distance / 1609.344))} mi`;
+      return Object.fromEntries([
+        ["feasible", ["yes", "yes"]],
+        ["vehicles", [num(mixed.totals.routes), num(trucks.totals.routes)]],
+        ["types", [types(mixed), types(trucks)]],
+        ["load", ["30 pallets", "30 pallets"]],
+        ["van-util", [pctOrDash(maxUtil(mixed, "pallets", "van")), pctOrDash(maxUtil(trucks, "pallets", "van"))]],
+        ["truck-util", [pctOrDash(maxUtil(mixed, "pallets", "box-truck")), pctOrDash(maxUtil(trucks, "pallets", "box-truck"))]],
+        ["distance", [miles(mixed), miles(trucks)]],
+        ["fixed", [num(mixed.objective.fixed_cost), num(trucks.objective.fixed_cost)]],
+        ["distance-cost", [num(mixed.objective.distance_cost), num(trucks.objective.distance_cost)]],
+        ["objective", [num(mixed.objective.total), num(trucks.objective.total)]],
+      ]);
+    },
+  });
+  checkBrowserDiagnostics("heterogeneous fleet lesson");
+
+  // The starter links preselect the example in the Solver Lab, and the lessons are linked from the index.
+  open(`${baseURL}/labs?example=fleet_trucks&key=${encodeURIComponent(runKey)}`);
+  browser("wait", "--text", "trucks only", "--timeout", "10000");
+  expect(String(parsedText()).includes("Heterogeneous fleet, trucks only"), "/labs?example=fleet_trucks should preselect the trucks-only example.");
+  open(`${baseURL}/learn${access}`);
+  const index = snapshot();
+  expect(index.includes('link "Multiple load dimensions"') && index.includes('link "Heterogeneous fleets"'), "The lessons index should link both Solver Lab lessons.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  checkBrowserDiagnostics("Solver Lab lessons");
+  console.log(`  passed: dimensions ${dims[0].result.totals.routes} then ${dims[1].result.totals.routes} trucks; fleet ${fleet[0].result.totals.routes} vehicles (3 vans + 1 truck) then ${fleet[1].result.totals.routes} box trucks; comparisons match persisted runs`);
+}
+
 // Manual plan evaluator (spec §10) and the manual versus optimized routes lesson: the lesson's dispatcher plans are
 // evaluated through the page, then the run's Manual plan tab is edited from the keyboard and evaluated. Every
 // number is checked against the persisted run and services/optimizer/tests/test_lesson_manual.py.
@@ -1349,6 +1476,7 @@ try {
     if (flow === "edit") await editFlow(baseURL, scenarioKey);
     if (flow === "labs") await labsFlow(baseURL, runKey, scenarioKey);
     if (flow === "warm-start") await warmStartFlow(baseURL, runKey);
+    if (flow === "lab-lessons") await labLessonsFlow(baseURL, runKey);
   }
   await stop();
 } catch (error) {
