@@ -29,8 +29,16 @@ class Fake(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
-        type(self).calls += 1
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path.endswith("/locate"):
+            data = json.dumps([{"edges": [{"way_id": 1}], "nodes": []} for _ in body["locations"]])
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data.encode())
+            return
+        type(self).calls += 1
         if type(self).on_call:
             type(self).on_call(type(self).calls)
         status = 200
