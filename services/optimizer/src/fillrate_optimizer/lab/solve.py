@@ -27,6 +27,10 @@ PRIZE_DEFINITION = (
     "; optional clients may be skipped and their prizes are added to the objective as uncollected "
     "prizes, separately from costs"
 )
+GROUP_DEFINITION = (
+    "; client groups are mutually exclusive alternatives: a required group is served by exactly "
+    "one member, an optional group by at most one"
+)
 
 
 class LabError(Exception):
@@ -85,8 +89,21 @@ def problem_fingerprint(instance: LabInstance, matrices: LabMatrices | None = No
                 }
                 for v in instance.vehicle_types
             ],
+            # Groups only when present, so instances without them keep their fingerprints.
+            **(
+                {
+                    "groups": [
+                        {"id": g.id, "required": g.required, "members": sorted(g.members)}
+                        for g in instance.groups
+                    ]
+                }
+                if instance.groups
+                else {}
+            ),
             "matrix": matrices.identity(),
-            "objective": OBJECTIVE_DEFINITION + (PRIZE_DEFINITION if has_optional else ""),
+            "objective": OBJECTIVE_DEFINITION
+            + (PRIZE_DEFINITION if has_optional else "")
+            + (GROUP_DEFINITION if instance.groups else ""),
             "cost_unit": instance.cost_unit,
         }
     )
@@ -167,6 +184,16 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
                     )
                 )
 
+    # Groups: PyVRP must agree on how many required groups are unserved.
+    unserved = sum(1 for g in plan.groups if g.required and g.served_by is None)
+    if unserved != int(best.num_missing_groups()):
+        mismatches.append(
+            LabViolation(
+                code="solver_mismatch",
+                message=f"PyVRP reports {int(best.num_missing_groups())} unserved required "
+                f"groups; recomputed {unserved}.",
+            )
+        )
     # Prizes: PyVRP's uncollected and collected prizes must equal the recomputation.
     for what, ours, theirs in (
         ("uncollected prizes", plan.objective.uncollected_prizes, int(best.uncollected_prizes())),
@@ -202,6 +229,7 @@ def run_lab(instance: LabInstance, progress: Callable[[dict], None] | None = Non
         violations=violations,
         objective=plan.objective,
         skipped=plan.skipped,
+        groups=plan.groups,
         totals=plan.totals,
         fleet=plan.fleet,
         routes=plan.routes,

@@ -25,6 +25,12 @@
   uncollected prizes. ``prizes(prize=400)`` raises each prize to 400, so the same solver visits
   all three and collects 1,200.
 
+- ``groups()``: a planar instance where customer "Acme" can be served at one of two alternative
+  service points, its north dock or its south dock (a required group of two optional clients).
+  Four required stops lie on the north side, so the north dock is the cheaper alternative and the
+  solver picks it. ``groups(side="south")`` puts the required stops on the south side instead, and
+  the south dock wins.
+
 The observations each page states are asserted in tests/test_lab_examples.py. Regenerate with
 `uv run python -m fillrate_optimizer.lab.examples` (writes examples/lab-*.json).
 """
@@ -129,6 +135,15 @@ PRIZE_CLIENTS = [
     ("P-8", "Remote stop", 215, 4, 2, True),
 ]
 PRIZE_VAN_CAPACITY = 10
+
+# id, label, x, y, parcels (required stops; the y sign flips with the side)
+GROUP_STOPS = [
+    ("G-1", "Stop", 30, 28, 2),
+    ("G-2", "Stop", -25, 35, 2),
+    ("G-3", "Stop", 55, 50, 2),
+    ("G-4", "Stop", 5, 60, 2),
+]
+GROUP_VAN_CAPACITY = 10
 
 # An iteration budget makes results repeat across machines; the runtime is only a safety cap.
 SOLVER = {"seed": 0, "max_iterations": 2_000, "max_runtime_s": 30}
@@ -351,6 +366,73 @@ def prizes(prize: int = 60) -> LabInstance:
     )
 
 
+def groups(side: str = "north") -> LabInstance:
+    sign = 1 if side == "north" else -1
+    return LabInstance.model_validate(
+        {
+            "name": f"Alternative service points, stops on the {side} side (planar, 6 clients)",
+            "description": (
+                "Abstract planar coordinates. Customer Acme (2 parcels) can be served at its north "
+                "dock or its south dock: the two docks are one required group, so exactly one is "
+                f"visited. Four required stops lie on the {side} side of the depot."
+            ),
+            "coordinates": "planar",
+            "dimensions": [{"id": "parcels", "label": "Parcels", "unit": "parcels"}],
+            "depots": [{"id": "depot", "label": "Depot", "x": 0, "y": 0}],
+            "clients": [
+                {
+                    "id": cid,
+                    "label": label,
+                    "x": x,
+                    "y": sign * y,
+                    "delivery": {"parcels": parcels},
+                    "service_duration": 10,
+                }
+                for cid, label, x, y, parcels in GROUP_STOPS
+            ]
+            + [
+                {
+                    "id": "acme-north",
+                    "label": "Acme, north dock",
+                    "x": 20,
+                    "y": 45,
+                    "delivery": {"parcels": 2},
+                    "service_duration": 10,
+                    "required": False,
+                },
+                {
+                    "id": "acme-south",
+                    "label": "Acme, south dock",
+                    "x": 20,
+                    "y": -45,
+                    "delivery": {"parcels": 2},
+                    "service_duration": 10,
+                    "required": False,
+                },
+            ],
+            "groups": [
+                {
+                    "id": "acme",
+                    "label": "Acme (one dock)",
+                    "members": ["acme-north", "acme-south"],
+                    "required": True,
+                }
+            ],
+            "vehicle_types": [
+                {
+                    "id": "van",
+                    "label": "Van",
+                    "count": 2,
+                    "capacity": {"parcels": GROUP_VAN_CAPACITY},
+                    "fixed_cost": 100,
+                    "unit_distance_cost": 1,
+                }
+            ],
+            "solver": SOLVER,
+        }
+    )
+
+
 EXAMPLES = {
     "lab-dimensions.json": lambda: dimensions(True),
     "lab-dimensions-volume.json": lambda: dimensions(False),
@@ -362,6 +444,8 @@ EXAMPLES = {
     "lab-reloads-off.json": lambda: reloads(False),
     "lab-prizes.json": lambda: prizes(60),
     "lab-prizes-high.json": lambda: prizes(400),
+    "lab-groups.json": lambda: groups("north"),
+    "lab-groups-south.json": lambda: groups("south"),
 }
 
 

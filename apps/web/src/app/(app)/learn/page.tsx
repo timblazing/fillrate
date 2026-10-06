@@ -64,6 +64,11 @@ const LESSONS = [
     title: "Optional visits and prizes",
     blurb: "8 abstract-plane stops, three of them remote and optional: at a prize of 60 each the solver skips them and pays 180; at 400 each it visits them and the nominal cost rises from 315 to 800.",
   },
+  {
+    href: "/learn/alternative-groups",
+    title: "Alternative service groups",
+    blurb: "A customer who can be served at a north or a south dock: one required group, so the solver visits exactly one and picks the cheaper; moving the other stops flips the choice.",
+  },
 ]
 
 // Every lesson runs the real pipeline on a bundled synthetic scenario (spec §13).

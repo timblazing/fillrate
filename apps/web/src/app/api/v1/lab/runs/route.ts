@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   }
 }
 
-// Queues one Solver Lab run (spec §4, M6). Body: { example: "dimensions" | "dimensions_volume" | "fleet" | "fleet_trucks" | "depots" | "depots_single" | "reloads" | "reloads_off" | "prizes" | "prizes_high" }
+// Queues one Solver Lab run (spec §4, M6). Body: { example: "dimensions" | "dimensions_volume" | "fleet" | "fleet_trucks" | "depots" | "depots_single" | "reloads" | "reloads_off" | "prizes" | "prizes_high" | "groups" | "groups_south" }
 // for a bundled instance, or { instance: LabInstance } for your own (local/operator mode or a signed-in account).
 // Requires an Idempotency-Key header.
 export async function POST(request: Request) {

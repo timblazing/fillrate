@@ -13,6 +13,8 @@ import fleet from "../../../../../examples/lab-fleet.json";
 import fleetTrucks from "../../../../../examples/lab-fleet-trucks.json";
 import depots from "../../../../../examples/lab-depots.json";
 import depotsSingle from "../../../../../examples/lab-depots-single.json";
+import groups from "../../../../../examples/lab-groups.json";
+import groupsSouth from "../../../../../examples/lab-groups-south.json";
 import prizes from "../../../../../examples/lab-prizes.json";
 import prizesHigh from "../../../../../examples/lab-prizes-high.json";
 import reloads from "../../../../../examples/lab-reloads.json";
@@ -61,6 +63,14 @@ export const LAB_EXAMPLES = {
   prizes_high: {
     id: "prizes_high", label: "Higher prizes", instance: prizesHigh as unknown as LabInstance,
     observations: ["With a prize of 400 each, all 3 remote stops are visited on a second van: 2 routes, nominal cost 800, no uncollected prizes and 1,200 of prizes collected.", "The nominal cost is higher than when the stops were skipped (800 against 315), but skipping them would now cost 1,200 in prizes."],
+  },
+  groups: {
+    id: "groups", label: "Alternative docks", instance: groups as unknown as LabInstance,
+    observations: ["Customer Acme can be served at its north or its south dock: one required group, so exactly one dock is visited. With the four required stops on the north side the solver picks the north dock.", "One van serves all five visits at a nominal cost of 312 (100 fixed + 212 distance). Serving the south dock instead is valid but costs more."],
+  },
+  groups_south: {
+    id: "groups_south", label: "Docks, stops south", instance: groupsSouth as unknown as LabInstance,
+    observations: ["The same docks with the four required stops moved to the south side: now the south dock wins.", "The instance is the mirror image, so the nominal cost is again 312; only which alternative serves Acme changes."],
   },
 } as const;
 export type LabExampleId = keyof typeof LAB_EXAMPLES;

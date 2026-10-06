@@ -4,7 +4,7 @@ Every mapping here is native PyVRP: named dimensions become capacity/delivery ve
 instance's dimension order, vehicle types keep their count, costs and limits, and every edge
 carries the raw distance and duration. There are no synthetic terminal edges (every route
 returns to a depot) and no omitted arcs. The builder is split per entity so a later capability
-(optional clients, groups, shipments) changes one function.
+(shipments) changes one function.
 """
 
 from __future__ import annotations
@@ -75,7 +75,18 @@ def add_depots(model: pyvrp.Model, instance: LabInstance, locations: list) -> li
     return [model.add_depot(locations[i], name=d.id) for i, d in enumerate(instance.depots)]
 
 
-def add_clients(model: pyvrp.Model, instance: LabInstance, locations: list) -> list:
+def add_client_groups(model: pyvrp.Model, instance: LabInstance) -> dict:
+    """PyVRP groups by group id (mutually exclusive alternatives)."""
+    return {
+        g.id: model.add_client_group(required=g.required, name=g.id) for g in instance.groups or []
+    }
+
+
+def add_clients(
+    model: pyvrp.Model, instance: LabInstance, locations: list, groups: dict | None = None
+) -> list:
+    group_of = instance.group_of()
+    groups = groups or {}
     return [
         model.add_client(
             locations[len(instance.depots) + i],
@@ -83,6 +94,7 @@ def add_clients(model: pyvrp.Model, instance: LabInstance, locations: list) -> l
             service_duration=client.service_duration,
             prize=client.prize_value,
             required=client.is_required,
+            group=groups[group_of[client.id].id] if client.id in group_of else None,
             name=client.id,
         )
         for i, client in enumerate(instance.clients)
@@ -129,7 +141,8 @@ def build_lab_model(instance: LabInstance, matrices: LabMatrices) -> LabModel:
     model = pyvrp.Model()
     locations = add_locations(model, matrices)
     depots = add_depots(model, instance, locations)
-    clients = add_clients(model, instance, locations)
+    groups = add_client_groups(model, instance)
+    clients = add_clients(model, instance, locations, groups)
     vehicle_types = add_vehicle_types(model, instance, depots)
     add_edges(model, locations, matrices)
     return LabModel(model, locations, depots, clients, vehicle_types)

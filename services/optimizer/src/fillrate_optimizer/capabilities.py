@@ -413,6 +413,26 @@ BEHAVIORS = [
         ],
         fixture="tests/test_lab.py::test_optional_clients_are_skipped_when_the_prize_does_not_pay",
     ),
+    Behavior(
+        id="client_groups",
+        provided_by="native",
+        description=(
+            "Lab instances may declare groups of mutually exclusive alternative clients (PyVRP "
+            "ClientGroup): a required group is served by exactly one of its members, an optional "
+            "group by at most one, and the solver picks the member that suits the routes best, "
+            "for example a customer who can be served at one of two service points. Fillrate "
+            "reports which member served each group and its validator rejects a plan that visits "
+            "two members or leaves a required group unserved."
+        ),
+        restrictions=[
+            "Solver Lab only; the fulfillment pipeline has no alternative service points.",
+            "Members must be optional clients (required: false) with no prize of their own; "
+            "a client belongs to at most one group.",
+            "Each member keeps its own location, delivery and service duration; the solver "
+            "decides the member, not the order or the vehicle.",
+        ],
+        fixture="tests/test_lab.py::test_a_required_group_is_served_by_the_cheaper_alternative",
+    ),
     *[
         Behavior(
             id=capability,
@@ -422,7 +442,6 @@ BEHAVIORS = [
             fixture=None,
         )
         for capability, text in (
-            ("client_groups", "mutually exclusive client groups"),
             ("paired_shipments", "pickup and delivery pairs"),
             ("pickups_and_deliveries", "client pickup loads beside deliveries"),
             (

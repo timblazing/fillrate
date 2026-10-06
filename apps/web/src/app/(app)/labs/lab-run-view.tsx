@@ -114,7 +114,9 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
   const dims = instance.dimensions.map((d) => d.id)
   const capacity = new Map(instance.vehicle_types.map((v) => [v.id, v.capacity]))
   const several = instance.depots.length > 1
-  const optional = instance.clients.filter((c) => c.required === false)
+  const groupedIds = new Set((instance.groups ?? []).flatMap((g) => g.members))
+  const optional = instance.clients.filter((c) => c.required === false && !groupedIds.has(c.id))
+  const groupOutcomes = result.groups ?? []
   const skipped = result.skipped ?? []
   const reloading = result.routes.some((r) => (r.trips?.length ?? 0) > 1)
   const label = (id: string | null | undefined) => id ?? instance.depots[0].id
@@ -180,6 +182,29 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
               </Table>
             </div>
           </section>
+          {groupOutcomes.length > 0 && (
+            <section className="flex flex-col gap-2" aria-labelledby="lab-groups">
+              <h2 id="lab-groups" className="text-sm font-medium">Alternative groups (at most one member is visited)</h2>
+              <div className="overflow-x-auto rounded-xl border">
+                <Table data-testid="lab-groups">
+                  <TableHeader>
+                    <TableRow><TableHead>Group</TableHead><TableHead>Rule</TableHead><TableHead>Alternatives</TableHead><TableHead>Served by</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupOutcomes.map((g) => (
+                      <TableRow key={g.group_id} data-testid={`lab-group-${g.group_id}`}>
+                        <TableCell className="font-mono text-xs">{g.group_id}</TableCell>
+                        <TableCell className="text-xs whitespace-normal">{g.required ? "exactly one" : "at most one"}</TableCell>
+                        <TableCell className="font-mono text-xs whitespace-normal">{(instance.groups ?? []).find((x) => x.id === g.group_id)?.members.join(", ")}</TableCell>
+                        <TableCell>{g.served_by ? <Badge variant="success">{g.served_by}</Badge> : <Badge variant={g.required ? "error" : "outline"}>{g.required ? "not served" : "left unserved"}</Badge>}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-muted-foreground text-xs text-pretty">The members are alternatives for the same customer, so the solver visits the one that suits the routes best; the others are not skipped prizes, just not needed.</p>
+            </section>
+          )}
           {optional.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-optional">
               <h2 id="lab-optional" className="text-sm font-medium">Optional clients: {optional.length - skipped.length} visited, {skipped.length} skipped</h2>

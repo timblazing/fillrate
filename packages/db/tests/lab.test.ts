@@ -11,6 +11,7 @@ import { enqueueLabRun, isLabVersion, LAB_SETTINGS, LabInstanceError, labExample
 import { saveScenario, scenarioList, scenarioVersion } from "../src/scenarios";
 import dimensions from "../../../examples/lab-dimensions.json";
 import fleet from "../../../examples/lab-fleet.json";
+import groups from "../../../examples/lab-groups.json";
 import prizes from "../../../examples/lab-prizes.json";
 import reloads from "../../../examples/lab-reloads.json";
 import depots from "../../../examples/lab-depots.json";
@@ -41,7 +42,13 @@ test("bundled lab examples validate; planned capabilities are refused by name", 
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], reload_depots: ["nowhere"], max_reloads: 2 }] }))?.[1]).toContain('reload depot "nowhere" is not a depot id');
   expect(failure(instance({ vehicle_types: [{ ...dimensions.vehicle_types[0], reload_depots: ["depot"] }] }))?.[1]).toContain("need max_reloads of at least 1");
   expect(validateLabInstance(structuredClone(reloads)).vehicle_types[0].max_reloads).toBe(3);
-  expect(failure(instance({ clients: [{ ...dimensions.clients[0], group: "g" }] }))?.[1]).toContain("client_groups");
+  expect(failure(instance({ clients: [{ ...dimensions.clients[0], group: "g" }] }))?.[0]).toBe("invalid_lab_instance");
+  expect(validateLabInstance(structuredClone(groups)).groups).toHaveLength(1);
+  const alt = (patch: Record<string, unknown>) => instance({ clients: [{ ...dimensions.clients[0], id: "a", required: false }, { ...dimensions.clients[1], id: "b", required: false }, dimensions.clients[2]], groups: [{ id: "g", members: ["a", "b"], ...patch }] });
+  expect(failure(alt({}))).toBeNull();
+  expect(failure(alt({ members: ["a", "zzz"] }))?.[1]).toContain('member "zzz" is not a client id');
+  expect(failure(alt({ members: ["a", "a"] }))?.[1]).toContain("lists a member twice");
+  expect(failure(instance({ clients: dimensions.clients, groups: [{ id: "g", members: [dimensions.clients[0].id, dimensions.clients[1].id] }] }))?.[1]).toContain("must be an optional client");
 });
 
 test("lab instances are checked structurally and against their own references", () => {

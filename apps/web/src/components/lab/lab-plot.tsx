@@ -30,6 +30,7 @@ export function LabPlot({ instance, result, className }: { instance: LabInstance
   const routes = result?.routes ?? []
   const reloadCount = new Map<string, number>()
   for (const r of routes) for (const t of (r.trips ?? []).slice(0, -1)) reloadCount.set(t.to_depot, (reloadCount.get(t.to_depot) ?? 0) + 1)
+  const grouped = new Set((instance.groups ?? []).flatMap((g) => g.members))
   const optionalIds = new Set(instance.clients.filter((c) => c.required === false).map((c) => c.id))
   const routeOf = new Map(routes.flatMap((r, i) => r.visits.map((v) => [v.client_id, i] as const)))
 
@@ -62,7 +63,7 @@ export function LabPlot({ instance, result, className }: { instance: LabInstance
           if (result && optionalIds.has(p.id) && r === undefined)
             return (
               <circle key={p.id} data-skipped={p.id} cx={sx(p.x)} cy={sy(p.y)} r={5} fill="none" strokeWidth={2} strokeDasharray="2 2" className="stroke-muted-foreground">
-                <title>{`${p.id}: skipped (optional)`}</title>
+                <title>{grouped.has(p.id) ? `${p.id}: alternative not used` : `${p.id}: skipped (optional)`}</title>
               </circle>
             )
           return (
@@ -90,7 +91,7 @@ export function LabPlot({ instance, result, className }: { instance: LabInstance
         {planar
           ? "Planar instance: abstract coordinates on equal axes (not latitude/longitude, so no map)."
           : "Geographic instance, schematic: longitude × cos(latitude) against latitude, no basemap."}{" "}
-        {homes.length === 1 ? "Square: depot." : "Squares: depots (labeled)."} {result && optionalIds.size > 0 && "Dashed circles: skipped optional clients."} {reloadCount.size > 0 && "Dashed square: a reload depot (the vehicle returns there between trips)."} Straight lines show visit order from the start depot to the end depot, not roads.
+        {homes.length === 1 ? "Square: depot." : "Squares: depots (labeled)."} {result && optionalIds.size > 0 && (grouped.size > 0 ? "Dashed circles: optional clients not visited (skipped, or the alternative of a group that another member served)." : "Dashed circles: skipped optional clients.")} {reloadCount.size > 0 && "Dashed square: a reload depot (the vehicle returns there between trips)."} Straight lines show visit order from the start depot to the end depot, not roads.
       </figcaption>
     </figure>
   )
