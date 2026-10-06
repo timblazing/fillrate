@@ -1314,6 +1314,7 @@ try {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
     TMPDIR: process.env.TMPDIR,
+    FILLRATE_MODE: "local",
     NODE_ENV: "production",
     DATA_DIR: dataDir,
     WORKER_TOKEN: workerToken,
@@ -1329,7 +1330,7 @@ try {
   // The optimizer as the container runs it: FastAPI on loopback (manual plan evaluation) with the worker supervisor.
   launch("uv", ["run", "--locked", "fillrate-optimizer"], {
     cwd: optimizerDir,
-    env: { ...commonEnv, UV_PYTHON: "3.13", FILLRATE_WORKER: "1", OPTIMIZER_PORT: String(optimizerPort), FILLRATE_INTERNAL_URL: `http://127.0.0.1:${internalPort}`, WORKER_ID: `browser-smoke-${process.pid}`, WORKER_POLL_SECONDS: "0.2" },
+    env: { ...commonEnv, UV_PYTHON: process.env.UV_PYTHON ?? "3.13", FILLRATE_WORKER: "1", OPTIMIZER_PORT: String(optimizerPort), FILLRATE_INTERNAL_URL: `http://127.0.0.1:${internalPort}`, WORKER_ID: `browser-smoke-${process.pid}`, WORKER_POLL_SECONDS: "0.2" },
   });
   for (const flow of flows) {
     if (flow === "lesson") await lessonFlow(baseURL, runKey);
