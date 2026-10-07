@@ -592,3 +592,9 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-07: Base the app shell on the shadcn sidebar-08 layout (Claude)
 - **Decision:** The signed-in shell uses the vendored coss `Sidebar` in the sidebar-08 arrangement: an inset sidebar (brand, Platform nav with Scenarios → Workbench / Pipeline runs, Experiments, Learn, Labs; Settings and admin Access requests at the foot; the hosted account menu in the footer) that collapses to icons (⌘/Ctrl+B, state kept in the `sidebar_state` cookie) and becomes a sheet on phones. The header carries only the sidebar toggle and a route breadcrumb; the brand and account no longer repeat there, and Settings appears once. The brand mark opens the Scenarios overview, not the public landing page.
 - **Gallery:** `/dev/components` Navigation renders the product `AppSidebar`, and the block shell's icon rail mirrors its collapsed state. The `nav[aria-label="App"]` landmark and print hiding of the sidebar and sticky header are kept for the browser smoke.
+
+## 2026-10-07: Owner scope cuts and hosted travel direction (Claude)
+- **Decision:** The Hostinger VPS is the only deployment target; Raspberry Pi is not a target. arm64 images remain for local Docker on ARM hosts. VoiceOver, physical-device and manual accessibility acceptance are out of scope for the v1 demo. On hosted deployments with Valhalla, runs always use road travel with an automatically built matrix. Stops outside coverage block the run. Road geometry is drawn by default, and the matrix heatmap becomes a summary (#98).
+- **Reason:** Owner direction during the 2026-10-07 live check. A road run's map showed straight lines unless a per-shipment button was pressed, the run defaulted to Estimated travel, and the heatmap was unclear. Accessibility and a Pi target are not priorities for the v1 demo.
+- **Supersedes:** the 2026-10-05 per-inspected-truck geometry decision for hosted road runs, once #98 lands.
+
