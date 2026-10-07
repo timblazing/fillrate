@@ -47,7 +47,7 @@ Never commit extracts, tiles or derived matrices for real data (spec §14).
 
 ## Prebuilt tiles for a small or shared host
 
-Building tiles needs far more memory than serving them. The OK/TX/NM/CO/KS/MO/AR build peaked at 13.6 GiB, while serving the finished archive idles at about 30 MiB. Build on a large machine, then copy and serve only:
+Building tiles needs far more memory than serving them. The OK/TX/NM/CO/KS/MO/AR build peaked at 13.6 GiB, while serving the finished archive started at about 31 MiB before road requests. After matrix requests the hosted process retained about 1.94 GiB at idle (see the follow-up below); startup memory is not its warmed idle footprint. Build on a large machine, then copy and serve only:
 
 1. **Build machine** (any Docker host with memory to spare; the host architecture does not matter, tiles are data):
    `deploy/valhalla/prepare.sh -d <dir> <regions>...`, then run the pinned image on `<dir>` with the default `deploy/compose.yaml` valhalla settings until `/status` answers, then stop it.
@@ -70,6 +70,7 @@ Moving to another server means copying the same bundle (or rebuilding from `extr
 | `thor.costmatrix.hierarchy_limits.max_up_transitions` | 4,000 / 1,000 | See below. |
 | `thor.costmatrix.max_iterations` | 20,000 | |
 | `thor.costmatrix.allow_second_pass` | true | |
+| `thor.clear_reserved_memory` | true | Release Thor search buffers between requests; verify warmed idle and latency after applying. |
 
 **CostMatrix search limits.** With Valhalla's default CostMatrix limits the truck matrix returned no path
 (`null`) for Nashville ↔ Jackson, MS on the TN/MS/AR tiles, although the Route API found 669 km. Fillrate
@@ -129,8 +130,61 @@ together; `dataset_revision` `geofabrik:tennessee@2026-10-05T15:47:33Z#bc7ba8acc
 Coverage chosen by the owner: Oklahoma and its bordering states. Geofabrik extracts `oklahoma`, `texas`, `new-mexico`, `colorado`, `kansas`, `missouri`, `arkansas` (Last-Modified 2026-10-05; 1.83 GB of extracts). `dataset_revision` is `geofabrik:oklahoma,texas,new-mexico,colorado,kansas,missouri,arkansas@2026-10-05T15:49:55Z#sha256:19706bf62442fa2f`; the full per-extract list with MD5 prefixes is in `extract-meta.json`.
 
 - **Off-host build** (Colima 6 vCPU / 20 GiB on the owner's Mac, Apple M1 Pro): `prepare.sh` 2 min 36 s (downloads). First start to serving took 955 s, with a sampled peak container memory of 13.6 GiB. Output: `valhalla_tiles.tar` 3,843,676,160 bytes (SHA-256 `dc127c17…5e8`, 3,640 tiles); bundle 3.6 GB. The upload with `scp` took 891 s.
-- **Serving host** `hostinger` (x86_64, 2 vCPU, 7.8 GiB RAM, no swap, shared with the live site and other services): the bundle is in `~/containers/fillrate/valhalla-data`. Service `fillrate-valhalla` uses the pinned image with prebuilt-only settings, `cpus: 1.0`, `mem_limit: 2560m`, one server thread and no host port. It was ready 18 s after `up` (including the image pull), idling at 31 MiB. Effective graph hash: `sha256:3946a6965044f3caf6c156f6c35cbd4b567dbf0ea6a8df5ea729271c3e3bc9c9`. Disk use went from 7.5 GB to 12 GB of 99 GB.
+- **Serving host** `hostinger` (x86_64, 2 vCPU, 7.8 GiB RAM, no swap, shared with the live site and other services): the bundle is in `~/containers/fillrate/valhalla-data`. Service `fillrate-valhalla` uses the pinned image with prebuilt-only settings, `cpus: 1.0`, `mem_limit: 2560m`, one server thread and no host port. It was ready 18 s after `up` (including the image pull), at 31 MiB before road requests (fresh-start measurement, not warmed idle). Effective graph hash: `sha256:3946a6965044f3caf6c156f6c35cbd4b567dbf0ea6a8df5ea729271c3e3bc9c9`. Disk use went from 7.5 GB to 12 GB of 99 GB.
 - **`region_check.py` from inside the Compose network** (2026-10-07): all 12 inside points locate on truck edges and Nashville TN / Phoenix AZ / Omaha NE do not. The 10 × 10 directed truck matrix has every pair (8.8 s; Oklahoma City → Dallas 332.2 km, return 332.9 km). The OKC → Dallas route returned geometry (0.32 s, 3.68 h). A 25 × 25 random block across the ~1,000 km extent had 0 nulls in 48.7 s. Peak container memory was 1.82 GiB of the 2.5 GiB cap, the host 1-minute load peaked at 1.10, and the public site answered 200 in 0.29 s during the check.
 - **App configuration**: the `fillrate` service has the `prepare.sh env` lines (625 pairs, 2,000 km). `/api/health` reports `road.valhalla` configured with the version, compact revision and graph hash, and `ValhallaConfig.from_env()` inside the hosted worker accepts the settings. The image was unchanged (`sha256:607f0b45…df3ff`, source `b296645`). Rollback: `compose.yaml.pre-valhalla` and the pre-change backup `fillrate-20261007T143812Z.sqlite` (SHA-256 `124e01f2…e209`, integrity ok, 12 migrations).
 - **Through Fillrate** (local production build and worker against a byte-equivalent serving copy with the same graph hash, 1 CPU / 2.5 GiB): `deploy/smoke_valhalla.py … ok7` passed. The durable snapshot job for 8 nodes built in 6.1 s; Nashville was reported outside coverage and unreachable; the run on the snapshot planned 1 truck and 1,183 road mi with every leg equal to the recorded matrix; the replay bundle shipped the snapshot; and a queued job cancelled. Inspected-truck road geometry was fetched and cached through `/api/v1/runs/<id>/geometry`.
 - **Not yet verified live**: a snapshot build, run and road geometry through the hosted site's UI. That needs a signed-in approved account (owner action). The default 50 × 50 block was not used on this host: it reached 3.7 GiB uncapped at the old distance limit.
+
+
+### Warmed idle memory follow-up (2026-10-07)
+
+A read-only check after the matrix tests found `fillrate-valhalla` at 1.935 GiB and 0.03% CPU,
+with no OOM kills or restarts; the shared host still had 4.34 GiB available. Its cgroup reported
+about 1.59 GiB anonymous memory and 348 MiB file memory. The effective configuration had
+`thor.clear_reserved_memory=false`, a 25-location reservation and 2,000,000 reserved bidirectional
+Dijkstra labels. This is consistent with retaining search allocations after the earlier large matrix,
+rather than continuing computation at idle. The 30-second `/status` health checks in the logs do not
+show a matrix workload. These readings do not prove the absence of a leak over time.
+
+`prepare.sh` now requests `thor.clear_reserved_memory=true`. In the pinned
+[Valhalla 3.9.0 CostMatrix implementation](https://github.com/valhalla/valhalla/blob/3.9.0/src/thor/costmatrix.cc#L143-L194),
+this replaces the reached maps and shrinks search buffers when clearing a request. The
+[configuration generator](https://github.com/valhalla/valhalla/blob/3.9.0/scripts/valhalla_build_config)
+exposes this option. It preserves road matrices and geometry, coverage, search distance/hierarchy
+limits and the serving caps. It may increase repeated-request allocation cost. The allocator and graph
+cache can still retain memory; no specific warmed idle reduction is claimed until measured.
+
+**Apply to an existing prebuilt serving deployment only after approval:** avoid running preparation on
+the serving host, because it can download newer extracts and invalidate tiles. Instead, retain the
+current graph and patch its configuration in place:
+
+1. Save the existing effective `valhalla.json`, app `VALHALLA_*` environment, Compose files and a database
+   backup. Record the current graph hash. Pause road requests during the short restart/config transition.
+2. In the serving data directory, write a temporary file using
+   `jq '.thor.clear_reserved_memory = true' valhalla.json > valhalla.json.tmp`, check
+   `jq -e '.thor.clear_reserved_memory == true' valhalla.json.tmp`, preserve the original file's owner and
+   permissions, then replace `valhalla.json`. Keep 625-pair app blocks (25 × 25), 2,000 km distance/search
+   limits, one thread, one CPU and the existing 2.5 GiB memory cap.
+3. Restart only the prebuilt Valhalla service using its existing Compose files/settings. Wait for health,
+   and verify the effective JSON still has the flag and unchanged limits after the image rewrites paths
+   and thread count. Do not rebuild tiles or change cache/search limits in this trial.
+4. Run `VALHALLA_MAX_MATRIX_PAIRS=625 deploy/valhalla/prepare.sh env -d <serving-data-dir>` **after startup**,
+   then replace the app's `VALHALLA_*` values with that output and recreate the app. The config change
+   changes `VALHALLA_GRAPH_CONFIG_HASH` even though tiles are unchanged; never keep the previous hash.
+   Confirm `/api/health` reports the new identity.
+5. Repeat `region_check.py`, the same complete 25 × 25 block and the signed-in road snapshot/run/geometry
+   flow. Record covered null pairs, cold/repeat latency, peak memory, CPU/site responsiveness and memory
+   immediately after each request and again after 1 and 5 idle minutes. Compare against the earlier
+   48.7-second, 0-null block and the observed 1.935 GiB warmed idle. The local config checks do not replace
+   this live benchmark.
+
+Existing snapshots and runs remain immutable and usable for solving/replay. New road-geometry requests
+for runs with the old graph/config hash are refused as `provider_context_mismatch`; make a new road
+snapshot and run under the new identity to fetch geometry. Already stored geometry retains its original
+identity. Do not relabel old snapshots to the new hash. To roll back, restore the backed-up JSON, restart
+Valhalla, regenerate the identity from its effective config and restore the matching app environment.
+
+This change is a prepared local tuning trial, not an applied VPS change or a measured memory fix.
+If warmed idle is still too high, serving the same pinned graph on a separate host or an explicitly
+on-demand service can preserve functionality; those options need operational and cold-start acceptance.

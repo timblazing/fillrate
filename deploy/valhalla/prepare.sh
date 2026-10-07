@@ -131,13 +131,16 @@ fi
 # Service limits for the truck costing, and CostMatrix search limits. With Valhalla's defaults the
 # truck matrix returned no path (null) for Nashville <-> Jackson, MS (669 km by road) on the
 # TN/MS/AR tiles; raising the hierarchy transitions found it (docs/valhalla.md). A null edge must mean
-# "no road path", not "search gave up". The container merges this file with its own paths on start.
+# "no road path", not "search gave up". Release Thor search buffers between requests on shared hosts;
+# this preserves search limits but can trade some repeat-request speed for lower retained memory.
+# The container merges this file with its own paths on start.
 in_image "valhalla_build_config \
   --mjolnir-tile-dir /custom_files/valhalla_tiles --mjolnir-tile-extract /custom_files/valhalla_tiles.tar \
   --mjolnir-admin /custom_files/admins.sqlite --mjolnir-timezone /custom_files/timezones.sqlite \
   --service-limits-truck-max-matrix-distance $MAX_MATRIX_DISTANCE_M \
   --service-limits-truck-max-matrix-location-pairs $MAX_MATRIX_PAIRS \
   --service-limits-truck-max-locations $MAX_ROUTE_LOCATIONS \
+  --thor-clear-reserved-memory True \
   --thor-costmatrix-allow-second-pass True \
   --thor-costmatrix-max-iterations 20000 \
   --thor-costmatrix-hierarchy-limits-max-up-transitions-1 4000 \
