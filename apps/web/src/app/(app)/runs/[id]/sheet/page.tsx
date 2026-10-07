@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic"
 export const metadata = { title: "Shipment sheets · Fillrate" }
 
 // Printable shipment sheets (spec v1.8 §15 M2 item 11): one shipment per page, black-and-white safe, no map.
-// ?shipment=<truck id> prints one; ?columns=location,pieces adds the optional columns.
+// Printing every shipment appends the unshipped lines with their reasons. ?shipment=<truck id> prints one; ?columns=location,pieces adds the optional columns.
 export default async function SheetPage({ params, searchParams }: PageProps<"/runs/[id]/sheet">) {
   const [{ id }, query] = await Promise.all([params, searchParams])
   let detail
@@ -31,6 +31,7 @@ export default async function SheetPage({ params, searchParams }: PageProps<"/ru
   const all = shipmentSheets(detail.summary)
   const sheets = one ? all.filter((s) => s.truckId === one) : all
   if (!sheets.length) notFound()
+  const locations = new Map(detail.summary.locations.map((l) => [l.id, l.label]))
   const products = Object.fromEntries(detail.summary.products.map((p) => [p.product_id, p.label]))
   return (
     <SheetView
@@ -43,6 +44,7 @@ export default async function SheetPage({ params, searchParams }: PageProps<"/ru
       shipment={one}
       columns={columns}
       products={products}
+      unshipped={one ? null : detail.summary.unplanned.map((u) => ({ ...u, location: locations.get(u.location_id) ?? u.location_id }))}
     />
   )
 }
