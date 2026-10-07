@@ -48,7 +48,7 @@ export function NewRun({ open, example, defaultK, runKey, closedNote = "Starting
       <div className="flex flex-col gap-1.5">
         <Label>Clusters</Label>
         <Select items={kOptions} value={k} onValueChange={(v) => setK(v as string)}>
-          <SelectTrigger className="w-60">
+          <SelectTrigger className="w-60" aria-label="Clusters">
             <SelectValue />
           </SelectTrigger>
           <SelectPopup>
@@ -63,7 +63,7 @@ export function NewRun({ open, example, defaultK, runKey, closedNote = "Starting
       <div className="flex flex-col gap-1.5">
         <Label>Solver seed</Label>
         <Select items={["0", "1", "2", "3", "4"].map((v) => ({ value: v, label: v }))} value={seed} onValueChange={(v) => setSeed(v as string)}>
-          <SelectTrigger className="w-24">
+          <SelectTrigger className="w-24" aria-label="Solver seed">
             <SelectValue />
           </SelectTrigger>
           <SelectPopup>
@@ -110,7 +110,7 @@ export function NewExplorer({ open, example, defaultK, runKey }: { open: boolean
       <div className="flex flex-col gap-1.5">
         <Label>Around</Label>
         <Select items={options} value={k} onValueChange={(v) => setK(v as string)}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-44" aria-label="Around">
             <SelectValue />
           </SelectTrigger>
           <SelectPopup>

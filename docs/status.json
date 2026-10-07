@@ -47,14 +47,14 @@
     },
     "M8": {
       "weight": 7,
-      "done": 76,
+      "done": 86,
       "state": "active",
-      "notes": "Planning estimate: 76%. The 443-shipment results transition meets the proposed response target in three warm local trials per viewport; selection avoids a full-result refetch and the table mounts 50 rows. The 1,001-node matrix flow passed again on the refreshed branch; latest local preview medians were 211.8 ms desktop and 207.2 ms phone (three trials, not p95 evidence). CARTO terms and limits are now documented; map credits stay expanded, but exact credit-link conformance and owner key/tier configuration remain open. Full six-Block integration/accessibility, matrix acceptance, shipment-sheet print, recovery states, final candidate release/deployment and native target timings also remain open."
+      "notes": "Planning estimate: 86%. Implemented: shipment-sheet print with unshipped reasons (#80), run recovery actions and browser flow (#81), specified CARTO credit links (#79; keyless CARTO is an owner-accepted v1 risk), accessibility fixes (#83; post-fix audit pending), hosted Valhalla service evidence (#82, M6). Open: post-fix accessibility acceptance, final candidate performance and copy/gallery reconciliation, final image release and deployment by digest, owner road UI check and native timings."
     }
   },
   "nextUp": [
-    "M8 priority: repeat and improve near-limit matrix UI performance on the final candidate, then complete shipment print, recovery-state, accessibility and dashboard integration acceptance.",
-    "Image publication for e95f3cb is recorded in merged PR #72; owner deploys the tested digest. Final dashboard runtime changes need another image release.",
-    "Owner: signed-in hosted road check (Build road matrix \u2192 run \u2192 road geometry) on fillrate.blasingame.dev."
+    "Finish the post-fix accessibility audit and repeat performance trials on the integrated candidate.",
+    "Reconcile copy/capabilities/gallery with hosted OK7 roads; publish the final tested image and deploy by digest.",
+    "Owner: signed-in hosted road check; native VPS/Pi timings."
   ]
 }

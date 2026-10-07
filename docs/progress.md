@@ -1,10 +1,21 @@
 # Progress
 
+## 2026-10-07: Stabilize keyboard-scroll browser acceptance (Codex)
+- After the integrated source passed full CI, the documentation-only merge onto squashed #82 produced the identical Git tree but [a later CI run](https://github.com/timblazing/fillrate/actions/runs/37650106992) failed the shipment table's immediate keyboard-scroll read. The runner had already confirmed the region was focused and scrollable.
+- The smoke now waits up to two seconds for native ArrowRight scrolling to produce `scrollLeft > 0`, then retains the same assertion. This accommodates asynchronous scroll frames while still failing if keyboard scrolling does not work; product code is unchanged by this fix.
+- `bun run test:browser --flow=lesson` passed locally against the production build with isolated synthetic data: both viewports, keyboard scrolling, pagination/selection, exports and 443 shipment sheets plus unshipped reasons (466 PDF pages). The local Python 2.7 PATH collision was resolved for this command by selecting Python 3.13 with a filtered PATH. `node --check scripts/test-browser.mjs` and `git diff --check` pass. Final head-commit CI remains the merge gate on PR #83.
+
+## 2026-10-07: Integrate local work and reconcile current records (Codex)
+- Integrated the recovery, hosted Valhalla and accessibility branches in PR order (#81, #82, #83), preserving the dated road/recovery/print evidence. Resolved the progress-document conflict introduced by the recovery squash merge; source changes merge together without conflict.
+- Reconciled the current milestone checklist, status focus, completion plan, basemap reference, handoff and release gaps with the accepted keyless CARTO decision, completed local print/recovery acceptance and recorded VPS road-service evidence. Post-fix accessibility acceptance, final performance/copy work, a new image and deployment, signed-in hosted road UI and native target timings remain explicit gaps.
+- Audited the existing local worktrees. Their leftover performance draft is superseded by the merged measured report, and the old uncommitted theme-toggle removal is already represented by the current shared header. Existing worktrees and local changes are retained.
+- Local integration verification: `bun install --frozen-lockfile`, `bun run lint`, `bun run typecheck`, `bun run build` and `git diff --check` passed. Lint retains the existing `globe.tsx` hook-dependency warning. Fresh PR CI is required before merge; it includes optimizer/contracts, Vitest, production build, hosted/local checks and all browser flows. No image release or live deployment is performed by this integration.
+
 ## 2026-10-06: Public README and MIT license (Codex)
 - Added MIT licensing and a product-focused README. Owner approved the copy and requested removal of all README screenshots and their copied assets before publication.
 - Validation: README local links resolve and `git diff --check` passes. No runtime changes or milestone estimate changes; application checks were not rerun. Documentation-only paths do not trigger CI, and no workflows are dispatched.
 
-Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` (#72), reviewed 2026-10-06. This is the current evidence/gap record; [completion-plan.md](completion-plan.md) owns delivery order, [frontend-spec.md](frontend-spec.md) owns dashboard acceptance, and [owner-actions.md](owner-actions.md) owns deployment/input actions. The complete pre-rewrite dated log and detailed checklists are preserved in [history/progress-through-2026-10-06.md](history/progress-through-2026-10-06.md). Historical undated next steps are superseded.
+Published-image baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` (#72), reviewed 2026-10-06. This is the current evidence/gap record; [completion-plan.md](completion-plan.md) owns delivery order, [frontend-spec.md](frontend-spec.md) owns dashboard acceptance, and [owner-actions.md](owner-actions.md) owns deployment/input actions. The complete pre-rewrite dated log and detailed checklists are preserved in [history/progress-through-2026-10-06.md](history/progress-through-2026-10-06.md). Historical undated next steps are superseded.
 
 ## 2026-10-06: Multi-architecture image release for `e95f3cb` (Codex)
 - Dispatched [image workflow run 37482591185](https://github.com/timblazing/fillrate/actions/runs/37482591185) for `main` commit `e95f3cb6556a52b013d318caf2f4800329970051`. CI, npm, amd64 and arm64 builds, both architecture smoke tests and benchmarks, and manifest publication succeeded.
@@ -58,6 +69,9 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - The 2,000-order lesson (443 shipments, 327 unshipped lines) printed to 466 PDF pages with no chrome, and a single shipment printed to one page. Evidence, before/after page images and limits: [m8-shipment-sheet-print-2026-10-06.md](reviews/m8-shipment-sheet-print-2026-10-06.md).
 - Verification: `bun run lint` (existing `globe.tsx` warning only), `bun run typecheck`, `bun run build`, and `bun run test:browser --flow=lesson` passed with the new sheet assertions. Physical printing was not tested.
 
+## 2026-10-07: M8 accessibility audit and fixes (Claude Code)
+- axe WCAG 2.1 A/AA, overflow, reduced-motion and focus checks covered 13 pages × light/dark × desktop/phone ([audit](reviews/m8-accessibility-audit-2026-10-07.md)). Found inactive-tab and muted-text contrast below AA, three unnamed selects on `/runs`, an unnamed Timeline slider thumb and two unfocusable scrollable tables. There was no page overflow, no unreduced motion, and focus was visible on every checked control. The code changes address all recorded findings; the post-fix audit rerun was interrupted and remains open. Original verification: lint and typecheck; integration lint/typecheck/build also pass (see the integration entry and Next step).
+
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
   - [x] SQLite durable jobs, leased Python worker, real PyVRP pipeline, independent validation and persisted exports.
@@ -84,9 +98,9 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
   - [x] Recorded 21 production browser flows at desktop/phone and 144 hosted/local checks (prior sessions; not rerun by this documentation pass).
   - [x] Request-access/admin phone review, npm-compatible scripts, native documentation and handoff.
   - [x] Historical image target timings/recovery on VPS/Pi; native timings only in a dev container.
-  - [ ] Six-Block production coverage audit and dashboard integration acceptance; audit captures exist, but workflow/accessibility/theme/print fixes and candidate acceptance remain.
+  - [ ] Six-Block production coverage and dashboard integration acceptance; print and recovery fixes have local browser evidence, accessibility fixes are implemented with post-fix audit acceptance still open.
   - [ ] Measured 2,000-order and matrix frontend responsiveness/performance acceptance; the 443-shipment transition and 1,001-node preview are scoped observations only, with final candidate/cold and broader interaction measurements open.
-  - [ ] Basemap owner use classification/key/tier decision, runtime configuration and rendered attribution check; current CARTO terms and source record are documented in [basemap.md](basemap.md).
+  - [x] Basemap v1 decision and specified attribution links: owner accepts keyless CARTO risk; source/terms and light/dark rendered credit evidence are recorded in [basemap.md](basemap.md). Key/tier configuration remains a later owner follow-up.
   - [x] Current runtime image publication for `e95f3cb`: run 37482591185, both architecture smokes and manifest recorded in #72.
   - [ ] Final dashboard image release and deployed-digest evidence.
   - [ ] Native target timings on VPS/Pi for full distribution handoff.
@@ -102,10 +116,10 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 - Dashboard coverage, responsive/accessibility review and measured frontend performance remain open under frontend-spec.md. The near-limit matrix path has before/after local browser evidence; desktop improved in three trials, while the phone sample did not, so repeat candidate trials remain useful. The displayed heatmap stays at its bounded 12×12 sample.
 - The 443-shipment persisted results transition meets the proposed 200 ms response target in three warm local trials per viewport; the table pages 50 rows and selection does not fetch the full result. This does not close matrix, whole-dashboard, cold-load or target-device performance acceptance.
 - Recovery states and shipment-sheet print have local browser acceptance (2026-10-06 entries); the worker-crash retry banner is not browser-tested.
-- Remaining keyboard/focus, theme, reduced-motion and six-Block integration checks are open.
+- Accessibility fixes are implemented, but the post-fix axe/focus/theme/reduced-motion audit remains open; the earlier audit and its limits are in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md). Six-Block integration acceptance remains open.
 - The `e95f3cb` image is published (PR #72); deployment is separately owned by the user and is not inferred from a successful image workflow. Dashboard runtime changes still need a later image release.
 - Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The live signed-in UI road check is pending. Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
-- Basemap public-use/provider terms record referenced by the spec is missing; create it after inspecting the shipped configuration.
+- Keyless CARTO is the owner-accepted v1 configuration. The terms record and specified rendered credit links exist; no CARTO key, tier or use classification is claimed.
 - Native timings on VPS/Pi are missing. Historical image timings/recovery remain valid for their recorded digest only.
 - Manual editing cannot move visits between clusters. Warm starts reuse only compatible cluster visit/demand/travel sets; saved manual baselines are now supported.
 - Solver Lab supports advanced adapters but still uses JSON editing and estimated geographic travel/schematic display. Pickup-delivery pairs with reloads are refused. Generic Lab support does not imply business-pipeline support.
@@ -119,8 +133,8 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 
 ## Waiting on the primary user (come back to this)
 
-See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for live upgrade; VPS Valhalla evidence is conditional on hosted road support; native target timings close the broader handoff. Real samples, rates and off-host backups retain their explicit optional/deferred scope. No design-file action remains.
+See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for the final dashboard upgrade; VPS Valhalla service/coverage/timing evidence exists, with the owner’s signed-in road UI check still open; native target timings close the broader handoff. Real samples, rates and off-host backups retain their explicit optional/deferred scope. No design-file action remains.
 
 ## Next step
 
-Continue from the [coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md): first complete the local shipment-sheet print and failed/retry acceptance, then remaining dashboard accessibility/integration and final candidate performance checks. The CARTO provider decision and final hosted release/deployment require owner actions; native VPS/Pi timings close the broader handoff. The measured 443-shipment transition and 1,001-node matrix preview are scoped slices only and do not complete M8. The current image publication is complete in #72. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
+Finish the post-fix accessibility audit and final candidate performance trials (2,000-order results and 601/1,001-node matrix previews), retaining the limits of local measurements. Reconcile public capability/gallery copy with hosted OK/TX/NM/CO/KS/MO/AR roads and estimated/imported travel elsewhere. Then publish the final tested runtime image and record owner deployment by digest, health/workflow checks and the signed-in hosted road check. Native VPS/Pi timings complete the broader handoff. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
