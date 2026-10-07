@@ -19,7 +19,7 @@ A hosted launch with estimated travel is supported. Road-enabled launch addition
 | P1: manual accessibility acceptance | [Issue #90](https://github.com/timblazing/fillrate/issues/90) | Automated candidate rerun | Contrast-incomplete cases and representative gallery checks are reviewed and recorded |
 | P1: candidate verification | Implementation session | Final integrated dashboard candidate | Lint/typecheck/build, relevant full suites and contracts, hosted/local acceptance, complete applicable browser coverage; capability and docs reconciliation |
 | P1: final image and deployment | [Issue #91](https://github.com/timblazing/fillrate/issues/91) | Candidate green; image workflow | Both architecture smokes and published digest; pre-upgrade backup, deploy-by-digest, migration/health/access and live synthetic workflow checks; rollback reference |
-| In v1 (owner, 2026-10-07): VPS roads | [Issue #92](https://github.com/timblazing/fillrate/issues/92) | OK + bordering states, prebuilt tiles | Done 2026-10-07: pinned provider/graph identity and coverage, VPS matrix/route checks, memory/disk/latency evidence, app path through Fillrate on the same bundle. Open: owner's signed-in UI check on the live site |
+| In v1 (owner, 2026-10-07): VPS roads | [Issue #92](https://github.com/timblazing/fillrate/issues/92) | OK + bordering states, prebuilt tiles | Done 2026-10-07: pinned provider/graph identity and coverage, VPS matrix/route checks, memory/disk/latency evidence, app path through Fillrate on the same bundle. Owner's signed-in UI check passed 2026-10-07 |
 | P2: native target handoff | [Issue #93](https://github.com/timblazing/fillrate/issues/93) | VPS access and matching source/settings | Bun/npm/uv timings and startup evidence on the VPS, with runtime versions and limitations |
 
 The current publication task completed in #72 independently of dashboard work. It proves only its source image; dashboard runtime changes will need a later image release. Preserve the recorded release-verification evidence and do not duplicate the completed dispatch.
@@ -34,7 +34,7 @@ The current publication task completed in #72 independently of dashboard work. I
 - [ ] Live HTTPS verifies anonymous/pending/admin policy, approved owner sign-in and one synthetic import → run → inspect → export; no live two-account test is added to the previously waived gate.
 - [ ] Backup timer/retention and restore/rollback compatibility are confirmed for the upgraded storage release; worker/storage changes rerun relevant recovery evidence.
 - [ ] Public copy, capability declarations, handoff and current progress match the deployed features and travel mode.
-- [ ] Hosted Valhalla roads (in v1, OK + bordering states): VPS service evidence is recorded (docs/valhalla.md); the owner's signed-in UI check and copy that names the coverage remain.
+- [x] Hosted Valhalla roads (in v1, OK + bordering states): VPS service evidence is recorded (docs/valhalla.md), and the owner's signed-in UI check passed on 2026-10-07. Default road travel/geometry follows in #98.
 
 ## Scope boundaries and operating rules
 

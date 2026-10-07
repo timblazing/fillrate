@@ -53,8 +53,9 @@
     }
   },
   "nextUp": [
-    "Finish six-Block state acceptance and remaining manual accessibility review; measure representative 601-node, cold-load and broader interactions.",
-    "Publish the final verified frontend source/image and deploy by digest; retain scoped local timing limits.",
-    "Owner: signed-in hosted road check and native VPS timings. The separate Valhalla warmed-idle trial passed; retain its long-duration/load limits."
+    "Finish draft PR #100 (#88 six-Block audit): rebase on #97, verify, merge",
+    "#98 hosted travel redesign: roads always, auto-build matrix, default road geometry, coverage blocking, export labels",
+    "#89 frontend performance acceptance",
+    "#93 native VPS timings over SSH"
   ]
 }
