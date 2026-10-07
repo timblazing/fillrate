@@ -2484,6 +2484,7 @@ async function accessibilityFlow(baseURL, runKey) {
         browser("eval", `localStorage.setItem("theme", ${JSON.stringify(theme)})`);
         browser("reload");
         browser("wait", "--fn", `document.documentElement.classList.contains(${JSON.stringify(theme)})`);
+        if (name === "landing") browser("click", "#faq details:nth-child(3) summary");
         if (tab) {
           browser("wait", "--text", "Validated, complete", "--timeout", "20000");
           const actualTab = evalValue(`[...document.querySelectorAll('[role="tab"]')].find(el => el.innerText.trim().startsWith(${JSON.stringify(tab)}))?.innerText.trim()`);
