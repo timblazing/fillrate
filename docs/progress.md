@@ -48,6 +48,10 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - Failed, cancelled and interrupted run pages now offer **Run again**, a new run of the same scenario version and settings; the earlier record is never changed. They also offer **Open scenario**, which loads that version and the run's settings in the workbench through `/scenarios?scenario=&version=&run=`. Failure alerts give the next action per code (`preflight_blocked`, `run_wall_limit`, stale travel matrix, other) plus the code and attempt count. An active run on attempt 2 or later says it is retrying after a worker stopped responding.
 - New `recovery` browser flow: queued → cancelled → Run again → succeeded; worker-preflight failure → actionable alert → Run again refused separately → Open scenario. `cancel` and `warm-start` flows (shared rerun button) passed again. Queued/running/cancelled states remain covered by `cancel`, success by every run flow, and the retry banner is not browser-tested (it needs a worker crash mid-run).
 - Verification: `bun run lint` (existing `globe.tsx` warning only), `bun run typecheck`, `bun run build`, `bun run test:browser --flow=recovery`, `--flow=cancel`, `--flow=warm-start` passed.
+## 2026-10-06: M8 shipment-sheet print acceptance (Claude Code)
+- Printing `/runs/<id>/sheet` no longer includes the app navigation rail or header. Printing all shipments appends every persisted unshipped line, grouped by shared reason labels, with its evidence. Each page names its run and shipment. Rows avoid page splits and table headers repeat. Wide sheet tables scroll inside labeled regions on phone.
+- The 2,000-order lesson (443 shipments, 327 unshipped lines) printed to 466 PDF pages with no chrome, and a single shipment printed to one page. Evidence, before/after page images and limits: [m8-shipment-sheet-print-2026-10-06.md](reviews/m8-shipment-sheet-print-2026-10-06.md).
+- Verification: `bun run lint` (existing `globe.tsx` warning only), `bun run typecheck`, `bun run build`, and `bun run test:browser --flow=lesson` passed with the new sheet assertions. Physical printing was not tested.
 
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
@@ -92,8 +96,8 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 
 - Dashboard coverage, responsive/accessibility review and measured frontend performance remain open under frontend-spec.md. The near-limit matrix path has before/after local browser evidence; desktop improved in three trials, while the phone sample did not, so repeat candidate trials remain useful. The displayed heatmap stays at its bounded 12×12 sample.
 - The 443-shipment persisted results transition meets the proposed 200 ms response target in three warm local trials per viewport; the table pages 50 rows and selection does not fetch the full result. This does not close matrix, whole-dashboard, cold-load or target-device performance acceptance.
-- Shipment-sheet print output and queued/running/failed/cancelled/retry recovery states have not passed the production candidate audit.
-- Complete unshipped-reason/print review remains open, alongside remaining keyboard/focus, theme, reduced-motion and six-Block integration checks.
+- Recovery states and shipment-sheet print have local browser acceptance (2026-10-06 entries); the worker-crash retry banner is not browser-tested.
+- Remaining keyboard/focus, theme, reduced-motion and six-Block integration checks are open.
 - The `e95f3cb` image is published (PR #72); deployment is separately owned by the user and is not inferred from a successful image workflow. Dashboard runtime changes still need a later image release.
 - VPS Valhalla coverage/timings are absent. Local pinned/provider/geometry evidence is distinct from hosted evidence.
 - Basemap public-use/provider terms record referenced by the spec is missing; create it after inspecting the shipped configuration.
