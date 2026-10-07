@@ -2707,7 +2707,10 @@ async function dashboardAuditFlow(baseURL, runKey, scenarioKey) {
   clickTab(`Shipments (${run.summary.trucks.length})`);
   expect(String(selection()).includes(target.id), `Shipment selection was lost after switching tabs: ${selection()}`);
   clickButton("Show all");
-  expect(String(selection()).includes(target.id), `Shipment selection was lost after clearing the cluster filter: ${selection()}`);
+  // The selected shipment can be off the first page after clearing the filter. Verify shared state in the timeline.
+  clickTab("Timeline");
+  expectText(target.id, "Timeline selection was lost after clearing the cluster filter");
+  clickTab(`Shipments (${run.summary.trucks.length})`);
   expect(hasText("Shipment results table") || Number(evalValue("document.querySelectorAll('[aria-label=\"Shipment results table\"],[role=region]').length")) > 0, "Shipment table equivalent of the map is missing.");
   assertViewport(1440, 900);
   assertViewport(393, 852);
@@ -2847,14 +2850,9 @@ try {
     if (flow === "recovery") await recoveryFlow(baseURL, scenarioKey);
     if (flow === "road-geometry" && roadGeometryReady) await roadGeometryFlow(baseURL, scenarioKey, runKey);
   }
-  if (process.env.SMOKE_HOLD) {
-    console.log(`Browser smoke: holding ${baseURL} (run key ${runKey}, operator key ${scenarioKey}); stop with SIGTERM.`);
-    await new Promise(() => {});
-  }
   await stop();
 } catch (error) {
   console.error(redact(error instanceof Error ? error.stack : error));
-  if (process.env.SMOKE_HOLD) { console.log(`Browser smoke: holding after failure at ${smokeBaseURL} (operator key ${smokeOperatorKey}).`); await new Promise(() => {}); }
   await stop();
   process.exitCode = 1;
 }

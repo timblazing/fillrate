@@ -49,13 +49,13 @@
       "weight": 7,
       "done": 90,
       "state": "active",
-      "notes": "Planning estimate: 90%. Runtime 698fbd8 was tested, published and deployed by digest; owner signed-in synthetic and road checks passed (#99). Remaining: six-Block acceptance (#88/#100), hosted road automation (#98), representative frontend performance (#89), final candidate image/deployment, and optional native VPS timings (#93). Manual accessibility and Raspberry Pi are outside v1 demo scope."
+      "notes": "Planning estimate: 90%. 698fbd8 deployment and owner checks accepted; #100 dashboard fixes pass six-area production audit with 52 captures, 176 tests and 144 access checks. Remaining: #98 hosted road automation, targeted #88 states, #89 broad/cold performance, integrated image/deployment; optional #93 native VPS timings. Manual accessibility and Pi are outside v1 demo scope."
     }
   },
   "nextUp": [
-    "Finish draft PR #100 (#88 six-Block audit): rebase on #97, verify, merge",
-    "#98 hosted travel redesign: roads always, auto-build matrix, default road geometry, coverage blocking, export labels",
-    "#89 frontend performance acceptance",
-    "#93 native VPS timings over SSH"
+    "#98 hosted roads: automatic matrices, coverage blocking, default road geometry and truthful exports",
+    "Close remaining targeted #88 dashboard states alongside hosted-road integration",
+    "#89 representative frontend performance acceptance",
+    "Publish/deploy the final verified runtime candidate; #93 native VPS timings are optional"
   ]
 }
