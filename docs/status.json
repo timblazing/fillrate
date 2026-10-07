@@ -49,12 +49,12 @@
       "weight": 7,
       "done": 86,
       "state": "active",
-      "notes": "Planning estimate: 86%. Done locally: shipment-sheet print with unshipped reasons (#80), run recovery actions and browser flow (#81), CARTO credit-link conformance (#79; keyless CARTO is an owner-accepted v1 risk), WCAG AA audit with fixes (rerun pending), hosted Valhalla on the VPS (M6). Open: post-fix audit rerun and full browser suite on the final candidate, candidate performance repeat, copy/gallery reconciliation, final image release and deploy-by-digest, owner road UI check and native timings."
+      "notes": "Planning estimate: 86%. Implemented: shipment-sheet print with unshipped reasons (#80), run recovery actions and browser flow (#81), specified CARTO credit links (#79; keyless CARTO is an owner-accepted v1 risk), accessibility fixes (#83; post-fix audit pending), hosted Valhalla service evidence (#82, M6). Open: post-fix accessibility acceptance, final candidate performance and copy/gallery reconciliation, final image release and deployment by digest, owner road UI check and native timings."
     }
   },
   "nextUp": [
-    "Merge #81, #82 and the accessibility PR; rerun the a11y audit, full browser suite and performance trials on the merged candidate.",
-    "Reconcile copy/capabilities/gallery with hosted roads; dispatch image.yml for the final candidate; owner pins and deploys the digest.",
+    "Finish the post-fix accessibility audit and repeat performance trials on the integrated candidate.",
+    "Reconcile copy/capabilities/gallery with hosted OK7 roads; publish the final tested image and deploy by digest.",
     "Owner: signed-in hosted road check; native VPS/Pi timings."
   ]
 }

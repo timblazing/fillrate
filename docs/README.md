@@ -18,6 +18,6 @@ Supporting implementation references: [durable jobs](durable-foundation.md), [ro
 
 Provider record: [basemap source, attribution, terms and launch decision](basemap.md).
 
-Current M8 evidence: [dashboard coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md) and [frontend performance baseline](reviews/m8-frontend-performance-baseline-2026-10-06.md), with paired captures under `reviews/assets/m8-dashboard-audit/`.
+Current M8 evidence: [dashboard coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md) and [frontend performance baseline](reviews/m8-frontend-performance-baseline-2026-10-06.md), with paired captures under `reviews/assets/m8-dashboard-audit/`, plus [accessibility findings and post-fix acceptance limits](reviews/m8-accessibility-audit-2026-10-07.md).
 
 Older revision notes and the pre-rewrite progress snapshot are in [history](history/). They preserve evidence, not the current task queue. Design review answers remain in `reviews/`. `fillrate.fig` and OpenPencil are historical assets with no remaining completion requirement.

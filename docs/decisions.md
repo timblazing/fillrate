@@ -571,3 +571,7 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 - Truck `max_matrix_distance` defaults to 2,000 km, because CostMatrix's cost threshold at 1,000 km returned null for 750–1,050 km truck legs that `/route` found. Fillrate's leg limit still decides reachability.
 - Long extract lists record a compact `dataset_revision` (names, newest date, SHA-256 prefix of the full list), because Fillrate accepts at most 200 characters. The full list stays in `extract-meta.json`.
 - Hosted third-party routing APIs were reviewed and not selected: Stadia's matrix limit is 400 km and openrouteservice allows 5 × 5 with truck dimensions; both need keys and send stop coordinates off-host. maps.black serves basemaps, not routing.
+
+## 2026-10-07: Reconcile integration records with accepted release boundaries (Codex)
+- **Decision:** Preserve the earlier dated evidence while updating current status and handoff to the combined recovery, hosted-road and accessibility source. Keyless CARTO remains the accepted v1 choice; configuring a key/tier is a later owner follow-up.
+- **Evidence boundary:** Implemented accessibility fixes do not complete post-fix audit acceptance. Hosted Valhalla service checks do not replace the signed-in live road workflow, and merging source does not publish an image or deploy it. Final candidate performance/copy, image/deployment and native target evidence remain open.

@@ -4,7 +4,7 @@ Status checked 2026-10-06 against the current default style URLs in `apps/web/sr
 
 ## Shipped provider
 
-The shared MapLibre component loads CARTO's Positron style in light mode and Dark Matter in dark mode from `basemaps.cartocdn.com`. It does not set a custom attribution string. The transparent `blank` map style has no basemap and does not use CARTO tiles.
+The shared MapLibre component loads CARTO's Positron style in light mode and Dark Matter in dark mode from `basemaps.cartocdn.com`. It sets CARTO’s specified attribution on CARTO tile sources through `transformStyle`, as documented below. The transparent `blank` map style has no basemap and does not use CARTO tiles.
 
 CARTO says its basemaps are derived from OpenStreetMap. Maps using these CARTO styles must show visible, linked attribution to both OpenStreetMap contributors and CARTO. CARTO specifies links to its attribution page and the OpenStreetMap copyright page; printed or static map images need the same credit in the image or caption. Sources: [CARTO attribution requirements](https://carto.com/attribution/) and [OpenStreetMap copyright](https://www.openstreetmap.org/copyright).
 
@@ -18,7 +18,7 @@ CARTO's [Basemaps Terms and Conditions](https://carto.com/legal/basemap-terms/) 
 
 **Owner decision (2026-10-06):** keep keyless CARTO for v1. The owner accepts the risk that CARTO may rate-limit, suspend or revoke keyless access, and has not classified use, chosen a tier or obtained a key. Fillrate does not claim CARTO key/tier conformance. A keyed or alternative provider remains a follow-up; maps.black (keyless, no SLA) was reviewed and not selected for v1.
 
-This is a provider and configuration gate, not a legal determination that Fillrate qualifies for any particular tier. Before public launch, the owner must confirm intended use classification and acceptable capacity/cost with CARTO, obtain/accept applicable terms and an owner-controlled key, and decide how to configure the key for hosted use. Do not treat the public style URL or the component's MIT license as permission for production tile use. If the selected terms/capacity are unsuitable, choose a provider or deployment style and record its terms before launch.
+The owner’s v1 decision closes the provider-selection gate with the stated keyless-access risk. A later move to keyed CARTO or another provider requires reviewing the intended use, current terms, capacity/cost and runtime configuration. The component’s MIT license does not establish tile-service permission or CARTO key/tier conformance.
 
 For local use, CARTO may rate-limit, suspend or revoke free access; map failure must remain a non-blocking empty-background state as specified in `fillrate-technical-spec.md` §16. The app's custom/blank style support provides a technical fallback, but no alternate hosted provider is currently selected.
 

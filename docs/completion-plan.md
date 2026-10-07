@@ -1,6 +1,6 @@
 # Complete Fillrate and update the live release
 
-Runtime baseline: `e95f3cb`; image release evidence merged in PR #72 at `4caa595` on 2026-10-06. Existing hosted/request access was accepted earlier; current source is ahead of that evidence. This plan replaces stale next-step lists while preserving the technical spec and M1–M8 history. It adds no new solver engine scope.
+Published-image baseline: `e95f3cb`; image release evidence merged in PR #72 at `4caa595` on 2026-10-06. Existing hosted/request access was accepted earlier; current source is ahead of that evidence. This plan replaces stale next-step lists while preserving the technical spec and M1–M8 history. It adds no new solver engine scope.
 
 ## Definition of complete and live
 
@@ -27,7 +27,7 @@ The current publication task completed in #72 independently of dashboard work. I
 
 - [ ] Dashboard coverage/integration/performance evidence passes [frontend-spec.md](frontend-spec.md).
 - [ ] Final candidate verification is recorded with exact source; older green checks are labeled historical.
-- [ ] Basemap provider decision and runtime setup complete; CARTO source, current key/attribution terms and capacity limits are recorded in [basemap.md](basemap.md), but the current style URLs have no API key and owner acceptance/classification/configuration plus rendered attribution validation remain open.
+- [x] Basemap v1 decision and specified attribution links are recorded in [basemap.md](basemap.md): owner accepts keyless CARTO risk, and rendered credits were checked in light/dark themes. Key/tier configuration remains a later owner follow-up.
 - [ ] `image.yml` succeeds for the final runtime source on amd64 and arm64; registry manifest/digest confirmed.
 - [ ] Owner backs up, pins the tested digest, upgrades and records migrations, health and worker connectivity.
 - [ ] Live HTTPS verifies anonymous/pending/admin policy, approved owner sign-in and one synthetic import → run → inspect → export; no live two-account test is added to the previously waived gate.

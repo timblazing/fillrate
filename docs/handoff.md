@@ -25,7 +25,7 @@ It runs as a free hosted site with request-only GitHub accounts (`FILLRATE_MODE=
 
 ## Current state
 
-Reviewed against `main` at `e95f3cb` on 2026-10-06. M1–M5 and M7 are complete for accepted scopes. M6 implementations are merged (Valhalla snapshots/geometry, windows, manual baselines/warm starts, pipeline fleets and advanced Solver Lab adapters); VPS Valhalla coverage/timings remain. M8 now requires the production dashboard integration/performance pass plus final release/deployment evidence and native target timings. M2 review acceptance does not close that new frontend gate.
+Reconciled with the integrated recovery, hosted-road and accessibility work in PRs #81–#83 on 2026-10-07. M1–M5 and M7 are complete for accepted scopes. M6 implementations are merged (Valhalla snapshots/geometry, windows, manual baselines/warm starts, pipeline fleets and advanced Solver Lab adapters); VPS Valhalla now serves OK/TX/NM/CO/KS/MO/AR from prebuilt tiles with coverage/resource/timing evidence; the owner’s signed-in road UI check remains. M8 now requires the production dashboard integration/performance pass plus final release/deployment evidence and native target timings. M2 review acceptance does not close that new frontend gate.
 
 Use [completion-plan.md](completion-plan.md) for delivery order, [frontend-spec.md](frontend-spec.md) for dashboard acceptance, [owner-actions.md](owner-actions.md) for owner tasks, and [progress.md](progress.md) for current evidence. Existing image/release evidence is digest-specific. PR #72 records current image publication for `e95f3cb`; publication does not prove deployment. `fillrate.fig`/OpenPencil maintenance is outside completion scope.
 
@@ -122,7 +122,7 @@ Native timings on the VPS and Pi 5 have not been collected.
 What is not verified or not built. The full list of known gaps is in `progress.md`.
 
 - **Second live account:** cross-account isolation and quotas are verified by automated production-build tests (`test:hosted`), not with two live GitHub accounts on the deployed site; the owner waived that check.
-- **Road travel:** pinned Valhalla and snapshot/geometry workflows have local evidence. VPS coverage/resources/timings remain unverified. Estimated/imported travel and schematic versus road paths stay explicitly labeled.
+- **Road travel:** pinned Valhalla and snapshot/geometry workflows have local evidence. VPS OK7 coverage/resources/timings are recorded in [valhalla.md](valhalla.md); the signed-in live road UI check remains open. Estimated/imported travel and schematic versus road paths stay explicitly labeled.
 - **Native timings on targets:** the VPS and Pi 5 timings are for the image. Native Bun/npm timings exist only for the shared cloud dev container above.
 - **npm on Node 24:** the full native npm workflow (install through a real worker run) was run on Node 22 in the dev container. Node 24 + npm is covered by the CI `npm` job (install, lockfile alignment, typecheck, Vitest with the real worker, build); this documentation pass did not rerun it.
 - **Docker Compose local mode:** historical image smokes cover keyless startup; local arm64 Compose/Valhalla evidence is recorded in release verification. This is not proof of latest multi-architecture publication or VPS deployment.
