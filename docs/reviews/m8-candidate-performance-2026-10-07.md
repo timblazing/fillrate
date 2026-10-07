@@ -2,7 +2,7 @@
 
 Scoped warm local measurements, not whole-dashboard or statistically reliable p95 acceptance. Results source: `f01687b`; near-limit matrix source: `d16a8c7` (the later change only replaces the results page counter's unsupported accessible-name attribute with screen-reader text and expands FAQ audit coverage; the matrix path is identical).
 
-Environment: Apple M1 Pro / MacBookPro18,3, 32 GiB, macOS 27.0, Node 24.18.1, agent-browser 0.37.1 headless Chromium, local production web/worker and isolated synthetic data. Desktop 1440×900; iPhone 16 profile 393×852. These are warm local browser measurements, not cold-cache, physical-phone, VPS or Pi timings. Solver work is excluded from interaction latency.
+Environment: Apple M1 Pro / MacBookPro18,3, 32 GiB, macOS 27.0, Node 24.18.1, agent-browser 0.37.1 headless Chromium, local production web/worker and isolated synthetic data. Desktop 1440×900; iPhone 16 profile 393×852. These are warm local browser measurements, not cold-cache, physical-phone or VPS timings. Solver work is excluded from interaction latency.
 
 | Interaction | Desktop trials | Phone trials | Scope |
 | --- | --- | --- | --- |

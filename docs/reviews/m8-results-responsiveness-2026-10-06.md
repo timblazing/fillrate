@@ -35,4 +35,4 @@ The prior audit's [desktop](assets/m8-dashboard-audit/production/run-2k-shipment
 - The 601-node matrix UI still takes about 1.6 seconds; the 1,001-node browser UI timing was not established. No matrix optimization or matrix performance pass is claimed.
 - Shipment-sheet print output and the complete unshipped-reason view still need production acceptance, including print layout.
 - Queued/running/failed/cancelled/retry recovery states, keyboard/focus behavior outside this table, reduced motion, light/dark coverage and the remaining dashboard integration audit stay open.
-- The final candidate release, deployment evidence, basemap terms and native VPS/Pi timings remain separate M8 gates.
+- The final candidate release, deployment evidence, basemap terms and native VPS timings remain separate M8 gates.
