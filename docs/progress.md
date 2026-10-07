@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-10-07: Publish and deploy tested runtime update `698fbd8` (Codex)
+- Image workflow [37680183468](https://github.com/timblazing/fillrate/actions/runs/37680183468) passed CI, npm, native amd64/arm64 builds, smoke tests, benchmarks and manifest publication. `ghcr.io/timblazing/fillrate:sha-698fbd8` resolves to multi-architecture index `sha256:c76155c1b57e4a65b544b636a2c18020d74626567a882039efb96b79d6861114`; platform manifest digests and the guarded rollback instructions are in [the release record](releases/upgrade-698fbd8.md).
+- Deployed the pinned digest on Hostinger after the online SQLite backup passed checksum and integrity checks (12 migrations). Only Fillrate was recreated; hosted/request settings and the Valhalla service were preserved. The app and worker are healthy, the Valhalla graph identity is unchanged, the backup timer is active, anonymous hosted/request behavior passes and anonymous admin access returns 404.
+- Removed four superseded root-level `compose.yaml.pre-*` snapshots after preserving the current Compose file in the private upgrade backup. Tagged the new image `sha-698fbd8`; kept the prior `latest` image as the immediate rollback image. No other old Fillrate image was present. Database backups and active Valhalla tiles remain under their existing retention/use.
+- The owner's signed-in import → run → inspect → export and road geometry checks remain open in [#91](https://github.com/timblazing/fillrate/issues/91) and [#92](https://github.com/timblazing/fillrate/issues/92). M8 frontend issues [#88](https://github.com/timblazing/fillrate/issues/88)–[#90](https://github.com/timblazing/fillrate/issues/90) and native target timings [#93](https://github.com/timblazing/fillrate/issues/93) remain open; this release does not close M8.
+
 ## 2026-10-07: Issue triage session handoff (Claude)
 Owner decisions this session. The decisions log has the full entry.
 - **No Raspberry Pi target.** The Hostinger VPS is the only deployment target. Pi references were removed from docs and issues ([#96](https://github.com/timblazing/fillrate/pull/96)). arm64 images stay for local Docker on ARM hosts. [#93](https://github.com/timblazing/fillrate/issues/93) now covers native timings on the VPS only; I have SSH access as `hostinger`.
@@ -153,12 +159,16 @@ Published-image baseline: `e95f3cb`; release evidence integrated on `main` at `4
   - [ ] Measured 2,000-order and matrix frontend responsiveness/performance acceptance; the 443-shipment transition and 1,001-node preview are scoped observations only, with final candidate/cold and broader interaction measurements open.
   - [x] Basemap v1 decision and specified attribution links: owner accepts keyless CARTO risk; source/terms and light/dark rendered credit evidence are recorded in [basemap.md](basemap.md). Key/tier configuration remains a later owner follow-up.
   - [x] Current runtime image publication for `e95f3cb`: run 37482591185, both architecture smokes and manifest recorded in #72.
+  - [x] Current tested runtime update for `698fbd8` published and deployed by digest; exact workflow, manifest and host checks are recorded above. A later dashboard fix that changes runtime code needs its own tested release.
+  - [ ] Owner signed-in primary workflow on the deployed digest; see [issue #91](https://github.com/timblazing/fillrate/issues/91).
+  - [ ] Native target timings on VPS/Pi for full distribution handoff.
+
   - [ ] Final dashboard image release and deployed-digest evidence.
   - [ ] Native timings on the VPS for full distribution handoff.
 
 ## Current state
 
-The hosted first release is accepted, while latest source includes later routing and learning work. Current technical capabilities are determined by merged source and executable proofs, not the older release snapshot. See technical references and the dated history for per-feature tests. PR #72 records publication for `e95f3cb`; deployment remains unverified by these records.
+The hosted first release is accepted, and the tested runtime source `698fbd8` is now deployed by digest. M8 dashboard acceptance remains open. Current technical capabilities are determined by merged source and executable proofs; see dated history and the release record for scope and evidence.
 
 Gallery Blocks use illustrative fixtures; product result screens use persisted runs. Shared components exist, but full composition/interaction parity and optimization require the frontend audit. No `.fig` work is needed.
 
@@ -167,6 +177,10 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 - Six-Block production integration and state acceptance remain open under [frontend-spec.md](frontend-spec.md); see [issue #88](https://github.com/timblazing/fillrate/issues/88). The 2,000-order and near-limit matrix evidence is scoped local browser data; representative 601-node, cold-load, broader interaction and tail-latency profiling remain open in [issue #89](https://github.com/timblazing/fillrate/issues/89). The displayed heatmap stays at its bounded 12×12 sample.
 - The 443-shipment persisted results transition meets the proposed 200 ms response target in three warm local trials per viewport; the table pages 50 rows and selection does not fetch the full result. This does not close matrix, whole-dashboard, cold-load or target-device performance acceptance.
 - Recovery states and shipment-sheet print have local browser acceptance (2026-10-06 entries); the worker-crash retry banner is not browser-tested.
+- The 52-state post-fix axe/focus/theme/reduced-motion rerun passes; manual contrast-incomplete cases, VoiceOver, physical-device and gallery checks remain in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md) and [issue #90](https://github.com/timblazing/fillrate/issues/90).
+- The `698fbd8` image is published and deployed by digest; CI, both architecture smokes, backup integrity, health, worker and anonymous hosted/request checks passed. The owner's signed-in synthetic workflow remains open in [issue #91](https://github.com/timblazing/fillrate/issues/91). Runtime fixes after M8 acceptance will need a new image release.
+- Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The live signed-in UI road check is pending in [issue #92](https://github.com/timblazing/fillrate/issues/92). Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
+
 - The 52-state post-fix axe/focus/theme/reduced-motion rerun passes; manual contrast-incomplete cases and gallery checks remain in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md) and [issue #90](https://github.com/timblazing/fillrate/issues/90).
 - The `e95f3cb` image is published (PR #72); final dashboard image publication and deployment by digest remain open in [issue #91](https://github.com/timblazing/fillrate/issues/91). Deployment is owner-controlled and is not inferred from a successful image workflow.
 - Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The owner's signed-in UI road check passed on 2026-10-07 ([#92](https://github.com/timblazing/fillrate/issues/92)); default road travel and geometry are tracked in [#98](https://github.com/timblazing/fillrate/issues/98). Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
@@ -188,4 +202,4 @@ See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for the f
 
 ## Next step
 
-Continue with [issue #88](https://github.com/timblazing/fillrate/issues/88), [issue #89](https://github.com/timblazing/fillrate/issues/89), and [issue #90](https://github.com/timblazing/fillrate/issues/90) for dashboard, performance and manual accessibility acceptance. Then close [issue #91](https://github.com/timblazing/fillrate/issues/91) for final image/deployment; owner checks are tracked in [issues #92](https://github.com/timblazing/fillrate/issues/92) and [#93](https://github.com/timblazing/fillrate/issues/93). See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
+Continue with [issue #88](https://github.com/timblazing/fillrate/issues/88), [issue #89](https://github.com/timblazing/fillrate/issues/89), and [issue #90](https://github.com/timblazing/fillrate/issues/90) for dashboard, performance and manual accessibility acceptance. Finish the owner's live workflow in [#91](https://github.com/timblazing/fillrate/issues/91), road geometry in [#92](https://github.com/timblazing/fillrate/issues/92), and native timing evidence in [#93](https://github.com/timblazing/fillrate/issues/93). Runtime fixes from #88–#90 may require another published image. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.

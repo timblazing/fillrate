@@ -37,7 +37,7 @@
       "weight": 12,
       "done": 99,
       "state": "waiting",
-      "notes": "Done: directed travel snapshots and browser matrix workflows; a pinned Valhalla 3.9.0 Compose profile with prepare.sh, coverage pre-check and live checks (local Colima evidence), so `directed_road_travel` is implemented; inspected-route road geometry; durable Valhalla snapshot jobs; time windows and service durations; manual plan evaluator with saved manual baselines as warm-start sources; verified warm starts; heterogeneous fleet in the fulfillment pipeline; Solver Lab with load dimensions, mixed fleets, multiple depots, reloads and optional clients/prizes, alternative client groups and pickup-delivery pairs (all native PyVRP). Hosted Valhalla (OK + bordering states) runs on the VPS from prebuilt tiles under resource caps, with coverage, matrix, route, resource and timing evidence (2026-10-07). Remaining (owner): a signed-in UI road check on the live site."
+      "notes": "Done: directed travel snapshots and browser matrix workflows; a pinned Valhalla 3.9.0 Compose profile with prepare.sh, coverage pre-check and live checks (local Colima evidence), so `directed_road_travel` is implemented; inspected-route road geometry; durable Valhalla snapshot jobs; time windows and service durations; manual plan evaluator with saved manual baselines as warm-start sources; verified warm starts; heterogeneous fleet in the fulfillment pipeline; Solver Lab with load dimensions, mixed fleets, multiple depots, reloads and optional clients/prizes, alternative client groups and pickup-delivery pairs (all native PyVRP). Hosted Valhalla (OK + bordering states) runs on the VPS from prebuilt tiles under resource caps, with coverage, matrix, route, resource and timing evidence (2026-10-07). Owner signed-in road UI check passed (#99); hosted road automation remains in #98."
     },
     "M7": {
       "weight": 6,
@@ -47,9 +47,9 @@
     },
     "M8": {
       "weight": 7,
-      "done": 87,
+      "done": 90,
       "state": "active",
-      "notes": "Planning estimate: 87%. Local candidate f01687b passes 52-state post-fix axe/theme/viewport/reduced-motion and sampled focus checks; shared swatch contrast/page-counter semantics fixed, hosted-road FAQ and gallery reference copy reconciled. Scoped results/matrix timing trials recorded. Open: manual incomplete contrast and gallery review, six-Block states and broader/cold performance, final candidate CI/image/deployment, owner road UI and native timings."
+      "notes": "Planning estimate: 90%. Runtime 698fbd8 was tested, published and deployed by digest; owner signed-in synthetic and road checks passed (#99). Remaining: six-Block acceptance (#88/#100), hosted road automation (#98), representative frontend performance (#89), final candidate image/deployment, and optional native VPS timings (#93). Manual accessibility and Raspberry Pi are outside v1 demo scope."
     }
   },
   "nextUp": [
