@@ -17,9 +17,8 @@ import { type RoadGeometry, RoadGeometryControl } from "./road-geometry"
 const TimelineMap = dynamic(() => import("./timeline-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
 /** Timeline tab: pick a shipment, scrub its planned route, and watch the map marker follow the cursor. */
-export function TimelinePanel({ summary, geo, canFetch }: { summary: RunSummary; geo: RoadGeometry; canFetch: boolean }) {
+export function TimelinePanel({ summary, geo, canFetch, truckId, onSelectTruck }: { summary: RunSummary; geo: RoadGeometry; canFetch: boolean; truckId: string | null; onSelectTruck: (id: string) => void }) {
   const trucks = summary.trucks
-  const [truckId, setTruckId] = useState(trucks[0]?.id ?? "")
   const [cursor, setCursor] = useState(0)
   const places = useMemo(() => new globalThis.Map(summary.locations.map((l) => [l.id, l])), [summary])
   const truck = trucks.find((t) => t.id === truckId) ?? trucks[0]
@@ -64,7 +63,7 @@ export function TimelinePanel({ summary, geo, canFetch }: { summary: RunSummary;
               <Select
                 value={truck.id}
                 onValueChange={(v) => {
-                  setTruckId(v as string)
+                  onSelectTruck(v as string)
                   setCursor(0)
                 }}
                 items={items}

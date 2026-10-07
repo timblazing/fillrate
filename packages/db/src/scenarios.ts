@@ -28,7 +28,7 @@ export function validateMetadata(input: ScenarioMetadata) {
 const NOT_LAB = "coalesce(json_extract(v.document, '$.document.kind'), '') <> 'lab_instance'";
 /** One owner's scenarios at their latest revision (bundled examples and lab instances are never listed). */
 export function scenarioList(store: Store, ownerId = OPERATOR) {
-  return store.sqlite.prepare(`SELECT s.id, s.name, v.id AS versionId, v.revision, v.author, v.createdAt, (SELECT parentVersionId FROM scenario_versions WHERE scenarioId=s.id AND revision=1) AS branchedFrom FROM scenarios s JOIN scenario_versions v ON v.scenarioId=s.id WHERE s.ownerId=? AND ${NOT_LAB} AND v.revision=(SELECT MAX(revision) FROM scenario_versions WHERE scenarioId=s.id) ORDER BY v.createdAt DESC LIMIT 100`).all(ownerId);
+  return store.sqlite.prepare(`SELECT s.id, s.name, v.id AS versionId, v.revision, v.author, v.createdAt, json_extract(v.document,'$.depot.label') AS depotLabel, (SELECT COUNT(*) FROM json_each(v.document,'$.orders')) AS orderCount, (SELECT parentVersionId FROM scenario_versions WHERE scenarioId=s.id AND revision=1) AS branchedFrom FROM scenarios s JOIN scenario_versions v ON v.scenarioId=s.id WHERE s.ownerId=? AND ${NOT_LAB} AND v.revision=(SELECT MAX(revision) FROM scenario_versions WHERE scenarioId=s.id) ORDER BY v.createdAt DESC LIMIT 100`).all(ownerId);
 }
 /** A version of one owner's scenario; another owner's scenario (or a lab instance) reads as missing. */
 export function scenarioVersion(store: Store, scenarioId: string, versionId?: string, ownerId = OPERATOR) {

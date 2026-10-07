@@ -417,7 +417,7 @@ function Results({ summary, run, runKey, canEvaluate, rerun, geo }: { summary: R
           <ShipmentTable summary={summary} clusterIndex={clusterIndex} truck={truck} onSelect={selectTruck} cluster={cluster} onClearCluster={() => setCluster(null)} runId={run.id} />
         </TabsPanel>
         <TabsPanel value="timeline" className="pt-3">
-          <TimelinePanel summary={summary} geo={geo} canFetch={canEvaluate} />
+          <TimelinePanel key={truck ?? ""} summary={summary} geo={geo} canFetch={canEvaluate} truckId={truck} onSelectTruck={selectTruck} />
         </TabsPanel>
         <TabsPanel value="manual" className="pt-3">
           <ManualPlanPanel summary={summary} runId={run.id} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun} />
