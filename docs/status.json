@@ -47,14 +47,14 @@
     },
     "M8": {
       "weight": 7,
-      "done": 86,
+      "done": 87,
       "state": "active",
-      "notes": "Planning estimate: 86%. Integrated: shipment-sheet print with unshipped reasons (#80), recovery (#81), specified CARTO credits (#79; keyless risk accepted), accessibility fixes and keyboard-scroll smoke stabilization (#83), hosted Valhalla service evidence (#82, M6). Final source CI 37651252038 passed checks/npm and the standard browser suite; optional live road geometry was skipped without a CI provider. Open: post-fix accessibility acceptance, final candidate performance/copy/gallery reconciliation, final image/deployment, owner road UI and native timings."
+      "notes": "Planning estimate: 87%. Local candidate f01687b passes 52-state post-fix axe/theme/viewport/reduced-motion and sampled focus checks; shared swatch contrast/page-counter semantics fixed, hosted-road FAQ and gallery reference copy reconciled. Scoped results/matrix timing trials recorded. Open: manual incomplete contrast and screen-reader/gallery review, six-Block states and broader/cold performance, final candidate CI/image/deployment, owner road UI and native timings."
     }
   },
   "nextUp": [
-    "Finish the post-fix accessibility audit and repeat performance trials on the integrated candidate.",
-    "Reconcile copy/capabilities/gallery with hosted OK7 roads; publish the final tested image and deploy by digest.",
-    "Owner: signed-in hosted road check; native VPS/Pi timings."
+    "Finish six-Block state acceptance and remaining manual accessibility review; measure representative 601-node, cold-load and broader interactions.",
+    "Publish the final verified frontend source/image and deploy by digest; retain scoped local timing limits.",
+    "Owner: signed-in hosted road check and native VPS/Pi timings; Valhalla warmed idle tuning is a separate live trial."
   ]
 }

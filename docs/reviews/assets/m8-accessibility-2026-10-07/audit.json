@@ -1,0 +1,3540 @@
+{
+  "source": "f01687b316f3998fd73c63c3cae520443defac12",
+  "browser": "agent-browser 0.37.1",
+  "checks": [
+    {
+      "page": "landing",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 40,
+          "incomplete": 1,
+          "passes": 22,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 4,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<h1 id=\"hero-title\" class=\"text-foreground text-[3.25rem] leading-[0.95] font-semibold tracking-[-0.06em] text-balance sm:text-7xl xl:text-[clamp(4.5rem,6.4vw,5.25rem)]\">Make more of <br class=\"hidden xl:block\">every truckload.</h1>",
+                "target": [
+                  "#hero-title"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<p class=\"text-muted-foreground mt-7 max-w-lg text-base leading-relaxed text-pretty sm:text-lg\">Plan how limited stock can fulfill open orders, then turn those deliveries into capacity-aware routes you can inspect and compare.</p>",
+                "target": [
+                  ".mt-7"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<button type=\"button\" class=\"relative inline-flex...\" data-slot=\"button\">",
+                "target": [
+                  "button"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<a href=\"#about\" class=\"relative inline-flex...\" data-slot=\"button\">",
+                "target": [
+                  ".border-transparent"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 9
+      }
+    },
+    {
+      "page": "landing",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 40,
+          "incomplete": 1,
+          "passes": 22,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 4,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<h1 id=\"hero-title\" class=\"text-foreground text-[3.25rem] leading-[0.95] font-semibold tracking-[-0.06em] text-balance sm:text-7xl xl:text-[clamp(4.5rem,6.4vw,5.25rem)]\">Make more of <br class=\"hidden xl:block\">every truckload.</h1>",
+                "target": [
+                  "#hero-title"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<p class=\"text-muted-foreground mt-7 max-w-lg text-base leading-relaxed text-pretty sm:text-lg\">Plan how limited stock can fulfill open orders, then turn those deliveries into capacity-aware routes you can inspect and compare.</p>",
+                "target": [
+                  ".mt-7"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<button type=\"button\" class=\"relative inline-flex...\" data-slot=\"button\">",
+                "target": [
+                  "button"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<a href=\"#about\" class=\"relative inline-flex...\" data-slot=\"button\">",
+                "target": [
+                  ".border-transparent"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 9
+      }
+    },
+    {
+      "page": "landing",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 40,
+          "incomplete": 1,
+          "passes": 22,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 4,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<h1 id=\"hero-title\" class=\"text-foreground text-[3.25rem] leading-[0.95] font-semibold tracking-[-0.06em] text-balance sm:text-7xl xl:text-[clamp(4.5rem,6.4vw,5.25rem)]\">Make more of <br class=\"hidden xl:block\">every truckload.</h1>",
+                "target": [
+                  "#hero-title"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<p class=\"text-muted-foreground mt-7 max-w-lg text-base leading-relaxed text-pretty sm:text-lg\">Plan how limited stock can fulfill open orders, then turn those deliveries into capacity-aware routes you can inspect and compare.</p>",
+                "target": [
+                  ".mt-7"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<button type=\"button\" class=\"relative inline-flex...\" data-slot=\"button\">",
+                "target": [
+                  "button"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<a href=\"#about\" class=\"relative inline-flex...\" data-slot=\"button\">",
+                "target": [
+                  ".border-transparent"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 9
+      }
+    },
+    {
+      "page": "landing",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 40,
+          "incomplete": 1,
+          "passes": 22,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 4,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<h1 id=\"hero-title\" class=\"text-foreground text-[3.25rem] leading-[0.95] font-semibold tracking-[-0.06em] text-balance sm:text-7xl xl:text-[clamp(4.5rem,6.4vw,5.25rem)]\">Make more of <br class=\"hidden xl:block\">every truckload.</h1>",
+                "target": [
+                  "#hero-title"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<p class=\"text-muted-foreground mt-7 max-w-lg text-base leading-relaxed text-pretty sm:text-lg\">Plan how limited stock can fulfill open orders, then turn those deliveries into capacity-aware routes you can inspect and compare.</p>",
+                "target": [
+                  ".mt-7"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<button type=\"button\" class=\"relative inline-flex...\" data-slot=\"button\">",
+                "target": [
+                  "button"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it is overlapped by another element",
+                "html": "<a href=\"#about\" class=\"relative inline-flex...\" data-slot=\"button\">",
+                "target": [
+                  ".border-transparent"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 9
+      }
+    },
+    {
+      "page": "scenarios",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/scenarios",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "scenarios",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/scenarios",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "scenarios",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/scenarios",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "scenarios",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 38,
+          "incomplete": 0,
+          "passes": 24,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/scenarios",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "runs",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 40,
+          "incomplete": 0,
+          "passes": 22,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "runs",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 40,
+          "incomplete": 0,
+          "passes": 22,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "runs",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 39,
+          "incomplete": 0,
+          "passes": 23,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "runs",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 39,
+          "incomplete": 0,
+          "passes": 23,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-map",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 33,
+          "incomplete": 1,
+          "passes": 29,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 1,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span>Schematic straight line</span>",
+                "target": [
+                  "li[data-layer=\"schematic_straight_line\"] > span"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-map",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 33,
+          "incomplete": 1,
+          "passes": 29,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 1,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span>Schematic straight line</span>",
+                "target": [
+                  "li[data-layer=\"schematic_straight_line\"] > span"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-map",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 32,
+          "incomplete": 1,
+          "passes": 30,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 19,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span>Schematic straight line</span>",
+                "target": [
+                  "li[data-layer=\"schematic_straight_line\"] > span"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Stops</th>",
+                "target": [
+                  "th:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Widest pair</th>",
+                "target": [
+                  "th:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tbody > tr:nth-child(1) > .text-right:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tbody > tr:nth-child(1) > .text-right:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(3) > .text-right:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(3) > .text-right:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(4) > .text-right:nth-child(5)"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-map",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 32,
+          "incomplete": 1,
+          "passes": 30,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 19,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span>Schematic straight line</span>",
+                "target": [
+                  "li[data-layer=\"schematic_straight_line\"] > span"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Stops</th>",
+                "target": [
+                  "th:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Widest pair</th>",
+                "target": [
+                  "th:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tbody > tr:nth-child(1) > .text-right:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tbody > tr:nth-child(1) > .text-right:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(3) > .text-right:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(3) > .text-right:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(4) > .text-right:nth-child(5)"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-shipments",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 33,
+          "incomplete": 0,
+          "passes": 29,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-shipments",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 33,
+          "incomplete": 0,
+          "passes": 29,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-shipments",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 32,
+          "incomplete": 1,
+          "passes": 30,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 180,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Linear ft</th>",
+                "target": [
+                  "th:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Loaded miles</th>",
+                "target": [
+                  "th:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Value</th>",
+                "target": [
+                  "th:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Sheet</th>",
+                "target": [
+                  "th:nth-child(7)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(6)"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-shipments",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 32,
+          "incomplete": 1,
+          "passes": 30,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 180,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Linear ft</th>",
+                "target": [
+                  "th:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Loaded miles</th>",
+                "target": [
+                  "th:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Value</th>",
+                "target": [
+                  "th:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Sheet</th>",
+                "target": [
+                  "th:nth-child(7)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(6)"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "run-unshipped",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 34,
+          "incomplete": 0,
+          "passes": 28,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 16
+      }
+    },
+    {
+      "page": "run-unshipped",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 34,
+          "incomplete": 0,
+          "passes": 28,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 16
+      }
+    },
+    {
+      "page": "run-unshipped",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 33,
+          "incomplete": 1,
+          "passes": 29,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 1312,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Pieces</th>",
+                "target": [
+                  "th:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Amount</th>",
+                "target": [
+                  "th:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 text-left align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0\" data-slot=\"table-head\">Reason</th>",
+                "target": [
+                  "th:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 text-left align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0\" data-slot=\"table-head\">Evidence</th>",
+                "target": [
+                  "th:nth-child(7)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element content is too short to determine if it is actual text content",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<div class=\"text-muted-foreground mt-1 text-[11px]\">step: allocation</div>",
+                "target": [
+                  ".align-top:nth-child(1) > .leading-none:nth-child(6) > .mt-1.text-\\[11px\\]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"bg-clip-padding p-2....\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(1) > .max-w-sm.whitespace-normal.text-muted-foreground"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element content is too short to determine if it is actual text content",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(5)"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 16
+      }
+    },
+    {
+      "page": "run-unshipped",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 33,
+          "incomplete": 1,
+          "passes": 29,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 1639,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Pieces</th>",
+                "target": [
+                  "th:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Amount</th>",
+                "target": [
+                  "th:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 text-left align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0\" data-slot=\"table-head\">Reason</th>",
+                "target": [
+                  "th:nth-child(6)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 text-left align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0\" data-slot=\"table-head\">Evidence</th>",
+                "target": [
+                  "th:nth-child(7)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element content is too short to determine if it is actual text content",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(1) > .text-right.tabular-nums.leading-none:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<span class=\"relative inline-flex...\" data-slot=\"badge\">",
+                "target": [
+                  ".align-top:nth-child(1) > .leading-none:nth-child(6) > .rounded-sm.h-5\\.5.min-w-5\\.5"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<div class=\"text-muted-foreground mt-1 text-[11px]\">step: allocation</div>",
+                "target": [
+                  ".align-top:nth-child(1) > .leading-none:nth-child(6) > .mt-1.text-\\[11px\\]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"bg-clip-padding p-2....\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(1) > .max-w-sm.whitespace-normal.text-muted-foreground"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element content is too short to determine if it is actual text content",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  ".align-top:nth-child(2) > .text-right.tabular-nums.leading-none:nth-child(4)"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 16
+      }
+    },
+    {
+      "page": "run-timeline",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 32,
+          "incomplete": 1,
+          "passes": 30,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 2,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span>Schematic straight line</span>",
+                "target": [
+                  "li[data-layer=\"schematic_straight_line\"] > span"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span data-testid=\"timeline-map-state\" class=\"bg-background/90 absolute top-2 left-2 rounded-md px-2 py-1 text-[11px] backdrop-blur\">At depot</span>",
+                "target": [
+                  ".top-2"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 23
+      }
+    },
+    {
+      "page": "run-timeline",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 32,
+          "incomplete": 1,
+          "passes": 30,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 2,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span>Schematic straight line</span>",
+                "target": [
+                  "li[data-layer=\"schematic_straight_line\"] > span"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span data-testid=\"timeline-map-state\" class=\"bg-background/90 absolute top-2 left-2 rounded-md px-2 py-1 text-[11px] backdrop-blur\">At depot</span>",
+                "target": [
+                  ".top-2"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 23
+      }
+    },
+    {
+      "page": "run-timeline",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 31,
+          "incomplete": 1,
+          "passes": 31,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 2,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span>Schematic straight line</span>",
+                "target": [
+                  "li[data-layer=\"schematic_straight_line\"] > span"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span data-testid=\"timeline-map-state\" class=\"bg-background/90 absolute top-2 left-2 rounded-md px-2 py-1 text-[11px] backdrop-blur\">At depot</span>",
+                "target": [
+                  ".top-2"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 23
+      }
+    },
+    {
+      "page": "run-timeline",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 31,
+          "incomplete": 1,
+          "passes": 31,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 2,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span>Schematic straight line</span>",
+                "target": [
+                  "li[data-layer=\"schematic_straight_line\"] > span"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<span data-testid=\"timeline-map-state\" class=\"bg-background/90 absolute top-2 left-2 rounded-md px-2 py-1 text-[11px] backdrop-blur\">At depot</span>",
+                "target": [
+                  ".top-2"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 23
+      }
+    },
+    {
+      "page": "sheet",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 37,
+          "incomplete": 0,
+          "passes": 25,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e/sheet",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 13
+      }
+    },
+    {
+      "page": "sheet",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 37,
+          "incomplete": 0,
+          "passes": 25,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e/sheet",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 13
+      }
+    },
+    {
+      "page": "sheet",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 37,
+          "incomplete": 0,
+          "passes": 25,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e/sheet",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 13
+      }
+    },
+    {
+      "page": "sheet",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 37,
+          "incomplete": 0,
+          "passes": 25,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/runs/149bab63-d78d-46e1-84dd-60930f3b636e/sheet",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 13
+      }
+    },
+    {
+      "page": "experiments",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 36,
+          "incomplete": 0,
+          "passes": 26,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/experiments",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "experiments",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 36,
+          "incomplete": 0,
+          "passes": 26,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/experiments",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "experiments",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 35,
+          "incomplete": 0,
+          "passes": 27,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/experiments",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "experiments",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 35,
+          "incomplete": 0,
+          "passes": 27,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/experiments",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "comparison",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 33,
+          "incomplete": 0,
+          "passes": 29,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/experiments/5a73e2a6-f5b8-4f4c-a48c-740981ba9849",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "comparison",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 33,
+          "incomplete": 0,
+          "passes": 29,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/experiments/5a73e2a6-f5b8-4f4c-a48c-740981ba9849",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "comparison",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 32,
+          "incomplete": 0,
+          "passes": 30,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/experiments/5a73e2a6-f5b8-4f4c-a48c-740981ba9849",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "comparison",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 32,
+          "incomplete": 0,
+          "passes": 30,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/experiments/5a73e2a6-f5b8-4f4c-a48c-740981ba9849",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 25
+      }
+    },
+    {
+      "page": "explorer",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 36,
+          "incomplete": 1,
+          "passes": 26,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 14,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<div class=\"flex items-center gap-1.5 [&amp;&gt;svg]:h-3 [&amp;&gt;svg]:w-3 [&amp;&gt;svg]:text-muted-foreground\"><div class=\"h-2 w-2 shrink-0 rounded-[2px]\" style=\"background-color: var(--color-inertia);\"></div>Squared-error sum (feature space)</div>",
+                "target": [
+                  ".\\[\\&\\>svg\\]\\:h-3.\\[\\&\\>svg\\]\\:w-3.\\[\\&\\>svg\\]\\:text-muted-foreground:nth-child(1)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<div class=\"flex items-center gap-1.5 [&amp;&gt;svg]:h-3 [&amp;&gt;svg]:w-3 [&amp;&gt;svg]:text-muted-foreground\"><div class=\"h-2 w-2 shrink-0 rounded-[2px]\" style=\"background-color: var(--color-stability);\"></div>Seed stability (mean ARI)</div>",
+                "target": [
+                  ".\\[\\&\\>svg\\]\\:h-3.\\[\\&\\>svg\\]\\:w-3.\\[\\&\\>svg\\]\\:text-muted-foreground:nth-child(2)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"44\" dy=\"0.71em\">k=2</tspan>",
+                "target": [
+                  "tspan[dy=\"0.71em\"][x=\"44\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"542\" dy=\"0.71em\">k=3</tspan>",
+                "target": [
+                  "tspan[x=\"542\"][dy=\"0.71em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.0</tspan>",
+                "target": [
+                  "text[y=\"166\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.0085</tspan>",
+                "target": [
+                  "text[y=\"127.5\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.017</tspan>",
+                "target": [
+                  "text[y=\"89\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.025</tspan>",
+                "target": [
+                  "text[y=\"50.50000000000002\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.034</tspan>",
+                "target": [
+                  "text[width=\"44\"][orientation=\"left\"][y=\"12\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"550\" dy=\"0.355em\">0.0</tspan>",
+                "target": [
+                  "text[y=\"166\"][orientation=\"right\"][width=\"32\"] > tspan[x=\"550\"][dy=\"0.355em\"]"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/explore/c8713d1d-6700-4ceb-84c0-05d717a752fa",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 21
+      }
+    },
+    {
+      "page": "explorer",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 36,
+          "incomplete": 1,
+          "passes": 26,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 14,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<div class=\"flex items-center gap-1.5 [&amp;&gt;svg]:h-3 [&amp;&gt;svg]:w-3 [&amp;&gt;svg]:text-muted-foreground\"><div class=\"h-2 w-2 shrink-0 rounded-[2px]\" style=\"background-color: var(--color-inertia);\"></div>Squared-error sum (feature space)</div>",
+                "target": [
+                  ".\\[\\&\\>svg\\]\\:h-3.\\[\\&\\>svg\\]\\:w-3.\\[\\&\\>svg\\]\\:text-muted-foreground:nth-child(1)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<div class=\"flex items-center gap-1.5 [&amp;&gt;svg]:h-3 [&amp;&gt;svg]:w-3 [&amp;&gt;svg]:text-muted-foreground\"><div class=\"h-2 w-2 shrink-0 rounded-[2px]\" style=\"background-color: var(--color-stability);\"></div>Seed stability (mean ARI)</div>",
+                "target": [
+                  ".\\[\\&\\>svg\\]\\:h-3.\\[\\&\\>svg\\]\\:w-3.\\[\\&\\>svg\\]\\:text-muted-foreground:nth-child(2)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"44\" dy=\"0.71em\">k=2</tspan>",
+                "target": [
+                  "tspan[dy=\"0.71em\"][x=\"44\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"542\" dy=\"0.71em\">k=3</tspan>",
+                "target": [
+                  "tspan[x=\"542\"][dy=\"0.71em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.0</tspan>",
+                "target": [
+                  "text[y=\"182\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.0085</tspan>",
+                "target": [
+                  "text[y=\"139.5\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.017</tspan>",
+                "target": [
+                  "text[y=\"97\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.025</tspan>",
+                "target": [
+                  "text[y=\"54.50000000000002\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.034</tspan>",
+                "target": [
+                  "text[width=\"44\"][orientation=\"left\"][y=\"12\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"550\" dy=\"0.355em\">0.0</tspan>",
+                "target": [
+                  "text[y=\"182\"][orientation=\"right\"][width=\"32\"] > tspan[x=\"550\"][dy=\"0.355em\"]"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/explore/c8713d1d-6700-4ceb-84c0-05d717a752fa",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 21
+      }
+    },
+    {
+      "page": "explorer",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 35,
+          "incomplete": 1,
+          "passes": 27,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 17,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<div class=\"flex items-center gap-1.5 [&amp;&gt;svg]:h-3 [&amp;&gt;svg]:w-3 [&amp;&gt;svg]:text-muted-foreground\"><div class=\"h-2 w-2 shrink-0 rounded-[2px]\" style=\"background-color: var(--color-inertia);\"></div>Squared-error sum (feature space)</div>",
+                "target": [
+                  ".\\[\\&\\>svg\\]\\:h-3.\\[\\&\\>svg\\]\\:w-3.\\[\\&\\>svg\\]\\:text-muted-foreground:nth-child(1)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<div class=\"flex items-center gap-1.5 [&amp;&gt;svg]:h-3 [&amp;&gt;svg]:w-3 [&amp;&gt;svg]:text-muted-foreground\"><div class=\"h-2 w-2 shrink-0 rounded-[2px]\" style=\"background-color: var(--color-stability);\"></div>Seed stability (mean ARI)</div>",
+                "target": [
+                  ".\\[\\&\\>svg\\]\\:h-3.\\[\\&\\>svg\\]\\:w-3.\\[\\&\\>svg\\]\\:text-muted-foreground:nth-child(2)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"44\" dy=\"0.71em\">k=2</tspan>",
+                "target": [
+                  "tspan[dy=\"0.71em\"][x=\"44\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"299\" dy=\"0.71em\">k=3</tspan>",
+                "target": [
+                  "tspan[x=\"299\"][dy=\"0.71em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.0</tspan>",
+                "target": [
+                  "text[y=\"182\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.0085</tspan>",
+                "target": [
+                  "text[y=\"139.5\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.017</tspan>",
+                "target": [
+                  "text[y=\"97\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.025</tspan>",
+                "target": [
+                  "text[y=\"54.50000000000002\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.034</tspan>",
+                "target": [
+                  "text[width=\"44\"][orientation=\"left\"][y=\"12\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"307\" dy=\"0.355em\">0.0</tspan>",
+                "target": [
+                  "text[y=\"182\"][orientation=\"right\"][width=\"32\"] > tspan[x=\"307\"][dy=\"0.355em\"]"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/explore/c8713d1d-6700-4ceb-84c0-05d717a752fa",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 21
+      }
+    },
+    {
+      "page": "explorer",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 35,
+          "incomplete": 1,
+          "passes": 27,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 17,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<div class=\"flex items-center gap-1.5 [&amp;&gt;svg]:h-3 [&amp;&gt;svg]:w-3 [&amp;&gt;svg]:text-muted-foreground\"><div class=\"h-2 w-2 shrink-0 rounded-[2px]\" style=\"background-color: var(--color-inertia);\"></div>Squared-error sum (feature space)</div>",
+                "target": [
+                  ".\\[\\&\\>svg\\]\\:h-3.\\[\\&\\>svg\\]\\:w-3.\\[\\&\\>svg\\]\\:text-muted-foreground:nth-child(1)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<div class=\"flex items-center gap-1.5 [&amp;&gt;svg]:h-3 [&amp;&gt;svg]:w-3 [&amp;&gt;svg]:text-muted-foreground\"><div class=\"h-2 w-2 shrink-0 rounded-[2px]\" style=\"background-color: var(--color-stability);\"></div>Seed stability (mean ARI)</div>",
+                "target": [
+                  ".\\[\\&\\>svg\\]\\:h-3.\\[\\&\\>svg\\]\\:w-3.\\[\\&\\>svg\\]\\:text-muted-foreground:nth-child(2)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"44\" dy=\"0.71em\">k=2</tspan>",
+                "target": [
+                  "tspan[dy=\"0.71em\"][x=\"44\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"299\" dy=\"0.71em\">k=3</tspan>",
+                "target": [
+                  "tspan[x=\"299\"][dy=\"0.71em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.0</tspan>",
+                "target": [
+                  "text[y=\"166\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.0085</tspan>",
+                "target": [
+                  "text[y=\"127.5\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.017</tspan>",
+                "target": [
+                  "text[y=\"89\"][width=\"44\"][orientation=\"left\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.025</tspan>",
+                "target": [
+                  "text[y=\"50.50000000000002\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"36\" dy=\"0.355em\">0.034</tspan>",
+                "target": [
+                  "text[width=\"44\"][orientation=\"left\"][y=\"12\"] > tspan[x=\"36\"][dy=\"0.355em\"]"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node",
+                "html": "<tspan x=\"307\" dy=\"0.355em\">0.0</tspan>",
+                "target": [
+                  "text[y=\"166\"][orientation=\"right\"][width=\"32\"] > tspan[x=\"307\"][dy=\"0.355em\"]"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/explore/c8713d1d-6700-4ceb-84c0-05d717a752fa",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 21
+      }
+    },
+    {
+      "page": "lesson",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 35,
+          "incomplete": 0,
+          "passes": 27,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/learn/fulfillment-pipeline",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 18
+      }
+    },
+    {
+      "page": "lesson",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 35,
+          "incomplete": 0,
+          "passes": 27,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/learn/fulfillment-pipeline",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 18
+      }
+    },
+    {
+      "page": "lesson",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 34,
+          "incomplete": 1,
+          "passes": 28,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 15,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Ordered pieces</th>",
+                "target": [
+                  "th:nth-child(3)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">On hand</th>",
+                "target": [
+                  "th:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Can fill</th>",
+                "target": [
+                  "th:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > td:nth-child(3)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > td:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > .text-warning-foreground"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > td:nth-child(3)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > td:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > td:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(3) > td:nth-child(3)"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/learn/fulfillment-pipeline",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 18
+      }
+    },
+    {
+      "page": "lesson",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 34,
+          "incomplete": 1,
+          "passes": 28,
+          "violations": 0
+        },
+        "incomplete": [
+          {
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/color-contrast?application=axeAPI",
+            "id": "color-contrast",
+            "impact": "serious",
+            "nodeCount": 15,
+            "nodes": [
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Ordered pieces</th>",
+                "target": [
+                  "th:nth-child(3)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">On hand</th>",
+                "target": [
+                  "th:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<th class=\"h-10 whitespace-nowrap px-2.5 align-middle font-medium text-muted-foreground leading-none has-[[role=checkbox]]:w-px last:has-[[role=checkbox]]:ps-0 first:has-[[role=checkbox]]:pe-0 text-right\" data-slot=\"table-head\">Can fill</th>",
+                "target": [
+                  "th:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > td:nth-child(3)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > td:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(1) > .text-warning-foreground"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > td:nth-child(3)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > td:nth-child(4)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(2) > td:nth-child(5)"
+                ]
+              },
+              {
+                "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because it's partially obscured by another element",
+                "html": "<td class=\"whitespace-nowrap bg...\" data-slot=\"table-cell\">",
+                "target": [
+                  "tr:nth-child(3) > td:nth-child(3)"
+                ]
+              }
+            ],
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/learn/fulfillment-pipeline",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 18
+      }
+    },
+    {
+      "page": "labs",
+      "width": 1440,
+      "height": 900,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 34,
+          "incomplete": 0,
+          "passes": 28,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/labs",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 23
+      }
+    },
+    {
+      "page": "labs",
+      "width": 1440,
+      "height": 900,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 34,
+          "incomplete": 0,
+          "passes": 28,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/labs",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 23
+      }
+    },
+    {
+      "page": "labs",
+      "width": 393,
+      "height": 852,
+      "theme": "light",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 34,
+          "incomplete": 0,
+          "passes": 28,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/labs",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 23
+      }
+    },
+    {
+      "page": "labs",
+      "width": 393,
+      "height": 852,
+      "theme": "dark",
+      "axe": {
+        "axeVersion": "4.12.1",
+        "counts": {
+          "inapplicable": 34,
+          "incomplete": 0,
+          "passes": 28,
+          "violations": 0
+        },
+        "incomplete": [],
+        "lifecycle": {
+          "effectiveLaunch": {
+            "browserLaunched": true,
+            "engine": "chrome",
+            "launchHash": 10258691867336985000
+          },
+          "launched": false,
+          "relaunchedBrowser": false,
+          "restartedBackground": false,
+          "restoreStatus": "not_configured",
+          "reused": true,
+          "saveStatus": "not_attempted"
+        },
+        "url": "/labs",
+        "violations": []
+      },
+      "motion": {
+        "infinite": 0,
+        "reduced": true
+      },
+      "focus": {
+        "missing": [],
+        "sampled": 23
+      }
+    }
+  ]
+}
