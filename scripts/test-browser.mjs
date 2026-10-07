@@ -2465,10 +2465,11 @@ async function accessibilityFlow(baseURL, runKey) {
   const runId = await lessonFlow(baseURL, runKey);
   const { id: experimentId, explorerId } = await experimentFlow(baseURL, runKey);
   const access = `?key=${encodeURIComponent(runKey)}`;
+  const run = await fetchOkJson(baseURL, `/api/v1/runs/${runId}`, runKey, "x-run-key");
   const pages = [
     ["landing", "/"], ["scenarios", "/scenarios"], ["runs", "/runs"],
     ...["Map", "Shipments", "Unshipped", "Timeline"].map(tab => [`run-${tab.toLowerCase()}`, `/runs/${runId}${access}`, tab]),
-    ["sheet", `/runs/${runId}/sheet${access}`], ["experiments", `/experiments${access}`],
+    ["sheet", `/runs/${runId}/sheet${access}&shipment=${encodeURIComponent(run.summary.trucks[0].id)}`], ["experiments", `/experiments${access}`],
     ["comparison", `/experiments/${experimentId}${access}`], ["explorer", `/explore/${explorerId}${access}`],
     ["lesson", `/learn/fulfillment-pipeline${access}`], ["labs", "/labs"],
   ];
@@ -2499,7 +2500,7 @@ async function accessibilityFlow(baseURL, runKey) {
           const previous = document.activeElement;
           const position = [scrollX, scrollY];
           const style = el => [el, el.parentElement, el.parentElement?.parentElement].filter(Boolean).map(node => { const s = getComputedStyle(node); return [s.outline, s.boxShadow, s.borderColor].join('|') }).join(';');
-          const controls = [...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex="0"]')].filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').slice(0,25);
+          const controls = [...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex="0"]')].filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length && el.checkVisibility({checkVisibilityCSS:true,checkOpacity:true}) && !el.closest('[inert]')).slice(0,25);
           const missing = [];
           for (const el of controls) {
             document.activeElement?.blur();
