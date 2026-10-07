@@ -6,12 +6,35 @@
 - Removed four superseded root-level `compose.yaml.pre-*` snapshots after preserving the current Compose file in the private upgrade backup. Tagged the new image `sha-698fbd8`; kept the prior `latest` image as the immediate rollback image. No other old Fillrate image was present. Database backups and active Valhalla tiles remain under their existing retention/use.
 - The owner's signed-in import → run → inspect → export and road geometry checks remain open in [#91](https://github.com/timblazing/fillrate/issues/91) and [#92](https://github.com/timblazing/fillrate/issues/92). M8 frontend issues [#88](https://github.com/timblazing/fillrate/issues/88)–[#90](https://github.com/timblazing/fillrate/issues/90) and native target timings [#93](https://github.com/timblazing/fillrate/issues/93) remain open; this release does not close M8.
 
+## 2026-10-07: Issue triage session handoff (Claude)
+Owner decisions this session. The decisions log has the full entry.
+- **No Raspberry Pi target.** The Hostinger VPS is the only deployment target. Pi references were removed from docs and issues ([#96](https://github.com/timblazing/fillrate/pull/96)). arm64 images stay for local Docker on ARM hosts. [#93](https://github.com/timblazing/fillrate/issues/93) now covers native timings on the VPS only; I have SSH access as `hostinger`.
+- **No VoiceOver or physical-device testing, and accessibility is out of scope for the v1 demo.** [#90](https://github.com/timblazing/fillrate/issues/90) was closed as not planned; the automated audit stays as historical evidence.
+- **Owner live checks passed** on the deployed `698fbd8` ([#99](https://github.com/timblazing/fillrate/pull/99); #91 and #92 closed). Synthetic test files are in the owner's `~/Downloads/fillrate-demo-{orders,inventory}.csv`.
+- **Hosted travel redesign** ([#98](https://github.com/timblazing/fillrate/issues/98), not started):
+  - With Valhalla configured, runs always use roads, the matrix is built automatically and the Estimated option is removed.
+  - Stops outside coverage block the run and are named.
+  - Road geometry is computed for every shipment and drawn by default.
+  - The heatmap becomes a one-line summary.
+  - Exports are labelled with the run's real travel provider; the Shipment sheets CSV currently says "haversine × 1.2" on Valhalla runs.
+  - GeoJSON export uses the road shapes.
+- **[#88](https://github.com/timblazing/fillrate/issues/88) is in progress** in draft [#100](https://github.com/timblazing/fillrate/pull/100), stopped mid-session. It holds the required depot, the depot shown and editable on loaded scenarios, distinguishable saved scenarios, shared shipment selection on the Timeline tab, and experiment deltas. It is unverified and conflicts with #97 in `scenario-workbench.tsx`.
+- **Order of work:** finish #100, then #98, then [#89](https://github.com/timblazing/fillrate/issues/89) (performance; agreed method: this Mac's headless Chromium against a local production build, 3+ cold and warm trials per viewport, plus one cold-load pass against the live site), then #93.
+- **Working agreement:** merge PRs once checks pass without asking the owner. Ask the owner only for decisions or for things that need their account or hardware. Put any instructions for the owner in the final message of a turn.
+
+
+## 2026-10-07: Owner live checks on deployed `698fbd8` (Claude)
+- The approved owner, signed in on fillrate.blasingame.dev, ran the synthetic workflow: CSV import of 23 lines / 15 stops in OK/TX/KS with an Oklahoma City depot and one product short → save → run → shipments and unshipped reasons → Shipment sheets CSV export. Run `2945783c` succeeded, validated and complete: 7 shipments, 89% fill, $3,685 planned and $1,232 unshipped. Closes [#91](https://github.com/timblazing/fillrate/issues/91).
+- Hosted roads: **Build road matrix (Valhalla)** produced a 16-node snapshot with 240/240 directed edges, 0 warnings and an exact coordinate match. The run used it (1,646 loaded mi; Travel step "Recorded"). **Show road geometry** for Shipment 1 drew 3/3 legs along roads, 289.5 km road versus 289.5 km matrix, with no notable differences. Closes [#92](https://github.com/timblazing/fillrate/issues/92); M6 road gate met.
+- Owner findings, tracked in [#98](https://github.com/timblazing/fillrate/issues/98): hosted runs default to Estimated travel unless a matrix is built by hand; road geometry only appears after a per-shipment button; the matrix heatmap is unclear; the Shipment sheets CSV header says "miles are estimated (haversine × 1.2)" on a Valhalla run, though the values are road miles. The owner decided: roads always on hosted with automatic matrix builds, stops outside coverage block the run, road geometry is drawn by default, and the heatmap becomes a summary.
+- Owner workbench findings went to the #88 work: a loaded scenario's depot isn't visible (the Import card resets to a Memphis default), and saved scenarios aren't distinguishable in the list.
+
 ## 2026-10-07: Integrate verified Valhalla and frontend PRs (Codex)
 - Valhalla tuning/evidence [#85](https://github.com/timblazing/fillrate/pull/85) squash-merged at `67dca58` after [CI 37657236024](https://github.com/timblazing/fillrate/actions/runs/37657236024) passed checks/npm. Live memory and correctness evidence below remains scoped to the approved configuration trial, not a frontend image deployment.
 - Frontend [#86](https://github.com/timblazing/fillrate/pull/86) passed [CI 37657289931](https://github.com/timblazing/fillrate/actions/runs/37657289931) on `f670dbb`. Merging updated main preserves both sets of progress/decision entries; application, worker, contracts and browser-runner source are unchanged from that tested frontend head. Fresh integrated-head CI remains the merge gate.
 
 ## 2026-10-07: Repeatable post-fix accessibility and candidate timings (Codex)
-- Production candidate `f01687b` passed the retained 52-state accessibility rerun: 13 page states × light/dark × desktop/phone, zero automated WCAG A/AA violations/overflow/unreduced infinite motion and zero sampled focus failures (1,092 samples). [Audit and captures](reviews/m8-accessibility-audit-2026-10-07.md) retain axe incomplete contrast cases and screen-reader/gallery/physical-device limits.
+- Production candidate `f01687b` passed the retained 52-state accessibility rerun: 13 page states × light/dark × desktop/phone, zero automated WCAG A/AA violations/overflow/unreduced infinite motion and zero sampled focus failures (1,092 samples). [Audit and captures](reviews/m8-accessibility-audit-2026-10-07.md) retain axe incomplete contrast cases and gallery limits.
 - Fixed newly observed route/cluster swatch label contrast with paired foreground tokens and replaced an unsupported page-counter accessible-name attribute with actual screen-reader text. Landing travel copy now names hosted OK/TX/NM/CO/KS/MO/AR coverage and outside-coverage behavior; gallery descriptions now identify reference fixtures and simulated stages rather than pre-M3 candidates.
 - [Candidate performance](reviews/m8-candidate-performance-2026-10-07.md): three warm 2,000-order/443-shipment trials per viewport (47.1–98.1 ms desktop, 113.2–141.5 ms phone). Near-limit 1,001-node preview paint: 205.9–237.4 ms desktop, 220.3–230.2 ms phone. Results pagination/selection/keyboard scrolling/export/print, comparison/explorer and matrix save/run/directed legs/stale refusal passed. These are scoped local observations, not meaningful p95, cold-load or full frontend acceptance.
 - Lint/typecheck/build and 144/144 hosted/local checks pass; lint retains the existing HeroGlobe hook dependency warning. `--flow=accessibility` is a separate explicit acceptance command, with synthetic temporary data and no live credentials. Source publication, full candidate CI, final frontend image/deployment, broader six-Block/performance acceptance and owner target/live-road UI evidence remain open.
@@ -125,20 +148,23 @@ Published-image baseline: `e95f3cb`; release evidence integrated on `main` at `4
   - [x] Directed snapshots, pinned Valhalla local evidence, durable snapshot jobs and inspected road geometry.
   - [x] Time windows/service durations, saved manual baselines/warm starts and heterogeneous fulfillment fleet.
   - [x] Solver Lab dimensions, fleets, depots, reloads, optional visits, alternative groups and pickup-delivery pairs with validation.
-  - [x] VPS Valhalla (OK + bordering states) deployed with coverage, resource and timing evidence (2026-10-07); owner's signed-in UI check open.
+  - [x] VPS Valhalla (OK + bordering states) deployed with coverage, resource and timing evidence (2026-10-07); owner's signed-in UI check passed 2026-10-07.
 - [x] **M7 Learning and export depth**
   - [x] Fulfillment and advanced-feature lessons, pipeline/explorer replay, planned timeline/playback, GeoJSON and matrix exports.
 - [ ] **M8 Verification and handoff**
   - [x] Recorded 21 production browser flows at desktop/phone and 144 hosted/local checks (prior sessions; not rerun by this documentation pass).
   - [x] Request-access/admin phone review, npm-compatible scripts, native documentation and handoff.
-  - [x] Historical image target timings/recovery on VPS/Pi; native timings only in a dev container.
-  - [ ] Six-Block production coverage and dashboard integration acceptance; print and recovery fixes have local browser evidence, the 52-state post-fix accessibility rerun passes with manual contrast/screen-reader/gallery limits retained.
+  - [x] Historical image target timings/recovery on the VPS; native timings only in a dev container.
+  - [ ] Six-Block production coverage and dashboard integration acceptance; print and recovery fixes have local browser evidence, the 52-state post-fix accessibility rerun passes with manual contrast/gallery limits retained.
   - [ ] Measured 2,000-order and matrix frontend responsiveness/performance acceptance; the 443-shipment transition and 1,001-node preview are scoped observations only, with final candidate/cold and broader interaction measurements open.
   - [x] Basemap v1 decision and specified attribution links: owner accepts keyless CARTO risk; source/terms and light/dark rendered credit evidence are recorded in [basemap.md](basemap.md). Key/tier configuration remains a later owner follow-up.
   - [x] Current runtime image publication for `e95f3cb`: run 37482591185, both architecture smokes and manifest recorded in #72.
   - [x] Current tested runtime update for `698fbd8` published and deployed by digest; exact workflow, manifest and host checks are recorded above. A later dashboard fix that changes runtime code needs its own tested release.
   - [ ] Owner signed-in primary workflow on the deployed digest; see [issue #91](https://github.com/timblazing/fillrate/issues/91).
   - [ ] Native target timings on VPS/Pi for full distribution handoff.
+
+  - [ ] Final dashboard image release and deployed-digest evidence.
+  - [ ] Native timings on the VPS for full distribution handoff.
 
 ## Current state
 
@@ -154,8 +180,12 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 - The 52-state post-fix axe/focus/theme/reduced-motion rerun passes; manual contrast-incomplete cases, VoiceOver, physical-device and gallery checks remain in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md) and [issue #90](https://github.com/timblazing/fillrate/issues/90).
 - The `698fbd8` image is published and deployed by digest; CI, both architecture smokes, backup integrity, health, worker and anonymous hosted/request checks passed. The owner's signed-in synthetic workflow remains open in [issue #91](https://github.com/timblazing/fillrate/issues/91). Runtime fixes after M8 acceptance will need a new image release.
 - Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The live signed-in UI road check is pending in [issue #92](https://github.com/timblazing/fillrate/issues/92). Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
+
+- The 52-state post-fix axe/focus/theme/reduced-motion rerun passes; manual contrast-incomplete cases and gallery checks remain in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md) and [issue #90](https://github.com/timblazing/fillrate/issues/90).
+- The `e95f3cb` image is published (PR #72); final dashboard image publication and deployment by digest remain open in [issue #91](https://github.com/timblazing/fillrate/issues/91). Deployment is owner-controlled and is not inferred from a successful image workflow.
+- Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The owner's signed-in UI road check passed on 2026-10-07 ([#92](https://github.com/timblazing/fillrate/issues/92)); default road travel and geometry are tracked in [#98](https://github.com/timblazing/fillrate/issues/98). Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
 - Keyless CARTO is the owner-accepted v1 configuration. The terms record and specified rendered credit links exist; no CARTO key, tier or use classification is claimed.
-- Native timings on VPS/Pi are missing ([issue #93](https://github.com/timblazing/fillrate/issues/93)). Historical image timings/recovery remain valid for their recorded digest only.
+- Native timings on the VPS are missing ([issue #93](https://github.com/timblazing/fillrate/issues/93)). Historical image timings/recovery remain valid for their recorded digest only.
 - Manual editing cannot move visits between clusters. Warm starts reuse only compatible cluster visit/demand/travel sets; saved manual baselines are now supported.
 - Solver Lab supports advanced adapters but still uses JSON editing and estimated geographic travel/schematic display. Pickup-delivery pairs with reloads are refused. Generic Lab support does not imply business-pipeline support.
 - Snapshot node identity/coordinate matching is exact; edited coordinates require a new snapshot. Large snapshots and replay bundles have substantial in-memory/transfer cost.
@@ -168,7 +198,7 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 
 ## Waiting on the primary user (come back to this)
 
-See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for the final dashboard upgrade; VPS Valhalla service/coverage/timing evidence exists, with the owner’s signed-in road UI check still open; native target timings close the broader handoff. Real samples, rates and off-host backups retain their explicit optional/deferred scope. No design-file action remains.
+See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for the final dashboard upgrade; VPS Valhalla service/coverage/timing evidence exists, and the owner’s signed-in road UI check passed (2026-10-07); native target timings close the broader handoff. Real samples, rates and off-host backups retain their explicit optional/deferred scope. No design-file action remains.
 
 ## Next step
 

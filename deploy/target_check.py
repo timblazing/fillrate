@@ -75,7 +75,7 @@ def save(name: str, data) -> None:
 def cpu_model():
     info = Path("/proc/cpuinfo").read_text() if Path("/proc/cpuinfo").exists() else ""
     fields = dict(reversed([tuple(x.strip() for x in l.split(":", 1)) for l in info.splitlines() if ":" in l]))
-    return fields.get("model name") or fields.get("Model")  # x86 / Raspberry Pi
+    return fields.get("model name") or fields.get("Model")  # x86 / arm
 
 
 # --- 1. metadata -------------------------------------------------------------------------------

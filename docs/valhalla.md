@@ -16,8 +16,7 @@ The digest is the multi-arch index. Checked on 2026-10-05 with `docker manifest 
 | linux/amd64 | `sha256:3533496a1fce57cdd1856aed0449f90e8e0318ea12906178e35423760541f198` |
 | linux/arm64 | `sha256:7da5e294136b0a04de59ccbfc05aa11bf6805eeb07d8b60d23d08989130c2f9e` |
 
-The arm64 image was pulled and run on Apple silicon (Colima), which covers the Raspberry Pi 5's
-architecture; it has not run on the Pi itself. Keep the tag and digest in `compose.yaml` and
+The arm64 image was pulled and run on Apple silicon (Colima). Keep the tag and digest in `compose.yaml` and
 `deploy/valhalla/prepare.sh` in step when upgrading, and re-run the live checks below.
 
 ## Setup
@@ -134,7 +133,7 @@ Coverage chosen by the owner: Oklahoma and its bordering states. Geofabrik extra
 - **`region_check.py` from inside the Compose network** (2026-10-07): all 12 inside points locate on truck edges and Nashville TN / Phoenix AZ / Omaha NE do not. The 10 × 10 directed truck matrix has every pair (8.8 s; Oklahoma City → Dallas 332.2 km, return 332.9 km). The OKC → Dallas route returned geometry (0.32 s, 3.68 h). A 25 × 25 random block across the ~1,000 km extent had 0 nulls in 48.7 s. Peak container memory was 1.82 GiB of the 2.5 GiB cap, the host 1-minute load peaked at 1.10, and the public site answered 200 in 0.29 s during the check.
 - **App configuration**: the `fillrate` service has the `prepare.sh env` lines (625 pairs, 2,000 km). `/api/health` reports `road.valhalla` configured with the version, compact revision and graph hash, and `ValhallaConfig.from_env()` inside the hosted worker accepts the settings. The image was unchanged (`sha256:607f0b45…df3ff`, source `b296645`). Rollback: `compose.yaml.pre-valhalla` and the pre-change backup `fillrate-20261007T143812Z.sqlite` (SHA-256 `124e01f2…e209`, integrity ok, 12 migrations).
 - **Through Fillrate** (local production build and worker against a byte-equivalent serving copy with the same graph hash, 1 CPU / 2.5 GiB): `deploy/smoke_valhalla.py … ok7` passed. The durable snapshot job for 8 nodes built in 6.1 s; Nashville was reported outside coverage and unreachable; the run on the snapshot planned 1 truck and 1,183 road mi with every leg equal to the recorded matrix; the replay bundle shipped the snapshot; and a queued job cancelled. Inspected-truck road geometry was fetched and cached through `/api/v1/runs/<id>/geometry`.
-- **Not yet verified live**: a snapshot build, run and road geometry through the hosted site's UI. That needs a signed-in approved account (owner action). The default 50 × 50 block was not used on this host: it reached 3.7 GiB uncapped at the old distance limit.
+- **Verified live (2026-10-07)**: the owner, signed in, built a 16-node snapshot (240/240 edges), ran on it and drew Shipment 1's road geometry (3/3 legs, 289.5 km road versus matrix) through the hosted UI. The default 50 × 50 block was not used on this host: it reached 3.7 GiB uncapped at the old distance limit.
 
 
 ### Warmed idle memory follow-up (2026-10-07)
