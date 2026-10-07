@@ -185,6 +185,65 @@ snapshot and run under the new identity to fetch geometry. Already stored geomet
 identity. Do not relabel old snapshots to the new hash. To roll back, restore the backed-up JSON, restart
 Valhalla, regenerate the identity from its effective config and restore the matching app environment.
 
-This change is a prepared local tuning trial, not an applied VPS change or a measured memory fix.
+The local tuning was subsequently applied with owner approval and measured on the VPS; see the results below.
 If warmed idle is still too high, serving the same pinned graph on a separate host or an explicitly
 on-demand service can preserve functionality; those options need operational and cold-start acceptance.
+
+
+### Approved VPS tuning results (2026-10-07)
+
+The owner approved applying and benchmarking the conservative tuning. The existing app queue was idle
+(one completed job), and the app was briefly stopped to prevent new road requests during the configuration
+transition. Private backups under `~/containers/fillrate/backups/valhalla-memory-20261007` include the original
+Compose/effective JSON/app environment and an online SQLite backup (integrity `ok`, 12 migrations).
+Only `thor.clear_reserved_memory` changed in the effective routing configuration; existing matrix/search
+limits, pinned images, tile archive, one thread, one CPU and the 2.5 GiB memory/swap cap were preserved.
+The server still allows 2,500 matrix pairs; the app's bounded requests remain 625 pairs (25 × 25).
+No image was pulled or rebuilt and no tiles were rebuilt.
+
+After the restart, the graph/config identity changed from
+`sha256:3946a6965044f3caf6c156f6c35cbd4b567dbf0ea6a8df5ea729271c3e3bc9c9` to
+`sha256:208e3e70ea06dfa730910332081b2cff0b6cc2aa3758441ce335c09f4bbe338d`.
+Only that app environment variable changed; the same app image was recreated. `/api/health` reports the
+new identity, healthy database and connected worker. The tile archive SHA-256 remains
+`dc127c170540ea81ae4a933b45dbdf95b5487c478ff7acea559b73f654e665e8`; combining it with the backed-up
+configuration reproduced the original graph hash, verifying that the graph data stayed unchanged.
+
+The same `region_check.py points-ok7.json --max-block 25` check ran before the change, first after restart,
+and again without restarting. It uses `random.Random(0)` to generate the same block and all 25 points
+located on the graph. Every trial found all 12 inside points, excluded all three outside points, returned
+all directed pairs in both 10 × 10 and 25 × 25 matrices, and returned OKC → Dallas truck road geometry
+(332.2 km, 3.68 h, 15,077 shape characters). Canonical matrix-row SHA-256 values were identical in all
+three trials: `16396dfc…6f40` for 10 × 10 and `61a0b1c5…695a` for 25 × 25.
+
+| Measurement | Before tuning | First after restart | Repeat after tuning |
+| --- | --- | --- | --- |
+| 10 × 10 matrix | 7.073 s | 8.511 s | 7.197 s |
+| 25 × 25 matrix, zero null pairs | 39.012 s | 44.778 s | 43.445 s |
+| Route geometry | 0.212 s | 0.306 s | 0.238 s |
+| Sampled peak cgroup memory (0.5 s sampling) | 1.937 GiB | 1.376 GiB | 1.375 GiB |
+| At matrix response completion | 1.909 GiB | 1.349 GiB | 1.353 GiB |
+
+The first-after-restart run includes coverage and the 10 × 10 matrix before its 25 × 25 request; it is not
+an isolated cold-cache 25 × 25 sample. The repeat was about 11% slower than the single before sample;
+these are single trials on a shared VPS, not a latency distribution. Near one CPU was used during matrix
+searches, within the existing cap. The public site answered HTTP 200 in 0.237 s during the baseline,
+0.141 s during the first tuned trial, and 0.157 s after the repeat.
+
+The response-completion memory reading is too early to call steady idle: by 17 seconds after the repeat,
+the cgroup had dropped to 561 MiB (about 0.548 GiB), with about 553 MiB anonymous memory. At both 60 seconds
+and 300 seconds it remained 561 MiB. The process RSS was about 1.34 GiB and PSS 1.28 GiB, including mapped graph pages;
+the cgroup's charged memory and process resident memory are different measures and must not be conflated.
+Host available memory was about 5.40 GiB, compared with 4.34 GiB in the earlier idle observation.
+No swap, OOM events or automatic restarts were observed.
+
+At five minutes the cgroup measured 588,742,656 bytes (561.5 MiB), anonymous memory 580,313,088 bytes,
+and file charges 2,580,480 bytes; process RSS/PSS were 1,435,017,216/1,369,612,288 bytes. Host available
+memory was 5.42 GiB. CPU use over the final four idle minutes averaged about 0.23% of one core; the
+30-second health probes remained active. The public site answered HTTP 200 in 0.314 s at final idle.
+These readings and final sanitized evidence are under
+[the memory-trial assets](reviews/assets/valhalla-memory-2026-10-07/). Buffer clearing preserves the tested
+routing behavior while lowering retained private/search memory; it does not make the road service
+memory-free. Road queries can still rise toward the measured 1.38 GiB peak. The original-config rollback
+procedure above remains available. Signed-in hosted snapshot/run/geometry UI acceptance and long-running
+leak/load testing remain separate gates; this trial used synthetic direct-provider queries and health checks.
