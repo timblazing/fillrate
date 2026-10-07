@@ -1,7 +1,7 @@
 "use client"
 
 import type { RunSummary } from "@fillrate/contracts"
-import { ArrowLeft, Ban, Check, Download, Printer } from "lucide-react"
+import { ArrowLeft, Ban, Check, Download, Pencil, Printer } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
@@ -78,12 +78,14 @@ function useRun(initial: PipelineDetail) {
   return [run, setRun] as const
 }
 
-export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun }: { initial: PipelineDetail; canCancel: boolean; canEvaluate?: boolean; runKey?: string; rerun?: WarmRerun | null }) {
+export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun, scenarioHref = null }: { initial: PipelineDetail; canCancel: boolean; canEvaluate?: boolean; runKey?: string; rerun?: WarmRerun | null; scenarioHref?: string | null }) {
   const [run, setRun] = useRun(initial)
   const [cancelling, setCancelling] = useState(false)
   const active = ACTIVE.has(run.status)
   const listHref = `/runs${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`
   const failureCode = String(run.failure?.code ?? "error")
+  const ended = run.status === "failed" || run.status === "cancelled" || run.status === "interrupted"
+  const failure = failureCopy(failureCode)
   const geo = useRoadGeometry(run.id, runKey, run.status === "succeeded" && !!run.summary)
 
   async function cancel() {
@@ -123,9 +125,21 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
               {rerun && <WarmRerunButton source={{ kind: "run", run_id: run.id }} rerun={rerun} runKey={runKey} />}
             </>
           )}
+          {ended && scenarioHref && (
+            <Button variant="outline" size="sm" render={<Link href={scenarioHref} />}>
+              <Pencil aria-hidden /> Open scenario
+            </Button>
+          )}
+          {ended && rerun && <WarmRerunButton rerun={rerun} runKey={runKey} label="Run again" variant={run.status === "failed" && failure.fixFirst ? "outline" : "default"} />}
         </div>
       </div>
 
+      {active && run.attempt > 1 && (
+        <Alert variant="info">
+          <AlertTitle>Retrying: attempt {run.attempt} of {run.max_attempts}</AlertTitle>
+          <AlertDescription>The worker stopped responding during an earlier attempt, so the run restarted. Completed steps are reused where their inputs match.</AlertDescription>
+        </Alert>
+      )}
       {active && (
         <StepsPanel>
           <Progress run={run} />
@@ -133,25 +147,43 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
       )}
       {run.status === "failed" && (
         <Alert variant="error">
-          <AlertTitle>{failureCode === "preflight_blocked" ? "Blocked by preflight checks" : `Run failed: ${failureCode}`}</AlertTitle>
-          <AlertDescription>{String(run.failure?.message ?? "The worker reported a failure.")}</AlertDescription>
+          <AlertTitle>{failure.title}</AlertTitle>
+          <AlertDescription>
+            <p>{String(run.failure?.message ?? "The worker reported a failure.")}</p>
+            <p>
+              {failure.next}
+              {!rerun && " Start a new run from the scenario."}
+            </p>
+            <p className="font-mono text-[11px]">code {failureCode} · attempt {run.attempt} of {run.max_attempts}</p>
+          </AlertDescription>
         </Alert>
       )}
       {run.status === "cancelled" && (
         <Alert>
           <AlertTitle>Cancelled</AlertTitle>
-          <AlertDescription>The solver process was stopped. Nothing from this run is counted as planned.</AlertDescription>
+          <AlertDescription>The solver process was stopped. Nothing from this run is counted as planned.{rerun ? " Run again starts a new run with the same version and settings." : ""}</AlertDescription>
         </Alert>
       )}
       {run.status === "interrupted" && (
         <Alert variant="warning">
           <AlertTitle>Interrupted</AlertTitle>
-          <AlertDescription>The worker stopped responding on every attempt ({run.max_attempts}). Start a new run.</AlertDescription>
+          <AlertDescription>The worker stopped responding on every attempt ({run.max_attempts}). {rerun ? "Run again starts a new run with the same version and settings." : "Start a new run from the scenario."} If it keeps stopping, check the worker&apos;s health and memory.</AlertDescription>
         </Alert>
       )}
       {run.summary && <Results summary={run.summary} run={run} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun ?? null} geo={geo} />}
     </>
   )
+}
+
+/** Actionable copy for a failed run's code; `fixFirst` means rerunning the same input fails the same way. */
+function failureCopy(code: string): { title: string; next: string; fixFirst: boolean } {
+  if (code === "preflight_blocked")
+    return { title: "Blocked by preflight checks", next: "Open the scenario to fix or exclude the flagged stops, or change the check to a warning, then run again. Running the same version again is blocked the same way.", fixFirst: true }
+  if (code === "run_wall_limit")
+    return { title: "Stopped at the run time limit", next: "Lower the solve time per cluster or split the work into more clusters, then run again.", fixFirst: true }
+  if (code === "travel_snapshot_stale" || code === "travel_snapshot_not_found")
+    return { title: "Travel matrix no longer matches", next: "Rebuild or reselect the travel matrix for this version in the scenario, then run again.", fixFirst: true }
+  return { title: "Run failed", next: "Run again to retry with the same version and settings. If it fails the same way, the input or settings need to change.", fixFirst: false }
 }
 
 const WARM_REASON: Record<string, string> = {

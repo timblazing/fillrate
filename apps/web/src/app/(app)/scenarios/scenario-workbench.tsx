@@ -67,6 +67,8 @@ export function ScenarioWorkbench({ access }: { access: WorkbenchAccess }) {
   const pendingSave = useRef<{ request: string; key: string } | null>(null);
   const [capabilities, setCapabilities] = useState<GeocodeCapabilities | null>(null); const [geocodeJob, setGeocodeJob] = useState<GeocodeJob | null>(null);
   const [undo, setUndo] = useState<{ label: string; doc: ScenarioDocument }[]>([]);
+  // "Open scenario" from a failed, cancelled or interrupted run: ?scenario=&version=&run= opens that version with the run's settings.
+  const [opening, setOpening] = useState<{ scenario: string; version: string; run: string | null } | null>(null); const opened = useRef(false);
   useEffect(() => { fetch("/api/v1/geocode", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(setCapabilities, () => setCapabilities(null)) }, []);
   // Poll a geocoding job; when it finishes, open the version it saved.
   useEffect(() => {
@@ -86,10 +88,25 @@ export function ScenarioWorkbench({ access }: { access: WorkbenchAccess }) {
       const id = localStorage.getItem("fillrate.browser.v1") ?? crypto.randomUUID(); localStorage.setItem("fillrate.browser.v1", id); setBrowserId(id);
       // "Use this k" from an imported k explorer carries k and seed here (spec §8a, design review item 12).
       const picked = localStorage.getItem(USE_K_KEY); if (picked) { localStorage.removeItem(USE_K_KEY); const { k, seed } = JSON.parse(picked) as { k: number; seed: number }; setSettings(previous => ({ ...previous, cluster_strategy: "kmeans", k, kmeans_seed: seed })); setMessage(`Run settings: k = ${k}, k-means seed ${seed} from the k explorer. Load the scenario and run.`) }
+      const query = new URLSearchParams(window.location.search); const scenario = query.get("scenario"), version = query.get("version");
+      if (scenario && version) setOpening({ scenario, version, run: query.get("run") });
       setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone); const now = new Date(); setPlanningDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`);
     }, 0);
     return () => window.clearTimeout(timeout);
   }, []);
+  useEffect(() => {
+    if (!opening || opened.current || (usesKey && !key)) return;
+    opened.current = true; const { scenario, version, run } = opening;
+    void action(async () => {
+      await load(scenario, version);
+      if (!run) return;
+      const detail = await api<{ settings: RunSettings & { warm_start?: unknown } }>(`/api/v1/runs/${run}`);
+      const rest = { ...detail.settings }; delete rest.warm_start;
+      setSettings({ ...defaults, ...(rest as Partial<ScenarioRunSettings>) });
+      setMessage(`Opened the version and settings of run ${run.slice(0, 8)}. Fix the flagged data or settings, save, then run again.`);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opening, key]);
   async function api<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
     const response = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json", ...(usesKey ? { "x-scenario-key": key } : {}), ...extraHeaders }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
     const data = await response.json(); if (!response.ok) { if (data.error?.code === "version_conflict") setConflict(true); throw new Error(data.error?.message ?? data.message ?? JSON.stringify(data)); } return data;

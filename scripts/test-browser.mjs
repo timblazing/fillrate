@@ -12,7 +12,7 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs", "baselines", "fleet", "road-geometry"];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs", "baselines", "fleet", "recovery", "road-geometry"];
 const flows = selected === "all" ? allFlows : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
@@ -819,6 +819,93 @@ async function checkCancelledRun(baseURL, scenarioKey, runId, label) {
   assertViewport(1440, 900);
   assertViewport(393, 852);
   setViewport(1440, 900);
+}
+
+// Recovery from ended runs (frontend-spec "Run pipeline" row): a cancelled run offers Run again, which starts a new run of the
+// same version and settings that succeeds while the cancelled record stays unchanged; a run the worker refuses
+// (an unreachable time window passes submission but fails the worker's preflight) shows actionable copy, opens its
+// scenario version with the run's settings in the workbench, and Run again creates a separate, also-failed run.
+async function recoveryFlow(baseURL, scenarioKey) {
+  console.log("Browser smoke: pipeline recovery (cancelled, failed, run again)");
+  beginBrowserFlow("recovery");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+  const author = "Recovery smoke", name = "Recovery browser run";
+  await importInWorkbench(baseURL, scenarioKey, { author, name, inventory: "product,available_pieces\nRX-SKU,100\n", orders: [
+    "RX-1,RX-L1,2026-10-01,Cust A,RX-A,Stop A,35.10,-90.00,RX-SKU,10,25.00,1.00,1",
+    "RX-2,RX-L2,2026-10-01,Cust B,RX-B,Stop B,35.20,-90.10,RX-SKU,10,25.00,1.00,1",
+  ] });
+  const detailOf = (id) => fetchOkJson(baseURL, `/api/v1/runs/${id}`, scenarioKey);
+  const urlRunId = () => browser("get", "url").match(/\/runs\/([0-9a-f-]+)/i)?.[1];
+
+  // Cancelled while queued behind a long run, then run again.
+  const longId = runFromWorkbench(120);
+  await poll(() => detailOf(longId), (body) => body?.status === "running" || !ACTIVE_RUN.has(body?.status), "Long run starting", 90_000);
+  openSavedScenario(baseURL, scenarioKey, author, `${name} · v1`);
+  const cancelledId = runFromWorkbench(1);
+  browser("wait", "--text", "Waiting for a worker…", "--timeout", "15000");
+  clickButtonCentered("Cancel");
+  browser("wait", "--text", "Nothing from this run is counted as planned.", "--timeout", "15000");
+  open(`${baseURL}/runs/${longId}`);
+  browser("wait", "--fn", "[...document.querySelectorAll('button')].some((b) => b.innerText.trim() === 'Cancel')", "--timeout", "15000");
+  clickButtonCentered("Cancel");
+  await poll(() => detailOf(longId), (body) => !ACTIVE_RUN.has(body?.status), "Long run cancellation", 60_000);
+  const before = await detailOf(cancelledId);
+  expect(before.status === "cancelled" && before.attempts.length === 0, `The queued run should be cancelled without an attempt: ${before.status}.`);
+  open(`${baseURL}/runs/${cancelledId}`);
+  browser("wait", "--text", "Run again starts a new run with the same version and settings.", "--timeout", "15000");
+  expect(hasButton("Run again") && !hasButton("Cancel") && !hasButton("Export"), "A cancelled run should offer Run again and no cancel or export.");
+  expect(evalValue(`!!document.querySelector('a[href^="/scenarios?scenario="]')`) === true, "A cancelled run should link back to its scenario version.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  clickButtonCentered("Run again");
+  browser("wait", "--fn", `!location.pathname.endsWith(${JSON.stringify(cancelledId)})`, "--timeout", "20000");
+  const againId = urlRunId();
+  expect(againId && againId !== cancelledId, "Run again should open a new run.");
+  const again = await poll(() => detailOf(againId), (body) => !ACTIVE_RUN.has(body?.status), "Run again after cancellation", 90_000);
+  checkRun(again, "run again");
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  const after = await detailOf(cancelledId);
+  expect(after.status === "cancelled" && after.attempts.length === 0 && after.summary === null, "Run again must not change the cancelled run.");
+  expect(stable({ ...again.settings, warm_start: undefined }) === stable({ ...before.settings, warm_start: undefined }), "Run again should reuse the cancelled run's settings.");
+
+  // Refused by the worker's preflight: a stop whose window closes one minute after the depot opens.
+  const fixture = JSON.parse(readFileSync(join(root, "examples/m6-time-windows.json"), "utf8"));
+  const blocked = structuredClone(fixture.scenario);
+  blocked.name = "Recovery unreachable window";
+  blocked.locations[0].window = { earliest: blocked.time_model.depot_open, latest: `${blocked.time_model.depot_open.slice(0, 3)}01`, fold: null };
+  const saved = await postJson(baseURL, "/api/v1/imports/commit", scenarioKey, { format: "json", scenarioJson: JSON.stringify(blocked), author, metadata: { timezone: "America/Chicago", planningDate: "2026-10-06", browserId: `recovery-${process.pid}` } });
+  expect(saved.response.status === 201 && saved.body?.versionId, `Blocked fixture import failed: ${JSON.stringify(saved.body)}`);
+  const request = { versionId: saved.body.versionId, settings: fixture.settings };
+  const submit = () => {
+    const output = browser("eval", `(async()=>{const r=await fetch("/api/v1/scenarios/runs",{method:"POST",headers:{"content-type":"application/json","x-scenario-key":${JSON.stringify(scenarioKey)},"idempotency-key":crypto.randomUUID()},body:${JSON.stringify(JSON.stringify(request))}});return JSON.stringify({status:r.status,body:await r.json()})})()`);
+    let queued;
+    try { queued = JSON.parse(JSON.parse(output)); } catch { queued = JSON.parse(output); }
+    expect(queued.status === 201 && queued.body?.id, `The blocked-window run should pass submission and queue: ${JSON.stringify(queued)}`);
+    return queued.body.id;
+  };
+  const failedId = submit();
+  const failed = await poll(() => detailOf(failedId), (body) => !ACTIVE_RUN.has(body?.status), "Worker preflight refusal", 60_000);
+  expect(failed.status === "failed" && failed.failure?.code === "preflight_blocked" && failed.attempts.length === 1, `The run should fail once at the worker preflight: ${JSON.stringify({ status: failed.status, failure: failed.failure })}`);
+  open(`${baseURL}/runs/${failedId}`);
+  browser("wait", "--text", "Blocked by preflight checks", "--timeout", "15000");
+  const text = String(parsedText());
+  expect(text.includes("Open the scenario to fix or exclude the flagged stops") && text.includes("code preflight_blocked"), "A preflight failure should explain how to recover and show its code.");
+  expect(hasButton("Run again") && !hasButton("Export") && !text.includes("Shipment sheets"), "A failed run should offer Run again and no result actions.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  clickButtonCentered("Run again");
+  browser("wait", "--fn", `!location.pathname.endsWith(${JSON.stringify(failedId)})`, "--timeout", "20000");
+  const retryId = urlRunId();
+  const retry = await poll(() => detailOf(retryId), (body) => !ACTIVE_RUN.has(body?.status), "Run again of a refused run", 60_000);
+  expect(retryId !== failedId && retry.status === "failed" && retry.failure?.code === "preflight_blocked", "Running the same refused version again should create a separate run that is refused the same way.");
+  expect((await detailOf(failedId)).attempts.length === 1, "Run again must not add an attempt to the earlier failed run.");
+  browser("wait", "--text", "Blocked by preflight checks", "--timeout", "15000");
+  browser("eval", `document.querySelector('a[href^="/scenarios?scenario="]').click()`);
+  browser("wait", "--text", `Opened the version and settings of run ${retryId.slice(0, 8)}.`, "--timeout", "20000");
+  expect(String(parsedText()).includes("Recovery unreachable window"), "Open scenario should load the refused run's scenario version.");
+  checkBrowserDiagnostics("recovery");
+  console.log(`  passed: cancelled ${cancelledId.slice(0, 8)} → run again ${againId.slice(0, 8)} succeeded; refused ${failedId.slice(0, 8)} → actionable alert, run again ${retryId.slice(0, 8)} refused separately, scenario reopened`);
 }
 
 // Spec §9/§12: cancelling a queued run ends it at once; cancelling a running one kills the solver child and persists
@@ -2432,6 +2519,7 @@ try {
     if (flow === "lab-pairs") await labPairsFlow(baseURL, runKey);
     if (flow === "baselines") await baselinesFlow(baseURL, runKey, scenarioKey);
     if (flow === "fleet") await fleetFlow(baseURL, scenarioKey);
+    if (flow === "recovery") await recoveryFlow(baseURL, scenarioKey);
     if (flow === "road-geometry" && roadGeometryReady) await roadGeometryFlow(baseURL, scenarioKey, runKey);
   }
   await stop();
