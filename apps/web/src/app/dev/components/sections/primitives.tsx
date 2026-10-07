@@ -10,17 +10,13 @@ import {
   Copy,
   Download,
   FlaskConical,
-  GraduationCap,
   Info,
   Italic,
-  LayoutGrid,
-  Map as MapIcon,
   MoreHorizontal,
   Play,
   Plus,
   Redo2,
   Search,
-  Settings,
   Square,
   Trash2,
   Truck,
@@ -114,17 +110,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetDescription, SheetHeader, SheetPanel, SheetPopup, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuBadge,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { AppSidebar } from "@/components/app/app-sidebar"
+import { SidebarProvider } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Slider } from "@/components/ui/slider"
 import { Spinner } from "@/components/ui/spinner"
@@ -627,32 +614,9 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
 
       <Specimen id="navigation" title="Navigation">
         <div className="grid gap-8 lg:grid-cols-[16rem_1fr]">
+          {/* The product sidebar itself (shadcn sidebar-08 layout), pinned open; in the app it collapses to icons. */}
           <SidebarProvider className="min-h-0 w-auto">
-            <Sidebar collapsible="none" className="h-72 w-full rounded-xl border">
-              <SidebarContent>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Fillrate</SidebarGroupLabel>
-                  <SidebarMenu>
-                    {(
-                      [
-                        [LayoutGrid, "Scenarios", 12],
-                        [MapIcon, "Workbench", null],
-                        [FlaskConical, "Experiments", 3],
-                        [GraduationCap, "Learn", null],
-                        [Settings, "Settings", null],
-                      ] as const
-                    ).map(([Icon, label, badge], i) => (
-                      <SidebarMenuItem key={label}>
-                        <SidebarMenuButton isActive={i === 1}>
-                          <Icon /> {label}
-                        </SidebarMenuButton>
-                        {badge && <SidebarMenuBadge>{badge}</SidebarMenuBadge>}
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroup>
-              </SidebarContent>
-            </Sidebar>
+            <AppSidebar collapsible="none" admin={false} mode="hosted" user={{ name: "Dana Dispatcher", email: "dana@example.com", image: null }} className="h-96 w-full rounded-xl border" />
           </SidebarProvider>
 
           <div className="min-w-0 space-y-6">
