@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, FlaskConical, GraduationCap, LayoutGrid, Map as MapIcon, Play, Settings, Share } from "lucide-react"
+import { ChevronDown, FlaskConical, GraduationCap, LayoutGrid, PanelLeft, Play, Route, Settings, Share, Truck } from "lucide-react"
 import { Fragment, createContext, useContext } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -8,21 +8,23 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { Button } from "@/components/ui/button"
 import { Group as ButtonGroup, GroupSeparator } from "@/components/ui/group"
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "@/components/ui/menu"
+import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 import { scenario } from "../fixtures"
 
+// The app sidebar (components/app/app-sidebar.tsx) collapsed to icons: the workbench lives under Scenarios.
 const nav = [
   [LayoutGrid, "Scenarios"],
-  [MapIcon, "Workbench"],
   [FlaskConical, "Experiments"],
   [GraduationCap, "Learn"],
-  [Settings, "Settings"],
+  [Route, "Labs"],
 ] as const
+const navSecondary = [[Settings, "Settings"]] as const
 
-export type NavItem = (typeof nav)[number][1]
+export type NavItem = (typeof nav)[number][1] | (typeof navSecondary)[number][1]
 
 // Workbench sections (spec §4). Allocate → Cluster → Solve run together from "Run pipeline" but stay inspectable.
 export const sections = ["Data", "Inventory", "Fleet", "Constraints", "Travel", "Allocate", "Cluster", "Solve", "Results"] as const
@@ -64,7 +66,7 @@ export const FullscreenContext = createContext(false)
 
 /** Application frame for the blocks: icon rail, scenario header, and optional section tabs. */
 export function AppShell({
-  active = "Workbench",
+  active = "Scenarios",
   crumb,
   section,
   onSection,
@@ -83,31 +85,40 @@ export function AppShell({
   children: React.ReactNode
 }) {
   const fullscreen = useContext(FullscreenContext)
+  const railItem = ([Icon, label]: (typeof nav)[number] | (typeof navSecondary)[number]) => (
+    <Tooltip key={label}>
+      <TooltipTrigger
+        aria-label={label}
+        aria-current={label === active ? "page" : undefined}
+        className={cn(
+          "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex size-8 items-center justify-center rounded-lg transition-colors",
+          label === active && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+        )}
+      >
+        <Icon className="size-4" />
+      </TooltipTrigger>
+      <TooltipPopup side="right">{label}</TooltipPopup>
+    </Tooltip>
+  )
   return (
     <div className="bg-background flex" style={{ height: fullscreen ? `max(100dvh, ${height}px)` : height }}>
-      <nav className="bg-sidebar flex w-12 shrink-0 flex-col items-center gap-1 border-r py-3" aria-label="App">
-        <div className="bg-foreground text-background mb-3 flex size-7 items-center justify-center rounded-lg">
-          <FlaskConical className="size-4" />
-        </div>
-        {nav.map(([Icon, label]) => (
-          <Tooltip key={label}>
-            <TooltipTrigger
-              aria-label={label}
-              aria-current={label === active ? "page" : undefined}
-              className={cn(
-                "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-colors",
-                label === active && "bg-sidebar-accent text-foreground"
-              )}
-            >
-              <Icon className="size-4" />
-            </TooltipTrigger>
-            <TooltipPopup side="right">{label}</TooltipPopup>
-          </Tooltip>
-        ))}
+      <nav className="bg-sidebar flex w-12 shrink-0 flex-col items-center gap-1 border-r py-2" aria-label="App">
+        <Tooltip>
+          <TooltipTrigger aria-label="Overview" className="bg-foreground text-background mb-2 flex size-8 items-center justify-center rounded-lg">
+            <Truck className="size-4" />
+          </TooltipTrigger>
+          <TooltipPopup side="right">Overview</TooltipPopup>
+        </Tooltip>
+        {nav.map(railItem)}
+        <div className="mt-auto flex flex-col gap-1">{navSecondary.map(railItem)}</div>
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b px-3">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
+          <Button variant="ghost" size="icon" className="size-7" aria-label="Toggle Sidebar">
+            <PanelLeft />
+          </Button>
+          <Separator orientation="vertical" className="mr-1 h-4" />
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
