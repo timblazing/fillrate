@@ -55,6 +55,6 @@
   "nextUp": [
     "Finish six-Block state acceptance and remaining manual accessibility review; measure representative 601-node, cold-load and broader interactions.",
     "Publish the final verified frontend source/image and deploy by digest; retain scoped local timing limits.",
-    "Owner: signed-in hosted road check and native VPS timings. The separate Valhalla warmed-idle trial passed; retain its long-duration/load limits."
+    "Owner live checks passed 2026-10-07. Next: hosted travel redesign (#98), then native VPS timings. The separate Valhalla warmed-idle trial passed; retain its long-duration/load limits."
   ]
 }
