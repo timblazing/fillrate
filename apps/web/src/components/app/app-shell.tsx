@@ -48,8 +48,8 @@ export function AppShell({ admin, children }: { admin: boolean; children: ReactN
     </Tooltip>
   )
   return (
-    <div className="flex min-h-dvh flex-col sm:flex-row">
-      <nav className="bg-sidebar flex h-12 shrink-0 items-center gap-1 overflow-x-auto border-b px-3 sm:sticky sm:top-0 sm:h-dvh sm:w-12 sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:px-0 sm:py-3" aria-label="App">
+    <div className="flex min-h-dvh flex-col sm:flex-row print:block print:min-h-0">
+      <nav className="bg-sidebar flex h-12 shrink-0 items-center gap-1 overflow-x-auto border-b px-3 sm:sticky sm:top-0 sm:h-dvh sm:w-12 sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:px-0 sm:py-3 print:hidden" aria-label="App">
         <Link href="/" aria-label="Fillrate home" className="bg-foreground text-background mr-2 flex size-7 shrink-0 sm:mr-0 sm:mb-3 items-center justify-center rounded-lg">
           <Truck className="size-4" />
         </Link>
@@ -57,7 +57,7 @@ export function AppShell({ admin, children }: { admin: boolean; children: ReactN
         <div className="ml-auto flex items-center gap-1 sm:mt-auto sm:ml-0 sm:flex-col">{items.filter(({ href }) => footer.some((f) => f.href === href) || href === "/admin").map(link)}</div>
       </nav>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="bg-background/80 sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4 backdrop-blur-md">
+        <header className="bg-background/80 sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4 backdrop-blur-md print:hidden">
           <BrandLink className="[&_svg]:hidden" />
           <AccountButton />
         </header>

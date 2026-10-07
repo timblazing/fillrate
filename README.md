@@ -37,4 +37,4 @@ Built with Next.js, SQLite, and Python, using [PyVRP](https://pyvrp.org/) for ro
 
 ## License
 
-[MIT](LICENSE) © 2026 Clay Blasingame.
+[MIT](LICENSE)

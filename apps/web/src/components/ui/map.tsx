@@ -33,6 +33,43 @@ const defaultStyles = {
   light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
 };
 
+// Fillrate: CARTO's TileJSON credit links to older about pages. CARTO's current
+// attribution rules (https://carto.com/attribution/) require "CARTO" to link to
+// that page and "OpenStreetMap" to the OSM copyright page. Explicit source
+// options take precedence over TileJSON in MapLibre, so CARTO tile sources get
+// the specified credit line. See docs/basemap.md.
+export const CARTO_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution/" target="_blank" rel="noopener noreferrer">CARTO</a>';
+
+function isCartoTileUrl(url: unknown): boolean {
+  if (typeof url !== "string") return false;
+  try {
+    const host = new URL(url).hostname;
+    return host === "cartocdn.com" || host.endsWith(".cartocdn.com");
+  } catch {
+    return false;
+  }
+}
+
+export const withCartoAttribution: MapLibreGL.TransformStyleFunction = (
+  _previous,
+  next,
+) => {
+  let changed = false;
+  const sources = Object.fromEntries(
+    Object.entries(next.sources).map(([id, source]) => {
+      const tiles = "tiles" in source ? source.tiles : undefined;
+      const url = "url" in source ? source.url : undefined;
+      if (isCartoTileUrl(url) || (Array.isArray(tiles) && tiles.some(isCartoTileUrl))) {
+        changed = true;
+        return [id, { ...source, attribution: CARTO_ATTRIBUTION }];
+      }
+      return [id, source];
+    }),
+  ) as MapLibreGL.StyleSpecification["sources"];
+  return changed ? { ...next, sources } : next;
+};
+
 // A tile-less, dependency-free style with a transparent background. Use it for
 // data visualizations (choropleths, world arcs, dot maps) where you draw your
 // own layers and don't need a street basemap. The easiest way to opt in is the
@@ -295,7 +332,6 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
 
     const map = new MapLibreGL.Map({
       container: containerRef.current,
-      style: initialStyle,
       renderWorldCopies: false,
       attributionControl: {
         compact: true,
@@ -318,6 +354,8 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
 
     map.on("load", loadHandler);
     map.on("style.load", styleLoadHandler);
+    // Fillrate: set the style after construction so CARTO credits are patched.
+    map.setStyle(initialStyle, { diff: false, transformStyle: withCartoAttribution });
     map.on("move", handleMove);
     setMapInstance(map);
 
@@ -383,7 +421,7 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
     styleSwapInFlightRef.current = true;
     // Full reload (no diff) so `style.load` fires deterministically. A
     // successful diff would never fire it, leaving isStyleLoaded stuck false.
-    mapInstance.setStyle(pendingStyle, { diff: false });
+    mapInstance.setStyle(pendingStyle, { diff: false, transformStyle: withCartoAttribution });
   }, [mapInstance, pendingStyle]);
 
   // Sync projection when the prop changes after mount.
