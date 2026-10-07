@@ -2547,8 +2547,7 @@ async function accessibilityFlow(baseURL, runKey) {
 // `bun run test:browser --flow=dashboard-audit`. AUDIT_SHOTS=<dir> keeps desktop/phone x light/dark captures.
 const AUDIT_SHOTS = process.env.AUDIT_SHOTS ? resolve(process.env.AUDIT_SHOTS) : null;
 function setTheme(theme) {
-  browser("eval", `localStorage.setItem("theme", ${JSON.stringify(theme)})`);
-  browser("reload");
+  browser("eval", `localStorage.setItem("theme", ${JSON.stringify(theme)}); window.dispatchEvent(new StorageEvent("storage", {key: "theme", newValue: ${JSON.stringify(theme)}}))`);
   browser("wait", "--fn", `document.documentElement.classList.contains(${JSON.stringify(theme)})`, "--timeout", "10000");
 }
 // Runs `prepare` (re-establishing page state after each reload) then checks bounds and saves a capture per theme and viewport.

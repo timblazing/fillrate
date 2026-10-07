@@ -19,7 +19,9 @@ test("save conflicts preserve edits, branch preserves source version and old run
   const branch=saveScenario(store,{...input(),scenarioId:first.scenarioId,expectedVersionId:first.versionId,branch:true});
   expect(branch.scenarioId).not.toBe(first.scenarioId);
   expect(scenarioVersion(store,branch.scenarioId).parentVersionId).toBe(first.versionId);
-  const listed = scenarioList(store) as { id: string; branchedFrom: string | null }[];
+  const listed = scenarioList(store) as { id: string; branchedFrom: string | null; depotLabel: string; orderCount: number; createdAt: number }[];
+  expect(listed.find(x=>x.id===first.scenarioId)).toMatchObject({depotLabel: changed.document.depot.label, orderCount: changed.document.orders.length});
+  expect(listed.find(x=>x.id===first.scenarioId)!.createdAt).toBeGreaterThan(0);
   expect(listed.find(x=>x.id===branch.scenarioId)?.branchedFrom).toBe(first.versionId);
   expect(listed.find(x=>x.id===first.scenarioId)?.branchedFrom).toBeNull();
   expect(scenarioVersion(store,first.scenarioId).id).toBe(second.versionId);

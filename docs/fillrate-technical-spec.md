@@ -562,6 +562,14 @@ The reference hostname is `fillrate.blasingame.dev`, with public HTTPS at Caddy 
 
 Log job/run IDs, attempts, durations, and error codes. Redact tokens and avoid logging full customer addresses. Health/status views report queue length, worker connection, solver versions, database availability, and road provider configuration. Explicit cleanup can remove old artifacts while preserving referenced saved runs. Migration procedure, backups, and restart recovery are documented.
 
+## Current v1 demo scope (owner direction, 2026-10-07)
+
+The primary target is the existing Hostinger hosted service. Finish the persisted planning workflow and six production dashboard compositions (#88), make hosted road travel automatic and truthful (#98), and verify representative frontend performance (#89). No new solver engine or variant scope is required. Existing supported capabilities and correctness/ownership protections remain required.
+
+With hosted Valhalla configured, the intended workflow builds or exactly reuses a road matrix on submission, blocks and names stops outside coverage, draws cached road geometry for all shipments by default, and labels exports with the actual provider. The heatmap becomes a concise readiness summary with provider/download details collapsed. This is pending #98, not a claim about the current deployed image. Estimated travel remains available for local installs without Valhalla and Learn.
+
+Hostinger is the only deployment target. arm64 images remain supported for local Docker. Raspberry Pi, VoiceOver, physical-device and manual accessibility acceptance, and design-file maintenance are outside this v1 demo. Retain existing accessible components and automated evidence. Native VPS timings (#93) are optional broader handoff evidence, not a hosted launch blocker. Completion still requires candidate checks, tested amd64/arm64 publication and digest-specific deployment/workflow evidence; use completion-plan.md for the current queue.
+
 ## 15. Implementation sequence
 
 Milestone numbers remain stable for historical evidence and `/dev`. M2 records accepted design intent; M8 now includes a required dashboard integration/performance pass. Do not reopen completed engine work or equate gallery acceptance with product completion. Execute the remaining work in [completion-plan.md](completion-plan.md).
