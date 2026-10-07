@@ -403,6 +403,11 @@ export class Store {
     return row.ownerId;
   }
 
+  /** The scenario a version belongs to, with its owner, or null for an unknown version. */
+  versionScenario(versionId: string) {
+    return this.db.select({ scenarioId: s.versions.scenarioId, ownerId: s.scenarios.ownerId }).from(s.versions).innerJoin(s.scenarios, eq(s.scenarios.id, s.versions.scenarioId)).where(eq(s.versions.id, versionId)).get() ?? null;
+  }
+
   scenarioOwner(scenarioId: string) {
     return this.db.select({ ownerId: s.scenarios.ownerId }).from(s.scenarios).where(eq(s.scenarios.id, scenarioId)).get()?.ownerId ?? null;
   }

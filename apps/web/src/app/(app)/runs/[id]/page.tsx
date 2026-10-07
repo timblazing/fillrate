@@ -33,12 +33,16 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
   const who = await pagePrincipal()
   let detail, cancellable
   let rerun: WarmRerun | null = null
+  let scenarioHref: string | null = null
   try {
     const store = initializeDatabase()
     const view = assertRunRead(store, who, id)
     cancellable = canCancel(who, view.ownerId) || (view.ownerId === "public" && typeof key === "string")
     detail = runDetail(store, id)
     rerun = detail.kind === "pipeline" ? warmRerun(store, who, view.versionId, detail.settings, key) : null
+    // Recovery: the caller's own scenario version opens in the workbench with this run's settings.
+    const source = detail.kind === "pipeline" ? store.versionScenario(view.versionId) : null
+    if (source && who.ownerId && source.ownerId === who.ownerId) scenarioHref = `/scenarios?scenario=${source.scenarioId}&version=${view.versionId}&run=${id}`
   } catch (error) {
     // Another owner's runs read as missing, so their existence is not revealed.
     if (error instanceof ApiError && [403, 404].includes(error.status)) notFound()
@@ -52,7 +56,7 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
     <div className="flex min-h-dvh flex-col">
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
-        <RunView initial={detail} canCancel={cancellable} canEvaluate={canStartRuns(who, key)} runKey={typeof key === "string" ? key : undefined} rerun={rerun} />
+        <RunView initial={detail} canCancel={cancellable} canEvaluate={canStartRuns(who, key)} runKey={typeof key === "string" ? key : undefined} rerun={rerun} scenarioHref={scenarioHref} />
       </main>
     </div>
   )
