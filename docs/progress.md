@@ -5,7 +5,7 @@
 - Frontend [#86](https://github.com/timblazing/fillrate/pull/86) passed [CI 37657289931](https://github.com/timblazing/fillrate/actions/runs/37657289931) on `f670dbb`. Merging updated main preserves both sets of progress/decision entries; application, worker, contracts and browser-runner source are unchanged from that tested frontend head. Fresh integrated-head CI remains the merge gate.
 
 ## 2026-10-07: Repeatable post-fix accessibility and candidate timings (Codex)
-- Production candidate `f01687b` passed the retained 52-state accessibility rerun: 13 page states × light/dark × desktop/phone, zero automated WCAG A/AA violations/overflow/unreduced infinite motion and zero sampled focus failures (1,092 samples). [Audit and captures](reviews/m8-accessibility-audit-2026-10-07.md) retain axe incomplete contrast cases and screen-reader/gallery/physical-device limits.
+- Production candidate `f01687b` passed the retained 52-state accessibility rerun: 13 page states × light/dark × desktop/phone, zero automated WCAG A/AA violations/overflow/unreduced infinite motion and zero sampled focus failures (1,092 samples). [Audit and captures](reviews/m8-accessibility-audit-2026-10-07.md) retain axe incomplete contrast cases and gallery/physical-device limits.
 - Fixed newly observed route/cluster swatch label contrast with paired foreground tokens and replaced an unsupported page-counter accessible-name attribute with actual screen-reader text. Landing travel copy now names hosted OK/TX/NM/CO/KS/MO/AR coverage and outside-coverage behavior; gallery descriptions now identify reference fixtures and simulated stages rather than pre-M3 candidates.
 - [Candidate performance](reviews/m8-candidate-performance-2026-10-07.md): three warm 2,000-order/443-shipment trials per viewport (47.1–98.1 ms desktop, 113.2–141.5 ms phone). Near-limit 1,001-node preview paint: 205.9–237.4 ms desktop, 220.3–230.2 ms phone. Results pagination/selection/keyboard scrolling/export/print, comparison/explorer and matrix save/run/directed legs/stale refusal passed. These are scoped local observations, not meaningful p95, cold-load or full frontend acceptance.
 - Lint/typecheck/build and 144/144 hosted/local checks pass; lint retains the existing HeroGlobe hook dependency warning. `--flow=accessibility` is a separate explicit acceptance command, with synthetic temporary data and no live credentials. Source publication, full candidate CI, final frontend image/deployment, broader six-Block/performance acceptance and owner target/live-road UI evidence remain open.
@@ -125,13 +125,13 @@ Published-image baseline: `e95f3cb`; release evidence integrated on `main` at `4
 - [ ] **M8 Verification and handoff**
   - [x] Recorded 21 production browser flows at desktop/phone and 144 hosted/local checks (prior sessions; not rerun by this documentation pass).
   - [x] Request-access/admin phone review, npm-compatible scripts, native documentation and handoff.
-  - [x] Historical image target timings/recovery on VPS/Pi; native timings only in a dev container.
-  - [ ] Six-Block production coverage and dashboard integration acceptance; print and recovery fixes have local browser evidence, the 52-state post-fix accessibility rerun passes with manual contrast/screen-reader/gallery limits retained.
+  - [x] Historical image target timings/recovery on the VPS; native timings only in a dev container.
+  - [ ] Six-Block production coverage and dashboard integration acceptance; print and recovery fixes have local browser evidence, the 52-state post-fix accessibility rerun passes with manual contrast/gallery limits retained.
   - [ ] Measured 2,000-order and matrix frontend responsiveness/performance acceptance; the 443-shipment transition and 1,001-node preview are scoped observations only, with final candidate/cold and broader interaction measurements open.
   - [x] Basemap v1 decision and specified attribution links: owner accepts keyless CARTO risk; source/terms and light/dark rendered credit evidence are recorded in [basemap.md](basemap.md). Key/tier configuration remains a later owner follow-up.
   - [x] Current runtime image publication for `e95f3cb`: run 37482591185, both architecture smokes and manifest recorded in #72.
   - [ ] Final dashboard image release and deployed-digest evidence.
-  - [ ] Native target timings on VPS/Pi for full distribution handoff.
+  - [ ] Native timings on the VPS for full distribution handoff.
 
 ## Current state
 
@@ -144,11 +144,11 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 - Six-Block production integration and state acceptance remain open under [frontend-spec.md](frontend-spec.md); see [issue #88](https://github.com/timblazing/fillrate/issues/88). The 2,000-order and near-limit matrix evidence is scoped local browser data; representative 601-node, cold-load, broader interaction and tail-latency profiling remain open in [issue #89](https://github.com/timblazing/fillrate/issues/89). The displayed heatmap stays at its bounded 12×12 sample.
 - The 443-shipment persisted results transition meets the proposed 200 ms response target in three warm local trials per viewport; the table pages 50 rows and selection does not fetch the full result. This does not close matrix, whole-dashboard, cold-load or target-device performance acceptance.
 - Recovery states and shipment-sheet print have local browser acceptance (2026-10-06 entries); the worker-crash retry banner is not browser-tested.
-- The 52-state post-fix axe/focus/theme/reduced-motion rerun passes; manual contrast-incomplete cases, VoiceOver, physical-device and gallery checks remain in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md) and [issue #90](https://github.com/timblazing/fillrate/issues/90).
+- The 52-state post-fix axe/focus/theme/reduced-motion rerun passes; manual contrast-incomplete cases, physical-device and gallery checks remain in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md) and [issue #90](https://github.com/timblazing/fillrate/issues/90).
 - The `e95f3cb` image is published (PR #72); final dashboard image publication and deployment by digest remain open in [issue #91](https://github.com/timblazing/fillrate/issues/91). Deployment is owner-controlled and is not inferred from a successful image workflow.
 - Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The live signed-in UI road check is pending in [issue #92](https://github.com/timblazing/fillrate/issues/92). Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
 - Keyless CARTO is the owner-accepted v1 configuration. The terms record and specified rendered credit links exist; no CARTO key, tier or use classification is claimed.
-- Native timings on VPS/Pi are missing ([issue #93](https://github.com/timblazing/fillrate/issues/93)). Historical image timings/recovery remain valid for their recorded digest only.
+- Native timings on the VPS are missing ([issue #93](https://github.com/timblazing/fillrate/issues/93)). Historical image timings/recovery remain valid for their recorded digest only.
 - Manual editing cannot move visits between clusters. Warm starts reuse only compatible cluster visit/demand/travel sets; saved manual baselines are now supported.
 - Solver Lab supports advanced adapters but still uses JSON editing and estimated geographic travel/schematic display. Pickup-delivery pairs with reloads are refused. Generic Lab support does not imply business-pipeline support.
 - Snapshot node identity/coordinate matching is exact; edited coordinates require a new snapshot. Large snapshots and replay bundles have substantial in-memory/transfer cost.

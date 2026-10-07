@@ -89,7 +89,6 @@ CI (`.github/workflows/ci.yml`) runs automatically only for source/config change
 | Target | Comparable (500 iterations/cluster), median of 5 | Default budget (10 s/cluster), median of 3 |
 | --- | --- | --- |
 | VPS, 2 vCPU AMD EPYC 7543P | 5.97 s | 81.43 s |
-| Raspberry Pi 5, 4 cores | 7.08 s | 81.55 s |
 
 **Native, cloud dev container, not target hardware** (2026-10-05; Ubuntu 24.04 x86_64, 4 vCPU Intel Xeon 2.10 GHz, 15 GB; Node 22.22.0, npm 10.9.4, Bun 1.4.2, uv 0.8.17, Python 3.13.7). The 4 vCPUs were shared with several other concurrent builds and test suites (load average 6–11), so these are upper bounds from single runs, not benchmarks.
 
@@ -106,7 +105,7 @@ CI (`.github/workflows/ci.yml`) runs automatically only for source/config change
 | `lesson` example (2,000 orders, k=8, API defaults) through `npm start` + `npm run worker`, POST to final status | 9.7 s, valid, complete |
 | `m1` example through the same production server | 4.6 s, valid |
 
-Native timings on the VPS and Pi 5 have not been collected.
+Native timings on the VPS have not been collected.
 
 ## Operations
 
@@ -123,7 +122,7 @@ What is not verified or not built. The full list of known gaps is in `progress.m
 
 - **Second live account:** cross-account isolation and quotas are verified by automated production-build tests (`test:hosted`), not with two live GitHub accounts on the deployed site; the owner waived that check.
 - **Road travel:** pinned Valhalla and snapshot/geometry workflows have local evidence. VPS OK7 coverage/resources/timings are recorded in [valhalla.md](valhalla.md); the signed-in live road UI check remains open. Estimated/imported travel and schematic versus road paths stay explicitly labeled.
-- **Native timings on targets:** the VPS and Pi 5 timings are for the image. Native Bun/npm timings exist only for the shared cloud dev container above.
+- **Native timings on targets:** the VPS timings are for the image. Native Bun/npm timings exist only for the shared cloud dev container above.
 - **npm on Node 24:** the full native npm workflow (install through a real worker run) was run on Node 22 in the dev container. Node 24 + npm is covered by the CI `npm` job (install, lockfile alignment, typecheck, Vitest with the real worker, build); this documentation pass did not rerun it.
 - **Docker Compose local mode:** historical image smokes cover keyless startup; local arm64 Compose/Valhalla evidence is recorded in release verification. This is not proof of latest multi-architecture publication or VPS deployment.
 - **Platforms:** Linux x86_64 native and Linux amd64/arm64 images are verified. macOS native is unverified; native Windows is unsupported.

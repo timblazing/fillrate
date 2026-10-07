@@ -16,8 +16,7 @@ The digest is the multi-arch index. Checked on 2026-10-05 with `docker manifest 
 | linux/amd64 | `sha256:3533496a1fce57cdd1856aed0449f90e8e0318ea12906178e35423760541f198` |
 | linux/arm64 | `sha256:7da5e294136b0a04de59ccbfc05aa11bf6805eeb07d8b60d23d08989130c2f9e` |
 
-The arm64 image was pulled and run on Apple silicon (Colima), which covers the Raspberry Pi 5's
-architecture; it has not run on the Pi itself. Keep the tag and digest in `compose.yaml` and
+The arm64 image was pulled and run on Apple silicon (Colima). Keep the tag and digest in `compose.yaml` and
 `deploy/valhalla/prepare.sh` in step when upgrading, and re-run the live checks below.
 
 ## Setup

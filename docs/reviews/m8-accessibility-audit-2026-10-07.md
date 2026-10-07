@@ -22,7 +22,7 @@ No page had page-level horizontal overflow in any pass. No infinite animation ra
 
 ## Original verification boundary (before the rerun below)
 
-The post-fix audit rerun was interrupted when the session stopped. The original fix session ran lint/typecheck. The integrated source subsequently passed lint/typecheck/build and [full PR CI](https://github.com/timblazing/fillrate/actions/runs/37648531184), including hosted/local checks and all applicable browser flows. Those checks do not run the post-fix axe audit. Rerun the same audit, plus the affected browser flows, on the final candidate before closing the row. Screen-reader (VoiceOver) passes, physical phone checks and the gallery page were not audited.
+The post-fix audit rerun was interrupted when the session stopped. The original fix session ran lint/typecheck. The integrated source subsequently passed lint/typecheck/build and [full PR CI](https://github.com/timblazing/fillrate/actions/runs/37648531184), including hosted/local checks and all applicable browser flows. Those checks do not run the post-fix axe audit. Rerun the same audit, plus the affected browser flows, on the final candidate before closing the row. Physical phone checks and the gallery page were not audited.
 
 ## Post-fix candidate acceptance — 2026-10-07 (Codex)
 
@@ -36,4 +36,4 @@ The rerun found seven cluster label colors at 2.54–4.32:1 against white. Share
 
 Command: `A11Y_REPORT_OUT=/tmp/audit.json A11Y_SHOTS=/tmp/shots UV_PYTHON=/path/to/python3.13 bun run test:browser --flow=accessibility` after production build. Lint, typecheck and build pass; lint retains the existing HeroGlobe dependency warning. Hosted/local checks passed 144/144. The lesson/comparison/explorer prerequisites and a separate near-limit matrix flow pass. [Candidate performance](m8-candidate-performance-2026-10-07.md) records their scoped timing evidence.
 
-Limits: axe still leaves color contrast incomplete in 22 states where overlapping/canvas content or horizontally clipped table cells prevent determination; the raw report retains those targets for manual review. Passing automated checks and selected captures do not establish exhaustive screen-reader usability. VoiceOver, physical-device checks, gallery accessibility, all loading/error/dialog states and six-Block integration acceptance remain open. No image, deployed frontend, or live road UI acceptance is claimed by this local pass.
+Limits: axe still leaves color contrast incomplete in 22 states where overlapping/canvas content or horizontally clipped table cells prevent determination; the raw report retains those targets for manual review. Physical-device checks, gallery accessibility, all loading/error/dialog states and six-Block integration acceptance remain open. No image, deployed frontend, or live road UI acceptance is claimed by this local pass.

@@ -12,7 +12,7 @@ GitHub Actions [image workflow run 37482591185](https://github.com/timblazing/fi
 
 Published tag: `ghcr.io/timblazing/fillrate:sha-e95f3cb`. Registry manifest digest: `sha256:0b6eeac32bba5853c3d9190cc1b0bfc62c2e5edecfd29f9b213c11b84052322e`. `docker manifest inspect` confirmed `linux/amd64` (`sha256:065838a48d6957bab52729a1a3c6b03f9eb4866a880556bc4b4da46b5b5362a0`) and `linux/arm64` (`sha256:67b13cf4d5b9a3cae1091c8866b35a67221fdf11c3b97bdeec967d454285d93e`).
 
-This reference records M4 release evidence and the remaining M8 release/handoff work. The canonical scope is in `fillrate-technical-spec.md` §§14–16 and the remaining work/dependencies are in `progress.md`. CI and runner benchmarks establish an implementation baseline; they do not replace evidence from the intended Ubuntu VPS and 64-bit Raspberry Pi or the actual hosted release.
+This reference records M4 release evidence and the remaining M8 release/handoff work. The canonical scope is in `fillrate-technical-spec.md` §§14–16 and the remaining work/dependencies are in `progress.md`. CI and runner benchmarks establish an implementation baseline; they do not replace evidence from the Ubuntu VPS or the actual hosted release.
 
 ## Current evidence and missing handoff
 
@@ -33,20 +33,19 @@ Probe: 2,000 synthetic orders, 640 locations, k=8, run inside the image. Every r
 | Target | Hardware | Comparable, 5 runs: total s (median / min / max) | Default budget, 3 runs: total s (median / min / max) | Trucks (comparable / default) |
 | --- | --- | --- | --- | --- |
 | VPS `hostinger` | x86_64, 2 vCPU AMD EPYC 7543P, 7.9 GB, Debian 13, Docker 29.5.2 | 5.97 / 5.84 / 7.78 | 81.43 / 81.34 / 81.50 | 205 / 203 |
-| Raspberry Pi 5 `anton` | aarch64, 4 cores, 8 GB, Raspberry Pi OS (6.18 kernel), Docker 29.8.2 | 7.08 / 7.06 / 7.18 | 81.55 / 81.54 / 81.56 | 205 / 203 |
 
-The default-budget time is dominated by the 10 s per cluster solver budget (8 clusters, solved one after another), so both targets take about 81 s. The VPS run shared its two vCPUs with the live site.
+The default-budget time is dominated by the 10 s per cluster solver budget (8 clusters, solved one after another), so the run takes about 81 s. The VPS run shared its two vCPUs with the live site.
 
-Recovery checks ran on a container with `--restart unless-stopped`, `LEASE_MS=15000` and 3 s heartbeats. They passed on both targets.
+Recovery checks ran on a container with `--restart unless-stopped`, `LEASE_MS=15000` and 3 s heartbeats. They passed.
 
-| Check | VPS | Pi 5 |
-| --- | --- | --- |
-| Persistence: imported scenario + validated run and synthetic run, container restart, identical summary/JSON/CSV hashes and scenario | ok, worker back in 2.7 s | ok, 2.5 s |
-| Worker loss: SIGKILL the supervisor mid-solve; the container restarts, attempt 1 ends `lease_expired`, attempt 2 reuses 8 checkpointed stages and succeeds valid with one solve/validation/summary | ok, 60.6 s kill → result | ok, 59.1 s |
-| Cancellation: a running and a queued run, then a new run on the same worker | ok, running cancelled in 2.1 s, follow-up succeeded | ok, 2.1 s |
-| Backup/restore: `deploy/backup.sh` online backup (integrity ok), restore into a new volume, second container; scenario and three runs' summary/export hashes identical | ok (`142f077f…`) | ok (`b699c3d0…`) |
+| Check | VPS |
+| --- | --- |
+| Persistence: imported scenario + validated run and synthetic run, container restart, identical summary/JSON/CSV hashes and scenario | ok, worker back in 2.7 s |
+| Worker loss: SIGKILL the supervisor mid-solve; the container restarts, attempt 1 ends `lease_expired`, attempt 2 reuses 8 checkpointed stages and succeeds valid with one solve/validation/summary | ok, 60.6 s kill → result |
+| Cancellation: a running and a queued run, then a new run on the same worker | ok, running cancelled in 2.1 s, follow-up succeeded |
+| Backup/restore: `deploy/backup.sh` online backup (integrity ok), restore into a new volume, second container; scenario and three runs' summary/export hashes identical | ok (`142f077f…`) |
 
-The `summary.json` SHA-256 is `cc5be892…62f1` on the VPS and `b65006f9…caa3` on the Pi, under `~/fillrate-evidence/<host>-fa9c0b8/`. A trial run of the harness against the previous image (`36c023a5…`) showed that a cancel arriving while the solver child was calling the server ended the run **failed**. `fa9c0b8` fixes this and adds an e2e regression test. Late artifact writes after a cancel or a lost lease are refused by lease fencing; the store and transport tests cover this, and the harness does not repeat it.
+The `summary.json` SHA-256 is `cc5be892…62f1` on the VPS, under `~/fillrate-evidence/<host>-fa9c0b8/`. A trial run of the harness against the previous image (`36c023a5…`) showed that a cancel arriving while the solver child was calling the server ended the run **failed**. `fa9c0b8` fixes this and adds an e2e regression test. Late artifact writes after a cancel or a lost lease are refused by lease fencing; the store and transport tests cover this, and the harness does not repeat it.
 
 **Production deployment (2026-10-01):** `fillrate.blasingame.dev` runs the same digest, pinned in `~/containers/fillrate/compose.yaml`, in operator mode (`FILLRATE_MODE` unset). Migration 0008 was backed up first (`fillrate-20261002T030411Z.sqlite`, SHA-256 `364a6d92…1061`; the database had no scenarios or runs) and then applied: 9 migrations. Health reports the worker connected. A live lesson run (`ea942afd…`) succeeded valid and complete, and its CSV export downloads. Hosted accounts are not switched on; the GitHub OAuth app is still needed. A systemd user timer takes daily backups (03:17 UTC) with 30-day rotation; the host has no cron.
 
@@ -54,7 +53,7 @@ The `summary.json` SHA-256 is `cc5be892…62f1` on the VPS and `b65006f9…caa3`
 
 **2026-10-02 hosted deployment:** `image.yml` run [37036731041](https://github.com/timblazing/fillrate/actions/runs/37036731041) passed CI, smoke and 2,000-order benchmark on amd64 and arm64, then published `sha-696d2c9`. The VPS pulled and pinned multi-architecture digest `sha256:7def261e143c118409c827ed78d2daef2befc093eb770168d025bcd37b81c510`. Before the switch, `deploy/backup.sh` wrote `~/containers/fillrate/backups/fillrate-20261002T170212Z.sqlite`, SHA-256 `cd14571cd916ee33d98201e5ae0c960a20aa23f3e7dbc72500cd025bcd86bfa2`; `sha256sum -c` and SQLite integrity passed with 9 migrations, and the backup/checksum files are mode 600. A disposable restore of the same-content preceding backup under the new image migrated to 10, with SQLite integrity `ok`, the new access/admin tables present and worker health connected. The disposable container and data were removed. The live Compose file is mode 600 and now sets hosted mode, `SIGNUP_MODE=request` and `ADMIN_GITHUB_ID=119372400`. The replacement container is healthy with 10 migrations and integrity `ok`; public HTTPS `/api/v1/me` reports hosted/request, `/api/auth/get-session` returns 200, `/api/v1/admin/access-requests` returns 404 anonymously, and the worker is connected. The live request page's GitHub button reaches the GitHub sign-in URL with the configured Fillrate callback. The daily systemd user backup timer is active. The owner then signed in successfully; the screenshot shows the account page, and the VPS database links the configured numeric GitHub ID to an approved account. Public `/api/v1/me` remains hosted/request and the worker remains connected. Local automated two-user isolation and quota checks passed. The owner explicitly waived a second live GitHub account and the live two-account script; that cross-account production check was not performed. No release action remains for hosted signup. On-server copies do not survive server or disk loss.
 
-**Quota check against these timings:** one worker solves one job at a time. The largest bounded run (2,000 orders at the default budget) takes about 81 s on either target. With the hosted defaults (global queue 10, one unfinished job per account, 20 solves per account per day), a full queue waits about 14 minutes at worst, and one account can use about 27 CPU-minutes a day. The starting values stay unchanged. Lower `MAX_QUEUED_RUNS` or `QUOTA_SOLVES_PER_DAY` if real traffic queues longer than that.
+**Quota check against these timings:** one worker solves one job at a time. The largest bounded run (2,000 orders at the default budget) takes about 81 s on the VPS. With the hosted defaults (global queue 10, one unfinished job per account, 20 solves per account per day), a full queue waits about 14 minutes at worst, and one account can use about 27 CPU-minutes a day. The starting values stay unchanged. Lower `MAX_QUEUED_RUNS` or `QUOTA_SOLVES_PER_DAY` if real traffic queues longer than that.
 
 ## Prepare each target
 
@@ -78,7 +77,7 @@ UV_PYTHON=python3.13 uv sync --locked
 
 Preferred: from a checkout (or a copy holding `deploy/` and `services/optimizer/benchmarks/`), run `python3 deploy/target_check.py <image@digest> ~/fillrate-evidence/<host>-<commit> --label <host>`. It needs only Docker and Python 3 on the host and covers the benchmark runs below as well as recovery checks 1–4. The native procedure below remains for timing outside the image.
 
-From `services/optimizer`, set a separate target label/directory for each machine (replace `owner-vps` with `owner-raspberry-pi` on the Pi):
+From `services/optimizer`, set a target label/directory for the machine:
 
 ```sh
 FILLRATE_EVIDENCE_DIR="$HOME/fillrate-evidence/owner-vps"
@@ -118,4 +117,4 @@ Perform disruptive recovery checks against synthetic/disposable data or a verifi
 
 ## Completion and handoff
 
-VPS and Pi 5 hardware/recovery checks and the agreed hosted release gates are complete. The owner accepted omission of a second live GitHub account check; do not report this as a tested production property. Account-free native Bun/npm distribution and the handoff (`handoff.md`) were added on 2026-10-05. M6 routing implementations and M7 are delivered; remaining current work is the M8 dashboard/candidate gates, final image/deployment, signed-in hosted road UI check and native target timings, as recorded in `progress.md`. Protected-import and experiment browser acceptance passed locally on 2026-10-02. Keep exact commands, raw artifact locations/hashes, immutable digest/commit, supported platforms, limitations and unresolved failures in `progress.md` and this record.
+VPS hardware/recovery checks and the agreed hosted release gates are complete. The owner accepted omission of a second live GitHub account check; do not report this as a tested production property. Account-free native Bun/npm distribution and the handoff (`handoff.md`) were added on 2026-10-05. M6 routing implementations and M7 are delivered; remaining current work is the M8 dashboard/candidate gates, final image/deployment, signed-in hosted road UI check and native target timings, as recorded in `progress.md`. Protected-import and experiment browser acceptance passed locally on 2026-10-02. Keep exact commands, raw artifact locations/hashes, immutable digest/commit, supported platforms, limitations and unresolved failures in `progress.md` and this record.
