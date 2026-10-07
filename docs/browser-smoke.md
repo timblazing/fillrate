@@ -49,3 +49,7 @@ Browser actions go through agent-browser; direct HTTP reads are used only for pe
 ## Verification boundaries
 
 These local flows do not replace `bun run test:hosted` for two-account isolation, pending/admin access and quota regression checks. They do not test live GitHub OAuth, deployed-site cross-account behavior, native npm support or target hardware. Sweeps have no cancel control in the UI, so only run cancellation is browser-tested. The optional request-access/admin responsive checks at 393 px remain separate follow-up coverage. Target hardware/release evidence is in `release-verification.md`; current results and remaining work are in `progress.md`.
+
+## Post-fix accessibility audit
+
+`A11Y_REPORT_OUT=/tmp/fillrate-accessibility.json UV_PYTHON=/path/to/python3.13 bun run test:browser --flow=accessibility` is an explicit, separate acceptance pass (excluded from the default all-flows run). It reuses the lesson, experiment and explorer workflows to create persisted synthetic data, then runs agent-browser's embedded axe engine with WCAG 2.0/2.1 A/AA tags across 13 page states × light/dark × desktop/phone (52 checks). Each check also asserts page overflow and reduced-motion handling. The report includes axe incomplete checks for manual follow-up; zero violations does not certify screen-reader usability. Set `A11Y_REPORT_OUT` to retain the report outside the temporary smoke directory. Test keys are redacted from retained reports.

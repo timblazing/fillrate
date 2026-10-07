@@ -5,6 +5,10 @@ export function routeColor(route: number) {
   return `var(--route-${((route - 1) % 8) + 1})`
 }
 
+export function routeForeground(route: number) {
+  return `var(--route-${((route - 1) % 8) + 1}-foreground)`
+}
+
 export function RouteSwatch({
   route,
   size = "md",
@@ -18,11 +22,11 @@ export function RouteSwatch({
     <span
       aria-hidden
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white tabular-nums shadow-sm ring-1 ring-black/10",
+        "inline-flex shrink-0 items-center justify-center rounded-full font-semibold tabular-nums shadow-sm ring-1 ring-black/10",
         size === "sm" ? "size-4 text-[9px]" : "size-5 text-[10px]",
         className
       )}
-      style={{ background: routeColor(route) }}
+      style={{ background: routeColor(route), color: routeForeground(route) }}
     >
       {route}
     </span>
@@ -79,11 +83,11 @@ export function ClusterSwatch({
     <span
       aria-hidden
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-[5px] font-semibold text-white tabular-nums shadow-sm ring-1 ring-black/10",
+        "inline-flex shrink-0 items-center justify-center rounded-[5px] font-semibold tabular-nums shadow-sm ring-1 ring-black/10",
         size === "sm" ? "h-4 min-w-4 px-0.5 text-[9px]" : "h-5 min-w-5 px-1 text-[10px]",
         className
       )}
-      style={{ background: routeColor(cluster) }}
+      style={{ background: routeColor(cluster), color: routeForeground(cluster) }}
     >
       C{cluster}
     </span>

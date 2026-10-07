@@ -12,8 +12,8 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs", "baselines", "fleet", "recovery", "road-geometry"];
-const flows = selected === "all" ? allFlows : [selected];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs", "baselines", "fleet", "recovery", "road-geometry", "accessibility"];
+const flows = selected === "all" ? allFlows.filter(flow => flow !== "accessibility") : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
 const dataDir = mkdtempSync(join(tmpdir(), "fillrate-browser-smoke-"));
@@ -217,6 +217,7 @@ async function lessonFlow(baseURL, runKey) {
   checkShipmentSheet(baseURL, runKey, detail);
   checkBrowserDiagnostics("lesson");
   console.log(`  passed: run ${runId.slice(0, 8)}, revenue ${exported.summary.totals.planned_cents} cents, ${exported.summary.totals.trucks} shipments, JSON export`);
+  return runId;
 }
 
 // Printable shipment sheets from the persisted run: one page per shipment, every unshipped line with its reason
@@ -1155,7 +1156,8 @@ async function experimentFlow(baseURL, runKey) {
   assertViewport(393, 852);
   checkBrowserDiagnostics("experiment comparison");
   console.log(`  passed: 2 combinations, Best option ${best.metrics.planned_cents} cents, ${best.metrics.trucks} shipments`);
-  await explorerReplayStep(baseURL, runKey);
+  const explorerId = await explorerReplayStep(baseURL, runKey);
+  return { id, explorerId };
 }
 
 // A small k explorer job on the same example, then its Python replay bundle from /explore/<id> (spec §13, M7).
@@ -1182,6 +1184,7 @@ async function explorerReplayStep(baseURL, runKey) {
   expect(zip.subarray(0, 2).toString() === "PK" && ["replay.py", "expected.json", "settings.json", "optimizer/uv.lock", "optimizer/src/fillrate_optimizer/explorer_replay.py"].every((name) => names.includes(name)), "Explorer replay bundle lacks its replay files.");
   checkBrowserDiagnostics("explorer replay");
   console.log(`  passed: explorer ${job.id.slice(0, 8)} (k 2, 3 × seeds 0, 1), replay bundle ${zip.length} bytes`);
+  return job.id;
 }
 
 function clickLink(name) { browser("find", "role", "link", "click", "--name", name, "--exact"); }
@@ -2457,6 +2460,77 @@ async function roadGeometryFlow(baseURL, scenarioKey, runKey) {
   console.log(`  passed: run ${runId.slice(0, 8)} on snapshot ${snapshotId.slice(0, 10)}, ${visits.length} road legs with discrepancies, labels, legend, cursor, GeoJSON; estimated run refused`);
 }
 
+// Repeatable post-fix audit on isolated persisted data, using the same production server/worker as other smokes.
+async function accessibilityFlow(baseURL, runKey) {
+  const runId = await lessonFlow(baseURL, runKey);
+  const { id: experimentId, explorerId } = await experimentFlow(baseURL, runKey);
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const pages = [
+    ["landing", "/"], ["scenarios", "/scenarios"], ["runs", "/runs"],
+    ...["Map", "Shipments", "Unshipped", "Timeline"].map(tab => [`run-${tab.toLowerCase()}`, `/runs/${runId}${access}`, tab]),
+    ["sheet", `/runs/${runId}/sheet${access}`], ["experiments", `/experiments${access}`],
+    ["comparison", `/experiments/${experimentId}${access}`], ["explorer", `/explore/${explorerId}${access}`],
+    ["lesson", `/learn/fulfillment-pipeline${access}`], ["labs", "/labs"],
+  ];
+  const report = { source: spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(), browser: "agent-browser 0.37.1", checks: [] };
+  const out = resolve(process.env.A11Y_REPORT_OUT ?? join(dataDir, "accessibility.json"));
+  mkdirSync(dirname(out), { recursive: true });
+  for (const [name, path, tab] of pages) {
+    for (const [width, height] of [[1440, 900], [393, 852]]) {
+      for (const theme of ["light", "dark"]) {
+        browser("set", "media", theme, "reduced-motion");
+        open(`${baseURL}${path}`);
+        browser("eval", `localStorage.setItem("theme", ${JSON.stringify(theme)})`);
+        browser("reload");
+        browser("wait", "--fn", `document.documentElement.classList.contains(${JSON.stringify(theme)})`);
+        if (tab) {
+          browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+          const actualTab = evalValue(`[...document.querySelectorAll('[role="tab"]')].find(el => el.innerText.trim().startsWith(${JSON.stringify(tab)}))?.innerText.trim()`);
+          expect(actualTab, `Missing ${tab} tab.`);
+          clickTab(actualTab);
+        }
+        assertViewport(width, height);
+        browser("wait", "500");
+        const axe = JSON.parse(browser("a11y", "--tags", "wcag2a,wcag2aa,wcag21a,wcag21aa", "--json"));
+        expect(axe.success === true, `Accessibility engine failed on ${name}.`);
+        const motion = evalValue(`({reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,infinite:document.getAnimations().filter(a=>a.playState==='running' && a.effect.getComputedTiming().iterations===Infinity).length})`);
+        browser("press", "Tab");
+        const focus = evalValue(`(() => {
+          const previous = document.activeElement;
+          const position = [scrollX, scrollY];
+          const style = el => [el, el.parentElement, el.parentElement?.parentElement].filter(Boolean).map(node => { const s = getComputedStyle(node); return [s.outline, s.boxShadow, s.borderColor].join('|') }).join(';');
+          const controls = [...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex="0"]')].filter(el => !el.disabled && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').slice(0,25);
+          const missing = [];
+          for (const el of controls) {
+            document.activeElement?.blur();
+            const before = style(el);
+            el.focus({preventScroll:true});
+            if (document.activeElement !== el || !el.matches(':focus-visible') || before === style(el)) missing.push({tag:el.tagName,label:el.getAttribute('aria-label')??el.innerText?.trim().slice(0,80)??''});
+          }
+          previous?.focus({preventScroll:true});
+          scrollTo(...position);
+          return {sampled:controls.length,missing};
+        })()`);
+        const check = { page: name, width, height, theme, axe: { ...axe.data, url: path.split("?")[0] }, motion, focus };
+        if (process.env.A11Y_SHOTS) {
+          mkdirSync(process.env.A11Y_SHOTS, { recursive: true });
+          browser("screenshot", join(process.env.A11Y_SHOTS, `${name}-${theme}-${width}.png`));
+        }
+        report.checks.push(check);
+        writeFileSync(out, redact(JSON.stringify(report, null, 2)));
+        const violations = axe.data.violations;
+        expect(Array.isArray(violations), "Accessibility engine did not return a violations array.");
+        if (focus.missing.length) console.log(`  focus findings: ${name} ${theme} ${width}: ${JSON.stringify(focus.missing)}`);
+        if (violations.length) console.log(`  accessibility findings: ${name} ${theme} ${width}: ${JSON.stringify(violations)}`);
+        expect(motion.reduced && motion.infinite === 0, `${name} has unreduced infinite motion.`);
+        console.log(`  accessibility: ${name} ${theme} ${width}, ${violations.length} WCAG A/AA violations; no overflow`);
+      }
+    }
+  }
+  expect(report.checks.every(check => check.axe.violations.length === 0 && check.focus.missing.length === 0), `Accessibility violations remain; see ${out}.`);
+  console.log(`  accessibility: ${report.checks.length} checks passed; report ${out}`);
+}
+
 process.once("SIGINT", () => void stop().finally(() => process.exit(130)));
 process.once("SIGTERM", () => void stop().finally(() => process.exit(143)));
 
@@ -2501,6 +2575,7 @@ try {
     env: { ...commonEnv, UV_PYTHON: process.env.UV_PYTHON ?? "3.13", FILLRATE_WORKER: "1", OPTIMIZER_PORT: String(optimizerPort), FILLRATE_INTERNAL_URL: `http://127.0.0.1:${internalPort}`, WORKER_ID: `browser-smoke-${process.pid}`, WORKER_POLL_SECONDS: "0.2" },
   });
   for (const flow of flows) {
+    if (flow === "accessibility") await accessibilityFlow(baseURL, runKey);
     if (flow === "lesson") await lessonFlow(baseURL, runKey);
     if (flow === "import") await importFlow(baseURL, scenarioKey);
     if (flow === "matrix") await matrixFlow(baseURL, scenarioKey);

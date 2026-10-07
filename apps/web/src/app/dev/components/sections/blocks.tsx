@@ -30,7 +30,7 @@ export const blocks = {
   "run-pipeline": {
     Block: RunPipelineBlock,
     title: "Run pipeline",
-    description: "Resolved settings with their sources, preflight, and the live stage view. Press Run pipeline in the header.",
+    description: "Resolved settings with their sources, preflight, and a simulated stage view. Press Run pipeline in the header.",
   },
   results: {
     Block: ResultsBlock,
@@ -40,12 +40,12 @@ export const blocks = {
   "k-explorer": {
     Block: KExplorerBlock,
     title: "k explorer",
-    description: "Clustering only, k 3–12 × seeds 0–9. Pick a k from the chart or table; the map colors stops by assignment confidence at that k.",
+    description: "Synthetic clustering example, k 3–12 × seeds 0–9. Pick a k from the chart or table; the map colors stops by assignment confidence at that k.",
   },
   comparison: {
     Block: ComparisonBlock,
     title: "Iteration comparison",
-    description: "A sweep of nine runs. Tick two rows to diff their settings and see metric deltas.",
+    description: "A synthetic sweep of nine runs. Tick two rows to diff their settings and see metric deltas.",
   },
 }
 
@@ -58,7 +58,7 @@ export function Blocks() {
       load="windowed"
       index={6}
       title="Blocks"
-      description="Full screens composed from the components above, on the same fixture run. These are the M2 design candidates for the pipeline: the user reviews them before M3 builds them for real."
+      description="Design-system reference screens composed from shared components with synthetic fixtures. The planning dashboard uses persisted scenarios and runs; these examples demonstrate layout and interactions."
     >
       {Object.entries(blocks).map(([id, { Block, title, description }]) => (
         <Specimen
