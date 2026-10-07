@@ -286,6 +286,8 @@ async function profileShipmentResults(baseURL, runKey, runId, shipmentCount) {
   const tableRegion = evalValue(`(()=>{const region=document.querySelector('[role="region"][aria-label="Shipment results table"]');region?.focus();return {focusable:region?.tabIndex===0,focused:document.activeElement===region,scrollable:region?.scrollWidth>region?.clientWidth}})()`);
   expect(tableRegion.focusable && tableRegion.focused && tableRegion.scrollable, `Shipment table region should be labeled, keyboard-focusable and scrollable: ${JSON.stringify(tableRegion)}.`);
   browser("press", "ArrowRight");
+  // Native keyboard scrolling can start on a later animation frame on a busy runner.
+  browser("wait", "--fn", `document.querySelector('[role="region"][aria-label="Shipment results table"]').scrollLeft > 0`, "--timeout", "2000");
   expect(Number(evalValue(`document.querySelector('[role="region"][aria-label="Shipment results table"]').scrollLeft`)) > 0, "Keyboard arrow navigation should horizontally scroll the shipment table region.");
   clickButton("Next shipments");
   let pageStatus = String(parsedText()).match(/Showing.{0,50}shipments/)?.[0] ?? "no page status";

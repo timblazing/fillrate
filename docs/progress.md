@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-10-07: Stabilize keyboard-scroll browser acceptance (Codex)
+- After the integrated source passed full CI, the documentation-only merge onto squashed #82 produced the identical Git tree but [a later CI run](https://github.com/timblazing/fillrate/actions/runs/37650106992) failed the shipment table's immediate keyboard-scroll read. The runner had already confirmed the region was focused and scrollable.
+- The smoke now waits up to two seconds for native ArrowRight scrolling to produce `scrollLeft > 0`, then retains the same assertion. This accommodates asynchronous scroll frames while still failing if keyboard scrolling does not work; product code is unchanged by this fix.
+- `bun run test:browser --flow=lesson` passed locally against the production build with isolated synthetic data: both viewports, keyboard scrolling, pagination/selection, exports and 443 shipment sheets plus unshipped reasons (466 PDF pages). The local Python 2.7 PATH collision was resolved for this command by selecting Python 3.13 with a filtered PATH. `node --check scripts/test-browser.mjs` and `git diff --check` pass. Final head-commit CI remains the merge gate on PR #83.
+
 ## 2026-10-07: Integrate local work and reconcile current records (Codex)
 - Integrated the recovery, hosted Valhalla and accessibility branches in PR order (#81, #82, #83), preserving the dated road/recovery/print evidence. Resolved the progress-document conflict introduced by the recovery squash merge; source changes merge together without conflict.
 - Reconciled the current milestone checklist, status focus, completion plan, basemap reference, handoff and release gaps with the accepted keyless CARTO decision, completed local print/recovery acceptance and recorded VPS road-service evidence. Post-fix accessibility acceptance, final performance/copy work, a new image and deployment, signed-in hosted road UI and native target timings remain explicit gaps.

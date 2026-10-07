@@ -22,4 +22,4 @@ No page had page-level horizontal overflow in any pass. No infinite animation ra
 
 ## Not yet verified
 
-The post-fix audit rerun was interrupted when the session stopped. The fixes passed `bun run lint` and `bun run typecheck` only. Rerun the same audit, plus the affected browser flows, on the final candidate before closing the row. Screen-reader (VoiceOver) passes, physical phone checks and the gallery page were not audited.
+The post-fix audit rerun was interrupted when the session stopped. The original fix session ran lint/typecheck. The integrated source subsequently passed lint/typecheck/build and [full PR CI](https://github.com/timblazing/fillrate/actions/runs/37648531184), including hosted/local checks and all applicable browser flows. Those checks do not run the post-fix axe audit. Rerun the same audit, plus the affected browser flows, on the final candidate before closing the row. Screen-reader (VoiceOver) passes, physical phone checks and the gallery page were not audited.
