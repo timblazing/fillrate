@@ -601,4 +601,3 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 - **Decision:** The Hostinger VPS is the only deployment target; Raspberry Pi is not a target. arm64 images remain for local Docker on ARM hosts. VoiceOver, physical-device and manual accessibility acceptance are out of scope for the v1 demo. On hosted deployments with Valhalla, runs always use road travel with an automatically built matrix. Stops outside coverage block the run. Road geometry is drawn by default, and the matrix heatmap becomes a summary (#98).
 - **Reason:** Owner direction during the 2026-10-07 live check. A road run's map showed straight lines unless a per-shipment button was pressed, the run defaulted to Estimated travel, and the heatmap was unclear. Accessibility and a Pi target are not priorities for the v1 demo.
 - **Supersedes:** the 2026-10-05 per-inspected-truck geometry decision for hosted road runs, once #98 lands.
-
