@@ -47,9 +47,9 @@
     },
     "M8": {
       "weight": 7,
-      "done": 87,
+      "done": 90,
       "state": "active",
-      "notes": "Planning estimate: 87%. Local candidate f01687b passes 52-state post-fix axe/theme/viewport/reduced-motion and sampled focus checks; shared swatch contrast/page-counter semantics fixed, hosted-road FAQ and gallery reference copy reconciled. Scoped results/matrix timing trials recorded. Open: manual incomplete contrast and screen-reader/gallery review, six-Block states and broader/cold performance, final candidate CI/image/deployment, owner road UI and native timings."
+      "notes": "Planning estimate: 90%. Runtime update 698fbd8 passed CI and both image architecture smokes, then was deployed by digest with backup integrity, database/worker health, hosted/request and road identity verified. The 52-state automated accessibility audit and scoped performance trials pass. Open: six-Block production acceptance (#88), broader/cold performance (#89), manual accessibility/gallery review (#90), the owner's signed-in workflow (#91) and road geometry check (#92), plus native VPS/Pi timings (#93)."
     }
   },
   "nextUp": [
