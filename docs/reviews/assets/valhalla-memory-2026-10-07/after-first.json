@@ -1,0 +1,38 @@
+{
+  "label": "region",
+  "responses": [
+    {
+      "size": 10,
+      "sha256": "16396dfc5cfe284e10c36ae9287addb9d46e24b06f2bb7a393bfee81bece6f40",
+      "null_pairs": 0,
+      "ms": 8510.5
+    },
+    {
+      "size": 25,
+      "sha256": "61a0b1c54ae3965d87540b421c7ac4c7a1df399ae62189376a33f06da826695a",
+      "null_pairs": 0,
+      "ms": 44777.7
+    }
+  ],
+  "peak": 1477107712,
+  "peak_anon": 1466675200,
+  "peak_file": 2580480,
+  "before": {
+    "at": 1791392407.9621432,
+    "current": 34422784,
+    "anon": 30932992,
+    "file": 2580480,
+    "cpu_usage_usec": 245064
+  },
+  "after": {
+    "at": 1791392461.720012,
+    "current": 1448087552,
+    "anon": 1437581312,
+    "file": 2580480,
+    "cpu_usage_usec": 53435630
+  },
+  "cpu_usec": 53015479,
+  "samples": 108,
+  "oom_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+  "restart": 0
+}

@@ -575,3 +575,13 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-07: Reconcile integration records with accepted release boundaries (Codex)
 - **Decision:** Preserve the earlier dated evidence while updating current status and handoff to the combined recovery, hosted-road and accessibility source. Keyless CARTO remains the accepted v1 choice; configuring a key/tier is a later owner follow-up.
 - **Evidence boundary:** Implemented accessibility fixes do not complete post-fix audit acceptance. Hosted Valhalla service checks do not replace the signed-in live road workflow, and merging source does not publish an image or deploy it. Final candidate performance/copy, image/deployment and native target evidence remain open.
+
+
+## 2026-10-07: Release Valhalla search reservations between requests on shared hosts (Codex)
+- **Decision:** Generated Valhalla configuration enables `thor.clear_reserved_memory` while retaining established road-search limits. This requests buffer release in the pinned 3.9.0 Thor implementation; it trades possible repeat-request allocation overhead for lower retained search memory. It does not promise an allocator-level RSS reduction.
+- **Deployment boundary:** The VPS is unchanged pending owner approval and a matrix/route correctness, latency, peak and warmed-idle benchmark. The existing 625-pair app blocks, one CPU/thread and 2.5 GiB cap remain the trial envelope. A configuration change regenerates the graph/config hash from the effective serving JSON and tiles; old snapshots stay immutable and old-context road geometry is refused by the existing guard.
+
+
+## 2026-10-07: Retain the benchmarked Valhalla buffer-release setting on the VPS (Codex)
+- **Decision:** Owner approved application and measurement of `thor.clear_reserved_memory=true`. Keep the tuned setting after the direct-provider correctness trials preserved every matrix value and road geometry, reduced sampled peak memory and dropped warmed cgroup idle memory to about 561 MiB. Keep the existing road coverage, search limits, app blocks and resource caps; do not remove functionality to lower idle cost.
+- **Tradeoff/evidence:** The repeated seeded 25 × 25 request took 43.445 s versus 39.012 s before tuning (single shared-host trials). The process still maps graph pages, so RSS is higher than the cgroup footprint. The new effective graph/config identity was regenerated and applied; old snapshots are not relabeled. Private on-host configuration/DB backups provide rollback. Signed-in UI and long-duration/load evidence remain separate.
