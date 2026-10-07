@@ -59,17 +59,20 @@ export default function Home() {
           />
           <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-4 pt-16 pb-20 sm:px-6 sm:pt-20 lg:pt-20 lg:pb-28 xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] xl:gap-12">
             <div className="max-w-3xl">
+              <p className="text-muted-foreground mb-5 text-xs font-medium tracking-[0.14em] text-pretty uppercase sm:text-sm">
+                Open-source order fulfillment and truckload planning
+              </p>
               <h1 id="hero-title" className="text-foreground text-[3.25rem] leading-[0.95] font-semibold tracking-[-0.06em] text-balance sm:text-7xl xl:text-[clamp(4.5rem,6.4vw,5.25rem)]">
                 Make more of <br className="hidden xl:block" />
                 every truckload.
               </h1>
               <p className="text-muted-foreground mt-7 max-w-lg text-base leading-relaxed text-pretty sm:text-lg">
-                Plan how limited stock can fulfill open orders, then turn those deliveries into capacity-aware routes you can inspect and compare.
+                When stock is short and trucks are finite, Fillrate shows how different choices change what ships, what doesn&rsquo;t, and how full each trailer gets.
               </p>
               <div className="mt-9 flex flex-wrap items-center gap-3">
                 <RequestAccessButton />
-                <Button size="lg" variant="ghost" className="text-muted-foreground h-11 rounded-full px-4 text-sm" render={<a href="#about" />}>
-                  How it works
+                <Button size="lg" variant="ghost" className="text-muted-foreground h-11 rounded-full px-4 text-sm" render={<a href={REPO_URL} target="_blank" rel="noopener noreferrer" />}>
+                  View on GitHub
                 </Button>
               </div>
             </div>
@@ -87,11 +90,11 @@ export default function Home() {
               <p className="text-foreground text-xl leading-snug font-medium tracking-tight text-pretty sm:text-[1.625rem]">
                 Fillrate brings inventory allocation and vehicle routing into one workbench.{" "}
                 <span className="text-muted-foreground">
-                  Match limited stock to open orders, group nearby stops into delivery areas, then build capacity-aware truckloads and follow every decision through to what shipped and what didn&rsquo;t.
+                  Match limited stock to open orders, group nearby stops into delivery areas, and build truckloads that respect capacity. Then trace every decision through to what shipped and what didn&rsquo;t.
                 </span>
               </p>
               <p className="text-muted-foreground mt-8 max-w-xl text-sm leading-relaxed">
-                Routes are solved with PyVRP, and travel is an estimate unless you import your own matrix. Fillrate is for planning and comparison. It doesn&rsquo;t dispatch drivers, track vehicles, or give turn-by-turn directions.
+                Routes are solved with PyVRP. Travel times are estimates unless you import your own matrix. Fillrate is built for planning and comparison, not dispatching drivers, tracking vehicles, or turn-by-turn directions.
               </p>
               <a
                 href={REPO_URL}

@@ -280,7 +280,7 @@ try {
     check("authenticated request form is available", (await fetch(`${b}/request-access`, { headers: user.headers })).status === 200);
     check("approved lesson is available", (await fetch(`${b}/learn/fulfillment-pipeline`, { headers: admin.headers })).status === 200);
     const landing = await (await fetch(`${b}/`, { headers: admin.headers })).text();
-    check("landing CTA requests access", landing.includes("Request access") && !landing.includes("Open Fillrate"));
+    check("landing CTA starts the access flow", landing.includes("Get started") && !landing.includes("Open Fillrate"));
     check("pending note saves", (await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: "Testing with sample orders" } }))).status === 200);
     check("note is stored", db.prepare("SELECT note FROM access_requests WHERE user_id=?").get(user.userId)?.note === "Testing with sample orders");
     for (let i = 0; i < 9; i++) await call(b, "/api/v1/me/access-request", as(user, { method: "PUT", body: { note: `Update ${i}` } }));

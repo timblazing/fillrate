@@ -30,7 +30,7 @@ export function RequestAccessButton() {
   }
   return (
     <Button size="lg" className="h-11 gap-3 rounded-full pr-2 pl-5 text-sm" loading={pending} onClick={requestAccess}>
-      Request access
+      Get started
       <span className="bg-primary-foreground/10 flex size-7 items-center justify-center rounded-full">
         <ArrowRight aria-hidden="true" className="size-3.5" />
       </span>
