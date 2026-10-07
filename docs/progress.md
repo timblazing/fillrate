@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-10-07: Clean PR integration and final source CI (Codex)
+- Recovery [#81](https://github.com/timblazing/fillrate/pull/81), hosted-road [#82](https://github.com/timblazing/fillrate/pull/82) and accessibility [#83](https://github.com/timblazing/fillrate/pull/83) are squash-merged. Integration commits are `b96694b`, `f7a9198` and `0fc6db7`; source at `0fc6db7` is byte-for-byte identical to the tested PR head `905230f`.
+- [Final PR CI run 37651252038](https://github.com/timblazing/fillrate/actions/runs/37651252038) passed both `checks` and `npm`: optimizer lint/tests, generated contracts, lint/typecheck, real-worker Vitest, production build, hosted/local isolation checks, the standard browser suite and the native npm path. The optional live Valhalla road-geometry flow was skipped in CI because no provider was configured; the separate hosted-service/local equivalent-bundle evidence remains in [valhalla.md](valhalla.md).
+- [Road-tooling integration CI run 37648163906](https://github.com/timblazing/fillrate/actions/runs/37648163906) also passed both jobs. The earlier keyboard-scroll failure and its bounded-wait fix remain recorded below. Current progress, handoff, completion plan, basemap decision and PR descriptions were reconciled; all original worktrees and uncommitted drafts are preserved.
+- This is source integration and CI evidence. Post-fix accessibility audit acceptance, final performance/copy work, final image publication/deployment, signed-in live road UI and native target timings remain open. M6/M8 estimates stay at 99%/86%; no release or deployment is claimed.
+
 ## 2026-10-07: Stabilize keyboard-scroll browser acceptance (Codex)
 - After the integrated source passed full CI, the documentation-only merge onto squashed #82 produced the identical Git tree but [a later CI run](https://github.com/timblazing/fillrate/actions/runs/37650106992) failed the shipment table's immediate keyboard-scroll read. The runner had already confirmed the region was focused and scrollable.
 - The smoke now waits up to two seconds for native ArrowRight scrolling to produce `scrollLeft > 0`, then retains the same assertion. This accommodates asynchronous scroll frames while still failing if keyboard scrolling does not work; product code is unchanged by this fix.
