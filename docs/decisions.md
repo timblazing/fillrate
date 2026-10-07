@@ -561,3 +561,10 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 
 ## 2026-10-06: Keep README text-only (Codex)
 - **Decision:** Owner approved the README copy and requested removing its screenshots and copied image assets, with no placeholder or future-screenshot note.
+
+## 2026-10-07: Host Valhalla roads for v1 from prebuilt tiles with resource caps (Claude Code)
+- The owner chose hosted road routing for v1, covering Oklahoma and its bordering states (OK, TX, NM, CO, KS, MO, AR). Hosted travel options are therefore estimated, imported matrices, or the hosted Valhalla road matrix inside that coverage. Stops outside it are reported unreachable, never approximated.
+- Tiles are built off-host and only served on the VPS: the build peaked at 13.6 GiB, more than the shared host's 7.8 GiB. The serving service is capped at 1 CPU, 2.5 GiB and one thread, with no host port. Fillrate uses 25 × 25 matrix blocks there (`VALHALLA_MAX_MATRIX_PAIRS=625`). Deployment stays Compose-based and portable: `deploy/valhalla/compose.serve.yaml`, `bundle.sh` and the `prepare.sh env` lines on the serving host.
+- Truck `max_matrix_distance` defaults to 2,000 km, because CostMatrix's cost threshold at 1,000 km returned null for 750–1,050 km truck legs that `/route` found. Fillrate's leg limit still decides reachability.
+- Long extract lists record a compact `dataset_revision` (names, newest date, SHA-256 prefix of the full list), because Fillrate accepts at most 200 characters. The full list stays in `extract-meta.json`.
+- Hosted third-party routing APIs were reviewed and not selected: Stadia's matrix limit is 400 km and openrouteservice allows 5 × 5 with truck dimensions; both need keys and send stop coordinates off-host. maps.black serves basemaps, not routing.

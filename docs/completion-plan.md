@@ -18,7 +18,7 @@ A hosted launch with estimated travel is supported. Road-enabled launch addition
 | P1: frontend performance | Implementation session | Baseline measurements; integrate alongside UI fixes | Recorded 2,000-order/matrix measurements meet frontend-spec budgets; identified bottlenecks fixed; no fixture output used as product evidence |
 | P1: candidate verification | Implementation session | Final integrated dashboard candidate | Lint/typecheck/build, relevant full suites and contracts, hosted/local acceptance, complete applicable browser coverage; capability and docs reconciliation |
 | P1: final image and deployment | Release session + owner | Candidate green; image workflow | Both architecture smokes and published digest; pre-upgrade backup, deploy-by-digest, migration/health/access and live synthetic workflow checks; rollback reference |
-| Conditional: VPS roads | Owner + implementation support | Valhalla host resources/dataset decision | Pinned provider/graph identity and coverage, real matrix/route checks, memory/disk and latency evidence; required for road-enabled release |
+| In v1 (owner, 2026-10-07): VPS roads | Owner + implementation support | OK + bordering states, prebuilt tiles | Done 2026-10-07: pinned provider/graph identity and coverage, VPS matrix/route checks, memory/disk/latency evidence, app path through Fillrate on the same bundle. Open: owner's signed-in UI check on the live site |
 | P2: native target handoff | Owner + implementation support | VPS/Pi access and matching source/settings | Bun/npm/uv timings and startup evidence on both targets, with runtime versions and limitations |
 
 The current publication task completed in #72 independently of dashboard work. It proves only its source image; dashboard runtime changes will need a later image release. Preserve the recorded release-verification evidence and do not duplicate the completed dispatch.
@@ -33,7 +33,7 @@ The current publication task completed in #72 independently of dashboard work. I
 - [ ] Live HTTPS verifies anonymous/pending/admin policy, approved owner sign-in and one synthetic import → run → inspect → export; no live two-account test is added to the previously waived gate.
 - [ ] Backup timer/retention and restore/rollback compatibility are confirmed for the upgraded storage release; worker/storage changes rerun relevant recovery evidence.
 - [ ] Public copy, capability declarations, handoff and current progress match the deployed features and travel mode.
-- [ ] If advertising hosted Valhalla roads, the conditional road gate has VPS evidence; otherwise describe estimated/imported travel and availability explicitly.
+- [ ] Hosted Valhalla roads (in v1, OK + bordering states): VPS service evidence is recorded (docs/valhalla.md); the owner's signed-in UI check and copy that names the coverage remain.
 
 ## Scope boundaries and operating rules
 
