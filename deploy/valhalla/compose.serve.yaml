@@ -1,0 +1,20 @@
+# Serve prebuilt Valhalla tiles on a small or shared host (docs/valhalla.md, "Prebuilt tiles").
+# Tiles are built on a separate machine (the build peaks far above a small VPS's memory), copied with
+# deploy/valhalla/bundle.sh, and only served here:
+#   docker compose -f compose.yaml -f valhalla/compose.serve.yaml --profile valhalla up -d
+# Nothing is built at start: no extracts are needed, admin/timezone data is already in the tiles and the
+# image's tile build is skipped. Caps keep the service from starving the app or other sites on the host.
+services:
+  valhalla:
+    environment:
+      use_tiles_ignore_pbf: "True"      # load the copied valhalla_tiles.tar, never build
+      update_existing_config: "False"   # keep the copied valhalla.json (limits from prepare.sh)
+      use_default_speeds_config: "False" # speeds are already in the tiles
+      build_admins: "False"
+      build_time_zones: "False"
+      server_threads: "${VALHALLA_SERVER_THREADS:-1}"
+    cpus: ${VALHALLA_CPUS:-1.0}
+    mem_limit: ${VALHALLA_MEM_LIMIT:-2g}
+    memswap_limit: ${VALHALLA_MEM_LIMIT:-2g}
+    healthcheck:
+      start_period: 5m                  # tile loading only

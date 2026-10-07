@@ -2,7 +2,8 @@
 """Live Valhalla smoke (spec §7, M6; docs/valhalla.md): a durable snapshot job against the configured
 Valhalla, then a pipeline run on that immutable snapshot, an out-of-coverage stop left unreachable, and
 queued-job cancellation. Needs a deployment covering Tennessee, Mississippi and Arkansas (Birmingham, AL
-must be outside it). Usage: smoke_valhalla.py <base-url> <scenario-key>
+must be outside it), or with `ok7` the hosted Oklahoma + bordering-states coverage (Nashville, TN outside).
+Usage: smoke_valhalla.py <base-url> <scenario-key> [tnmsar|ok7]
 
 Not part of deploy/smoke.sh: the image smoke runs without a road service. Run it against a Compose stack
 started with `--profile valhalla` (or a dev server whose worker has the VALHALLA_* settings)."""
@@ -17,17 +18,32 @@ import uuid
 import zipfile
 
 base, key = sys.argv[1].rstrip("/"), sys.argv[2]
+region = sys.argv[3] if len(sys.argv) > 3 else "tnmsar"
 
-DEPOT = {"id": "depot", "label": "Memphis DC", "lat": 35.1495, "lon": -90.049}
-STOPS = {
-    "NASH": ("Nashville, TN", 36.1627, -86.7816),
-    "JKTN": ("Jackson, TN", 35.6145, -88.8139),
-    "TUPE": ("Tupelo, MS", 34.2576, -88.7034),
-    "JKMS": ("Jackson, MS", 32.2988, -90.1848),
-    "LIRO": ("Little Rock, AR", 34.7465, -92.2896),
-    "JONE": ("Jonesboro, AR", 35.8423, -90.7043),
-    "BHAM": ("Birmingham, AL (outside coverage)", 33.5186, -86.8104),
-}
+if region == "ok7":
+    DEPOT = {"id": "depot", "label": "Oklahoma City DC", "lat": 35.4676, "lon": -97.5164}
+    OUT = "NASH"
+    STOPS = {
+        "TULS": ("Tulsa, OK", 36.154, -95.9928),
+        "WICH": ("Wichita, KS", 37.6872, -97.3301),
+        "DALL": ("Dallas, TX", 32.7767, -96.797),
+        "AMAR": ("Amarillo, TX", 35.222, -101.8313),
+        "FTSM": ("Fort Smith, AR", 35.3859, -94.3985),
+        "LAWT": ("Lawton, OK", 34.6036, -98.3959),
+        OUT: ("Nashville, TN (outside coverage)", 36.1627, -86.7816),
+    }
+else:
+    DEPOT = {"id": "depot", "label": "Memphis DC", "lat": 35.1495, "lon": -90.049}
+    OUT = "BHAM"
+    STOPS = {
+        "NASH": ("Nashville, TN", 36.1627, -86.7816),
+        "JKTN": ("Jackson, TN", 35.6145, -88.8139),
+        "TUPE": ("Tupelo, MS", 34.2576, -88.7034),
+        "JKMS": ("Jackson, MS", 32.2988, -90.1848),
+        "LIRO": ("Little Rock, AR", 34.7465, -92.2896),
+        "JONE": ("Jonesboro, AR", 35.8423, -90.7043),
+        OUT: ("Birmingham, AL (outside coverage)", 33.5186, -86.8104),
+    }
 ORDERS = ["order_id,line_id,order_date,location_id,location_label,address,latitude,longitude,"
           "product,ordered_pieces,net_value_per_piece,linear_feet_per_piece"]
 for i, (sid, (label, lat, lon)) in enumerate(STOPS.items()):
@@ -99,9 +115,9 @@ assert snapshot_id in {s["id"] for s in call("/api/v1/travel-snapshots")["snapsh
 inspect = call(f"/api/v1/travel-snapshots/{snapshot_id}?inspect=1")
 document = call(f"/api/v1/travel-snapshots/{snapshot_id}?format=json")
 warnings = [w for w in document["warnings"] if w.get("code") == "outside_coverage"]
-assert warnings and warnings[0]["nodes"] == ["BHAM"], document["warnings"]
+assert warnings and warnings[0]["nodes"] == [OUT], document["warnings"]
 ids = [node["id"] for node in document["nodes"]]
-bham = ids.index("BHAM")
+bham = ids.index(OUT)
 assert all(row[bham] is None for i, row in enumerate(document["distances"]) if i != bham)
 assert all(d is None for j, d in enumerate(document["distances"][bham]) if j != bham)
 covered = [i for i in range(len(ids)) if i != bham]
@@ -111,18 +127,18 @@ SETTINGS = {"k": 1, "solver_max_iterations": 500, "solver_time_limit_s": 10, "tr
 # By default a stop no allowed road path reaches blocks the run (preflight reads the same matrix).
 findings = call("/api/v1/scenarios/preflight", {"versionId": version, "settings": SETTINGS})["findings"]
 assert [(f["check"], f["action"], f["location_ids"]) for f in findings] == [
-    ("far_from_depot", "block", ["BHAM"])], findings
+    ("far_from_depot", "block", [OUT])], findings
 call("/api/v1/scenarios/runs", {"versionId": version, "settings": SETTINGS}, idempotent=True, expect=422)
-# Downgraded to a warning, the run plans every covered stop and reports BHAM as unreachable.
+# Downgraded to a warning, the run plans every covered stop and reports the outside stop as unreachable.
 SETTINGS["preflight"] = {"far_from_depot": "warn"}
 run = finished(call("/api/v1/scenarios/runs", {"versionId": version, "settings": SETTINGS},
                     idempotent=True, expect=201)["id"])
 summary = run["summary"]
 assert summary["travel"]["mode"] == "snapshot" and summary["travel"]["snapshot_id"] == snapshot_id
 assert summary["validity"] == "valid", summary["diagnostics"]
-assert [(u["location_id"], u["reason"]) for u in summary["unplanned"]] == [("BHAM", "unreachable")], summary["unplanned"]
+assert [(u["location_id"], u["reason"]) for u in summary["unplanned"]] == [(OUT, "unreachable")], summary["unplanned"]
 planned = {v["location_id"] for truck in summary["trucks"] for v in truck["visits"]}
-assert planned == set(STOPS) - {"BHAM"}, planned
+assert planned == set(STOPS) - {OUT}, planned
 # Every planned leg is the recorded directed matrix value (meters, rounded once).
 index = {node_id: i for i, node_id in enumerate(ids)}
 for truck in summary["trucks"]:
@@ -139,6 +155,6 @@ assert json.loads(bundle.read("travel-snapshot.json"))["provider"] == "valhalla"
 assert json.loads(bundle.read("expected.json"))["travel"]["snapshot_id"] == snapshot_id
 
 print(f"valhalla smoke ok: snapshot {snapshot_id[:8]} ({meta.get('providerVersion') or meta.get('provider_version')}) "
-      f"built in {build_s:.1f} s, BHAM outside coverage and unreachable, run {run['id'][:8]} "
+      f"built in {build_s:.1f} s, {OUT} outside coverage and unreachable, run {run['id'][:8]} "
       f"{summary['totals']['trucks']} truck(s), {summary['totals']['loaded_distance_m'] / 1609.344:.0f} road mi; "
       f"queued job cancelled")

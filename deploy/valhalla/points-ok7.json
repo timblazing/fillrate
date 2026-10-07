@@ -1,0 +1,144 @@
+{
+ "region": "Oklahoma and bordering states (OK, TX, NM, CO, KS, MO, AR)",
+ "inside": [
+  [
+   "Oklahoma City, OK",
+   35.4676,
+   -97.5164
+  ],
+  [
+   "Dallas, TX",
+   32.7767,
+   -96.797
+  ],
+  [
+   "Tulsa, OK",
+   36.154,
+   -95.9928
+  ],
+  [
+   "Wichita, KS",
+   37.6872,
+   -97.3301
+  ],
+  [
+   "Kansas City, MO",
+   39.0997,
+   -94.5786
+  ],
+  [
+   "Little Rock, AR",
+   34.7465,
+   -92.2896
+  ],
+  [
+   "Albuquerque, NM",
+   35.0844,
+   -106.6504
+  ],
+  [
+   "Denver, CO",
+   39.7392,
+   -104.9903
+  ],
+  [
+   "Amarillo, TX",
+   35.222,
+   -101.8313
+  ],
+  [
+   "Houston, TX",
+   29.7604,
+   -95.3698
+  ],
+  [
+   "El Paso, TX",
+   31.7619,
+   -106.485
+  ],
+  [
+   "St. Louis, MO",
+   38.627,
+   -90.1994
+  ]
+ ],
+ "outside": [
+  [
+   "Nashville, TN",
+   36.1627,
+   -86.7816
+  ],
+  [
+   "Phoenix, AZ",
+   33.4484,
+   -112.074
+  ],
+  [
+   "Omaha, NE",
+   41.2565,
+   -95.9345
+  ]
+ ],
+ "costing_options": {
+  "axle_count": 5,
+  "axle_load": 9.07,
+  "hazmat": false,
+  "height": 4.11,
+  "length": 21.64,
+  "weight": 21.77,
+  "width": 2.6
+ },
+ "matrix": [
+  [
+   "Oklahoma City, OK",
+   35.4676,
+   -97.5164
+  ],
+  [
+   "Dallas, TX",
+   32.7767,
+   -96.797
+  ],
+  [
+   "Tulsa, OK",
+   36.154,
+   -95.9928
+  ],
+  [
+   "Wichita, KS",
+   37.6872,
+   -97.3301
+  ],
+  [
+   "Kansas City, MO",
+   39.0997,
+   -94.5786
+  ],
+  [
+   "Little Rock, AR",
+   34.7465,
+   -92.2896
+  ],
+  [
+   "Amarillo, TX",
+   35.222,
+   -101.8313
+  ],
+  [
+   "Fort Smith, AR",
+   35.3859,
+   -94.3985
+  ],
+  [
+   "Springfield, MO",
+   37.209,
+   -93.2923
+  ],
+  [
+   "Lawton, OK",
+   34.6036,
+   -98.3959
+  ]
+ ],
+ "note": "matrix: pairs within the configured 1,000 km point extent; inside: locate-only coverage across all seven states"
+}
