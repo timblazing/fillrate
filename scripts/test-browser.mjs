@@ -2495,16 +2495,17 @@ async function accessibilityFlow(baseURL, runKey) {
         expect(axe.success === true, `Accessibility engine failed on ${name}.`);
         const motion = evalValue(`({reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,infinite:document.getAnimations().filter(a=>a.playState==='running' && a.effect.getComputedTiming().iterations===Infinity).length})`);
         browser("press", "Tab");
-        const focus = evalValue(`(() => {
+        const focus = evalValue(`(async () => {
           const previous = document.activeElement;
           const position = [scrollX, scrollY];
           const style = el => [el, el.parentElement, el.parentElement?.parentElement].filter(Boolean).map(node => { const s = getComputedStyle(node); return [s.outline, s.boxShadow, s.borderColor].join('|') }).join(';');
-          const controls = [...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex="0"]')].filter(el => !el.disabled && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').slice(0,25);
+          const controls = [...document.querySelectorAll('a[href],button,input,select,textarea,[tabindex="0"]')].filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').slice(0,25);
           const missing = [];
           for (const el of controls) {
             document.activeElement?.blur();
             const before = style(el);
             el.focus({preventScroll:true});
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             if (document.activeElement !== el || !el.matches(':focus-visible') || before === style(el)) missing.push({tag:el.tagName,label:el.getAttribute('aria-label')??el.innerText?.trim().slice(0,80)??''});
           }
           previous?.focus({preventScroll:true});
