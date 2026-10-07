@@ -44,7 +44,7 @@ export default async function FulfillmentLessonPage({ searchParams }: PageProps<
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium">Stock against demand</h2>
           <div className="overflow-x-auto rounded-xl border">
-            <Table>
+            <Table render={<div role="region" aria-label="Products, stock and demand" tabIndex={0} className="outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />}>
               <TableHeader>
                 <TableRow>
                   <TableHead>Product</TableHead>

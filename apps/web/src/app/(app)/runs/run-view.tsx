@@ -814,7 +814,7 @@ function UnshippedTable({ summary }: { summary: RunSummary }) {
         })}
       </div>
       <div className="overflow-x-auto rounded-xl border">
-        <Table>
+        <Table render={<div role="region" aria-label="Unshipped lines table" tabIndex={0} className="outline-none focus-visible:ring-2 focus-visible:ring-ring/50" />}>
           <TableHeader>
             <TableRow>
               <TableHead>Line</TableHead>

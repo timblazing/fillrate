@@ -11,6 +11,7 @@ export function Slider({
   value,
   min = 0,
   max = 100,
+  "aria-label": ariaLabel,
   ...props
 }: SliderPrimitive.Root.Props): React.ReactElement {
   const _values = React.useMemo(() => {
@@ -29,6 +30,7 @@ export function Slider({
       defaultValue={defaultValue}
       max={max}
       min={min}
+      aria-label={ariaLabel}
       thumbAlignment="edge"
       value={value}
       {...props}
@@ -49,6 +51,8 @@ export function Slider({
           {Array.from({ length: _values.length }, (_, index) => (
             <SliderPrimitive.Thumb
               className="block size-5 shrink-0 select-none rounded-full border border-input bg-white not-dark:bg-clip-padding shadow-xs/5 outline-none transition-[box-shadow,scale] before:absolute before:inset-0 before:rounded-full before:shadow-[0_1px_--theme(--color-black/4%)] has-focus-visible:ring-[3px] has-focus-visible:ring-ring/24 data-dragging:scale-120 sm:size-4 dark:border-background dark:has-focus-visible:ring-ring/48 [:has(*:focus-visible),[data-dragging]]:shadow-none"
+              // Fillrate: name the focusable thumb input too (WCAG 4.1.2; docs/decisions.md).
+              aria-label={ariaLabel}
               data-slot="slider-thumb"
               index={index}
               key={String(index)}
