@@ -160,6 +160,15 @@
   --route-6: oklch(0.68 0.13 200);
   --route-7: oklch(0.63 0.22 350);
   --route-8: oklch(0.55 0.08 250);
+  /* Small labels need AA contrast against the route palette in both themes. */
+  --route-1-foreground: #000;
+  --route-2-foreground: #000;
+  --route-3-foreground: #000;
+  --route-4-foreground: #000;
+  --route-5-foreground: #000;
+  --route-6-foreground: #000;
+  --route-7-foreground: #000;
+  --route-8-foreground: #fff;
   /* Chart chrome for bklit (visx) charts. Aliases of core tokens, so they follow the theme. */
   --chart-background: var(--card);
   --chart-foreground: var(--foreground);

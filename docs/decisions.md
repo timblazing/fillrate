@@ -576,6 +576,9 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 - **Decision:** Preserve the earlier dated evidence while updating current status and handoff to the combined recovery, hosted-road and accessibility source. Keyless CARTO remains the accepted v1 choice; configuring a key/tier is a later owner follow-up.
 - **Evidence boundary:** Implemented accessibility fixes do not complete post-fix audit acceptance. Hosted Valhalla service checks do not replace the signed-in live road workflow, and merging source does not publish an image or deploy it. Final candidate performance/copy, image/deployment and native target evidence remain open.
 
+## 2026-10-07: Keep route identity colors and make small labels readable (Codex)
+- **Decision:** Preserve the eight map/route colors and pair them with explicit foreground tokens for small shared swatch labels, instead of changing route identities to correct contrast. Page counters use actual screen-reader text rather than naming a generic span.
+- **Evidence boundary:** The repeatable 52-state local audit passes on `f01687b`; retained incomplete/manual, gallery and physical-device checks and scoped performance measurements do not close the full M8 or deployment gate. Gallery fixtures remain reference examples, and public travel copy names the accepted hosted seven-state coverage.
 
 ## 2026-10-07: Release Valhalla search reservations between requests on shared hosts (Codex)
 - **Decision:** Generated Valhalla configuration enables `thor.clear_reserved_memory` while retaining established road-search limits. This requests buffer release in the pinned 3.9.0 Thor implementation; it trades possible repeat-request allocation overhead for lower retained search memory. It does not promise an allocator-level RSS reduction.

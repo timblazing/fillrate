@@ -733,8 +733,9 @@ function ShipmentTable({
             <Button size="xs" variant="outline" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 0}>
               Previous shipments
             </Button>
-            <span className="text-muted-foreground text-xs tabular-nums" aria-label={`Page ${currentPage + 1} of ${pageCount}`}>
-              {currentPage + 1} / {pageCount}
+            <span className="text-muted-foreground text-xs tabular-nums">
+              <span className="sr-only">Page </span>{currentPage + 1}
+              <span aria-hidden> / </span><span className="sr-only"> of </span>{pageCount}
             </span>
             <Button size="xs" variant="outline" onClick={() => setPage(currentPage + 1)} disabled={currentPage + 1 === pageCount}>
               Next shipments
