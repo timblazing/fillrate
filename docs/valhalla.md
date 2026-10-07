@@ -45,11 +45,26 @@ architecture; it has not run on the Pi itself. Keep the tag and digest in `compo
 
 Never commit extracts, tiles or derived matrices for real data (spec §14).
 
+## Prebuilt tiles for a small or shared host
+
+Building tiles needs far more memory than serving them. The OK/TX/NM/CO/KS/MO/AR build peaked at 13.6 GiB, while serving the finished archive idles at about 30 MiB. Build on a large machine, then copy and serve only:
+
+1. **Build machine** (any Docker host with memory to spare; the host architecture does not matter, tiles are data):
+   `deploy/valhalla/prepare.sh -d <dir> <regions>...`, then run the pinned image on `<dir>` with the default `deploy/compose.yaml` valhalla settings until `/status` answers, then stop it.
+2. **Package**: `deploy/valhalla/bundle.sh <dir> <bundle>` copies only `valhalla_tiles.tar`, `valhalla.json`, `extract-meta.json`, `file_hashes.txt` and `default_speeds.json` and writes `SHA256SUMS`. No extracts or loose tiles are shipped.
+3. **Serving host**: copy `<bundle>` to `$VALHALLA_DATA` (`scp`; `rsync` may be absent), check it with `sha256sum -c SHA256SUMS` *before the first start*, then
+   `docker compose -f compose.yaml -f valhalla/compose.serve.yaml --profile valhalla up -d`.
+   `compose.serve.yaml` turns off every build step and caps the service (`VALHALLA_CPUS`, default 1.0; `VALHALLA_MEM_LIMIT`, default 2g; `VALHALLA_SERVER_THREADS`, default 1). On start the image rewrites `valhalla.json` (paths and thread count), so its checksum changes after that; the other files must still match.
+4. Run `VALHALLA_MAX_MATRIX_PAIRS=625 deploy/valhalla/prepare.sh env -d <dir>` **on the serving host** and add the output to the app's environment. The graph hash covers that host's effective `valhalla.json`. 625 pairs means 25 × 25 blocks, which keeps one CostMatrix request under the memory cap; see the evidence below.
+5. Check the deployment: `python3 -I deploy/valhalla/region_check.py <url> <points.json>` (stdlib only; `deploy/valhalla/points-ok7.json` is the hosted example), then `deploy/smoke_valhalla.py <base-url> <scenario-key> ok7` through Fillrate where an operator key exists.
+
+Moving to another server means copying the same bundle (or rebuilding from `extract-meta.json`), the Compose files and the env lines, then repeating steps 3–5. When the extract list is long, `prepare.sh` records a compact `dataset_revision`: region names, newest extract date and a SHA-256 prefix of the full per-extract revision. It keeps the full list as `dataset_revision_full`, because Fillrate accepts at most 200 characters.
+
 ## Service limits
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| `service_limits.truck.max_matrix_distance` | 1,000,000 m | Must cover the requested point extent, which can exceed the leg limit. |
+| `service_limits.truck.max_matrix_distance` | 2,000,000 m | Must cover the requested point extent, which can exceed the leg limit. It also scales CostMatrix's search cost threshold; see below. |
 | `service_limits.truck.max_matrix_location_pairs` | 2,500 | Fillrate's `VALHALLA_MAX_MATRIX_PAIRS` matches; blocks are 50 × 50. |
 | `service_limits.truck.max_locations` | 20 | Route requests (geometry) chunk to this. |
 | `thor.costmatrix.hierarchy_limits.max_up_transitions` | 4,000 / 1,000 | See below. |
@@ -61,6 +76,8 @@ Never commit extracts, tiles or derived matrices for real data (spec §14).
 treats `null` as an unreachable edge, so a search that gives up would wrongly exclude stops. Raising the
 hierarchy transitions (and iterations) returned the path; `tests/test_valhalla_live.py` asserts every pair
 inside coverage has one.
+
+**Cost threshold (2026-10-07).** CostMatrix stops searching at a cost threshold derived from `max_matrix_distance`. At 1,000 km on the OK7 tiles, truck legs of 748–1,053 road km (Dallas → Amarillo, Dallas → Springfield MO, Kansas City → Dallas, Amarillo → Little Rock) came back `null`, even as 1 × 1 requests, although `/route` found each one in 150–500 ms. Raising the hierarchy transitions (40,000/10,000) or switching to `timedistancematrix` did not fix it, and memory rose to 4.9–5.9 GiB. At 2,000 km every pair returned, and a 25 × 25 block peaked under 2 GiB. `prepare.sh` now defaults to 2,000 km. Fillrate's leg limit still decides reachability afterwards.
 
 **Block composition.** CostMatrix searches a request's sources and targets together, so a pair's chosen path
 can change with the block it is in: Jackson, MS → Tupelo was 347.2 km in a 7 × 7 request and 366.0 km in
@@ -107,5 +124,13 @@ together; `dataset_revision` `geofabrik:tennessee@2026-10-05T15:47:33Z#bc7ba8acc
   ([valhalla#3925](https://github.com/valhalla/valhalla/issues/3925)); merging extracts first (for example
   with osmium) avoids it. No cross-border failure was observed in these checks.
 
-The owner's deployment must choose its own coverage and record its build time, disk, memory and extract
-dates in `docs/decisions.md` (spec §7).
+### Hosted deployment evidence (2026-10-07, owner VPS)
+
+Coverage chosen by the owner: Oklahoma and its bordering states. Geofabrik extracts `oklahoma`, `texas`, `new-mexico`, `colorado`, `kansas`, `missouri`, `arkansas` (Last-Modified 2026-10-05; 1.83 GB of extracts). `dataset_revision` is `geofabrik:oklahoma,texas,new-mexico,colorado,kansas,missouri,arkansas@2026-10-05T15:49:55Z#sha256:19706bf62442fa2f`; the full per-extract list with MD5 prefixes is in `extract-meta.json`.
+
+- **Off-host build** (Colima 6 vCPU / 20 GiB on the owner's Mac, Apple M1 Pro): `prepare.sh` 2 min 36 s (downloads). First start to serving took 955 s, with a sampled peak container memory of 13.6 GiB. Output: `valhalla_tiles.tar` 3,843,676,160 bytes (SHA-256 `dc127c17…5e8`, 3,640 tiles); bundle 3.6 GB. The upload with `scp` took 891 s.
+- **Serving host** `hostinger` (x86_64, 2 vCPU, 7.8 GiB RAM, no swap, shared with the live site and other services): the bundle is in `~/containers/fillrate/valhalla-data`. Service `fillrate-valhalla` uses the pinned image with prebuilt-only settings, `cpus: 1.0`, `mem_limit: 2560m`, one server thread and no host port. It was ready 18 s after `up` (including the image pull), idling at 31 MiB. Effective graph hash: `sha256:3946a6965044f3caf6c156f6c35cbd4b567dbf0ea6a8df5ea729271c3e3bc9c9`. Disk use went from 7.5 GB to 12 GB of 99 GB.
+- **`region_check.py` from inside the Compose network** (2026-10-07): all 12 inside points locate on truck edges and Nashville TN / Phoenix AZ / Omaha NE do not. The 10 × 10 directed truck matrix has every pair (8.8 s; Oklahoma City → Dallas 332.2 km, return 332.9 km). The OKC → Dallas route returned geometry (0.32 s, 3.68 h). A 25 × 25 random block across the ~1,000 km extent had 0 nulls in 48.7 s. Peak container memory was 1.82 GiB of the 2.5 GiB cap, the host 1-minute load peaked at 1.10, and the public site answered 200 in 0.29 s during the check.
+- **App configuration**: the `fillrate` service has the `prepare.sh env` lines (625 pairs, 2,000 km). `/api/health` reports `road.valhalla` configured with the version, compact revision and graph hash, and `ValhallaConfig.from_env()` inside the hosted worker accepts the settings. The image was unchanged (`sha256:607f0b45…df3ff`, source `b296645`). Rollback: `compose.yaml.pre-valhalla` and the pre-change backup `fillrate-20261007T143812Z.sqlite` (SHA-256 `124e01f2…e209`, integrity ok, 12 migrations).
+- **Through Fillrate** (local production build and worker against a byte-equivalent serving copy with the same graph hash, 1 CPU / 2.5 GiB): `deploy/smoke_valhalla.py … ok7` passed. The durable snapshot job for 8 nodes built in 6.1 s; Nashville was reported outside coverage and unreachable; the run on the snapshot planned 1 truck and 1,183 road mi with every leg equal to the recorded matrix; the replay bundle shipped the snapshot; and a queued job cancelled. Inspected-truck road geometry was fetched and cached through `/api/v1/runs/<id>/geometry`.
+- **Not yet verified live**: a snapshot build, run and road geometry through the hosted site's UI. That needs a signed-in approved account (owner action). The default 50 × 50 block was not used on this host: it reached 3.7 GiB uncapped at the old distance limit.

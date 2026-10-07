@@ -21,9 +21,12 @@ GEOFABRIK="${GEOFABRIK_URL:-https://download.geofabrik.de}"
 SPEEDS_COMMIT="c9c6872d5ec656f5d290944b44eb1a103ed539fa"
 SPEEDS_URL="https://raw.githubusercontent.com/OpenStreetMapSpeeds/schema/${SPEEDS_COMMIT}/default_speeds.json"
 # Service limits. max_matrix_distance must cover the requested point extent (a depot and an
-# indirectly reachable stop can be farther apart than the 500 mi leg limit). Keep pairs and
+# indirectly reachable stop can be farther apart than the 500 mi leg limit). It also sets
+# CostMatrix's search cost threshold: at 1,000 km, truck legs of 750-900 road km (8+ h at truck
+# speeds) came back null on the OK/TX/NM/CO/KS/MO/AR tiles although /route found them, and Fillrate
+# reads null as unreachable. 2,000 km returned every pair (docs/valhalla.md). Keep pairs and
 # Fillrate's VALHALLA_MAX_MATRIX_* in step: `env` prints both from the same values.
-MAX_MATRIX_DISTANCE_M="${VALHALLA_MAX_MATRIX_DISTANCE_M:-1000000}"
+MAX_MATRIX_DISTANCE_M="${VALHALLA_MAX_MATRIX_DISTANCE_M:-2000000}"
 MAX_MATRIX_PAIRS="${VALHALLA_MAX_MATRIX_PAIRS:-2500}"
 MAX_ROUTE_LOCATIONS="${VALHALLA_MAX_ROUTE_LOCATIONS:-20}"
 # Truck costing sent with every request (Valhalla 3.9.0 truck defaults, written out explicitly so
@@ -112,6 +115,18 @@ in_image "jq -n --argjson raw '[$joined]' --arg image '$IMAGE_TAG@$IMAGE_DIGEST'
    {image:\$image, prepared_at:\$prepared, extracts:\$extracts, default_speeds:{url:\$speeds, sha256:\$speeds_sha}, limits:\$limits,
     dataset_revision: (\"geofabrik:\" + ([\$extracts[] | (.region | split(\"/\") | last) + \"@\" + .extract_date + \"#\" + .md5[0:12]] | join(\",\")))}' \
   > /custom_files/extract-meta.json"
+# Fillrate records the revision with each snapshot and accepts at most 200 characters. A long extract
+# list (several states) is recorded as region names, the newest extract date and a digest of the full
+# per-extract revision, which stays in extract-meta.json as dataset_revision_full.
+full="$(in_image 'jq -r .dataset_revision /custom_files/extract-meta.json')"
+if (( ${#full} > 200 )); then
+  digest="$(printf '%s' "$full" | { if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi; } | cut -c1-16)"
+  newest="$(in_image 'jq -r "[.extracts[].extract_date] | max" /custom_files/extract-meta.json')"
+  names="$(in_image 'jq -r "[.extracts[].region | split(\"/\") | last] | join(\",\")" /custom_files/extract-meta.json')"
+  compact="geofabrik:${names}@${newest}#sha256:${digest}"
+  (( ${#compact} <= 200 )) || compact="geofabrik:$(in_image 'jq -r ".extracts | length" /custom_files/extract-meta.json')-extracts@${newest}#sha256:${digest}"
+  in_image "jq --arg c '$compact' '.dataset_revision_full = .dataset_revision | .dataset_revision = \$c' /custom_files/extract-meta.json > /custom_files/extract-meta.json.tmp && mv /custom_files/extract-meta.json.tmp /custom_files/extract-meta.json"
+fi
 
 # Service limits for the truck costing, and CostMatrix search limits. With Valhalla's defaults the
 # truck matrix returned no path (null) for Nashville <-> Jackson, MS (669 km by road) on the

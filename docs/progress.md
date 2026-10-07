@@ -44,6 +44,11 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - No CARTO key was configured and no provider terms were accepted. M8 remains open pending the provider decision/configuration and exact attribution-link conformance, alongside shipment print, recovery, broader dashboard acceptance, final candidate release/deployment and native target timings.
 - Verification: `bun install --frozen-lockfile`, `bun run lint`, `bun run typecheck`, `bun run build`, and `git diff --check` passed. Lint reports the existing `globe.tsx` exhaustive-deps warning. No production browser smoke suite was rerun for this slice; T3 preview inspected the two gallery map controls locally.
 
+## 2026-10-07: M6 hosted Valhalla roads on the VPS (Claude Code)
+- The owner chose hosted roads for v1 over Oklahoma and its bordering states. Tiles were built off-host (peak 13.6 GiB, 955 s; 3.84 GB archive) and copied to the VPS, where they are served by a capped Compose service (1 CPU, 2.5 GiB, no host port) beside the live app. Portable path: `deploy/valhalla/compose.serve.yaml`, `bundle.sh`, `region_check.py`, `prepare.sh env` on the serving host.
+- Two defects found and fixed in deploy tooling before any hosted road job ran. At `max_matrix_distance` 1,000 km, CostMatrix returned null for 750–1,050 km truck legs, so the default is now 2,000 km. The 7-region `dataset_revision` exceeded Fillrate's 200-character limit, so every hosted job would have failed `valhalla_config_invalid`; `prepare.sh` now records a compact revision.
+- Evidence (details in [valhalla.md](valhalla.md#hosted-deployment-evidence-2026-10-07-owner-vps)): the VPS region check passed (coverage in and out, complete 10 × 10 truck matrix in 8.8 s, route geometry, 25 × 25 block with 0 nulls in 48.7 s, peak 1.82 GiB, host load ≤1.10). `/api/health` reports the road identity, and the hosted worker accepts the configuration. `smoke_valhalla.py ok7` passed through a local Fillrate production stack on the byte-equivalent bundle (same graph hash), as did inspected-route geometry.
+- Not claimed: a signed-in snapshot/run/geometry check on the live site (owner action). The image is unchanged (`b296645`, `sha256:607f0b45…`); this deployment changed only Compose services and environment, with a backup and the prior compose kept for rollback.
 ## 2026-10-06: M8 pipeline recovery states (Claude Code)
 - Failed, cancelled and interrupted run pages now offer **Run again**, a new run of the same scenario version and settings; the earlier record is never changed. They also offer **Open scenario**, which loads that version and the run's settings in the workbench through `/scenarios?scenario=&version=&run=`. Failure alerts give the next action per code (`preflight_blocked`, `run_wall_limit`, stale travel matrix, other) plus the code and attempt count. An active run on attempt 2 or later says it is retrying after a worker stopped responding.
 - New `recovery` browser flow: queued → cancelled → Run again → succeeded; worker-preflight failure → actionable alert → Run again refused separately → Open scenario. `cancel` and `warm-start` flows (shared rerun button) passed again. Queued/running/cancelled states remain covered by `cancel`, success by every run flow, and the retry banner is not browser-tested (it needs a worker crash mid-run).
@@ -72,7 +77,7 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
   - [x] Directed snapshots, pinned Valhalla local evidence, durable snapshot jobs and inspected road geometry.
   - [x] Time windows/service durations, saved manual baselines/warm starts and heterogeneous fulfillment fleet.
   - [x] Solver Lab dimensions, fleets, depots, reloads, optional visits, alternative groups and pickup-delivery pairs with validation.
-  - [ ] Owner VPS Valhalla deployment, coverage/resources and timings; conditional for hosted road-enabled launch.
+  - [x] VPS Valhalla (OK + bordering states) deployed with coverage, resource and timing evidence (2026-10-07); owner's signed-in UI check open.
 - [x] **M7 Learning and export depth**
   - [x] Fulfillment and advanced-feature lessons, pipeline/explorer replay, planned timeline/playback, GeoJSON and matrix exports.
 - [ ] **M8 Verification and handoff**
@@ -99,7 +104,7 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 - Recovery states and shipment-sheet print have local browser acceptance (2026-10-06 entries); the worker-crash retry banner is not browser-tested.
 - Remaining keyboard/focus, theme, reduced-motion and six-Block integration checks are open.
 - The `e95f3cb` image is published (PR #72); deployment is separately owned by the user and is not inferred from a successful image workflow. Dashboard runtime changes still need a later image release.
-- VPS Valhalla coverage/timings are absent. Local pinned/provider/geometry evidence is distinct from hosted evidence.
+- Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The live signed-in UI road check is pending. Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
 - Basemap public-use/provider terms record referenced by the spec is missing; create it after inspecting the shipped configuration.
 - Native timings on VPS/Pi are missing. Historical image timings/recovery remain valid for their recorded digest only.
 - Manual editing cannot move visits between clusters. Warm starts reuse only compatible cluster visit/demand/travel sets; saved manual baselines are now supported.

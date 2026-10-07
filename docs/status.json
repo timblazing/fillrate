@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-06",
+  "updated": "2026-10-07",
   "focus": "M8",
   "productBehavior": 82,
   "milestones": {
@@ -35,9 +35,9 @@
     },
     "M6": {
       "weight": 12,
-      "done": 96,
+      "done": 99,
       "state": "waiting",
-      "notes": "Done: directed travel snapshots and browser matrix workflows; a pinned Valhalla 3.9.0 Compose profile with prepare.sh, coverage pre-check and live checks (local Colima evidence), so `directed_road_travel` is implemented; inspected-route road geometry; durable Valhalla snapshot jobs; time windows and service durations; manual plan evaluator with saved manual baselines as warm-start sources; verified warm starts; heterogeneous fleet in the fulfillment pipeline; Solver Lab with load dimensions, mixed fleets, multiple depots, reloads and optional clients/prizes, alternative client groups and pickup-delivery pairs (all native PyVRP). Remaining (owner): the VPS Valhalla deployment with its coverage and timings."
+      "notes": "Done: directed travel snapshots and browser matrix workflows; a pinned Valhalla 3.9.0 Compose profile with prepare.sh, coverage pre-check and live checks (local Colima evidence), so `directed_road_travel` is implemented; inspected-route road geometry; durable Valhalla snapshot jobs; time windows and service durations; manual plan evaluator with saved manual baselines as warm-start sources; verified warm starts; heterogeneous fleet in the fulfillment pipeline; Solver Lab with load dimensions, mixed fleets, multiple depots, reloads and optional clients/prizes, alternative client groups and pickup-delivery pairs (all native PyVRP). Hosted Valhalla (OK + bordering states) runs on the VPS from prebuilt tiles under resource caps, with coverage, matrix, route, resource and timing evidence (2026-10-07). Remaining (owner): a signed-in UI road check on the live site."
     },
     "M7": {
       "weight": 6,
@@ -55,6 +55,6 @@
   "nextUp": [
     "M8 priority: repeat and improve near-limit matrix UI performance on the final candidate, then complete shipment print, recovery-state, accessibility and dashboard integration acceptance.",
     "Image publication for e95f3cb is recorded in merged PR #72; owner deploys the tested digest. Final dashboard runtime changes need another image release.",
-    "Owner: conditional VPS Valhalla coverage/timings and native VPS/Pi evidence; real sample rows and monetary rates remain optional."
+    "Owner: signed-in hosted road check (Build road matrix \u2192 run \u2192 road geometry) on fillrate.blasingame.dev."
   ]
 }
