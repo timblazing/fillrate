@@ -49,7 +49,7 @@
       "weight": 7,
       "done": 86,
       "state": "active",
-      "notes": "Planning estimate: 86%. Implemented: shipment-sheet print with unshipped reasons (#80), run recovery actions and browser flow (#81), specified CARTO credit links (#79; keyless CARTO is an owner-accepted v1 risk), accessibility fixes (#83; post-fix audit pending), hosted Valhalla service evidence (#82, M6). Open: post-fix accessibility acceptance, final candidate performance and copy/gallery reconciliation, final image release and deployment by digest, owner road UI check and native timings."
+      "notes": "Planning estimate: 86%. Integrated: shipment-sheet print with unshipped reasons (#80), recovery (#81), specified CARTO credits (#79; keyless risk accepted), accessibility fixes and keyboard-scroll smoke stabilization (#83), hosted Valhalla service evidence (#82, M6). Final source CI 37651252038 passed checks/npm and the standard browser suite; optional live road geometry was skipped without a CI provider. Open: post-fix accessibility acceptance, final candidate performance/copy/gallery reconciliation, final image/deployment, owner road UI and native timings."
     }
   },
   "nextUp": [

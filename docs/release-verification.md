@@ -1,5 +1,11 @@
 # Release verification and hardware evidence
 
+## 2026-10-07 source integration (image release remains open)
+
+PRs [#81](https://github.com/timblazing/fillrate/pull/81), [#82](https://github.com/timblazing/fillrate/pull/82) and [#83](https://github.com/timblazing/fillrate/pull/83) are integrated through `main` commit `0fc6db7deb24a6d5b628881ecc967c401c4f2e02`. Its Git tree matches PR head `905230f916126208dfa78a9c904c5cf2af5d9589` exactly. [CI run 37651252038](https://github.com/timblazing/fillrate/actions/runs/37651252038) passed `checks` and `npm`, including the production build, hosted/local checks and standard browser acceptance. Live-provider road geometry was not configured in CI and was skipped; hosted Valhalla evidence and the remaining signed-in UI check are recorded in [valhalla.md](valhalla.md).
+
+This source has no image publication or deployment claim from this integration session. The final accessibility/performance/copy gates and subsequent image/deploy-by-digest work remain in [completion-plan.md](completion-plan.md) and [progress.md](progress.md). Earlier digests and hardware evidence below keep their original scope.
+
 ## 2026-10-06 image release for `e95f3cb`
 
 GitHub Actions [image workflow run 37482591185](https://github.com/timblazing/fillrate/actions/runs/37482591185) completed successfully for `main` commit `e95f3cb6556a52b013d318caf2f4800329970051`. The CI and npm checks passed; native `build (amd64, ubuntu-24.04)` and `build (arm64, ubuntu-24.04-arm)` both passed their smoke and benchmark steps, and the publish job created the multi-architecture manifest.
