@@ -47,14 +47,14 @@
     },
     "M8": {
       "weight": 7,
-      "done": 76,
+      "done": 86,
       "state": "active",
-      "notes": "Planning estimate: 76%. The 443-shipment results transition meets the proposed response target in three warm local trials per viewport; selection avoids a full-result refetch and the table mounts 50 rows. The 1,001-node matrix flow passed again on the refreshed branch; latest local preview medians were 211.8 ms desktop and 207.2 ms phone (three trials, not p95 evidence). CARTO terms and limits are now documented; map credits stay expanded, but exact credit-link conformance and owner key/tier configuration remain open. Full six-Block integration/accessibility, matrix acceptance, shipment-sheet print, recovery states, final candidate release/deployment and native target timings also remain open."
+      "notes": "Planning estimate: 86%. Done locally: shipment-sheet print with unshipped reasons (#80), run recovery actions and browser flow (#81), CARTO credit-link conformance (#79; keyless CARTO is an owner-accepted v1 risk), WCAG AA audit with fixes (rerun pending), hosted Valhalla on the VPS (M6). Open: post-fix audit rerun and full browser suite on the final candidate, candidate performance repeat, copy/gallery reconciliation, final image release and deploy-by-digest, owner road UI check and native timings."
     }
   },
   "nextUp": [
-    "M8 priority: repeat and improve near-limit matrix UI performance on the final candidate, then complete shipment print, recovery-state, accessibility and dashboard integration acceptance.",
-    "Image publication for e95f3cb is recorded in merged PR #72; owner deploys the tested digest. Final dashboard runtime changes need another image release.",
-    "Owner: signed-in hosted road check (Build road matrix \u2192 run \u2192 road geometry) on fillrate.blasingame.dev."
+    "Merge #81, #82 and the accessibility PR; rerun the a11y audit, full browser suite and performance trials on the merged candidate.",
+    "Reconcile copy/capabilities/gallery with hosted roads; dispatch image.yml for the final candidate; owner pins and deploys the digest.",
+    "Owner: signed-in hosted road check; native VPS/Pi timings."
   ]
 }

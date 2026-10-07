@@ -58,6 +58,9 @@ Runtime baseline: `e95f3cb`; release evidence integrated on `main` at `4caa595` 
 - The 2,000-order lesson (443 shipments, 327 unshipped lines) printed to 466 PDF pages with no chrome, and a single shipment printed to one page. Evidence, before/after page images and limits: [m8-shipment-sheet-print-2026-10-06.md](reviews/m8-shipment-sheet-print-2026-10-06.md).
 - Verification: `bun run lint` (existing `globe.tsx` warning only), `bun run typecheck`, `bun run build`, and `bun run test:browser --flow=lesson` passed with the new sheet assertions. Physical printing was not tested.
 
+## 2026-10-07: M8 accessibility audit and fixes (Claude Code)
+- axe WCAG 2.1 A/AA, overflow, reduced-motion and focus checks covered 13 pages × light/dark × desktop/phone ([audit](reviews/m8-accessibility-audit-2026-10-07.md)). Found inactive-tab and muted-text contrast below AA, three unnamed selects on `/runs`, an unnamed Timeline slider thumb and two unfocusable scrollable tables. There was no page overflow, no unreduced motion, and focus was visible on every checked control. All findings are fixed in this PR. Verification: lint and typecheck only; the post-fix audit rerun was interrupted (see Next step).
+
 ## Milestones (spec §15)
 - [x] **M1 Thin durable fulfillment slice**
   - [x] SQLite durable jobs, leased Python worker, real PyVRP pipeline, independent validation and persisted exports.
@@ -123,4 +126,9 @@ See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for live 
 
 ## Next step
 
-Continue from the [coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md): first complete the local shipment-sheet print and failed/retry acceptance, then remaining dashboard accessibility/integration and final candidate performance checks. The CARTO provider decision and final hosted release/deployment require owner actions; native VPS/Pi timings close the broader handoff. The measured 443-shipment transition and 1,001-node matrix preview are scoped slices only and do not complete M8. The current image publication is complete in #72. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
+Session handoff (2026-10-07, Claude Code). Merged: #79 (CARTO credit links), #80 (print sheets). Open at handoff, in merge order: #81 (recovery), #82 (hosted Valhalla tooling and evidence; the VPS service is already live), and this accessibility PR. Remaining, in order:
+1. Merge #81 → #82 → accessibility PR once checks pass. Each already contains the earlier ones' docs, so later merges should be conflict-free.
+2. Rerun the accessibility audit (method in the audit record) and `bun run test:browser` (all flows) on the merged candidate. Repeat the 2,000-order and 601/1,001-node matrix measurements there (≥3 trials per viewport; local evidence only, no p95 claim).
+3. Reconcile public copy and capability declarations with hosted roads (OK + bordering states, estimated/imported elsewhere) and update the gallery Block text from the pre-M3 descriptions.
+4. Dispatch `image.yml` for the final candidate; record the digest. Owner: pin the VPS `fillrate` service to that digest (it currently follows `:latest`, which auto-updated to `b296645`), back up, deploy and record health/workflow checks.
+5. Owner: signed-in hosted road check; native VPS/Pi timings (SSH access was granted for read/timing runs); CARTO key/tier stays an accepted v1 risk.
