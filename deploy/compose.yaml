@@ -1,4 +1,4 @@
-# Minimal example: one container runs the web app, the optimizer and the worker.
+# Minimal example: one container runs the web app and the optimizer.
 services:
   fillrate:
     image: ghcr.io/timblazing/fillrate:latest

@@ -252,7 +252,7 @@ def h3_rows(
 
 
 def run_explorer(scenario, settings, *, max_tasks: int = DEFAULT_MAX_TASKS, progress=None):
-    """The durable explorer job (spec §8a, §9): clustering only, over the locations a pipeline
+    """The explorer job: clustering only, over the locations a pipeline
     run with `settings.base` would cluster."""
     from .model import (
         ExplorerH3,

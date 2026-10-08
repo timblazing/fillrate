@@ -1,8 +1,9 @@
 import "server-only";
 import { parseContract, type ExplorerSummary, type RunSettings, type RunSummary, type ScenarioDocument, type Snapshot } from "@fillrate/contracts";
-import { EXAMPLES_OWNER, type Store } from "@fillrate/db";
+import { EXAMPLES_OWNER, type RunKind, type Store } from "@fillrate/db";
 
 import { OWNER } from "./access";
+import { solver } from "./database";
 import { ApiError } from "./errors";
 
 import lesson from "../../../../../examples/lesson-fulfillment.json";
@@ -98,28 +99,25 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
   return out;
 }
 
-export function createRun(store: Store, idempotencyKey: string, overrides: Partial<RunSettings>, example: Example = EXAMPLES.m1) {
-  if (!idempotencyKey || idempotencyKey.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
+/** Inserts a run and starts it in the background: the request returns at once and the UI polls the run. */
+export function launchRun(store: Store, versionId: string, settings: Snapshot, kind: RunKind, ownerId: string) {
+  const queue = solver();
+  const id = store.createRun(versionId, settings, kind, { ownerId, status: queue.idle() ? "running" : "queued" });
+  void queue.start(id);
+  return id;
+}
+
+export function createRun(store: Store, overrides: Partial<RunSettings>, example: Example = EXAMPLES.m1) {
   const settings = parseContract("RunSettings", { ...example.settings, ...overrides });
-  const snapshot: Snapshot = { schema_version: 1, document: settings as unknown as Snapshot["document"] };
-  try {
-    return store.enqueue(exampleVersion(store, example), snapshot, idempotencyKey, Date.now(), 3, "pipeline", { ownerId: OWNER });
-  } catch (error) {
-    if (error instanceof Error && error.message === "idempotency_conflict")
-      throw new ApiError(409, "idempotency_conflict", "This Idempotency-Key was already used with different settings.");
-    throw error;
-  }
+  return launchRun(store, exampleVersion(store, example), { schema_version: 1, document: settings as unknown as Snapshot["document"] }, "pipeline", OWNER);
 }
 
 export function runSummary(store: Store, runId: string): RunSummary | null {
-  const view = store.runView(runId);
-  const manifest = view?.artifacts.find(a => a.stage_type === "summary");
-  return manifest ? (store.readArtifact(manifest.output_hash) as RunSummary) : null;
+  return store.runResult(runId)?.summary ?? null;
 }
 
 export function explorerSummary(store: Store, runId: string): ExplorerSummary | null {
-  const manifest = store.runView(runId)?.artifacts.find(a => a.stage_type === "explorer");
-  return manifest ? (store.readArtifact(manifest.output_hash) as ExplorerSummary) : null;
+  return store.runResult(runId)?.explorer ?? null;
 }
 
 export function runDetail(store: Store, runId: string) {
@@ -135,20 +133,13 @@ export function runDetail(store: Store, runId: string) {
 }
 
 export function baseDetail(view: NonNullable<ReturnType<Store["runView"]>>) {
-  const failure = view.events.find(e => e.kind === "failed")?.payload ?? null;
-  const progress = [...view.events].reverse().find(e => e.kind === "progress")?.payload ?? null;
   return {
     schema_version: 1,
     id: view.id,
     status: view.status,
     created_at: view.createdAt,
-    attempt: view.attempt,
-    max_attempts: view.maxAttempts,
-    cancel_requested: view.cancelRequested,
-    attempts: view.attempts,
-    progress,
-    failure,
-    stages: view.artifacts.map(a => ({ stage: a.stage_type, output_hash: a.output_hash, input_hash: a.input_hash, parent_hashes: a.parent_hashes, producer: a.producer_version, adapter: a.adapter_version, reused_from: a.reused_from ?? null })),
+    finished_at: view.finishedAt,
+    failure: view.error,
   };
 }
 

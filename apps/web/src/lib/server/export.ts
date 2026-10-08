@@ -16,10 +16,9 @@ export function exportJson(store: Store, runId: string) {
   return {
     schema_version: 1,
     kind: "fillrate.run",
-    run: { id: detail.id, status: detail.status, created_at: detail.created_at, attempts: detail.attempts },
+    run: { id: detail.id, status: detail.status, created_at: detail.created_at },
     scenario: store.versionDocument(view.versionId).document,
     settings: detail.settings,
-    stages: view.artifacts,
     summary: detail.summary,
     units: { distance: "meters", duration: "seconds", linear_feet: "hundredths of a foot", money: "cents" },
   };

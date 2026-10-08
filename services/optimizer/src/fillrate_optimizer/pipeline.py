@@ -1,10 +1,9 @@
 """The fulfillment pipeline (spec §8a): one sequential pass over immutable inputs.
 
 preflight → allocate → aggregate → cluster/repair → travel/problem → solve →
-validate → summarize. Each stage returns a JSON payload that becomes a
-content-addressed artifact with a versioned manifest. Validation and metrics
-are recomputed from the raw travel artifact and the piece lineage, never taken
-from solver output.
+validate → summarize. Each stage returns a JSON payload, kept in memory on the output.
+Validation and metrics are recomputed from the raw travel payload and the piece lineage,
+never taken from solver output.
 """
 
 from __future__ import annotations
@@ -13,19 +12,15 @@ import json
 import math
 import os
 import time
-import uuid
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.metadata import version
-from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
 
 from .allocation import allocate
-from .artifact_codec import decode_travel, encode_travel
-from .canonical import content_hash
 from .clustering import Clusterer, centroid
 from .loads import (
     PartitionProblem,
@@ -97,7 +92,6 @@ class Limits:
 @dataclass
 class Artifact:
     stage: str
-    manifest: dict[str, Any]
     payload: dict[str, Any]
 
 
@@ -108,80 +102,6 @@ class PipelineOutput:
 
 
 Progress = Callable[[str, dict[str, Any]], None]
-
-
-class Stages:
-    """Records artifacts with manifests chained by parent output hashes."""
-
-    def __init__(self, settings, execution_id, now_ms, scenario_hash, cache=None, checkpoint=None):
-        self.settings = settings
-        self.execution_id = execution_id
-        self.now_ms = now_ms
-        self.scenario_hash = scenario_hash
-        self.cache = cache
-        self.checkpoint = checkpoint
-        self.artifacts: list[Artifact] = []
-        self.hashes: dict[str, str] = {}
-        self.hits: dict[str, dict] = {}
-
-    def identity(self, stage, parents, keys):
-        settings_json = self.settings.model_dump(mode="json")
-        effective = {k: settings_json[k] for k in keys}
-        parent_hashes = [self.hashes[p] for p in parents]
-        input_hash = content_hash(
-            {
-                "stage": stage,
-                "parents": parent_hashes,
-                "scenario": self.scenario_hash if stage == "preflight" else None,
-                "settings": effective,
-                "producer": PRODUCER_VERSION,
-                "versions": versions(),
-            }
-        )
-        return input_hash, parent_hashes, effective
-
-    def lookup(self, stage, parents, keys):
-        if not self.cache:
-            return None
-        identity, _, _ = self.identity(stage, parents, keys)
-        hit = self.cache(identity)
-        if hit is None:
-            return None
-        manifest, payload = hit["manifest"], hit["payload"]
-        if (
-            manifest["input_hash"] != identity
-            or manifest["stage_type"] != stage
-            or content_hash(payload) != manifest["output_hash"]
-        ):
-            raise PipelineError("cache_corrupt", "Cached stage failed identity/hash validation.")
-        self.hits[stage] = manifest
-        return decode_travel(payload) if stage == "travel" else payload
-
-    def add(self, stage: str, payload: dict[str, Any], parents: list[str], keys: list[str]):
-        input_hash, parent_hashes, effective = self.identity(stage, parents, keys)
-        stored_payload = encode_travel(payload) if stage == "travel" else payload
-        output_hash = content_hash(stored_payload)
-        hit = self.hits.pop(stage, None)
-        if hit and hit["output_hash"] != output_hash:
-            raise PipelineError("cache_corrupt", "Reused stage output changed.")
-        self.hashes[stage] = output_hash
-        manifest = {
-            "schema_version": 1,
-            "stage_type": stage,
-            "input_hash": input_hash,
-            "output_hash": output_hash,
-            "producer_version": PRODUCER_VERSION,
-            "adapter_version": ADAPTER_VERSION if stage in ("problem", "solve") else "none",
-            "parent_hashes": parent_hashes,
-            "effective_settings": effective,
-            "created_at_ms": self.now_ms(),
-            "execution_id": self.execution_id,
-            "reused_from": hit["execution_id"] if hit else None,
-        }
-        artifact = Artifact(stage, manifest, stored_payload)
-        self.artifacts.append(artifact)
-        if self.checkpoint:
-            self.checkpoint(artifact)
 
 
 def versions() -> dict[str, str]:
@@ -197,28 +117,14 @@ def run_pipeline(
     *,
     limits: Limits | None = None,
     progress: Progress | None = None,
-    execution_id: str | None = None,
-    cache: Callable | None = None,
-    checkpoint: Callable | None = None,
-    cluster_task: Callable | None = None,
     clock: Callable[[], float] = time.monotonic,
-    now_ms: Callable[[], int] = lambda: int(time.time() * 1000),
 ) -> PipelineOutput:
     limits = limits or Limits()
     report = progress or (lambda stage, detail: None)
-    travel_keys = ["travel_circuity"]
     deadline = clock() + limits.run_wall_limit_s
-    stages = Stages(
-        settings,
-        execution_id or str(uuid.uuid4()),
-        now_ms,
-        content_hash(scenario.model_dump(mode="json")),
-        cache,
-        checkpoint,
-    )
+    artifacts: list[Artifact] = []
     # Splitting, the oversize checks and capacity lower bounds use the trailer capacity.
     cap = settings.trailer_capacity
-    cap_keys = ["trailer_capacity"]
     tctx = time_context(scenario)  # None: the time-window adapter is off and nothing changes
     diagnostics: list[Diagnostic] = []
     unplanned: list[UnplannedLine] = []
@@ -295,47 +201,31 @@ def run_pipeline(
             else f"One piece is {line['lf'] / 100:g} ft; a trailer holds {cap / 100:g} ft."
         )
         unplanned.append(unplanned_line(line, line["ordered"], reason, "preflight", evidence))
-    stages.add(
-        "preflight",
-        {
-            "eligible_line_ids": sorted(set(lines) - set(excluded)),
-            "excluded": [{"line_id": k, "reason": v} for k, v in sorted(excluded.items())],
-            "checks": [f.model_dump(mode="json") for f in findings],
-            "stock": dict(sorted(stock_start.items())),
-        },
-        [],
-        [
-            *cap_keys,
-            "max_leg_m",
-            *travel_keys,
+    artifacts.append(
+        Artifact(
             "preflight",
-            "excluded_line_ids",
-            "inventory_percent",
-            "fulfillment_policy",
-        ],
+            {
+                "eligible_line_ids": sorted(set(lines) - set(excluded)),
+                "excluded": [{"line_id": k, "reason": v} for k, v in sorted(excluded.items())],
+                "checks": [f.model_dump(mode="json") for f in findings],
+                "stock": dict(sorted(stock_start.items())),
+            },
+        )
     )
 
     # ---- 2. Allocate (§8): the chosen strategy and fulfillment policy -------------------------
     report("allocation", {})
-    allocation_keys = [
-        "allocation_strategy",
-        "fulfillment_policy",
-    ]
     eligible = [ln for ln in lines.values() if ln["line_id"] not in excluded]
-    allocation_hit = stages.lookup("allocation", ["preflight"], allocation_keys)
     allocation_started = time.perf_counter()
-    if allocation_hit:
-        allocation_payload = allocation_hit
-    else:
-        result = run_allocation(eligible, stock_start, settings)
-        allocation_payload = {
-            "strategy": settings.allocation_strategy,
-            "fulfillment_policy": settings.fulfillment_policy,
-            "sequence": result.sequence,
-            "allocated": dict(sorted(result.allocated.items())),
-            "residual": dict(sorted(result.residual.items())),
-            "shortages": dict(sorted(result.shortages.items())),
-        }
+    result = run_allocation(eligible, stock_start, settings)
+    allocation_payload = {
+        "strategy": settings.allocation_strategy,
+        "fulfillment_policy": settings.fulfillment_policy,
+        "sequence": result.sequence,
+        "allocated": dict(sorted(result.allocated.items())),
+        "residual": dict(sorted(result.residual.items())),
+        "shortages": dict(sorted(result.shortages.items())),
+    }
     allocated: dict[str, int] = dict(allocation_payload["allocated"])
     stock = dict(allocation_payload["residual"])
     for line in eligible:
@@ -355,7 +245,7 @@ def run_pipeline(
         fulfillment_policy=allocation_payload["fulfillment_policy"],
         runtime_s=round(time.perf_counter() - allocation_started, 4),
     )
-    stages.add("allocation", allocation_payload, ["preflight"], allocation_keys)
+    artifacts.append(Artifact("allocation", allocation_payload))
     # Aggregation splits oversize stops in this order, so whole pieces fill the same way for
     # every strategy.
     order = sorted(eligible, key=allocation_key)
@@ -366,34 +256,30 @@ def run_pipeline(
     for line in order:  # allocation order, so splits fill whole pieces in the same order
         if allocated[line["line_id"]] > 0:
             by_location[(line["location_id"], line["customer_id"])].append(line)
-    aggregation_hit = stages.lookup("aggregation", ["allocation"], cap_keys)
-    if aggregation_hit:
-        visits = {v["visit_id"]: v for v in aggregation_hit["visits"]}
-    else:
-        visits: dict[str, dict[str, Any]] = {}
-        for loc_id, customer_id in sorted(by_location):
-            bundles: list[list[tuple[str, int]]] = [[]]
-            room = cap
-            for line in by_location[(loc_id, customer_id)]:
-                pieces = allocated[line["line_id"]]
-                while pieces:
-                    fit = min(pieces, room // line["lf"])
-                    if fit == 0:
-                        bundles.append([])
-                        room = cap
-                        continue
-                    bundles[-1].append((line["line_id"], fit))
-                    room -= fit * line["lf"]
-                    pieces -= fit
-            for n, bundle in enumerate(bundles, start=1):
-                # JSON escaping makes the pair unambiguous even when IDs contain '#'.
-                visit_id = f"{json.dumps([loc_id, customer_id], separators=(',', ':'))}#{n}"
-                visits[visit_id] = {
-                    "visit_id": visit_id,
-                    "location_id": loc_id,
-                    "lines": [{"line_id": lid, "pieces": p} for lid, p in bundle],
-                    "load": sum(p * lines[lid]["lf"] for lid, p in bundle),
-                }
+    visits: dict[str, dict[str, Any]] = {}
+    for loc_id, customer_id in sorted(by_location):
+        bundles: list[list[tuple[str, int]]] = [[]]
+        room = cap
+        for line in by_location[(loc_id, customer_id)]:
+            pieces = allocated[line["line_id"]]
+            while pieces:
+                fit = min(pieces, room // line["lf"])
+                if fit == 0:
+                    bundles.append([])
+                    room = cap
+                    continue
+                bundles[-1].append((line["line_id"], fit))
+                room -= fit * line["lf"]
+                pieces -= fit
+        for n, bundle in enumerate(bundles, start=1):
+            # JSON escaping makes the pair unambiguous even when IDs contain '#'.
+            visit_id = f"{json.dumps([loc_id, customer_id], separators=(',', ':'))}#{n}"
+            visits[visit_id] = {
+                "visit_id": visit_id,
+                "location_id": loc_id,
+                "lines": [{"line_id": lid, "pieces": p} for lid, p in bundle],
+                "load": sum(p * lines[lid]["lf"] for lid, p in bundle),
+            }
     if len(visits) > limits.max_visits:
         raise PipelineError("too_many_visits", f"{len(visits)} visits exceed MAX_VISITS.")
     split_locations = sorted(
@@ -411,106 +297,80 @@ def run_pipeline(
                 ),
             )
         )
-    stages.add("aggregation", {"visits": list(visits.values())}, ["allocation"], cap_keys)
+    artifacts.append(Artifact("aggregation", {"visits": list(visits.values())}))
 
     # ---- 4. Cluster and repair (§8a) --------------------------------------------------------
     report("clustering", {})
     loc_ids = sorted({loc_id for loc_id, _customer_id in by_location})
     lat_lon = np.array([[locations[i].lat, locations[i].lon] for i in loc_ids], dtype=float)
-    clustering_hit = stages.lookup(
-        "clustering",
-        ["aggregation"],
-        [
-            "k",
-            "auto_k_cap",
-            "kmeans_seed",
-            "kmeans_n_init",
-            "cluster_circuity",
-            "max_cluster_diameter_m",
-            "max_stops",
-            "cluster_strategy",
-            "h3_resolution",
-        ],
+    visit_count = defaultdict(int)
+    for v in visits.values():
+        visit_count[v["location_id"]] += 1
+    clusterer = Clusterer(
+        loc_ids,
+        lat_lon,
+        dict(visit_count),
+        circuity=settings.cluster_circuity,
+        max_diameter_m=settings.max_cluster_diameter_m,
+        max_stops=settings.max_stops,
+        seed=settings.kmeans_seed,
+        n_init=settings.kmeans_n_init,
     )
-    if clustering_hit:
-        clusters_meta = clustering_hit["clusters"]
-        repairs = [Repair.model_validate(r) for r in clustering_hit["repairs"]]
-        clustered = SimpleNamespace(
-            **{
-                k: clustering_hit[k]
-                for k in ("raw", "requested_k", "selected_k", "fits", "auto_limit_reached")
-            }
-        )
+    if settings.cluster_strategy == "h3":
+        clustered = clusterer.run_h3(settings.h3_resolution)
+    elif settings.cluster_strategy == "none":
+        clustered = clusterer.run_none()
+        if loc_ids:
+            baseline_ineligible(clusterer, loc_ids, settings)
     else:
-        visit_count = defaultdict(int)
-        for v in visits.values():
-            visit_count[v["location_id"]] += 1
-        clusterer = Clusterer(
-            loc_ids,
-            lat_lon,
-            dict(visit_count),
-            circuity=settings.cluster_circuity,
-            max_diameter_m=settings.max_cluster_diameter_m,
-            max_stops=settings.max_stops,
-            seed=settings.kmeans_seed,
-            n_init=settings.kmeans_n_init,
+        try:
+            clustered = clusterer.run(settings.k, settings.auto_k_cap)
+        except ValueError as error:
+            raise PipelineError("invalid_k", str(error)) from error
+    # Visit partitions: all visits of a location stay together unless one location alone
+    # exceeds MAX_STOPS, which is chunked by stable visit order (recorded as size repair).
+    repairs = [Repair(reason=s.reason, detail=s.detail) for s in clustered.repairs]  # type: ignore[arg-type]
+    partitions: list[dict[str, Any]] = []
+    for group in clustered.partitions:
+        members = sorted(
+            (v for v in visits.values() if v["location_id"] in set(group)),
+            key=lambda v: (v["location_id"], int(v["visit_id"].rsplit("#", 1)[1])),
         )
-        if settings.cluster_strategy == "h3":
-            clustered = clusterer.run_h3(settings.h3_resolution)
-        elif settings.cluster_strategy == "none":
-            clustered = clusterer.run_none()
-            if loc_ids:
-                baseline_ineligible(clusterer, loc_ids, settings)
-        else:
-            try:
-                clustered = clusterer.run(settings.k, settings.auto_k_cap)
-            except ValueError as error:
-                raise PipelineError("invalid_k", str(error)) from error
-        # Visit partitions: all visits of a location stay together unless one location alone
-        # exceeds MAX_STOPS, which is chunked by stable visit order (recorded as size repair).
-        repairs = [Repair(reason=s.reason, detail=s.detail) for s in clustered.repairs]  # type: ignore[arg-type]
-        partitions: list[dict[str, Any]] = []
-        for group in clustered.partitions:
-            members = sorted(
-                (v for v in visits.values() if v["location_id"] in set(group)),
-                key=lambda v: (v["location_id"], int(v["visit_id"].rsplit("#", 1)[1])),
-            )
-            chunks = [
-                members[i : i + settings.max_stops]
-                for i in range(0, len(members), settings.max_stops)
-            ]
-            if len(chunks) > 1:
-                repairs.append(
-                    Repair(
-                        reason="degenerate_size",
-                        detail=f"{len(members)} visits at one location chunked into "
-                        f"{len(chunks)} solves.",
-                    )
-                )
-            for chunk in chunks:
-                partitions.append(
-                    {
-                        "locations": sorted({v["location_id"] for v in chunk}),
-                        "visits": [v["visit_id"] for v in chunk],
-                    }
-                )
-        clusters_meta = []
-        for i, part in enumerate(partitions):
-            cid = f"C{i + 1}"
-            diameter = clusterer.diameter(part["locations"]) if part["locations"] else 0
-            clusters_meta.append({"id": cid, **part, "diameter_m": diameter})
-        if clustered.auto_limit_reached:
-            diagnostics.append(
-                Diagnostic(
-                    code="auto_limit_reached",
-                    severity="warning",
-                    message=(
-                        f"No k up to {clustered.selected_k} passed the "
-                        + ("diameter and size" if settings.max_cluster_diameter_m else "solve-size")
-                        + " limits; repaired."
-                    ),
+        chunks = [
+            members[i : i + settings.max_stops] for i in range(0, len(members), settings.max_stops)
+        ]
+        if len(chunks) > 1:
+            repairs.append(
+                Repair(
+                    reason="degenerate_size",
+                    detail=f"{len(members)} visits at one location chunked into "
+                    f"{len(chunks)} solves.",
                 )
             )
+        for chunk in chunks:
+            partitions.append(
+                {
+                    "locations": sorted({v["location_id"] for v in chunk}),
+                    "visits": [v["visit_id"] for v in chunk],
+                }
+            )
+    clusters_meta = []
+    for i, part in enumerate(partitions):
+        cid = f"C{i + 1}"
+        diameter = clusterer.diameter(part["locations"]) if part["locations"] else 0
+        clusters_meta.append({"id": cid, **part, "diameter_m": diameter})
+    if clustered.auto_limit_reached:
+        diagnostics.append(
+            Diagnostic(
+                code="auto_limit_reached",
+                severity="warning",
+                message=(
+                    f"No k up to {clustered.selected_k} passed the "
+                    + ("diameter and size" if settings.max_cluster_diameter_m else "solve-size")
+                    + " limits; repaired."
+                ),
+            )
+        )
     if tctx:
         diagnostics.append(
             Diagnostic(
@@ -522,48 +382,30 @@ def run_pipeline(
                 ),
             )
         )
-    stages.add(
-        "clustering",
-        {
-            "strategy": settings.cluster_strategy,
-            "raw": clustered.raw,
-            "fits": clustered.fits,
-            "auto_limit_reached": clustered.auto_limit_reached,
-            "clusters": clusters_meta,
-            "requested_k": clustered.requested_k,
-            "selected_k": clustered.selected_k,
-            "repairs": [r.model_dump() for r in repairs],
-        },
-        ["aggregation"],
-        [
-            "k",
-            "auto_k_cap",
-            "kmeans_seed",
-            "kmeans_n_init",
-            "cluster_circuity",
-            "max_cluster_diameter_m",
-            "max_stops",
-            "cluster_strategy",
-            "h3_resolution",
-        ],
+    artifacts.append(
+        Artifact(
+            "clustering",
+            {
+                "strategy": settings.cluster_strategy,
+                "raw": clustered.raw,
+                "fits": clustered.fits,
+                "auto_limit_reached": clustered.auto_limit_reached,
+                "clusters": clusters_meta,
+                "requested_k": clustered.requested_k,
+                "selected_k": clustered.selected_k,
+                "repairs": [r.model_dump() for r in repairs],
+            },
+        )
     )
 
     # ---- 5. Travel and reachability (§7) -----------------------------------------------------
     report("travel", {"clusters": len(clusters_meta)})
     depot = scenario.depot
     global_nodes = [(depot.lat, depot.lon)] + [tuple(r) for r in lat_lon]
-    travel_stage_keys = [*travel_keys, "max_leg_m"]
-    travel_hit = stages.lookup("travel", ["clustering"], travel_stage_keys)
-    # A compact global reachability graph is computed once. On a cache hit it is
-    # recovered with the exact matrices, not silently recalculated.
-    global_matrix = (
-        None if travel_hit else distance_matrix_m(np.array(global_nodes), settings.travel_circuity)
-    )
-    if travel_hit:
-        globally_reachable = set(travel_hit["globally_reachable"])
-    else:
-        reachable_global = reachable(global_matrix, settings.max_leg_m)
-        globally_reachable = {loc_ids[i - 1] for i in reachable_global if i > 0}
+    # A compact global reachability graph is computed once.
+    global_matrix = distance_matrix_m(np.array(global_nodes), settings.travel_circuity)
+    reachable_global = reachable(global_matrix, settings.max_leg_m)
+    globally_reachable = {loc_ids[i - 1] for i in reachable_global if i > 0}
     position = {loc: i for i, loc in enumerate(loc_ids)}
     leg_seconds = duration_leg_reader(
         loc_ids,
@@ -580,11 +422,7 @@ def run_pipeline(
     for meta in clusters_meta:
         nodes = meta["locations"]
         idx = [0] + [position[n] + 1 for n in nodes]
-        matrix = (
-            np.array(travel_hit["clusters"][len(travel)]["matrix"], dtype=np.int64)
-            if travel_hit
-            else global_matrix[np.ix_(idx, idx)]
-        )
+        matrix = global_matrix[np.ix_(idx, idx)]
         reach = reachable(matrix, settings.max_leg_m)
         reachable_locs = {nodes[i - 1] for i in reach if i > 0}
         solve_visits, blocked = [], []
@@ -655,40 +493,13 @@ def run_pipeline(
         "clusters": travel,
         "globally_reachable": sorted(globally_reachable),
     }
-    stages.add("travel", travel_payload, ["clustering"], travel_stage_keys)
-    stages.add(
-        "problem",
-        {"clusters": problems},
-        ["travel", "aggregation"],
-        [
-            "max_leg_m",
-            *cap_keys,
-            "objective",
-            "weighted_truck_penalty_m",
-            "cost_per_truck_cents",
-            "cost_per_mile_cents",
-        ],
-    )
+    artifacts.append(Artifact("travel", travel_payload))
+    artifacts.append(Artifact("problem", {"clusters": problems}))
 
     # ---- 6. Solve one PyVRP problem per cluster (§8b) -----------------------------------------
     solves = []
     for i, (meta, prob, trav) in enumerate(zip(clusters_meta, problems, travel, strict=True)):
         report("solve", {"cluster": meta["id"], "index": i + 1, "of": len(problems)})
-        task_hash = content_hash(
-            {
-                "problem": prob,
-                "travel": trav,
-                "visits": visits,
-                "settings": settings.model_dump(mode="json"),
-                "versions": versions(),
-            }
-        )
-        task = cluster_task("claim", meta["id"], task_hash, None) if cluster_task else None
-        if task and task["status"] in ("succeeded", "failed"):
-            solves.append(
-                task["result"] or {"cluster_id": meta["id"], "status": "failed", "routes": []}
-            )
-            continue
         node_of = {loc: k for k, loc in enumerate(trav["nodes"])}
         pvisits = [
             PartitionVisit(vid, node_of[visits[vid]["location_id"]], visits[vid]["load"])
@@ -697,13 +508,9 @@ def run_pipeline(
         remaining = deadline - clock()
         if not pvisits:
             solves.append({"cluster_id": meta["id"], "status": "empty", "routes": []})
-            if cluster_task:
-                cluster_task("complete", meta["id"], task_hash, solves[-1])
             continue
         if remaining <= 0.5:
             solves.append({"cluster_id": meta["id"], "status": "budget_exhausted", "routes": []})
-            if cluster_task:
-                cluster_task("complete", meta["id"], task_hash, solves[-1])
             continue
         partition = PartitionProblem(
             distance=np.array(trav["matrix"], dtype=np.int64),
@@ -721,7 +528,6 @@ def run_pipeline(
             result = solve_partition(partition)
         except Exception as error:  # noqa: BLE001 - one cluster's failure must not hide the others
             # Spec §9: a failed cluster invalidates the plan; other clusters stay inspectable.
-            # Not checkpointed, so a retried attempt solves this cluster again.
             solves.append(
                 {
                     "cluster_id": meta["id"],
@@ -742,14 +548,7 @@ def run_pipeline(
                 "cost": result.cost,
             }
         )
-        if cluster_task:
-            cluster_task("complete", meta["id"], task_hash, solves[-1])
-    stages.add(
-        "solve",
-        {"clusters": solves},
-        ["problem"],
-        ["solver_seed", "solver_max_iterations", "solver_time_limit_s"],
-    )
+    artifacts.append(Artifact("solve", {"clusters": solves}))
 
     # ---- 7. Validate independently from raw travel and lineage (§16) ---------------------------
     report("validation", {})
@@ -769,15 +568,7 @@ def run_pipeline(
         validations.append(
             validate_cluster(meta, prob, trav, solve, visits, lines, settings, leg_seconds)
         )
-    stages.add(
-        "validation",
-        {
-            "lineage_ok": lineage_ok,
-            "clusters": validations,
-        },
-        ["solve", "travel", "aggregation"],
-        ["max_leg_m", *cap_keys, "max_cluster_diameter_m"],
-    )
+    artifacts.append(Artifact("validation", {"lineage_ok": lineage_ok, "clusters": validations}))
 
     # ---- 8. Summarize and reconcile (§10) ----------------------------------------------------
     report("summary", {})
@@ -1014,13 +805,8 @@ def run_pipeline(
         versions=versions(),
     )
     reconcile(summary)
-    stages.add(
-        "summary",
-        summary.model_dump(mode="json"),
-        ["validation", "allocation", "clustering"],
-        [],
-    )
-    return PipelineOutput(stages.artifacts, summary)
+    artifacts.append(Artifact("summary", summary.model_dump(mode="json")))
+    return PipelineOutput(artifacts, summary)
 
 
 # ---- helpers ------------------------------------------------------------------------------------

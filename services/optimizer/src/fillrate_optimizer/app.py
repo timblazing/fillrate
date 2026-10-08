@@ -1,31 +1,16 @@
-"""Internal FastAPI service, bound to localhost. Browsers reach it only through Next.js (§2)."""
+"""Private FastAPI service, bound to localhost. Browsers reach it only through Next.js."""
 
 from __future__ import annotations
 
 import os
-import threading
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from .capabilities import Capabilities, capabilities
+from .solve import router
 
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    """With FILLRATE_WORKER=1 the worker supervisor runs alongside the service (spec §2)."""
-    supervisor = None
-    if os.environ.get("FILLRATE_WORKER") == "1":
-        from .worker import Config, Supervisor
-
-        supervisor = Supervisor(Config.from_env())
-        threading.Thread(target=supervisor.run_forever, name="supervisor", daemon=True).start()
-    yield
-    if supervisor:
-        supervisor.stopping.set()
-
-
-app = FastAPI(title="Fillrate optimizer", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Fillrate optimizer", version="0.1.0")
+app.include_router(router)
 
 
 @app.get("/health")

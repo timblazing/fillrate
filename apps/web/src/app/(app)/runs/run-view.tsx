@@ -1,7 +1,7 @@
 "use client"
 
 import type { RunSummary } from "@fillrate/contracts"
-import { ArrowLeft, Ban, Check, Download, Pencil, Printer } from "lucide-react"
+import { ArrowLeft, Ban, Check, Download, Loader, Pencil, Printer } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
@@ -35,8 +35,7 @@ import { type Rerun, RerunButton } from "./rerun-button"
 
 const RunMap = dynamic(() => import("./run-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
-const STAGES = ["preflight", "allocation", "aggregation", "clustering", "travel", "solve", "validation", "summary"] as const
-const ACTIVE = new Set(["queued", "claimed", "running"])
+const ACTIVE = new Set(["queued", "running"])
 const SHIPMENT_PAGE_SIZE = 50
 const miles = (m: number) => formatMiles(m / METERS_PER_MILE)
 
@@ -53,7 +52,7 @@ const strategyLabel = (summary: RunSummary) =>
 function useRun(initial: PipelineDetail) {
   const [run, setRun] = useState(initial)
   useEffect(() => {
-    if (!ACTIVE.has(run.status) && !run.cancel_requested) return
+    if (!ACTIVE.has(run.status)) return
     const started = Date.now()
     let timer: ReturnType<typeof setTimeout>
     let stopped = false
@@ -73,7 +72,7 @@ function useRun(initial: PipelineDetail) {
       stopped = true
       clearTimeout(timer)
     }
-  }, [initial.id, run.status, run.cancel_requested])
+  }, [initial.id, run.status])
   return [run, setRun] as const
 }
 
@@ -82,7 +81,7 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
   const [cancelling, setCancelling] = useState(false)
   const active = ACTIVE.has(run.status)
   const failureCode = String(run.failure?.code ?? "error")
-  const ended = run.status === "failed" || run.status === "cancelled" || run.status === "interrupted"
+  const ended = !active
   const failure = failureCopy(failureCode)
   const geo = useRoadGeometry()
 
@@ -103,13 +102,12 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
         </Button>
         <PageTitle className="font-mono">Run {run.id.slice(0, 8)}</PageTitle>
         <JobStatusBadge state={run.status as JobState} />
-        {run.cancel_requested && active && <Badge variant="warning">Cancelling…</Badge>}
         <span className="text-muted-foreground text-xs tabular-nums">
-          Attempt {run.attempt} of {run.max_attempts} · {run.settings.cluster_strategy === "kmeans" ? `k ${run.settings.k ?? "auto"}` : run.settings.cluster_strategy === "h3" ? `H3 r${run.settings.h3_resolution}` : "no clustering"} · solver seed {run.settings.solver_seed}
+          {run.settings.cluster_strategy === "kmeans" ? `k ${run.settings.k ?? "auto"}` : run.settings.cluster_strategy === "h3" ? `H3 r${run.settings.h3_resolution}` : "no clustering"} · solver seed {run.settings.solver_seed}
           {run.settings.inventory_percent !== 100 && ` · inventory ${run.settings.inventory_percent}%`}
         </span>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          {active && !run.cancel_requested && (
+          {active && (
             <Button variant="destructive-outline" size="sm" onClick={cancel} loading={cancelling}>
               <Ban aria-hidden /> Cancel
             </Button>
@@ -131,27 +129,19 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
         </div>
       </div>
 
-      {active && run.attempt > 1 && (
-        <Alert variant="info">
-          <AlertTitle>Retrying: attempt {run.attempt} of {run.max_attempts}</AlertTitle>
-          <AlertDescription>The worker stopped responding during an earlier attempt, so the run restarted. Completed steps are reused where their inputs match.</AlertDescription>
-        </Alert>
-      )}
       {active && (
-        <StepsPanel>
-          <Progress run={run} />
-        </StepsPanel>
+        <Progress run={run} />
       )}
       {run.status === "failed" && (
         <Alert variant="error">
           <AlertTitle>{failure.title}</AlertTitle>
           <AlertDescription>
-            <p>{String(run.failure?.message ?? "The worker reported a failure.")}</p>
+            <p>{String(run.failure?.message ?? "The optimizer reported a failure.")}</p>
             <p>
               {failure.next}
               {!rerun && " Start a new run from the scenario."}
             </p>
-            <p className="font-mono text-[11px]">code {failureCode} · attempt {run.attempt} of {run.max_attempts}</p>
+            <p className="font-mono text-[11px]">code {failureCode}</p>
           </AlertDescription>
         </Alert>
       )}
@@ -159,12 +149,6 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
         <Alert>
           <AlertTitle>Cancelled</AlertTitle>
           <AlertDescription>The solver process was stopped. Nothing from this run is counted as planned.{rerun ? " Run again starts a new run with the same version and settings." : ""}</AlertDescription>
-        </Alert>
-      )}
-      {run.status === "interrupted" && (
-        <Alert variant="warning">
-          <AlertTitle>Interrupted</AlertTitle>
-          <AlertDescription>The worker stopped responding on every attempt ({run.max_attempts}). {rerun ? "Run again starts a new run with the same version and settings." : "Start a new run from the scenario."} If it keeps stopping, check the worker&apos;s health and memory.</AlertDescription>
         </Alert>
       )}
       {run.summary && <Results summary={run.summary} run={run} geo={geo} />}
@@ -176,6 +160,10 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
 function failureCopy(code: string): { title: string; next: string; fixFirst: boolean } {
   if (code === "preflight_blocked")
     return { title: "Blocked by preflight checks", next: "Open the scenario to fix or exclude the flagged stops, or change the check to a warning, then run again. Running the same version again is blocked the same way.", fixFirst: true }
+  if (code === "interrupted")
+    return { title: "Interrupted by a restart", next: "The server restarted while this run was in progress. Run again to start it over.", fixFirst: false }
+  if (code === "optimizer_unavailable")
+    return { title: "Optimizer not running", next: "Start the optimizer service (bun run optimizer), then run again.", fixFirst: false }
   if (code === "run_wall_limit")
     return { title: "Stopped at the run time limit", next: "Lower the solve time per cluster or split the work into more clusters, then run again.", fixFirst: true }
   return { title: "Run failed", next: "Run again to retry with the same version and settings. If it fails the same way, the input or settings need to change.", fixFirst: false }
@@ -190,7 +178,7 @@ function ExportMenu({ id }: { id: string }) {
       </MenuTrigger>
       <MenuPopup align="end">
         {[
-          ["format=json", "Run JSON (inputs, stages, results)"],
+          ["format=json", "Run JSON (inputs, results)"],
           ["format=csv&table=sheet", "Shipment sheets CSV"],
           ["format=csv&table=loads", "Shipment lines CSV (loads)"],
           ["format=csv&table=unplanned", "Unshipped lines CSV (unplanned)"],
@@ -209,23 +197,20 @@ function ExportMenu({ id }: { id: string }) {
 }
 
 function Progress({ run }: { run: PipelineDetail }) {
-  const stage = String(run.progress?.stage ?? "")
-  const current = STAGES.indexOf(stage as (typeof STAGES)[number])
+  const [now, setNow] = useState<number | null>(null)
+  useEffect(() => {
+    const tick = () => setNow(Date.now())
+    tick()
+    const timer = setInterval(tick, 1_000)
+    return () => clearInterval(timer)
+  }, [])
+  const seconds = now === null ? 0 : Math.max(0, Math.round((now - run.created_at) / 1_000))
   return (
-    <ol className="bg-card flex flex-wrap gap-x-5 gap-y-2 rounded-xl border p-4 text-sm" aria-label="Pipeline steps">
-      {STAGES.map((s, i) => (
-        <li key={s} className={cn("flex items-center gap-1.5 capitalize", i > current && "text-muted-foreground", i === current && "font-medium")}>
-          {i < current ? <Check className="text-success-foreground size-3.5" aria-hidden /> : <span className={cn("size-2 rounded-full", i === current ? "bg-info animate-pulse motion-reduce:animate-none" : "bg-muted-foreground/40")} />}
-          {s}
-          {s === "solve" && i === current && run.progress?.of ? (
-            <span className="text-muted-foreground tabular-nums">
-              {String(run.progress.index)}/{String(run.progress.of)}
-            </span>
-          ) : null}
-        </li>
-      ))}
-      {run.status === "queued" && <li className="text-muted-foreground ml-auto">Waiting for a worker…</li>}
-    </ol>
+    <div className="bg-card flex items-center gap-3 rounded-xl border p-4 text-sm" role="status">
+      <Loader className="text-info size-4 animate-spin motion-reduce:animate-none" aria-hidden />
+      {run.status === "queued" ? "Waiting for the earlier runs to finish…" : "Solving…"}
+      <span className="text-muted-foreground tabular-nums">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</span>
+    </div>
   )
 }
 
@@ -352,7 +337,7 @@ function Results({ summary, run, geo }: { summary: RunSummary; run: PipelineDeta
           <StockCoverage summary={summary} />
         </TabsPanel>
         <TabsPanel value="provenance" className="pt-3">
-          <Provenance summary={summary} run={run} />
+          <Provenance summary={summary} />
         </TabsPanel>
       </Tabs>
     </>
@@ -789,7 +774,7 @@ function allocationProvenance(summary: RunSummary) {
   return `${allocationSettingsLabel(summary.settings)}; deterministic heuristic, ${a.runtime_s.toFixed(2)} s`
 }
 
-function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail }) {
+function Provenance({ summary }: { summary: RunSummary }) {
   const s = summary.settings
   const policy = s.preflight
   const rows: [string, string][] = [
@@ -839,26 +824,6 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
           </div>
         ))}
       </dl>
-      <div className="overflow-x-auto rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Step artifact</TableHead>
-              <TableHead>Output hash</TableHead>
-              <TableHead>Parents</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {run.stages.map((a) => (
-              <TableRow key={a.stage}>
-                <TableCell className="capitalize">{a.stage}</TableCell>
-                <TableCell className="font-mono text-xs">{a.output_hash.slice(0, 12)}</TableCell>
-                <TableCell className="text-muted-foreground font-mono text-xs">{a.parent_hashes.map((h) => h.slice(0, 6)).join(" ")}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
     </div>
   )
 }

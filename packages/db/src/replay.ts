@@ -4,7 +4,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
-import type { ExplorerSettings, ExplorerSummary, RunSummary } from "@fillrate/contracts";
+import type { ExplorerSettings, ExplorerSummary } from "@fillrate/contracts";
 import type { Store } from "./index";
 
 export const MAX_BUNDLE_BYTES = 16 * 1024 * 1024;
@@ -28,14 +28,15 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
   if (!view) throw new Error("run_not_found");
   if (view.kind === "explorer" && view.status === "succeeded") return explorerReplayBundle(store, runId, sourceDir);
   if (view.kind !== "pipeline" || view.status !== "succeeded") throw new Error("run_not_replayable");
-  const summaryManifest = view.artifacts.find(a => a.stage_type === "summary");
-  if (!summaryManifest) throw new Error("run_not_replayable");
-  const summary = store.readArtifact(summaryManifest.output_hash) as RunSummary;
+  const result = store.runResult(runId);
+  const summary = result?.summary;
+  if (!result || !summary) throw new Error("run_not_replayable");
+  const stageOf = (stage: string) => result.stages?.find(a => a.stage === stage);
   const scenario = store.versionDocument(view.versionId).document;
   // Runs stored before road travel was removed carry a null `travel_snapshot_id`, which current settings reject.
   const settings: Record<string, unknown> = { ...view.settings.document };
   delete settings.travel_snapshot_id;
-  const deterministic = Object.fromEntries(DETERMINISTIC.map(stage => [stage, view.artifacts.find(a => a.stage_type === stage)?.output_hash ?? null]));
+  const deterministic = Object.fromEntries(DETERMINISTIC.map(stage => [stage, stageOf(stage)?.output_hash ?? null]));
   const expected = {
     run_id: runId,
     validity: summary.validity,
@@ -57,8 +58,8 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
     ["settings.json", json(settings)],
     ["expected.json", json(expected)],
     ...DETERMINISTIC.flatMap(stage => {
-      const manifest = view.artifacts.find(a => a.stage_type === stage);
-      return manifest ? [[`artifacts/${stage}.json`, json({ manifest, payload: store.readArtifact(manifest.output_hash) })] as [string, Buffer]] : [];
+      const recorded = stageOf(stage);
+      return recorded ? [[`artifacts/${stage}.json`, json({ output_hash: recorded.output_hash, payload: recorded.payload })] as [string, Buffer]] : [];
     }),
     ...optimizerFiles(sourceDir),
   ];
@@ -77,14 +78,14 @@ export function explorerReplayBundle(store: Store, runId: string, sourceDir: str
   const view = store.runView(runId);
   if (!view) throw new Error("run_not_found");
   if (view.kind !== "explorer" || view.status !== "succeeded") throw new Error("run_not_replayable");
-  const manifest = view.artifacts.find(a => a.stage_type === "explorer");
-  if (!manifest) throw new Error("run_not_replayable");
-  const summary = store.readArtifact(manifest.output_hash) as ExplorerSummary;
+  const result = store.runResult(runId);
+  const summary = result?.explorer;
+  if (!result || !summary) throw new Error("run_not_replayable");
   const settings = view.settings.document as unknown as ExplorerSettings;
   const expected = {
     kind: "explorer",
     run_id: runId,
-    output_hash: manifest.output_hash,
+    output_hash: result.output_hash,
     versions: summary.versions,
     max_tasks: summary.max_tasks,
     travel: { provider: "estimated", metric: "spatial", circuity: settings.base?.cluster_circuity ?? 1.2 },
@@ -97,7 +98,7 @@ export function explorerReplayBundle(store: Store, runId: string, sourceDir: str
     ["scenario.json", json(store.versionDocument(view.versionId).document)],
     ["settings.json", json(settings)],
     ["expected.json", json(expected)],
-    ["artifacts/explorer.json", json({ manifest, payload: summary })],
+    ["artifacts/explorer.json", json({ output_hash: result.output_hash, payload: summary })],
     ...optimizerFiles(sourceDir),
   ];
   if (files.reduce((n, [, data]) => n + data.length, 0) > MAX_BUNDLE_BYTES) throw new Error("bundle_too_large");
@@ -111,7 +112,7 @@ Recomputes this k explorer job offline from the files in this folder: \`scenario
 scenario version), \`settings.json\` (the recorded explorer settings: k range ${summary.ks.join(", ")}, seeds
 ${summary.seeds.join(", ")}, reference seed ${summary.reference_seed}, H3 resolutions ${summary.h3.map(r => r.resolution).join(", ") || "none"}),
 the pinned optimizer source in \`optimizer/\` with its \`uv.lock\`, and \`expected.json\` (the recorded
-explorer statistics; \`artifacts/explorer.json\` is the same artifact with its manifest). No web
+explorer statistics; \`artifacts/explorer.json\` is the same artifact with its hash). No web
 credentials, network access or geocoding are needed.
 
     uv run --project optimizer python replay.py

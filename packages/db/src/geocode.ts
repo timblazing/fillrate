@@ -257,23 +257,16 @@ export type GeocodeJob = {
   resultVersionId: string | null; resultScenarioId: string | null; branched: boolean; error: string | null; createdAt: number; updatedAt: number;
 };
 
-export function createGeocodeJob(store: Store, input: { versionId: string; options: unknown; author: string; metadata: ScenarioMetadata; idempotencyKey: string; ownerId?: string }) {
+export function createGeocodeJob(store: Store, input: { versionId: string; options: unknown; author: string; metadata: ScenarioMetadata; ownerId?: string }) {
   const ownerId = input.ownerId ?? OPERATOR;
-  if (!input.idempotencyKey || input.idempotencyKey.length > 200) throw new Error("invalid_idempotency_key");
   if (!input.author?.trim() || input.author.length > 100) throw new Error("invalid_author");
   const options = parseGeocodeOptions(input.options);
-  const requestHash = contentHash(canonical({ versionId: input.versionId, options, author: input.author.trim(), metadata: input.metadata }));
   return store.sqlite.transaction(() => {
-    const prior = store.sqlite.prepare("SELECT id, requestHash, ownerId FROM geocode_jobs WHERE idempotencyKey=?").get(input.idempotencyKey) as { id: string; requestHash: string; ownerId: string } | undefined;
-    if (prior) { if (prior.requestHash !== requestHash || prior.ownerId !== ownerId) throw new Error("idempotency_conflict"); return { id: prior.id, created: false }; }
     if (!store.sqlite.prepare("SELECT 1 FROM scenario_sources WHERE versionId=?").get(input.versionId) || store.versionOwner(input.versionId) !== ownerId) throw new Error("version_not_found");
-    const create = () => {
-      const id = randomUUID(), now = Date.now();
-      store.sqlite.prepare("INSERT INTO geocode_jobs (id, versionId, status, options, author, metadata, idempotencyKey, requestHash, createdAt, updatedAt, ownerId) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-        .run(id, input.versionId, "queued", canonical(options), input.author.trim(), canonical(input.metadata), input.idempotencyKey, requestHash, now, now, ownerId);
-      return { id, created: true };
-    };
-    return create();
+    const id = randomUUID(), now = Date.now();
+    store.sqlite.prepare("INSERT INTO geocode_jobs (id, versionId, status, options, author, metadata, createdAt, updatedAt, ownerId) VALUES (?,?,?,?,?,?,?,?,?)")
+      .run(id, input.versionId, "queued", canonical(options), input.author.trim(), canonical(input.metadata), now, now, ownerId);
+    return { id, created: true };
   }).immediate();
 }
 

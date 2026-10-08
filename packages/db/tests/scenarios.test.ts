@@ -12,7 +12,7 @@ beforeEach(() => { dir=mkdtempSync(join(tmpdir(),"fillrate-scenario-")); store=o
 afterEach(() => {store.close();rmSync(dir,{recursive:true,force:true});});
 test("save conflicts preserve edits, branch preserves source version and old runs", () => {
   const first=saveScenario(store,input());
-  const run=store.enqueue(first.versionId,{schema_version:1,document:{}} ,"original");
+  const run=store.createRun(first.versionId,{schema_version:1,document:{}});
   const changed=input();changed.document.name="Changed";
   const second=saveScenario(store,{...changed,scenarioId:first.scenarioId,expectedVersionId:first.versionId});
   expect(() => saveScenario(store,{...input(),scenarioId:first.scenarioId,expectedVersionId:first.versionId})).toThrow("version_conflict");
@@ -37,14 +37,4 @@ test("invalid references, duplicate IDs, missing author and invalid dates do not
   expect(() => validateScenario(duplicated.document)).toThrow("duplicate_id");
   expect(() => saveScenario(store,{...input(),metadata:{...metadata,planningDate:"2026-02-30"}})).toThrow("invalid_metadata");
   expect(store.sqlite.prepare("SELECT count(*) n FROM scenarios").get()).toEqual({n:0});
-});
-test("scenario save retries return the same version and reject changed requests", () => {
-  const first = saveScenario(store, { ...input(), idempotencyKey: "save-1" });
-  expect(saveScenario(store, { ...input(), idempotencyKey: "save-1" })).toEqual(first);
-  expect(store.sqlite.prepare("SELECT count(*) n FROM scenario_versions").get()).toEqual({n:1});
-  expect(() => saveScenario(store, { ...input(), author: "Other", idempotencyKey: "save-1" })).toThrow("idempotency_conflict");
-  const changed = input(); changed.document.name = "Changed";
-  const second = saveScenario(store, { ...changed, scenarioId:first.scenarioId, expectedVersionId:first.versionId, idempotencyKey:"save-2" });
-  expect(saveScenario(store, { ...changed, scenarioId:first.scenarioId, expectedVersionId:first.versionId, idempotencyKey:"save-2" })).toEqual(second);
-  expect(store.sqlite.prepare("SELECT count(*) n FROM scenario_versions").get()).toEqual({n:2});
 });

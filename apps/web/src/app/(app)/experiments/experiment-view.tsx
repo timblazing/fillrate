@@ -16,7 +16,7 @@ import type { ExperimentDetail } from "@/lib/server/experiments"
 import { formatCount, formatMiles, formatMoney } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
-const ACTIVE = new Set(["queued", "claimed", "running"])
+const ACTIVE = new Set(["queued", "running"])
 const MI = 1609.344
 type MetricKey = keyof ExperimentDetail["metrics"]
 type Row = ExperimentDetail["runs"][number]

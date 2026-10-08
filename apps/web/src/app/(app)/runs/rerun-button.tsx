@@ -26,7 +26,7 @@ export function RerunButton({ rerun, label = "Run again", size = "sm", variant =
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       })
       const created = await res.json()

@@ -1,5 +1,4 @@
-import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, blob, uniqueIndex, index, check, primaryKey, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, blob, uniqueIndex, index, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 // Owners: "operator" is the single account-free dataset every caller works in; "examples" are the bundled
 // synthetic scenarios. Rows from older hosted databases may carry other owner values and are simply not listed.
@@ -12,32 +11,20 @@ export const versions = sqliteTable("scenario_versions", {
   revision: integer().notNull(), schemaVersion: integer().notNull().default(1),
   parentVersionId: text().references((): AnySQLiteColumn => versions.id), document: text().notNull(), author: text().notNull(), createdAt: integer().notNull(),
 }, t => [uniqueIndex("scenario_revision").on(t.scenarioId, t.revision)]);
+// A run is solved by one direct call to the optimizer service. Status: queued, running, succeeded, failed or
+// cancelled (older databases also carry interrupted). `result` is the optimizer's JSON, `error` the
+// failure as {code, message}.
 export const runs = sqliteTable("runs", {
   id: text().primaryKey(), versionId: text().notNull().references(() => versions.id),
-  settings: text().notNull(), status: text().notNull().default("queued"),
-  idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(),
-  // "pipeline" runs the fulfillment pipeline; "explorer" is a clustering-only k explorer job (M4).
+  settings: text().notNull(), status: text().notNull().default("queued"), createdAt: integer().notNull(),
+  // "pipeline" runs the fulfillment pipeline; "explorer" is a clustering-only k explorer.
   kind: text().notNull().default("pipeline"),
   // Who submitted it (cancel). Reads follow the scenario's owner.
   ownerId: text().notNull().default("operator"),
+  result: text(), error: text(), finishedAt: integer(),
 }, t => [index("run_status_date").on(t.status, t.createdAt), index("runs_by_owner").on(t.ownerId, t.status)]);
-export const jobs = sqliteTable("jobs", {
-  id: text().primaryKey(), runId: text().notNull().unique().references(() => runs.id),
-  status: text().notNull().default("queued"), attempt: integer().notNull().default(0),
-  maxAttempts: integer().notNull().default(3), workerId: text(), leaseToken: text(),
-  leaseExpiresAt: integer(), heartbeatAt: integer(), cancelRequested: integer({mode: "boolean"}).notNull().default(false),
-  createdAt: integer().notNull(),
-}, t => [index("claimable_jobs").on(t.status, t.createdAt), check("valid_attempts", sql`${t.attempt} >= 0 AND ${t.maxAttempts} BETWEEN 1 AND 10`)]);
-export const attempts = sqliteTable("job_attempts", {
-  id: text().primaryKey(), jobId: text().notNull().references(() => jobs.id),
-  attempt: integer().notNull(), workerId: text().notNull(), startedAt: integer().notNull(),
-  endedAt: integer(), reason: text(),
-}, t => [uniqueIndex("job_attempt").on(t.jobId, t.attempt)]);
-export const events = sqliteTable("job_events", {
-  id: text().primaryKey(), jobId: text().notNull().references(() => jobs.id),
-  attempt: integer().notNull(), sequence: integer().notNull(), kind: text().notNull(),
-  payload: text().notNull(), requestHash: text().notNull(), createdAt: integer().notNull(),
-}, t => [uniqueIndex("event_sequence").on(t.jobId, t.attempt, t.sequence)]);
+// Content-addressed blobs: geocoder responses, and the stage outputs of runs made before direct solves
+// (`run_artifacts` is read-only legacy storage; new runs keep their result in `runs.result`).
 export const artifacts = sqliteTable("artifacts", {
   hash: text().primaryKey(), compressed: blob({mode: "buffer"}).notNull(), byteLength: integer().notNull(),
 });
@@ -52,28 +39,9 @@ export const designReviews = sqliteTable("design_reviews", {
   submittedAt: integer(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
 }, t => [index("reviews_by_update").on(t.updatedAt)]);
 
-// Durable M3 cluster tasks. A coordinator lease owns each attempt; restart resumes
-// completed tasks only within this run, never treating another run as a replicate.
-export const clusterJobs = sqliteTable("cluster_jobs", {
-  id: text().primaryKey(), runId: text().notNull().references(() => runs.id),
-  clusterId: text().notNull(), inputHash: text().notNull(),
-  status: text().notNull().default("queued"), attempt: integer().notNull().default(0),
-  maxAttempts: integer().notNull().default(3), coordinatorToken: text(),
-  result: text(), startedAt: integer(), endedAt: integer(), error: text(),
-}, t => [uniqueIndex("run_cluster").on(t.runId, t.clusterId)]);
-// Stage reuse is scoped by the scenario's owner, so one account's cache never answers another's lookup.
-export const stageCache = sqliteTable("stage_cache", {
-  scope: text().notNull(), inputHash: text().notNull(), artifactHash: text().notNull().references(() => artifacts.hash),
-  manifest: text().notNull(), runId: text().notNull().references(() => runs.id),
-}, t => [primaryKey({ columns: [t.scope, t.inputHash] }), index("stage_cache_by_run").on(t.runId)]);
 export const scenarioSources = sqliteTable("scenario_sources", {
   versionId: text().primaryKey().references(() => versions.id),
   source: text().notNull(), metadata: text().notNull(),
-});
-export const scenarioSaves = sqliteTable("scenario_saves", {
-  idempotencyKey: text().primaryKey(), requestHash: text().notNull(),
-  scenarioId: text().notNull().references(() => scenarios.id),
-  versionId: text().notNull().references(() => versions.id), createdAt: integer().notNull(),
 });
 
 // M4 bounded sweeps: one experiment expands into at most MAX_SWEEP_RUNS ordinary runs. The comparison
@@ -81,7 +49,7 @@ export const scenarioSaves = sqliteTable("scenario_saves", {
 export const experiments = sqliteTable("experiments", {
   id: text().primaryKey(), versionId: text().notNull().references(() => versions.id),
   name: text().notNull(), spec: text().notNull(), comparison: text().notNull(),
-  idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(),
+  createdAt: integer().notNull(),
   ownerId: text().notNull().default("operator"),
 }, t => [index("experiments_by_date").on(t.createdAt)]);
 export const experimentRuns = sqliteTable("experiment_runs", {
@@ -101,6 +69,6 @@ export const geocodeJobs = sqliteTable("geocode_jobs", {
   id: text().primaryKey(), versionId: text().notNull().references(() => versions.id),
   status: text().notNull().default("queued"), options: text().notNull(), author: text().notNull(), metadata: text().notNull(),
   progress: text(), report: text(), resultVersionId: text().references(() => versions.id), branched: integer({mode: "boolean"}).notNull().default(false),
-  error: text(), idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
+  error: text(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
   ownerId: text().notNull().default("operator"),
 }, t => [index("geocode_jobs_by_date").on(t.createdAt)]);

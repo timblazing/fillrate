@@ -1,13 +1,13 @@
-// End to end through the real Python supervisor and PyVRP (spec §15 M1 exit evidence):
-// a synthetic run completes and reconciles, cancellation kills solver work, and a crashed
-// worker's job is retried by a new worker after its lease expires.
+// End to end through the real optimizer service and PyVRP: a synthetic run completes and reconciles,
+// cancellation kills solver work, and a service that dies fails the run instead of leaving it running.
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from "vitest";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { canonical, openDatabase, type Store } from "../src/index";
-import { createWorkerTransport } from "../src/transport";
+import { canonical, openDatabase, type RunResult, type Store } from "../src/index";
+import { createSolver, type Solver } from "../src/solver";
 import { previewCsvImport } from "../src/imports";
 import { saveScenario } from "../src/scenarios";
 import { parseContract, type RunSummary } from "@fillrate/contracts";
@@ -20,53 +20,56 @@ import { writeFileSync } from "node:fs";
 const optimizer = resolve("services/optimizer");
 const example = JSON.parse(readFileSync(resolve("examples/m1-synthetic.json"), "utf8"));
 const hasUv = spawnSync("uv", ["--version"]).status === 0 && process.env.FILLRATE_SKIP_PYTHON !== "1";
-const token = "e2e-token";
-const env = { ...process.env, UV_PYTHON: "python3.13", WORKER_TOKEN: token, WORKER_POLL_SECONDS: "0.2", WORKER_HEARTBEAT_SECONDS: "0.5" };
+const env = { ...process.env, UV_PYTHON: "python3.13" };
 
-let dir: string, store: Store, transport: ReturnType<typeof createWorkerTransport>, url: string, versionId: string;
-const workers: ChildProcess[] = [];
+let dir: string, store: Store, solver: Solver, versionId: string, service: ChildProcess;
+const services: ChildProcess[] = [];
+
+const freePort = () => new Promise<number>(resolvePort => {
+  const probe = createServer().listen(0, "127.0.0.1", () => { const port = (probe.address() as { port: number }).port; probe.close(() => resolvePort(port)); });
+});
+async function startOptimizer() {
+  const port = await freePort();
+  const child = spawn(join(optimizer, ".venv/bin/fillrate-optimizer"), [], { cwd: optimizer, env: { ...env, OPTIMIZER_PORT: String(port) }, stdio: "ignore" });
+  services.push(child);
+  for (let i = 0; i < 100; i++) {
+    if (await fetch(`http://127.0.0.1:${port}/health`).then(r => r.ok, () => false)) return { child, url: `http://127.0.0.1:${port}` };
+    await new Promise(r => setTimeout(r, 100));
+  }
+  throw new Error("optimizer did not start");
+}
 
 beforeAll(() => { if (hasUv) spawnSync("uv", ["sync", "--locked", "-q"], { cwd: optimizer, env, stdio: "inherit" }); }, 300_000);
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "fillrate-e2e-"));
   store = openDatabase(join(dir, "e2e.sqlite"));
-  transport = createWorkerTransport(store, { token, port: 0, leaseMs: 2_000 });
-  url = `http://127.0.0.1:${(await transport.listen()).port}`;
-  versionId = store.createScenario("M1", { schema_version: 1, document: example.scenario }, "e2e").versionId;
-});
-afterEach(async () => {
-  for (const w of workers.splice(0)) w.kill("SIGKILL");
-  await transport.close(); store.close(); rmSync(dir, { recursive: true, force: true });
-});
-afterAll(() => { for (const w of workers) w.kill("SIGKILL"); });
-
-function startWorker(id: string) {
-  const worker = spawn(join(optimizer, ".venv/bin/fillrate-worker"), [], { cwd: optimizer, env: { ...env, FILLRATE_INTERNAL_URL: url, WORKER_ID: id }, stdio: ["ignore", "ignore", "pipe"] });
-  let log = "";
-  worker.stderr!.on("data", d => { log += d; });
-  workers.push(worker);
-  return { worker, log: () => log };
-}
-const enqueue = (settings: Record<string, unknown>, key: string) =>
-  store.enqueue(versionId, { schema_version: 1, document: { ...example.settings, ...settings } }, key);
-async function waitFor<T>(fn: () => T | undefined | null | false, ms = 60_000): Promise<T> {
-  const end = Date.now() + ms;
-  for (;;) {
-    const value = fn();
-    if (value) return value;
-    if (Date.now() > end) throw new Error("timeout");
-    await new Promise(r => setTimeout(r, 100));
+  if (hasUv) {
+    const started = await startOptimizer();
+    service = started.child;
+    solver = createSolver(store, { url: started.url });
   }
-}
+  versionId = store.createScenario("M1", { schema_version: 1, document: example.scenario }, "e2e").versionId;
+}, 60_000);
+afterEach(() => {
+  for (const child of services.splice(0)) child.kill("SIGKILL");
+  store.close(); rmSync(dir, { recursive: true, force: true });
+});
+afterAll(() => { for (const child of services) child.kill("SIGKILL"); });
 
+/** Creates a run and hands it to the solver, like the web app does; `done` resolves when it ends. */
+function startRun(settings: Record<string, unknown>, kind: "pipeline" | "explorer" = "pipeline", forVersion = versionId) {
+  const id = store.createRun(forVersion, { schema_version: 1, document: kind === "explorer" ? settings : { ...example.settings, ...settings } as never }, kind, { status: solver.idle() ? "running" : "queued" });
+  return { id, done: solver.start(id) };
+}
+const result = (id: string) => store.runResult(id) as RunResult;
+const summaryOf = (id: string) => parseContract("RunSummary", result(id).summary) as RunSummary;
 test.skipIf(!hasUv)("a synthetic run completes, validates and reconciles", async () => {
-  const runId = enqueue({}, "ok");
-  startWorker("w1");
-  await waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status));
-  const view = store.runView(runId)!;
-  expect(view.status).toBe("succeeded");
-  expect(view.artifacts.map(a => a.stage_type)).toEqual(["preflight", "allocation", "aggregation", "clustering", "travel", "problem", "solve", "validation", "summary"]);
-  const summary = parseContract("RunSummary", store.readArtifact(view.artifacts.at(-1)!.output_hash)) as RunSummary;
+  const run = startRun({});
+  expect(store.runView(run.id)!.status).toBe("running");
+  await run.done;
+  expect(store.runView(run.id)!.status).toBe("succeeded");
+  expect(result(run.id).stages!.map(a => a.stage)).toEqual(["preflight", "allocation", "aggregation", "clustering"]);
+  const summary = summaryOf(run.id);
   expect(summary.validity).toBe("valid");
   for (const p of summary.products) {
     expect(p.ordered).toBe(p.excluded + p.eligible);
@@ -74,7 +77,6 @@ test.skipIf(!hasUv)("a synthetic run completes, validates and reconciles", async
     expect(p.allocated).toBe(p.planned + p.allocated_unplanned);
     expect(p.starting_inventory).toBe(p.allocated + p.residual);
   }
-  expect(view.events.filter(e => e.kind === "progress").map(e => e.payload.stage)).toContain("solve");
   // The example declares its policy checks as warnings (spec §15 M2 item 8); the 594 mi chained stop only warns.
   expect(summary.preflight?.map(f => [f.check, f.action])).toEqual([["missing_coordinates", "warn"], ["far_from_depot", "warn"], ["oversize_stop", "warn"], ["far_via_stop", "warn"]]);
   // Shipment sheets (M2 item 11) agree with the validated trucks: per-stop feet, legs and value sum to the totals.
@@ -92,66 +94,49 @@ test.skipIf(!hasUv)("a synthetic run completes, validates and reconciles", async
   expect(csv.rows).toHaveLength(summary.trucks.reduce((n, t) => n + t.visits.length, 0));
 }, 120_000);
 
-test.skipIf(!hasUv)("blocking preflight checks fail the run permanently with the reasons", async () => {
-  const runId = enqueue({ preflight: { missing_coordinates: "block", far_from_depot: "block", oversize_stop: "warn" } }, "blocked");
-  startWorker("w1");
-  await waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status));
-  const view = store.runView(runId)!;
+test.skipIf(!hasUv)("blocking preflight checks fail the run with the reasons", async () => {
+  const run = startRun({ preflight: { missing_coordinates: "block", far_from_depot: "block", oversize_stop: "warn" } });
+  await run.done;
+  const view = store.runView(run.id)!;
   expect(view.status).toBe("failed");
-  expect(view.attempt).toBe(1);
-  const failure = view.events.find(e => e.kind === "failed")!.payload;
-  expect(failure.code).toBe("preflight_blocked");
-  expect(String(failure.message)).toMatch(/no coordinates.*too far from the depot/);
+  expect(view.error!.code).toBe("preflight_blocked");
+  expect(view.error!.message).toMatch(/no coordinates.*too far from the depot/);
 }, 120_000);
 
-test.skipIf(!hasUv)("cancelling a running solve kills it and frees the worker", async () => {
+test.skipIf(!hasUv)("cancelling a running solve kills it and frees the service for the next run", async () => {
   // A time-only budget keeps the solver busy for 60 s per cluster unless it is killed.
-  const slow = enqueue({ solver_max_iterations: null, solver_time_limit_s: 60 }, "slow");
-  const next = enqueue({}, "next");
-  const { log } = startWorker("w1");
-  await waitFor(() => store.runView(slow)!.events.some(e => e.payload.stage === "solve"));
+  const slow = startRun({ solver_max_iterations: null, solver_time_limit_s: 60 });
+  const next = startRun({});
+  expect(store.runView(next.id)!.status).toBe("queued");
+  await new Promise(r => setTimeout(r, 2_500)); // let the service start the child
   const cancelledAt = Date.now();
-  store.cancel(slow);
-  await waitFor(() => store.runView(slow)!.status === "cancelled", 10_000);
-  expect(store.runView(slow)!.events.at(-1)!.kind).toBe("cancelled");
-  // The same single worker then completes the next run, well before the killed budget.
-  await waitFor(() => store.runView(next)!.status === "succeeded", 30_000);
+  expect(await solver.cancel(slow.id)).toBe(true);
+  await slow.done;
+  expect(store.runView(slow.id)!.status).toBe("cancelled");
+  await next.done;
+  expect(store.runView(next.id)!.status).toBe("succeeded");
   expect(Date.now() - cancelledAt).toBeLessThan(40_000);
-  // Cancellation can be observed by a heartbeat or by the child's next server call.
-  // Both paths cancel the run; the fast follow-up run proves this worker was freed.
-  expect(log()).toContain(`run ${slow} cancelled`);
 }, 120_000);
 
-test.skipIf(!hasUv)("a cancel that refuses the solver's next server call ends cancelled, not failed", async () => {
-  // Long heartbeats (and a lease to match) so the child's checkpoint, not a heartbeat, meets the cancel first.
-  await transport.close();
-  transport = createWorkerTransport(store, { token, port: 0, leaseMs: 120_000 });
-  url = `http://127.0.0.1:${(await transport.listen()).port}`;
-  const runId = enqueue({ solver_max_iterations: null, solver_time_limit_s: 60 }, "cancel-call");
-  const worker = spawn(join(optimizer, ".venv/bin/fillrate-worker"), [], { cwd: optimizer, env: { ...env, WORKER_HEARTBEAT_SECONDS: "60", FILLRATE_INTERNAL_URL: url, WORKER_ID: "w1" }, stdio: "ignore" });
-  workers.push(worker);
-  await waitFor(() => store.runView(runId)!.status !== "queued", 30_000);
-  store.cancel(runId);
-  await waitFor(() => ["cancelled", "failed"].includes(store.runView(runId)!.status), 30_000);
-  expect(store.runView(runId)!.status).toBe("cancelled");
+test.skipIf(!hasUv)("a queued run that is cancelled never starts", async () => {
+  const slow = startRun({ solver_max_iterations: null, solver_time_limit_s: 60 });
+  const waiting = startRun({});
+  expect(await solver.cancel(waiting.id)).toBe(true);
+  expect(await solver.cancel(slow.id)).toBe(true);
+  await Promise.all([slow.done, waiting.done]);
+  expect(store.runView(waiting.id)).toMatchObject({ status: "cancelled", finishedAt: expect.any(Number) });
+  expect(store.runResult(waiting.id)).toBeNull();
 }, 120_000);
 
-test.skipIf(!hasUv)("a crashed worker's job is retried by a new worker after lease expiry", async () => {
-  const runId = enqueue({ solver_max_iterations: null, solver_time_limit_s: 60 }, "crash");
-  const first = startWorker("w1");
-  await waitFor(() => store.runView(runId)!.events.some(e => e.payload.stage === "solve"));
-  first.worker.kill("SIGKILL");
-  // Run settings are immutable, so the retry also has a 60 s budget; cancel once it is re-claimed.
-  startWorker("w2");
-  await waitFor(() => { const v = store.runView(runId)!; return v.attempt === 2 && v.status === "running"; }, 20_000);
-  const view = store.runView(runId)!;
-  expect(view.attempts.map(a => [a.attempt, a.workerId, a.reason])).toEqual([[1, "w1", "lease_expired"], [2, "w2", null]]);
-  store.cancel(runId);
-  await waitFor(() => store.runView(runId)!.status === "cancelled", 10_000);
+test.skipIf(!hasUv)("a service that dies mid-solve fails the run instead of leaving it running", async () => {
+  const run = startRun({ solver_max_iterations: null, solver_time_limit_s: 60 });
+  await new Promise(r => setTimeout(r, 2_500));
+  service.kill("SIGKILL");
+  await run.done;
+  expect(store.runView(run.id)).toMatchObject({ status: "failed", error: { code: "solve_failed" } });
 }, 120_000);
 
-
-test.skipIf(!hasUv)("imported CSV version completes through the real worker and survives export", async () => {
+test.skipIf(!hasUv)("imported CSV version completes through the real service", async () => {
   const preview = previewCsvImport({
     name: "Imported smoke", depot: {id:"depot",label:"Depot",lat:35.1495,lon:-90.049},
     ordersCsv: "order_id,line_id,order_date,location_id,location_label,address,latitude,longitude,product,ordered_pieces,net_value_per_piece,linear_feet_per_piece\nO-1,L-1,2026-09-30,A,Stop A,,35.2,-90.1,SKU-1,10,12.50,1.25\nO-2,L-2,2026-09-30,B,Stop B,,35.3,-90.2,SKU-1,5,12.50,1.25\n",
@@ -161,13 +146,10 @@ test.skipIf(!hasUv)("imported CSV version completes through the real worker and 
   expect(preview.document).not.toBeNull();
   const saved = saveScenario(store,{document:preview.document,author:"Importer",metadata:{timezone:"America/Chicago",planningDate:"2026-09-30",browserId:"browser"},source:preview.originals});
   const settings = {...example.settings,preflight:{missing_coordinates:"block",far_from_depot:"block",oversize_stop:"block"},k:1,solver_max_iterations:500};
-  const runId=store.enqueue(saved.versionId,{schema_version:1,document:settings},"imported");
-  startWorker("import-worker");
-  await waitFor(() => ["succeeded","failed"].includes(store.runView(runId)!.status));
-  const view=store.runView(runId)!;
-  expect(view.status).toBe("succeeded");
-  const manifest=view.artifacts.find(x=>x.stage_type==="summary")!;
-  const summary=parseContract("RunSummary",store.readArtifact(manifest.output_hash));
+  const run=startRun(settings,"pipeline",saved.versionId);
+  await run.done;
+  expect(store.runView(run.id)!.status).toBe("succeeded");
+  const summary=summaryOf(run.id);
   expect(summary.validity).toBe("valid");
   expect(summary.totals.ordered_cents).toBe(18750);
   expect(summary.totals.planned_cents).toBe(18750);
@@ -175,15 +157,15 @@ test.skipIf(!hasUv)("imported CSV version completes through the real worker and 
 },120_000);
 
 
-test.skipIf(!hasUv)("a k explorer job runs clustering only and stores one explorer artifact", async () => {
-  const runId = store.enqueue(versionId, { schema_version: 1, document: { schema_version: 1, kind: "explorer", base: example.settings, ks: [3, 4], seeds: [0, 1, 2], selected_k: 4, reference_seed: 0, h3_resolutions: [1, 2] } }, "explore", Date.now(), 3, "explorer");
-  startWorker("explorer");
-  await waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status));
+test.skipIf(!hasUv)("a k explorer job runs clustering only and stores one explorer result", async () => {
+  const run = startRun({ schema_version: 1, kind: "explorer", base: example.settings, ks: [3, 4], seeds: [0, 1, 2], selected_k: 4, reference_seed: 0, h3_resolutions: [1, 2] }, "explorer");
+  const runId = run.id;
+  await run.done;
   const view = store.runView(runId)!;
   expect(view.status).toBe("succeeded");
   expect(view.kind).toBe("explorer");
-  expect(view.artifacts.map(a => a.stage_type)).toEqual(["explorer"]);
-  const summary = parseContract("ExplorerSummary", store.readArtifact(view.artifacts[0].output_hash));
+  expect(result(runId).summary).toBeUndefined();
+  const summary = parseContract("ExplorerSummary", result(runId).explorer);
   expect(summary.tasks).toBe(3 * 2 + 2);
   expect(summary.per_k.map(r => r.k)).toEqual([3, 4]);
   expect(summary.h3.map(r => r.resolution)).toEqual([1, 2]);
@@ -197,7 +179,7 @@ test.skipIf(!hasUv)("a k explorer job runs clustering only and stores one explor
   expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
   const expected = JSON.parse(readFileSync(join(out, "expected.json"), "utf8"));
   expect(expected.kind).toBe("explorer");
-  expect(expected.output_hash).toBe(view.artifacts[0].output_hash);
+  expect(expected.output_hash).toBe(result(runId).output_hash);
   expect(expected.travel).toEqual({ provider: "estimated", metric: "spatial", circuity: 1.2 });
   expect(canonical(expected.summary)).toBe(canonical(summary));
   const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
@@ -221,16 +203,11 @@ test.skipIf(!hasUv)("a k explorer job runs clustering only and stores one explor
 
 test.skipIf(!hasUv)("sweep runs are independent solves, ranked within one cohort, and replay from a bundle", async () => {
   const runs = expandSweep(example.settings, { kmeans_seed: [0, 1], inventory_percent: [100, 60] });
-  const id = store.createExperiment({ versionId, name: "e2e", spec: {}, comparison: {}, runs: runs.map(r => ({ settings: { schema_version: 1 as const, document: r.settings as never }, varied: r.varied })) }, "sweep");
-  startWorker("sweeper");
-  const members = store.experiment(id)!.runs;
-  await waitFor(() => members.every(m => ["succeeded", "failed"].includes(store.runView(m.runId)!.status)), 110_000);
-  const views = members.map(m => store.runView(m.runId)!);
+  const { runIds } = store.createExperiment({ versionId, name: "e2e", spec: {}, comparison: {}, runs: runs.map(r => ({ settings: { schema_version: 1 as const, document: r.settings as never }, varied: r.varied })) });
+  await Promise.all(runIds.map(id => solver.start(id)));
+  const views = runIds.map(id => store.runView(id)!);
   expect(views.map(v => v.status)).toEqual(["succeeded", "succeeded", "succeeded", "succeeded"]);
-  const solves = views.map(v => v.artifacts.find(a => a.stage_type === "solve")!);
-  expect(new Set(solves.map(s => s.execution_id)).size).toBe(4);
-  expect(solves.every(s => s.reused_from === null)).toBe(true);
-  const compared = compareRuns(views.map((v, i) => ({ id: v.id, status: v.status, versionId, settings: runs[i].settings, summary: store.readArtifact(v.artifacts.find(a => a.stage_type === "summary")!.output_hash) as RunSummary })));
+  const compared = compareRuns(views.map((v, i) => ({ id: v.id, status: v.status, versionId, settings: runs[i].settings, summary: summaryOf(v.id) })));
   // Two cohorts (inventory 100% and 60%); only the base cohort's valid complete runs are ranked.
   expect(compared.cohorts).toHaveLength(compared.rows.some(r => r.reason === "Partial plan" || r.reason === "Invalid plan") ? compared.cohorts.length : 2);
   expect(compared.rows.filter(r => r.reason === "Different cohort (changed assumptions)").every(r => runs[compared.rows.indexOf(r)].settings.inventory_percent === 60 || compared.cohort !== null)).toBe(true);
@@ -248,12 +225,11 @@ test.skipIf(!hasUv)("sweep runs are independent solves, ranked within one cohort
 
 test.skipIf(!hasUv)("a whole-order run replays from its bundle", async () => {
   const wholeVersion = store.createScenario("Whole-order example", { schema_version: 1, document: example.scenario }, "e2e").versionId;
-  const settings = { ...example.settings, fulfillment_policy: "whole_order" };
-  const runId = store.enqueue(wholeVersion, { schema_version: 1, document: settings }, "whole-order");
-  startWorker("replayer");
-  await waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status), 110_000);
-  const view = store.runView(runId)!;
-  expect(view.status).toBe("succeeded");
+  const settings = { fulfillment_policy: "whole_order" };
+  const run = startRun(settings, "pipeline", wholeVersion);
+  const runId = run.id;
+  await run.done;
+  expect(store.runView(runId)!.status).toBe("succeeded");
 
   const out = join(dir, "bundle"); const file = join(dir, "bundle.zip");
   writeFileSync(file, replayBundle(store, runId, optimizer));
@@ -275,11 +251,10 @@ test.skipIf(!hasUv)("a whole-order run replays from its bundle", async () => {
 
 // ---- GeoJSON export of a real run ---------------------------------------------------------------------------------
 test.skipIf(!hasUv)("GeoJSON routes are schematic straight segments without the return leg", async () => {
-  const run = store.enqueue(versionId, { schema_version: 1, document: { ...example.settings, k: 1, solver_max_iterations: 300 } as never }, "export-geojson");
-  startWorker("export");
-  await waitFor(() => ["succeeded", "failed"].includes(store.runView(run)!.status));
-  const summary = parseContract("RunSummary", store.readArtifact(store.runView(run)!.artifacts.find(a => a.stage_type === "summary")!.output_hash)) as RunSummary;
-  const geo = buildRouteGeoJson(run, summary);
+  const run = startRun({ k: 1, solver_max_iterations: 300 });
+  await run.done;
+  const summary = summaryOf(run.id);
+  const geo = buildRouteGeoJson(run.id, summary);
   const lines = geo.features.filter(f => f.geometry.type === "LineString");
   expect(lines).toHaveLength(summary.trucks.length);
   const depot: [number, number] = [summary.depot.lon, summary.depot.lat];

@@ -1,8 +1,8 @@
 """Canonical JSON matching `canonical()` in packages/db (sorted keys, array order kept).
 
-Artifact hashes are computed on both sides of the worker boundary, so numbers
-must serialize exactly like JavaScript's `JSON.stringify`: integral floats drop
-the ".0", and exponents follow ECMAScript Number::toString.
+Replay bundles record stage hashes of this canonical form, so numbers serialize like
+JavaScript's `JSON.stringify`: integral floats drop the ".0", and exponents follow
+ECMAScript Number::toString.
 """
 
 from __future__ import annotations

@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   try {
     const body = await boundedJson(request)
     const store = initializeDatabase()
-    const id = createExplorer(store, body ?? {}, request.headers.get("idempotency-key") ?? "")
+    const id = createExplorer(store, body ?? {})
     return Response.json(runDetail(store, id), { status: 201, headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {
     return errorResponse(error)

@@ -24,7 +24,7 @@ import { AGREEMENT_LOW } from "./explorer-map"
 
 const ExplorerMap = dynamic(() => import("./explorer-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 type ExplorerDetail = Extract<RunDetail, { kind: "explorer" }>
-const ACTIVE = new Set(["queued", "claimed", "running"])
+const ACTIVE = new Set(["queued", "running"])
 /** Imported scenarios pick up "Use this k" on /scenarios from this browser key. */
 export const USE_K_KEY = "fillrate.use-k.v1"
 
@@ -78,11 +78,11 @@ export function ExplorerView({ initial, imported, example }: { initial: Explorer
         Clustering only: no stock is reallocated and no shipments are solved. The error sum, stability and seed agreement describe how the
         groupings behave across seeds. They are not solver objectives and not a probability that a grouping is correct.
       </p>
-      {ACTIVE.has(run.status) && <p className="bg-card rounded-xl border p-4 text-sm">{run.status === "queued" ? "Waiting for a worker…" : `Clustering (${String(run.progress?.stage ?? "starting")})…`}</p>}
+      {ACTIVE.has(run.status) && <p className="bg-card rounded-xl border p-4 text-sm">{run.status === "queued" ? "Waiting for the earlier runs to finish…" : "Clustering…"}</p>}
       {run.status === "failed" && (
         <Alert variant="error">
           <AlertTitle>{String(run.failure?.code ?? "Explorer failed")}</AlertTitle>
-          <AlertDescription>{String(run.failure?.message ?? "The worker reported a failure.")}</AlertDescription>
+          <AlertDescription>{String(run.failure?.message ?? "The optimizer reported a failure.")}</AlertDescription>
         </Alert>
       )}
       {run.explorer && <Results summary={run.explorer} imported={imported} example={example} />}
@@ -102,7 +102,7 @@ function Results({ summary, imported, example }: { summary: ExplorerSummary; imp
   const agreements = summary.locations.map((l) => (repaired ? l.agreement_repaired : l.agreement_raw))
   const low = agreements.filter((a) => a != null && a < AGREEMENT_LOW).length
   const singletons = agreements.filter((a) => a == null).length
-  const headers = { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }
+  const headers = { "content-type": "application/json" }
 
   async function useK() {
     if (imported) {

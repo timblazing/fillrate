@@ -1,5 +1,5 @@
-# One image: Next.js standalone server (Node 24) + Python 3.13 optimizer and worker supervisor.
-# Only port 3000 is exposed; the worker transport (3100) and FastAPI (8000) bind to 127.0.0.1.
+# One image: Next.js standalone server (Node 24) + the Python 3.13 optimizer service.
+# Only port 3000 is exposed; the optimizer (8000) binds to 127.0.0.1.
 FROM oven/bun:1.4.2 AS bun
 FROM ghcr.io/astral-sh/uv:0.8.2 AS uv
 
@@ -35,8 +35,6 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     DATA_DIR=/app/data \
     DB_MIGRATIONS_DIR=/app/packages/db/migrations \
-    INTERNAL_PORT=3100 \
-    FILLRATE_INTERNAL_URL=http://127.0.0.1:3100 \
     OPTIMIZER_PORT=8000 \
     OPTIMIZER_SOURCE_DIR=/app/optimizer \
     ZCTA_LOOKUP_PATH=/app/zcta/zcta-gazetteer-2024.tsv

@@ -179,7 +179,7 @@ export function parseComparison(input: unknown): Comparison {
   return { vector, order, cohort };
 }
 
-export type CompareInput = { id: string; status: string; settings: RunSettings; versionId: string; summary: RunSummary | null; solveReused?: boolean };
+export type CompareInput = { id: string; status: string; settings: RunSettings; versionId: string; summary: RunSummary | null };
 export type CompareRow = {
   id: string; signature: string | null; metrics: Metrics | null;
   eligible: boolean; reason: string | null; nonDominated: boolean; rank: number | null; label: string | null;
@@ -199,7 +199,6 @@ export function compareRuns(inputs: CompareInput[], comparison: Comparison = DEF
       : !run.summary ? "No summary"
       : run.summary.validity !== "valid" ? "Invalid plan"
       : run.summary.coverage !== "complete" ? `${run.summary.coverage === "partial" ? "Partial" : "Empty"} plan`
-      : run.solveReused ? "Reused solve (not an independent replicate)"
       : [...comparison.vector, ...comparison.order].some(k => k !== "non_dominated" && metrics![k as MetricKey] === null) ? "Undefined metric"
       : null;
     return { id: run.id, signature, metrics, eligible: reason === null, reason, nonDominated: false, rank: null, label: null };

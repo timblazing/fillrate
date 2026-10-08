@@ -1,4 +1,4 @@
-"""M4 fixtures: clustering strategies, inventory sweeps, cache invalidation, explorer jobs."""
+"""M4 fixtures: clustering strategies, inventory sweeps, explorer jobs."""
 
 import h3
 import numpy as np
@@ -21,22 +21,6 @@ def spread():
         [(f"O{i}", loc, "2026-09-01", "P", 2, 100) for i, (loc, _) in enumerate(FAR)],
         [("P", 100)],
     )
-
-
-def caching():
-    cache = {}
-
-    def checkpoint(artifact):
-        cache.setdefault(
-            artifact.manifest["input_hash"],
-            {"manifest": artifact.manifest, "payload": artifact.payload},
-        )
-
-    return cache, checkpoint
-
-
-def reused(output):
-    return {a.stage: a.manifest["reused_from"] for a in output.artifacts}
 
 
 def test_h3_cells_are_deterministic_and_match_the_library():
@@ -118,51 +102,6 @@ def test_inventory_percent_scales_stock_and_reconciles():
     product = out.summary.products[0]
     assert product.starting_inventory == 5  # floor(10 × 0.55)
     assert product.allocated == 5 and product.unselected == 5
-
-
-def test_cache_invalidates_only_dependents_one_setting_at_a_time():
-    doc = spread()
-    cache, checkpoint = caching()
-    run_pipeline(doc, FAST.model_copy(update={"k": 2}), execution_id="base", checkpoint=checkpoint)
-
-    def again(**update):
-        return reused(
-            run_pipeline(
-                doc,
-                FAST.model_copy(update={"k": 2, **update}),
-                execution_id=f"x{len(cache)}",
-                cache=cache.get,
-                checkpoint=checkpoint,
-            )
-        )
-
-    # Routing seed: all deterministic stages reused; the solve is a new replicate.
-    seed = again(solver_seed=7)
-    assert all(seed[s] for s in ("allocation", "aggregation", "clustering", "travel"))
-    assert seed["solve"] is None
-    # k: allocation and aggregation reused, clustering recomputed.
-    k = again(k=3)
-    assert k["allocation"] and k["aggregation"] and k["clustering"] is None
-    # Inventory: allocation and everything after it recomputed.
-    inventory = again(inventory_percent=5)  # 5 of 8 pieces: allocation output changes
-    assert inventory["allocation"] is None and inventory["clustering"] is None
-    # Cluster circuity: clustering recomputed, allocation reused.
-    circuity = again(cluster_circuity=1.3)
-    assert circuity["allocation"] and circuity["clustering"] is None
-    # Clustering method: clustering recomputed, aggregation reused.
-    method = again(cluster_strategy="h3")
-    assert method["aggregation"] and method["clustering"] is None
-
-
-def test_repeated_seed_runs_are_independent_replicates():
-    doc = spread()
-    cache, checkpoint = caching()
-    a = run_pipeline(doc, FAST, execution_id="a", checkpoint=checkpoint)
-    b = run_pipeline(doc, FAST, execution_id="b", cache=cache.get, checkpoint=checkpoint)
-    solve_a = next(x.manifest for x in a.artifacts if x.stage == "solve")
-    solve_b = next(x.manifest for x in b.artifacts if x.stage == "solve")
-    assert solve_b["reused_from"] is None
-    assert solve_a["execution_id"] != solve_b["execution_id"]
 
 
 def test_explorer_population_matches_the_pipeline_cluster_stage():
