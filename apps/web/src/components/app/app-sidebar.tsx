@@ -1,9 +1,9 @@
 "use client"
 
-import { ChevronRight, FlaskConical, GraduationCap, LayoutGrid, Route, Settings, Shield, Truck, type LucideIcon } from "lucide-react"
+import { ChevronRight, FlaskConical, GraduationCap, LayoutGrid, Route, Truck, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useState, type ComponentProps } from "react"
+import { type ComponentProps } from "react"
 
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -16,13 +16,11 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
 
@@ -34,8 +32,11 @@ type NavItem = { href: string; title: string; icon: LucideIcon; items?: { href: 
 const navMain: NavItem[] = [
   { href: "/scenarios", title: "Scenarios", icon: LayoutGrid, items: [{ href: "/scenarios", title: "Workbench" }, { href: "/runs", title: "Pipeline runs" }] },
   { href: "/experiments", title: "Experiments", icon: FlaskConical },
+]
+
+// Supporting destinations, pinned above the account menu: lessons and the Solver Lab (spec §4 "Progressive depth", M6).
+const navSecondary: NavItem[] = [
   { href: "/learn", title: "Learn", icon: GraduationCap },
-  // Solver Lab (spec §4 "Progressive depth"): a working lower-level tool, so it gets a destination (M6).
   { href: "/labs", title: "Labs", icon: Route },
 ]
 
@@ -43,29 +44,24 @@ const under = (pathname: string, href: string) => pathname === href || pathname.
 
 /** Top-level section for a path: runs and the explorer belong to Scenarios. */
 export const sectionOf = (pathname: string) =>
-  under(pathname, "/runs") || under(pathname, "/explore") ? "/scenarios" : [...navMain, { href: "/account" }, { href: "/admin" }].find(({ href }) => under(pathname, href))?.href
+  under(pathname, "/runs") || under(pathname, "/explore") ? "/scenarios" : [...navMain, ...navSecondary, { href: "/account" }, { href: "/admin" }].find(({ href }) => under(pathname, href))?.href
 
 const modeLabel = { hosted: "Hosted workspace", local: "Local workspace", operator: "Operator workspace" } as const
 
-/** Product sidebar, modeled on shadcn sidebar-08: brand, main nav with sub-items, secondary nav, account footer. */
+/**
+ * Product sidebar, modeled on shadcn sidebar-07 (standard sidebar that collapses to icons): brand, main nav with sub-items,
+ * secondary nav pinned to the bottom, and the account menu (Settings, Access requests, Sign out) in the footer.
+ * Only the header's SidebarTrigger (or ⌘B) toggles it; there is deliberately no SidebarRail.
+ */
 export function AppSidebar({ admin, mode, user, ...props }: { admin: boolean; mode: keyof typeof modeLabel; user: NavUserProps | null } & ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const active = sectionOf(pathname)
   const { isMobile, setOpenMobile } = useSidebar()
   // The mobile sidebar is a sheet: close it once a destination is chosen.
   const close = () => isMobile && setOpenMobile(false)
-  // Admins see how many access requests wait for review.
-  const [pending, setPending] = useState(0)
-  useEffect(() => {
-    if (!admin) return
-    let live = true
-    fetch("/api/v1/me", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((me) => { if (live) setPending(me?.pending_count ?? 0) }, () => {})
-    return () => { live = false }
-  }, [admin])
-  const navSecondary = [{ href: "/account", title: "Settings", icon: Settings }, ...(admin ? [{ href: "/admin", title: "Access requests", icon: Shield }] : [])]
 
   return (
-    <Sidebar variant="inset" collapsible="icon" {...props}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -129,7 +125,6 @@ export function AppSidebar({ admin, mode, user, ...props }: { admin: boolean; mo
                 {navSecondary.map((item) => (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
-                      size="sm"
                       tooltip={item.title}
                       isActive={item.href === active}
                       aria-current={item.href === active ? "page" : undefined}
@@ -138,7 +133,6 @@ export function AppSidebar({ admin, mode, user, ...props }: { admin: boolean; mo
                       <item.icon />
                       <span>{item.title}</span>
                     </SidebarMenuButton>
-                    {item.href === "/admin" && pending > 0 && <SidebarMenuBadge>{pending}</SidebarMenuBadge>}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -146,12 +140,9 @@ export function AppSidebar({ admin, mode, user, ...props }: { admin: boolean; mo
           </SidebarGroup>
         </nav>
       </SidebarContent>
-      {user && (
-        <SidebarFooter>
-          <NavUser user={user} />
-        </SidebarFooter>
-      )}
-      {props.collapsible !== "none" && <SidebarRail />}
+      <SidebarFooter className="print:hidden">
+        <NavUser user={user} admin={admin} workspace={modeLabel[mode]} active={active} onNavigate={close} />
+      </SidebarFooter>
     </Sidebar>
   )
 }

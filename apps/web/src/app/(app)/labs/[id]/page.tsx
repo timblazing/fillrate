@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation"
 
+import { Page } from "@/components/app/page"
 import { initializeDatabase } from "@/lib/server/database"
 import { assertRunRead, canCancel, pagePrincipal } from "@/lib/server/access"
 import { LAB_EXAMPLES, labRunDetail } from "@/lib/server/lab"
@@ -26,10 +27,8 @@ export default async function LabRunPage({ params, searchParams }: PageProps<"/l
   const detail = labRunDetail(store, id)
   const cancellable = canCancel(who, view.ownerId) || (view.ownerId === "public" && typeof key === "string")
   return (
-    <div className="flex min-h-dvh flex-col">
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
-        <LabRunView initial={detail} canCancel={cancellable} observations={detail.example ? [...LAB_EXAMPLES[detail.example].observations] : []} runKey={typeof key === "string" ? key : undefined} />
-      </main>
-    </div>
+    <Page>
+      <LabRunView initial={detail} canCancel={cancellable} observations={detail.example ? [...LAB_EXAMPLES[detail.example].observations] : []} runKey={typeof key === "string" ? key : undefined} />
+    </Page>
   )
 }

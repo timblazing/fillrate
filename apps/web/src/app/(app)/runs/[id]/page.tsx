@@ -1,6 +1,7 @@
 import type { RunSettings } from "@fillrate/contracts"
 import { notFound, redirect } from "next/navigation"
 
+import { Page } from "@/components/app/page"
 import { initializeDatabase } from "@/lib/server/database"
 import { assertRunRead, canCancel, pagePrincipal } from "@/lib/server/access"
 import { ApiError, canStartRuns, EXAMPLES, exampleForVersion, runDetail } from "@/lib/server/runs"
@@ -53,11 +54,8 @@ export default async function RunPage({ params, searchParams }: PageProps<"/runs
   if (detail.kind === "lab") redirect(`/labs/${id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`)
   if (detail.kind === "explorer") redirect(`/explore/${id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`)
   return (
-    <div className="flex min-h-dvh flex-col">
-
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
-        <RunView initial={detail} canCancel={cancellable} canEvaluate={canStartRuns(who, key)} runKey={typeof key === "string" ? key : undefined} rerun={rerun} scenarioHref={scenarioHref} />
-      </main>
-    </div>
+    <Page>
+      <RunView initial={detail} canCancel={cancellable} canEvaluate={canStartRuns(who, key)} runKey={typeof key === "string" ? key : undefined} rerun={rerun} scenarioHref={scenarioHref} />
+    </Page>
   )
 }

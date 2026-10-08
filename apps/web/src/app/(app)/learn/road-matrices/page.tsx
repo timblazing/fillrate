@@ -1,5 +1,4 @@
-import Link from "next/link"
-
+import { Page, PageHeader } from "@/components/app/page"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { pagePrincipal } from "@/lib/server/access"
@@ -63,100 +62,98 @@ export default async function RoadMatricesLessonPage({ searchParams }: PageProps
   const capacity = settings.trailer_capacity ?? 5300
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
-        <section className="flex flex-col gap-3">
-          <Link href="/learn" className="text-muted-foreground text-sm underline underline-offset-4">Lessons</Link>
-          <h1 className="text-2xl font-semibold tracking-tight">Haversine versus recorded road matrices</h1>
-          <p className="text-muted-foreground max-w-2xl text-sm text-pretty">
-            {info.orders} synthetic customers around a Memphis DC, planned twice. First on the default estimated travel: straight-line distance × {circuity} at a constant
-            speed. Then on a recorded directed travel matrix, the kind of snapshot a road provider returns: one distance and one drive time for every ordered pair of
-            places, so A → B need not equal B → A. Everything else is the same scenario, the same {formatFeet(capacity, 0)} trailers ({formatFeet(load, 0)} of freight in all), the
-            same 500-mile limit on every single drive and one cluster (k = {info.k}). Every step starts a real run on this server; the numbers are what to look for, not
-            fixed answers.
-          </p>
-          <p className="max-w-2xl rounded-xl border border-dashed p-3 text-sm text-pretty">
-            <Badge variant="warning" className="mr-2">Synthetic</Badge>
-            The recorded matrix in this lesson is synthetic: it stands in for a road-provider snapshot and is computed from an invented road network (a river with a
-            one-way bridge, a ridge with one way around it). It is not real roads, and its numbers say nothing about real travel near Memphis.
-          </p>
-        </section>
+    <Page>
+      <PageHeader
+        title="Haversine versus recorded road matrices"
+        description={
+          <>{info.orders} synthetic customers around a Memphis DC, planned twice. First on the default estimated travel: straight-line distance × {circuity} at a constant
+          speed. Then on a recorded directed travel matrix, the kind of snapshot a road provider returns: one distance and one drive time for every ordered pair of
+          places, so A → B need not equal B → A. Everything else is the same scenario, the same {formatFeet(capacity, 0)} trailers ({formatFeet(load, 0)} of freight in all), the
+          same 500-mile limit on every single drive and one cluster (k = {info.k}). Every step starts a real run on this server; the numbers are what to look for, not
+          fixed answers.</>
+        }
+      >
+        <p className="max-w-2xl rounded-xl border border-dashed p-3 text-sm text-pretty">
+          <Badge variant="warning" className="mr-2">Synthetic</Badge>
+          The recorded matrix in this lesson is synthetic: it stands in for a road-provider snapshot and is computed from an invented road network (a river with a
+          one-way bridge, a ridge with one way around it). It is not real roads, and its numbers say nothing about real travel near Memphis.
+        </p>
+      </PageHeader>
 
-        <section className="flex flex-col gap-3" aria-labelledby="stops">
-          <h2 id="stops" className="text-sm font-medium">Customers</h2>
-          <div className="overflow-x-auto rounded-xl border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Where</TableHead>
-                  <TableHead className="text-right">Pallets</TableHead>
-                  <TableHead className="text-right">From the DC, estimated</TableHead>
-                  <TableHead className="text-right">From the DC, recorded</TableHead>
+      <section className="flex flex-col gap-3" aria-labelledby="stops">
+        <h2 id="stops" className="text-base font-semibold">Customers</h2>
+        <div className="overflow-x-auto rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Customer</TableHead>
+                <TableHead>Where</TableHead>
+                <TableHead className="text-right">Pallets</TableHead>
+                <TableHead className="text-right">From the DC, estimated</TableHead>
+                <TableHead className="text-right">From the DC, recorded</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {scenario.locations.map((l) => (
+                <TableRow key={l.id}>
+                  <TableCell>{l.label} <span className="text-muted-foreground font-mono text-xs">{l.id}</span></TableCell>
+                  <TableCell>{side(l)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{pallets.get(l.id) ?? 0}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatMiles(estimateMiles(scenario.depot.id, l.id))}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatMiles(recordedMiles(scenario.depot.id, l.id))}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {scenario.locations.map((l) => (
-                  <TableRow key={l.id}>
-                    <TableCell>{l.label} <span className="text-muted-foreground font-mono text-xs">{l.id}</span></TableCell>
-                    <TableCell>{side(l)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{pallets.get(l.id) ?? 0}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMiles(estimateMiles(scenario.depot.id, l.id))}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMiles(recordedMiles(scenario.depot.id, l.id))}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
 
-        <section className="flex flex-col gap-3" aria-labelledby="detours">
-          <h2 id="detours" className="text-sm font-medium">Where the two disagree</h2>
-          <div className="overflow-x-auto rounded-xl border">
-            <Table aria-label="Directed pairs: estimated and recorded miles">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>From → to</TableHead>
-                  <TableHead className="text-right">Estimated</TableHead>
-                  <TableHead className="text-right">Recorded</TableHead>
-                  <TableHead>Why</TableHead>
+      <section className="flex flex-col gap-3" aria-labelledby="detours">
+        <h2 id="detours" className="text-base font-semibold">Where the two disagree</h2>
+        <div className="overflow-x-auto rounded-xl border">
+          <Table aria-label="Directed pairs: estimated and recorded miles">
+            <TableHeader>
+              <TableRow>
+                <TableHead>From → to</TableHead>
+                <TableHead className="text-right">Estimated</TableHead>
+                <TableHead className="text-right">Recorded</TableHead>
+                <TableHead>Why</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {PAIRS.map(([a, b, why]) => (
+                <TableRow key={`${a}-${b}`}>
+                  <TableCell>{label.get(a)} → {label.get(b)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatMiles(estimateMiles(a, b))}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatMiles(recordedMiles(a, b))}</TableCell>
+                  <TableCell className="text-muted-foreground min-w-56 text-pretty">{why}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {PAIRS.map(([a, b, why]) => (
-                  <TableRow key={`${a}-${b}`}>
-                    <TableCell>{label.get(a)} → {label.get(b)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMiles(estimateMiles(a, b))}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMiles(recordedMiles(a, b))}</TableCell>
-                    <TableCell className="text-muted-foreground min-w-56 text-pretty">{why}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <dl className="text-muted-foreground grid gap-x-4 gap-y-1 text-xs sm:grid-cols-[max-content_minmax(0,1fr)]">
-            <dt>Matrix</dt>
-            <dd className="font-mono break-all">{settings.travel_snapshot_id}</dd>
-            <dt>Provider</dt>
-            <dd>{snapshot.provider} · {snapshot.provider_version} · {snapshot.dataset_revision} · {snapshot.profile}</dd>
-            <dt>Units</dt>
-            <dd>{snapshot.distance_units} and {snapshot.duration_units}, {snapshot.nodes.length} nodes, every directed pair recorded</dd>
-          </dl>
-        </section>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <dl className="text-muted-foreground grid gap-x-4 gap-y-1 text-xs sm:grid-cols-[max-content_minmax(0,1fr)]">
+          <dt>Matrix</dt>
+          <dd className="font-mono break-all">{settings.travel_snapshot_id}</dd>
+          <dt>Provider</dt>
+          <dd>{snapshot.provider} · {snapshot.provider_version} · {snapshot.dataset_revision} · {snapshot.profile}</dd>
+          <dt>Units</dt>
+          <dd>{snapshot.distance_units} and {snapshot.duration_units}, {snapshot.nodes.length} nodes, every directed pair recorded</dd>
+        </dl>
+      </section>
 
-        <ModelFields
-          fields={[
-            ["settings.travel_snapshot_id", "The content hash of a stored, immutable directed travel snapshot. Null (step 1) means estimated travel; the recorded run names the bundled matrix. Legs, drive times, reachability and preflight all read the selected matrix."],
-            ["settings.travel_circuity", `The estimate's factor (${circuity}): straight-line miles × ${circuity}. Not used for travel when a matrix is selected.`],
-            ["settings.max_leg_m", "The 500-mile limit on each single drive (depot → first stop and stop → stop, not the return), measured in whichever travel the run uses."],
-            ["settings.preflight.far_from_depot", "\"warn\" here: a stop no chain of allowed drives reaches is left unshipped as unreachable instead of blocking the run."],
-            ["settings.solver_seed", "The PyVRP seed. With one cluster and a fixed iteration budget, seeds 0 to 3 give the same plan in both runs."],
-          ]}
-          notModeled="real road networks (the matrix is synthetic); traffic or time-of-day drive times; road geometry (paths on the map stay straight lines); a Valhalla server (no live road provider is used); a haversine fallback for missing legs; changing the cluster metric (clustering stays on straight-line distance in both runs)."
-        />
+      <ModelFields
+        fields={[
+          ["settings.travel_snapshot_id", "The content hash of a stored, immutable directed travel snapshot. Null (step 1) means estimated travel; the recorded run names the bundled matrix. Legs, drive times, reachability and preflight all read the selected matrix."],
+          ["settings.travel_circuity", `The estimate's factor (${circuity}): straight-line miles × ${circuity}. Not used for travel when a matrix is selected.`],
+          ["settings.max_leg_m", "The 500-mile limit on each single drive (depot → first stop and stop → stop, not the return), measured in whichever travel the run uses."],
+          ["settings.preflight.far_from_depot", "\"warn\" here: a stop no chain of allowed drives reaches is left unshipped as unreachable instead of blocking the run."],
+          ["settings.solver_seed", "The PyVRP seed. With one cluster and a fixed iteration budget, seeds 0 to 3 give the same plan in both runs."],
+        ]}
+        notModeled="real road networks (the matrix is synthetic); traffic or time-of-day drive times; road geometry (paths on the map stay straight lines); a Valhalla server (no live road provider is used); a haversine fallback for missing legs; changing the cluster metric (clustering stays on straight-line distance in both runs)."
+      />
 
-        <MatrixSteps open={canStartRuns(await pagePrincipal(), key)} closedNote={runsClosedNote()} runKey={typeof key === "string" ? key : undefined} />
-      </main>
-    </div>
+      <MatrixSteps open={canStartRuns(await pagePrincipal(), key)} closedNote={runsClosedNote()} runKey={typeof key === "string" ? key : undefined} />
+    </Page>
   )
 }

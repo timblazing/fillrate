@@ -614,7 +614,7 @@ export function Primitives({ onOpenCommand }: { onOpenCommand: () => void }) {
 
       <Specimen id="navigation" title="Navigation">
         <div className="grid gap-8 lg:grid-cols-[16rem_1fr]">
-          {/* The product sidebar itself (shadcn sidebar-08 layout), pinned open; in the app it collapses to icons. */}
+          {/* The product sidebar itself (shadcn sidebar-07 layout), pinned open; in the app it collapses to icons. */}
           <SidebarProvider className="min-h-0 w-auto">
             <AppSidebar collapsible="none" admin={false} mode="hosted" user={{ name: "Dana Dispatcher", email: "dana@example.com", image: null }} className="h-96 w-full rounded-xl border" />
           </SidebarProvider>

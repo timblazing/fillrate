@@ -4,6 +4,7 @@ import { ArrowDown, ArrowLeft, ArrowUp, Download, Star, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 
+import { PageTitle } from "@/components/app/page"
 import { JobStatusDot, type JobState } from "@/components/lab/job-status"
 import { FillPercent } from "@/components/lab/trailer-fill"
 import { Badge } from "@/components/ui/badge"
@@ -85,7 +86,7 @@ export function ExperimentView({ initial, canEdit, runKey, imported }: { initial
         <Button variant="ghost" size="icon-sm" render={<Link href={imported ? "/scenarios" : `/experiments${suffix}`} aria-label="All sweeps" />}>
           <ArrowLeft />
         </Button>
-        <h1 className="text-lg font-semibold">{detail.name}</h1>
+        <PageTitle>{detail.name}</PageTitle>
         <span className="text-muted-foreground font-mono text-xs">{detail.id.slice(0, 8)}</span>
         <span className="text-muted-foreground text-xs tabular-nums">{finished} of {detail.runs.length} runs finished</span>
         <div className="ml-auto flex gap-2">
@@ -196,7 +197,7 @@ function Ordering({ detail, canEdit, onSave, label }: {
   return (
     <section aria-label="Ranking order" className="bg-card grid gap-4 rounded-xl border p-4 lg:grid-cols-3">
       <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium">Ranking order</h2>
+        <h2 className="text-base font-semibold">Ranking order</h2>
         <ol className="flex flex-col gap-1 text-sm">
           {order.map((k, i) => (
             <li key={k} className="flex items-center gap-1">
@@ -220,7 +221,7 @@ function Ordering({ detail, canEdit, onSave, label }: {
         )}
       </div>
       <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium">{BEST_TRADEOFF} uses</h2>
+        <h2 className="text-base font-semibold">{BEST_TRADEOFF} uses</h2>
         {keys.map((k) => (
           <label key={k} className="flex items-center gap-2 text-sm">
             <input type="checkbox" disabled={!canEdit} checked={vector.includes(k)} onChange={(e) => setVector(e.target.checked ? [...vector, k] : vector.filter((x) => x !== k))} />

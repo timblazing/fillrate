@@ -5,6 +5,7 @@ import { ArrowLeft, Download, FileCode, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 
+import { PageTitle } from "@/components/app/page"
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
 import { LabPlot } from "@/components/lab/lab-plot"
 import { LoadProfile } from "@/components/lab/load-profile"
@@ -67,7 +68,7 @@ export function LabRunView({ initial, canCancel, observations, runKey }: { initi
         <Button variant="ghost" size="icon-sm" render={<Link href={`/labs${run.example ? `?example=${run.example}${runKey ? `&key=${encodeURIComponent(runKey)}` : ""}` : keyQuery}`} aria-label="Back to Solver Lab" />}>
           <ArrowLeft />
         </Button>
-        <h1 className="text-lg font-semibold">Lab run <span className="font-mono">{run.id.slice(0, 8)}</span></h1>
+        <PageTitle>Lab run <span className="font-mono">{run.id.slice(0, 8)}</span></PageTitle>
         <JobStatusBadge state={run.status as JobState} />
         {run.cancel_requested && ACTIVE.has(run.status) && <Badge variant="warning">Cancellation requested</Badge>}
         {canCancel && ACTIVE.has(run.status) && !run.cancel_requested && (
@@ -141,7 +142,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-6">
           <section className="flex flex-col gap-2" aria-labelledby="lab-objective">
-            <h2 id="lab-objective" className="text-sm font-medium">Objective breakdown ({u.cost})</h2>
+            <h2 id="lab-objective" className="text-base font-semibold">Objective breakdown ({u.cost})</h2>
             <div className="overflow-x-auto rounded-xl border">
               <Table>
                 <TableBody>
@@ -166,7 +167,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
             </p>
           </section>
           <section className="flex flex-col gap-2" aria-labelledby="lab-fleet">
-            <h2 id="lab-fleet" className="text-sm font-medium">Fleet</h2>
+            <h2 id="lab-fleet" className="text-base font-semibold">Fleet</h2>
             <div className="overflow-x-auto rounded-xl border">
               <Table>
                 <TableHeader>
@@ -186,7 +187,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
           </section>
           {pairOutcomes.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-pairs">
-              <h2 id="lab-pairs" className="text-sm font-medium">Pickup-delivery pairs ({result.totals.pairs_served ?? 0} of {result.totals.pairs_total ?? 0} served)</h2>
+              <h2 id="lab-pairs" className="text-base font-semibold">Pickup-delivery pairs ({result.totals.pairs_served ?? 0} of {result.totals.pairs_total ?? 0} served)</h2>
               <div className="overflow-x-auto rounded-xl border">
                 <Table data-testid="lab-pairs">
                   <TableHeader>
@@ -213,7 +214,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
           )}
           {groupOutcomes.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-groups">
-              <h2 id="lab-groups" className="text-sm font-medium">Alternative groups (at most one member is visited)</h2>
+              <h2 id="lab-groups" className="text-base font-semibold">Alternative groups (at most one member is visited)</h2>
               <div className="overflow-x-auto rounded-xl border">
                 <Table data-testid="lab-groups">
                   <TableHeader>
@@ -236,7 +237,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
           )}
           {optional.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-optional">
-              <h2 id="lab-optional" className="text-sm font-medium">Optional clients: {optional.length - skipped.length} visited, {skipped.length} skipped</h2>
+              <h2 id="lab-optional" className="text-base font-semibold">Optional clients: {optional.length - skipped.length} visited, {skipped.length} skipped</h2>
               <div className="overflow-x-auto rounded-xl border">
                 <Table data-testid="lab-optional">
                   <TableHeader>
@@ -261,7 +262,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
           )}
           {several && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-depots">
-              <h2 id="lab-depots" className="text-sm font-medium">Depots</h2>
+              <h2 id="lab-depots" className="text-base font-semibold">Depots</h2>
               <div className="overflow-x-auto rounded-xl border">
                 <Table>
                   <TableHeader>
@@ -289,7 +290,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
           )}
           {reloading && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-trips">
-              <h2 id="lab-trips" className="text-sm font-medium">Trips (load resets at every reload)</h2>
+              <h2 id="lab-trips" className="text-base font-semibold">Trips (load resets at every reload)</h2>
               <div className="overflow-x-auto rounded-xl border">
                 <Table data-testid="lab-trips">
                   <TableHeader>
@@ -313,7 +314,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
           )}
           {result.violations.length > 0 && (
             <section className="flex flex-col gap-2" aria-labelledby="lab-violations">
-              <h2 id="lab-violations" className="text-sm font-medium">Violations</h2>
+              <h2 id="lab-violations" className="text-base font-semibold">Violations</h2>
               <ul className="bg-card divide-y rounded-xl border text-sm">
                 {result.violations.map((v, i) => (
                   <li key={i} className="flex flex-col gap-0.5 p-3">
@@ -329,7 +330,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
       </div>
       {pairOutcomes.length > 0 && <LoadProfile instance={instance} result={result} />}
       <section className="flex flex-col gap-2" aria-labelledby="lab-routes">
-        <h2 id="lab-routes" className="text-sm font-medium">Routes</h2>
+        <h2 id="lab-routes" className="text-base font-semibold">Routes</h2>
         <div className="overflow-x-auto rounded-xl border">
           <Table data-testid="lab-routes">
             <TableHeader>
@@ -373,7 +374,7 @@ function Result({ instance, result, observations }: { instance: LabInstance; res
       </section>
       {observations.length > 0 && (
         <section className="bg-card rounded-xl border p-4">
-          <h2 className="text-sm font-medium">What to look for (this example)</h2>
+          <h2 className="text-base font-semibold">What to look for (this example)</h2>
           <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm text-pretty">{observations.map((o) => <li key={o}>{o}</li>)}</ul>
         </section>
       )}

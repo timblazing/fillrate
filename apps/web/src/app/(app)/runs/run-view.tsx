@@ -6,6 +6,7 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 
+import { PageTitle } from "@/components/app/page"
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
 import { StepsPanel } from "@/components/lab/pipeline-stages"
 import { CoordinateSourceFlag } from "@/components/lab/provenance-badge"
@@ -103,7 +104,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
         <Button variant="ghost" size="icon-sm" render={<Link href={listHref} aria-label="All runs" />}>
           <ArrowLeft />
         </Button>
-        <h1 className="font-mono text-lg font-semibold">Run {run.id.slice(0, 8)}</h1>
+        <PageTitle className="font-mono">Run {run.id.slice(0, 8)}</PageTitle>
         <JobStatusBadge state={run.status as JobState} />
         {run.cancel_requested && active && <Badge variant="warning">Cancelling…</Badge>}
         <span className="text-muted-foreground text-xs tabular-nums">
