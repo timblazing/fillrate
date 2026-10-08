@@ -1,4 +1,4 @@
-"""Lesson scenario "Time windows and waiting" (spec §13, M6/M7): synthetic data only.
+"""Test scenario "Time windows and waiting": synthetic data only.
 
 One Memphis DC and nine customers on a single planning day in America/Chicago (no daylight-saving
 change). All freight fits one 53 ft trailer, so capacity never sets the truck count: the windows
@@ -8,20 +8,14 @@ arrive (it waits), and an early west-side window conflicts with early east-side 
 cannot meet them all.
 
 `build(windows=False)` is the same scenario with every window removed (service durations and the
-shift are kept), so the two bundled examples differ only in the windows. Routing uses the
-pipeline's estimated travel (straight-line distance × 1.2 at a constant 25 mph); this lesson does
-not use road matrices.
-
-Regenerate with `uv run python -m fillrate_optimizer.lesson_windows` (writes examples/).
+shift are kept). Routing uses the pipeline's estimated travel (straight-line distance × 1.2 at a
+constant 25 mph).
 """
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-from .model import RunSettings, ScenarioDocument
-from .synthetic import MEMPHIS, offset
+from fillrate_optimizer.model import RunSettings, ScenarioDocument
+from fillrate_optimizer.synthetic import MEMPHIS, offset
 
 # id, label, east mi, north mi, full pallets, service minutes, window (earliest, latest) or None
 STOPS = [
@@ -98,17 +92,3 @@ def build(windows: bool = True) -> ScenarioDocument:
 
 # One cluster and an iteration budget: results repeat across machines and run in about a second.
 SETTINGS = RunSettings(k=1, solver_max_iterations=1_000, solver_time_limit_s=10)
-
-
-def main() -> None:
-    root = Path(__file__).resolve().parents[4] / "examples"
-    for name, windows in (("lesson-windows.json", True), ("lesson-windows-off.json", False)):
-        document = {
-            "scenario": build(windows).model_dump(mode="json"),
-            "settings": SETTINGS.model_dump(mode="json"),
-        }
-        (root / name).write_text(json.dumps(document, indent=1) + "\n")
-
-
-if __name__ == "__main__":
-    main()

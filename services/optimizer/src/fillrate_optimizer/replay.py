@@ -7,8 +7,8 @@ recorded deterministic stage artifacts and `expected.json`; nothing here needs t
 Semantics (see the bundle README):
 
 * Deterministic stages (preflight, allocation, aggregation, clustering) must reproduce exactly.
-  Their recorded payloads are compared after dropping measured runtimes (`runtime_s`): a CP-SAT
-  allocation stage records how long it took, which is provenance and never repeats.
+  Their recorded payloads are compared after dropping measured runtimes (`runtime_s`), which are
+  provenance and never repeat.
 * The plan is rebuilt and validated again. Validity, allocation strategy and policy must always
   match. Coverage, shipments, planned revenue and loaded miles must match only when the run used an
   iteration budget on the recorded versions; with a time budget, an override or version drift they
@@ -18,10 +18,6 @@ Semantics (see the bundle README):
   the bundle as `travel-snapshot.json`; it must hash to the recorded identity before anything is
   rerun, and the recorded travel provenance must reproduce. A bundle that declares any other
   travel provider is refused rather than silently replayed with estimated travel.
-* A warm-started run (M6) ships its source plan as `warm-start.json`. It must hash to the recorded
-  plan identity and name the settings' source; the rerun starts from it and each cluster's
-  warm-start outcome (used, or skipped with its reason) must reproduce. A warm-started run without
-  its plan is refused, never replayed cold.
 """
 
 from __future__ import annotations
@@ -34,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from .canonical import content_hash
-from .model import RunSettings, RunSummary, ScenarioDocument, WarmStartPlan
+from .model import RunSettings, ScenarioDocument
 from .pipeline import PipelineOutput, run_pipeline, versions
 from .travel_provider import TravelSnapshot
 
@@ -44,7 +40,6 @@ MEASURED_KEYS = frozenset({"runtime_s"})
 ESTIMATED_TRAVEL = "estimated"
 SNAPSHOT_TRAVEL = "snapshot"
 SNAPSHOT_FILE = "travel-snapshot.json"
-WARM_START_FILE = "warm-start.json"
 
 
 def without_measured(value: Any) -> Any:
@@ -77,53 +72,11 @@ def expected_record(run_id: str, output: PipelineOutput, settings: RunSettings) 
             for stage in DETERMINISTIC_STAGES
         },
         "allocation": summary.allocation.model_dump(
-            mode="json", include={"strategy", "fulfillment_policy", "kind"}
+            mode="json", include={"strategy", "fulfillment_policy"}
         ),
         "travel": travel_record(output, settings),
         "iteration_based": settings.solver_max_iterations is not None,
-        **({"warm_start": warm_start_record(summary)} if summary.warm_start else {}),
-        **({"fleet": fleet_record(summary)} if summary.fleet_usage else {}),
     }
-
-
-def fleet_record(summary: RunSummary) -> dict[str, Any]:
-    """The fleet's identity (a content hash of the settings' vehicle types, which are part of
-    the problem and of the comparison signature) and trucks used per type;
-    `packages/db/src/replay.ts` writes the same shape."""
-    return {
-        "id": content_hash([t.model_dump(mode="json") for t in summary.settings.fleet]),
-        "usage": {u.id: u.trucks for u in summary.fleet_usage},
-    }
-
-
-def warm_start_record(summary: RunSummary) -> dict[str, Any]:
-    """Plan identity and per-cluster outcomes; `packages/db/src/replay.ts` writes the same shape."""
-    return {
-        "source": summary.warm_start.source.model_dump(mode="json"),
-        "plan_id": summary.warm_start.plan_id,
-        "outcomes": {
-            c.id: [c.warm_start.status, c.warm_start.reason]
-            for c in summary.clusters
-            if c.warm_start
-        },
-    }
-
-
-def load_warm_start(root: Path, settings: RunSettings, recorded: dict[str, Any] | None, out):
-    """The bundled source plan, or a ValueError naming why it cannot be trusted."""
-    if recorded is None:
-        raise ValueError("the settings select a warm start but expected.json records none")
-    path = root / WARM_START_FILE
-    if not path.exists():
-        raise ValueError(f"the run was warm-started but {WARM_START_FILE} is missing")
-    plan = WarmStartPlan.model_validate(json.loads(path.read_text()))
-    verified = content_hash(plan.model_dump(mode="json")) == recorded["plan_id"]
-    out(f"{'warm start':<12} {'plan identity verified' if verified else 'IDENTITY DIFFERS'}")
-    if not verified:
-        raise ValueError(f"{WARM_START_FILE} does not hash to the recorded plan identity")
-    if settings.warm_start is None or plan.source != settings.warm_start:
-        raise ValueError("the bundled plan names a different source than the settings")
-    return plan
 
 
 def travel_record(output: PipelineOutput, settings: RunSettings) -> dict[str, Any]:
@@ -180,15 +133,6 @@ def replay(
         except ValueError as error:
             out(f"{error}\nREPLAY FAILED: travel_snapshot")
             return ["travel_snapshot"]
-    warm_plan = None
-    if settings.warm_start or expected.get("warm_start"):
-        try:
-            if settings.warm_start is None:
-                raise ValueError("expected.json records a warm start the settings do not select")
-            warm_plan = load_warm_start(root, settings, expected.get("warm_start"), out)
-        except ValueError as error:
-            out(f"{error}\nREPLAY FAILED: warm_start")
-            return ["warm_start"]
     exact = bool(expected["iteration_based"])
     if iterations:
         settings = settings.model_copy(update={"solver_max_iterations": iterations})
@@ -199,7 +143,7 @@ def replay(
         out(f"note: versions differ from the recording: {drift}")
         exact = False
 
-    result = run_pipeline(scenario, settings, travel_snapshot=snapshot, warm_start_plan=warm_plan)
+    result = run_pipeline(scenario, settings, travel_snapshot=snapshot)
     failures: list[str] = []
     hashes = {a.stage: a.manifest["output_hash"] for a in result.artifacts}
     payloads = {a.stage: a.payload for a in result.artifacts}
@@ -223,27 +167,6 @@ def replay(
         out(f"{'travel data':<12} {'reproduced' if same else 'DIFFERS'}")
         if not same:
             failures.append("travel_data")
-    if warm_plan:
-        now_outcomes = warm_start_record(summary)["outcomes"]
-        recorded_outcomes = {k: list(v) for k, v in expected["warm_start"]["outcomes"].items()}
-        same = now_outcomes == recorded_outcomes
-        out(f"{'warm outcomes':<12} {'reproduced' if same else 'DIFFERS'}")
-        if not same:
-            failures.append("warm_start_outcome")
-    if settings.fleet or expected.get("fleet"):
-        recorded_fleet = expected.get("fleet")
-        now_fleet = fleet_record(summary) if summary.fleet_usage else None
-        # The fleet is part of the problem: it must be the recorded one. Trucks per type are a
-        # solver result, required only when the run is reproducible exactly.
-        same = recorded_fleet is not None and now_fleet is not None
-        same = same and recorded_fleet["id"] == now_fleet["id"]
-        out(f"{'fleet':<12} {'identity reproduced' if same else 'DIFFERS'}")
-        if not same:
-            failures.append("fleet")
-        elif recorded_fleet["usage"] != now_fleet["usage"]:
-            out(f"fleet usage  recorded {recorded_fleet['usage']} replay {now_fleet['usage']}")
-            if exact:
-                failures.append("fleet_usage")
     recorded_allocation = expected.get("allocation")
     if recorded_allocation:
         now = {

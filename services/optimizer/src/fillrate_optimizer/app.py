@@ -12,7 +12,6 @@ from typing import Annotated
 from fastapi import FastAPI, Header, HTTPException
 
 from .capabilities import Capabilities, capabilities
-from .evaluate import EvaluateRequest, EvaluateResponse, EvaluationError, evaluate
 from .route_geometry import (
     GeometryError,
     GeometryUnavailable,
@@ -62,23 +61,6 @@ def internal_token() -> str | None:
         else Path(__file__).resolve().parents[4] / "data/worker.token"
     )
     return path.read_text().strip() if path.exists() else None
-
-
-@app.post("/evaluate", responses={401: {}, 422: {}})
-def post_evaluate(
-    request: EvaluateRequest, authorization: Annotated[str | None, Header()] = None
-) -> EvaluateResponse:
-    """Manual plan evaluation (spec §10): bounded, synchronous CPU work in FastAPI's thread
-    pool, never on the event loop. Only Next.js calls it, with the worker bearer token."""
-    expected = internal_token()
-    if not expected or not hmac.compare_digest(
-        (authorization or "").encode(), f"Bearer {expected}".encode()
-    ):
-        raise HTTPException(401, {"code": "unauthorized", "message": "Worker token required."})
-    try:
-        return evaluate(request)
-    except EvaluationError as error:
-        raise HTTPException(422, {"code": error.code, "message": str(error)}) from error
 
 
 def _require_token(authorization: str | None) -> None:

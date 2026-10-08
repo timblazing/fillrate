@@ -86,14 +86,13 @@ export const preflightChecks: Record<PreflightCheck, { title: string; blocking: 
 // ---- Allocation (spec §8, M5) -------------------------------------------------------------------------
 
 type Allocation = NonNullable<RunSummary["allocation"]>
-type AllocationSettings = Pick<RunSummary["settings"], "allocation_strategy" | "fulfillment_policy" | "allocation_objective" | "respect_order_date">
+type AllocationSettings = Pick<RunSummary["settings"], "allocation_strategy" | "fulfillment_policy">
 
 export const allocationStrategyLabel: Record<Allocation["strategy"], string> = {
   order_date_then_value: "Order date, then value",
   first_come: "First come",
   priority: "Priority, then order date",
   proportional: "Fair share (heuristic)",
-  optimized: "Optimized (CP-SAT)",
 }
 
 export const fulfillmentPolicyLabel: Record<Allocation["fulfillment_policy"], string> = {
@@ -101,25 +100,9 @@ export const fulfillmentPolicyLabel: Record<Allocation["fulfillment_policy"], st
   whole_order: "Whole orders only",
 }
 
-/** CP-SAT statuses keep "feasible" apart from "proven optimal" (spec §8). */
-export const cpSatStatusLabel: Record<Allocation["stages"][number]["status"], string> = {
-  optimal: "proven optimal",
-  feasible: "feasible, not proven optimal",
-  infeasible: "infeasible",
-  model_invalid: "model invalid",
-  unknown: "no solution within the time limit",
-}
-
-export const allocationObjectiveLabel: Record<Allocation["stages"][number]["objective"], string> = {
-  revenue_cents: "Revenue",
-  priority_weighted_pieces: "Priority-weighted pieces",
-}
-
-/** One line for a run's allocation settings, e.g. "Optimized (CP-SAT): priority, then revenue · Whole orders only". */
+/** One line for a run's allocation settings, e.g. "Priority, then order date · Whole orders only". Runs stored with a removed strategy show its raw name. */
 export function allocationSettingsLabel(s: AllocationSettings) {
   const strategy = s.allocation_strategy ?? "order_date_then_value"
-  const objective = strategy === "optimized"
-    ? `: ${s.allocation_objective === "priority_then_revenue" ? "priority, then revenue" : "most revenue"}${s.respect_order_date ? ", older orders first" : ""}`
-    : ""
-  return `${allocationStrategyLabel[strategy]}${objective} · ${fulfillmentPolicyLabel[s.fulfillment_policy ?? "piece"]}`
+  const label = (allocationStrategyLabel as Record<string, string>)[strategy] ?? `${strategy} (no longer supported)`
+  return `${label} · ${fulfillmentPolicyLabel[s.fulfillment_policy ?? "piece"]}`
 }

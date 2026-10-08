@@ -13,7 +13,6 @@ from .model import (
     RunSettings,
     RunSummary,
     ScenarioDocument,
-    WarmStartPlan,
 )
 
 PIPELINE_MODELS = (
@@ -22,7 +21,6 @@ PIPELINE_MODELS = (
     RunSummary,
     ExplorerSettings,
     ExplorerSummary,
-    WarmStartPlan,
 )
 
 

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from fillrate_optimizer import lesson_allocation
 from fillrate_optimizer.canonical import content_hash
 from fillrate_optimizer.explorer import run_explorer
 from fillrate_optimizer.explorer_replay import (
@@ -17,10 +16,12 @@ from fillrate_optimizer.explorer_replay import (
 )
 from fillrate_optimizer.model import ExplorerSettings
 
-SCENARIO = lesson_allocation.build()
+from . import small_scenario
+
+SCENARIO = small_scenario.build()
 # A diameter limit so the repaired statistics differ from the raw ones and repairs are counted.
 SETTINGS = ExplorerSettings(
-    base=lesson_allocation.SETTINGS.model_copy(update={"max_cluster_diameter_m": 120_000}),
+    base=small_scenario.SETTINGS.model_copy(update={"max_cluster_diameter_m": 120_000}),
     ks=[2, 3],
     seeds=[0, 1, 2],
     selected_k=3,

@@ -1,16 +1,15 @@
-"""The time windows lesson's "what to look for" claims."""
+"""Time windows, service durations and waiting on a small synthetic scenario."""
 
 import json
-from pathlib import Path
 
 import pytest
 
-from fillrate_optimizer import lesson_windows
-from fillrate_optimizer.model import RunSettings, ScenarioDocument
+from fillrate_optimizer.model import ScenarioDocument
 from fillrate_optimizer.pipeline import run_pipeline
 from fillrate_optimizer.timewin import elapsed_s
 
-ROOT = Path(__file__).resolve().parents[3] / "examples"
+from . import window_scenario
+
 CAPACITY = 5_300
 SEEDS = range(4)
 
@@ -28,8 +27,8 @@ def runs():
     """Solver seeds 0–3 for the scenario with windows and the same stops without them."""
     return {
         (windows, seed): run_pipeline(
-            lesson_windows.build(windows),
-            lesson_windows.SETTINGS.model_copy(update={"solver_seed": seed}),
+            window_scenario.build(windows),
+            window_scenario.SETTINGS.model_copy(update={"solver_seed": seed}),
         ).summary
         for windows in (True, False)
         for seed in SEEDS
@@ -47,25 +46,15 @@ def open_plan(runs):
 
 
 def window_s(location_id: str) -> tuple[int, int] | None:
-    stop = next(s for s in lesson_windows.STOPS if s[0] == location_id)
+    stop = next(s for s in window_scenario.STOPS if s[0] == location_id)
     if not stop[6]:
         return None
-    tm = lesson_windows.build().time_model
+    tm = window_scenario.build().time_model
     return tuple(elapsed_s(tm.timezone, tm.planning_date, t) for t in stop[6])
 
 
-@pytest.mark.parametrize(
-    ("name", "with_windows"), [("lesson-windows.json", True), ("lesson-windows-off.json", False)]
-)
-def test_example_files_match_the_generator(name, with_windows):
-    document = json.loads((ROOT / name).read_text())
-    assert document["scenario"] == lesson_windows.build(with_windows).model_dump(mode="json")
-    assert document["settings"] == lesson_windows.SETTINGS.model_dump(mode="json")
-    RunSettings.model_validate(document["settings"])
-
-
-def test_the_two_examples_differ_only_in_the_windows():
-    on, off = lesson_windows.build(True), lesson_windows.build(False)
+def test_the_two_scenarios_differ_only_in_the_windows():
+    on, off = window_scenario.build(True), window_scenario.build(False)
     assert isinstance(off, ScenarioDocument)
     assert (len(on.locations), len(on.orders)) == (9, 9)
     assert sum(1 for loc in on.locations if loc.window) == 7
@@ -132,7 +121,7 @@ def test_step_2_one_truck_waits_at_the_bakery_and_the_other_never_waits(windows)
 
 
 def test_step_2_service_minutes_come_from_the_location(windows, open_plan):
-    service = {s[0]: s[5] * 60 for s in lesson_windows.STOPS}
+    service = {s[0]: s[5] * 60 for s in window_scenario.STOPS}
     for summary in (windows, open_plan):
         for truck in summary.trucks:
             for visit in truck.visits:

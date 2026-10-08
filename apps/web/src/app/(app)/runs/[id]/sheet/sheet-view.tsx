@@ -108,17 +108,12 @@ export function SheetView({
               <h2 className="text-2xl font-semibold tracking-tight">{shipmentLabel(s.index)}</h2>
               <span className="font-mono text-sm">{s.truckId}</span>
               <span className="text-sm">Cluster {s.clusterIndex}</span>
-              {s.vehicle && (
-                <span className="text-sm" data-testid="sheet-vehicle">
-                  {s.vehicle}
-                </span>
-              )}
               <span className="ml-auto text-sm">
                 {scenario} · departs {depot}
               </span>
             </header>
             {/* Black-and-white trailer bar: one numbered segment per stop in visit order, to scale. */}
-            <div className="mb-4 flex h-6 overflow-hidden rounded-sm border border-current" role="img" aria-label={`${s.vehicle ?? "Trailer"}: ${formatPercent(s.totals.fill)} of ${formatFeet(s.capacity, 0)}`}>
+            <div className="mb-4 flex h-6 overflow-hidden rounded-sm border border-current" role="img" aria-label={`Trailer: ${formatPercent(s.totals.fill)} of ${formatFeet(s.capacity, 0)}`}>
               {s.stops.map((x) => (
                 <span
                   key={x.sequence}

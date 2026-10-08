@@ -250,9 +250,6 @@
   "cost_per_truck_cents": null,
   "cost_per_mile_cents": null,
   "allocation_strategy": "order_date_then_value",
-  "fulfillment_policy": "piece",
-  "allocation_objective": "revenue",
-  "respect_order_date": false,
-  "allocation_time_limit_s": 10.0
+  "fulfillment_policy": "piece"
  }
 }

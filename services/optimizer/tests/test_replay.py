@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from fillrate_optimizer import lesson_allocation
 from fillrate_optimizer.model import RunSettings, ScenarioDocument
 from fillrate_optimizer.pipeline import run_pipeline
 from fillrate_optimizer.replay import (
@@ -18,11 +17,13 @@ from fillrate_optimizer.replay import (
     without_measured,
 )
 
-SCENARIO = lesson_allocation.build()
+from . import small_scenario
+
+SCENARIO = small_scenario.build()
 
 
 def settings(**update) -> RunSettings:
-    return lesson_allocation.SETTINGS.model_copy(update=update)
+    return small_scenario.SETTINGS.model_copy(update=update)
 
 
 def write_bundle(root: Path, config: RunSettings, scenario: ScenarioDocument = SCENARIO) -> dict:
@@ -50,7 +51,7 @@ def edit(root: Path, name: str, change) -> None:
 
 @pytest.mark.parametrize(
     "strategy",
-    ["order_date_then_value", "first_come", "priority", "proportional", "optimized"],
+    ["order_date_then_value", "first_come", "priority", "proportional"],
 )
 @pytest.mark.parametrize("policy", ["piece", "whole_order"])
 def test_every_allocation_strategy_and_policy_replays(tmp_path, strategy, policy):
@@ -62,32 +63,6 @@ def test_every_allocation_strategy_and_policy_replays(tmp_path, strategy, policy
     assert replay(tmp_path, out=lines.append) == []
     assert lines[-1] == "REPLAY OK"
     assert [line.split()[0] for line in lines[:4]] == list(DETERMINISTIC_STAGES)
-
-
-def test_measured_runtimes_are_provenance_not_results(tmp_path):
-    """A CP-SAT allocation stage records its runtime; replaying must not call that a difference."""
-    expected = write_bundle(tmp_path, settings(allocation_strategy="optimized"))
-    recorded = json.loads((tmp_path / "artifacts/allocation.json").read_text())["payload"]
-    assert recorded["stages"][0]["status"] == "optimal"
-    assert "runtime_s" in recorded["stages"][0]
-
-    # The recording came from a slower machine: same decisions, different measured runtime.
-    edit(
-        tmp_path,
-        "artifacts/allocation.json",
-        lambda d: d["payload"]["stages"][0].update(runtime_s=123.456),
-    )
-    edit(
-        tmp_path,
-        "expected.json",
-        lambda d: d["deterministic_output_hashes"].update(allocation="0" * 64),
-    )
-    lines: list[str] = []
-    assert replay(tmp_path, out=lines.append) == []
-    assert any(
-        line.startswith("allocation") and "measured runtimes differ" in line for line in lines
-    )
-    assert expected["allocation"]["kind"] == "cp_sat"
 
 
 def test_stage_digest_ignores_only_measured_values():

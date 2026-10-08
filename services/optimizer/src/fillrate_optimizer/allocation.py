@@ -4,24 +4,19 @@ Every strategy takes the eligible order lines and the starting stock and returns
 line, the residual stock, a shortage explanation per short line and provenance. One depot (the
 scenario model has one), so no depot dimension and no cross-depot sourcing.
 
-Greedy strategies are heuristics. `optimized` is OR-Tools CP-SAT with one worker and a fixed seed
-so equal inputs reproduce; each objective stage reports its own status.
+Every strategy is a deterministic heuristic.
 """
 
 from __future__ import annotations
 
 import heapq
-import time
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any, Literal
 
-from ortools.sat.python import cp_model
-
-Strategy = Literal["order_date_then_value", "first_come", "priority", "proportional", "optimized"]
+Strategy = Literal["order_date_then_value", "first_come", "priority", "proportional"]
 Policy = Literal["piece", "whole_order"]
-Objective = Literal["revenue", "priority_then_revenue"]
 
 GREEDY_LABELS = {
     "order_date_then_value": "earlier-dated or higher-value",
@@ -31,23 +26,11 @@ GREEDY_LABELS = {
 
 
 @dataclass
-class AllocationStage:
-    objective: str
-    status: str
-    value: int
-    bound: int | None
-    runtime_s: float
-
-
-@dataclass
 class AllocationResult:
     allocated: dict[str, int]
     residual: dict[str, int]
     shortages: dict[str, str]
     sequence: list[str]
-    kind: Literal["heuristic", "cp_sat"]
-    stages: list[AllocationStage] = field(default_factory=list)
-    notes: list[str] = field(default_factory=list)
 
 
 def line_key(line: dict[str, Any], strategy: Strategy) -> tuple:
@@ -89,17 +72,11 @@ def allocate(
     stock: dict[str, int],
     strategy: Strategy = "order_date_then_value",
     policy: Policy = "piece",
-    *,
-    objective: Objective = "revenue",
-    respect_order_date: bool = False,
-    time_limit_s: float = 10,
 ) -> AllocationResult:
     """`lines` need line_id, order_id, customer_id, product_id, order_date, ordered, value and
     priority. Lines are assumed eligible; whole-order callers drop incomplete orders first."""
     stock = {p: n for p, n in stock.items()}
-    if strategy == "optimized":
-        result = optimized(lines, stock, policy, objective, respect_order_date, time_limit_s)
-    elif strategy == "proportional":
+    if strategy == "proportional":
         result = (proportional_whole if policy == "whole_order" else proportional_piece)(
             lines, stock
         )
@@ -126,9 +103,7 @@ def greedy_piece(lines, stock, strategy: Strategy) -> AllocationResult:
                 f"{start.get(line['product_id'], 0)} pieces of {line['product_id']} in stock "
                 f"were already given to {GREEDY_LABELS[strategy]} lines."
             )
-    return AllocationResult(
-        allocated, stock, shortages, [ln["line_id"] for ln in order], "heuristic"
-    )
+    return AllocationResult(allocated, stock, shortages, [ln["line_id"] for ln in order])
 
 
 def greedy_whole(lines, stock, strategy: Strategy) -> AllocationResult:
@@ -152,7 +127,7 @@ def greedy_whole(lines, stock, strategy: Strategy) -> AllocationResult:
             allocated[ln["line_id"]] = ln["ordered"]
         for p, n in need.items():
             stock[p] = stock.get(p, 0) - n
-    return AllocationResult(allocated, stock, shortages, sequence, "heuristic")
+    return AllocationResult(allocated, stock, shortages, sequence)
 
 
 def whole_order_evidence(order_id, need, stock, short) -> str:
@@ -223,7 +198,7 @@ def proportional_piece(lines, stock) -> AllocationResult:
     sequence = [
         ln["line_id"] for ln in sorted(lines, key=lambda x: line_key(x, "order_date_then_value"))
     ]
-    return AllocationResult(allocated, stock, shortages, sequence, "heuristic")
+    return AllocationResult(allocated, stock, shortages, sequence)
 
 
 def proportional_whole(lines, stock) -> AllocationResult:
@@ -283,112 +258,4 @@ def proportional_whole(lines, stock) -> AllocationResult:
                     shortages.setdefault(
                         ln["line_id"], f"Fair-share heuristic: customer {c} has no stock target."
                     )
-    return AllocationResult(allocated, stock, shortages, sequence, "heuristic")
-
-
-CP_STATUS = {
-    cp_model.OPTIMAL: "optimal",
-    cp_model.FEASIBLE: "feasible",
-    cp_model.INFEASIBLE: "infeasible",
-    cp_model.MODEL_INVALID: "model_invalid",
-    cp_model.UNKNOWN: "unknown",
-}
-
-
-def optimized(
-    lines, stock, policy, objective, respect_order_date, time_limit_s
-) -> AllocationResult:
-    model = cp_model.CpModel()
-    a: dict[str, Any] = {}
-    if policy == "whole_order":
-        for oid, order_lines in sorted(group_orders(lines).items()):
-            x = model.new_bool_var(f"x[{oid}]")
-            for ln in order_lines:
-                a[ln["line_id"]] = x * ln["ordered"]
-    else:
-        for ln in lines:
-            a[ln["line_id"]] = model.new_int_var(0, ln["ordered"], f"a[{ln['line_id']}]")
-    by_product: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for ln in lines:
-        by_product[ln["product_id"]].append(ln)
-    for p, plines in by_product.items():
-        model.add(sum(a[ln["line_id"]] for ln in plines) <= stock.get(p, 0))
-    if respect_order_date:
-        # s[p, d] = "some line of p dated on or before d is short"; monotone in d. A short line
-        # forces s at its date, and s at an earlier date forces newer lines to zero.
-        for p, plines in by_product.items():
-            dates = sorted({ln["order_date"] for ln in plines})
-            s = {d: model.new_bool_var(f"s[{p},{d}]") for d in dates}
-            for prev, nxt in zip(dates, dates[1:], strict=False):
-                model.add_implication(s[prev], s[nxt])
-            for ln in plines:
-                d = ln["order_date"]
-                model.add(a[ln["line_id"]] == ln["ordered"]).only_enforce_if(s[d].Not())
-                i = dates.index(d)
-                if i:
-                    model.add(a[ln["line_id"]] == 0).only_enforce_if(s[dates[i - 1]])
-    revenue = sum(a[ln["line_id"]] * ln["value"] for ln in lines)
-    goals: list[tuple[str, Any]] = [("revenue_cents", revenue)]
-    if objective == "priority_then_revenue":
-        weighted = sum(a[ln["line_id"]] * ln["priority"] for ln in lines)
-        goals.insert(0, ("priority_weighted_pieces", weighted))
-    # Greedy hint (CP-SAT Primer): the default rule is always feasible without the date rule.
-    hint = greedy_piece(lines, dict(stock), "order_date_then_value").allocated
-    if policy == "piece" and not respect_order_date:
-        for ln in lines:
-            model.add_hint(a[ln["line_id"]], hint[ln["line_id"]])
-
-    stages: list[AllocationStage] = []
-    notes: list[str] = []
-    solver = cp_model.CpSolver()
-    solver.parameters.num_workers = 1
-    solver.parameters.random_seed = 0
-    solver.parameters.max_time_in_seconds = time_limit_s
-    values: dict[str, int] | None = None
-    for i, (name, expr) in enumerate(goals):
-        model.maximize(expr)
-        began = time.perf_counter()
-        status = solver.solve(model)
-        label = CP_STATUS.get(status, "unknown")
-        found = status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
-        stages.append(
-            AllocationStage(
-                name,
-                label,
-                int(solver.objective_value) if found else 0,
-                int(solver.best_objective_bound) if found else None,
-                round(time.perf_counter() - began, 4),
-            )
-        )
-        if not found:
-            break
-        values = {ln["line_id"]: int(solver.value(a[ln["line_id"]])) for ln in lines}
-        if i + 1 < len(goals):
-            best = int(solver.objective_value)
-            model.add(expr >= best)
-            if status != cp_model.OPTIMAL:
-                notes.append(
-                    f"{name} was not proven optimal; the next stage keeps it at least {best}."
-                )
-            model.clear_hints()
-            for ln in lines:
-                if isinstance(a[ln["line_id"]], cp_model.IntVar):
-                    model.add_hint(a[ln["line_id"]], values[ln["line_id"]])
-    if values is None:  # no solution in budget (an all-zero allocation is always feasible)
-        values = {ln["line_id"]: 0 for ln in lines}
-        notes.append("CP-SAT found no allocation within the time limit; nothing was allocated.")
-    for ln in lines:
-        stock[ln["product_id"]] = stock.get(ln["product_id"], 0) - values[ln["line_id"]]
-    final = stages[-1].status
-    shortages = {
-        ln["line_id"]: (
-            f"Optimized allocation (CP-SAT, {final}) gave {ln['product_id']} to other lines "
-            "to maximize the objective."
-        )
-        for ln in lines
-        if values[ln["line_id"]] < ln["ordered"]
-    }
-    sequence = [
-        ln["line_id"] for ln in sorted(lines, key=lambda x: line_key(x, "order_date_then_value"))
-    ]
-    return AllocationResult(values, stock, shortages, sequence, "cp_sat", stages, notes)
+    return AllocationResult(allocated, stock, shortages, sequence)

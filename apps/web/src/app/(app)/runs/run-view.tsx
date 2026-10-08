@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
 import { toastManager } from "@/components/ui/toast"
-import { allocationObjectiveLabel, allocationSettingsLabel, COST_FALLBACK, cpSatStatusLabel, legRule, preflightChecks, reasonGroup, reasonLabel, shipmentLabel, shipments, type UnshippedGroup, unshippedGroups } from "@/lib/copy"
+import { allocationSettingsLabel, COST_FALLBACK, legRule, preflightChecks, reasonGroup, reasonLabel, shipmentLabel, shipments, type UnshippedGroup, unshippedGroups } from "@/lib/copy"
 import type { RunDetail } from "@/lib/server/runs"
 import { METERS_PER_MILE } from "@/lib/shipment-sheet"
 import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, formatPercent, plural, travelBasis } from "@/lib/units"
@@ -30,10 +30,9 @@ import { cn } from "@/lib/utils"
 
 import { legPaths, roadLabel } from "@/lib/road-geometry"
 
-import { ManualPlanPanel } from "./manual-plan"
 import { type RoadGeometry, RoadGeometryControl, useRoadGeometry } from "./road-geometry"
 import { TimelinePanel } from "./timeline-panel"
-import { type WarmRerun, WarmRerunButton } from "./warm-rerun"
+import { type Rerun, RerunButton } from "./rerun-button"
 
 const RunMap = dynamic(() => import("./run-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
@@ -44,7 +43,7 @@ const miles = (m: number) => formatMiles(m / METERS_PER_MILE)
 
 type PipelineDetail = Extract<RunDetail, { kind: "pipeline" }>
 
-export type { WarmRerun }
+export type { Rerun }
 
 const strategyLabel = (summary: RunSummary) =>
   summary.clustering.strategy === "h3" ? `H3 cells · resolution ${summary.clustering.h3_resolution}`
@@ -79,7 +78,7 @@ function useRun(initial: PipelineDetail) {
   return [run, setRun] as const
 }
 
-export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun, scenarioHref = null }: { initial: PipelineDetail; canCancel: boolean; canEvaluate?: boolean; runKey?: string; rerun?: WarmRerun | null; scenarioHref?: string | null }) {
+export function RunView({ initial, canCancel, canFetchRoads = false, runKey, rerun, scenarioHref = null }: { initial: PipelineDetail; canCancel: boolean; canFetchRoads?: boolean; runKey?: string; rerun?: Rerun | null; scenarioHref?: string | null }) {
   const [run, setRun] = useRun(initial)
   const [cancelling, setCancelling] = useState(false)
   const active = ACTIVE.has(run.status)
@@ -123,7 +122,6 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
                 <Printer aria-hidden /> Shipment sheets
               </Button>
               <ExportMenu id={run.id} hasMatrix={run.summary?.travel?.mode === "snapshot"} roads={geo.status?.eligible === true && (Object.keys(geo.geometries).length > 0 || geo.status.fetched_trucks.length > 0)} />
-              {rerun && <WarmRerunButton source={{ kind: "run", run_id: run.id }} rerun={rerun} runKey={runKey} />}
             </>
           )}
           {ended && scenarioHref && (
@@ -131,7 +129,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
               <Pencil aria-hidden /> Open scenario
             </Button>
           )}
-          {ended && rerun && <WarmRerunButton rerun={rerun} runKey={runKey} label="Run again" variant={run.status === "failed" && failure.fixFirst ? "outline" : "default"} />}
+          {ended && rerun && <RerunButton rerun={rerun} runKey={runKey} variant={run.status === "failed" && failure.fixFirst ? "outline" : "default"} />}
         </div>
       </div>
 
@@ -171,7 +169,7 @@ export function RunView({ initial, canCancel, canEvaluate = false, runKey, rerun
           <AlertDescription>The worker stopped responding on every attempt ({run.max_attempts}). {rerun ? "Run again starts a new run with the same version and settings." : "Start a new run from the scenario."} If it keeps stopping, check the worker&apos;s health and memory.</AlertDescription>
         </Alert>
       )}
-      {run.summary && <Results summary={run.summary} run={run} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun ?? null} geo={geo} />}
+      {run.summary && <Results summary={run.summary} run={run} canFetchRoads={canFetchRoads} geo={geo} />}
     </>
   )
 }
@@ -185,66 +183,6 @@ function failureCopy(code: string): { title: string; next: string; fixFirst: boo
   if (code === "travel_snapshot_stale" || code === "travel_snapshot_not_found")
     return { title: "Travel matrix no longer matches", next: "Rebuild or reselect the travel matrix for this version in the scenario, then run again.", fixFirst: true }
   return { title: "Run failed", next: "Run again to retry with the same version and settings. If it fails the same way, the input or settings need to change.", fixFirst: false }
-}
-
-const WARM_REASON: Record<string, string> = {
-  travel_changed: "travel data changed",
-  visit_set_changed: "different stops in this cluster",
-  demand_changed: "a stop's load or location changed",
-  source_invalid: "source cluster had no validated plan",
-  invalid_on_new_problem: "source plan fails validation here",
-  solver_rejected: "PyVRP rejected the start",
-}
-
-/** Per-cluster warm-start outcome of a warm-started run: used (with the objective it started from) or skipped with the reason. */
-function WarmStartNotes({ summary }: { summary: RunSummary }) {
-  const warm = summary.warm_start
-  if (!warm) return null
-  const rows = summary.clusters.map((c, i) => ({ c, i })).filter(({ c }) => c.warm_start)
-  return (
-    <section className="bg-card rounded-xl border p-3 text-sm" aria-label="Warm start" data-warm-source={warm.source.kind}>
-      <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
-        <span className="font-medium">Warm start</span>
-        <span className="text-muted-foreground text-xs">
-          {warm.source.kind === "manual_baseline" ? (
-            <>
-              From saved manual baseline <span className="font-mono">{warm.source.baseline_id?.slice(0, 8)}</span>
-            </>
-          ) : (
-            <>
-              From run{" "}
-              <Link className="font-mono underline-offset-2 hover:underline" href={`/runs/${warm.source.run_id}`}>
-                {warm.source.run_id?.slice(0, 8)}
-              </Link>
-            </>
-          )}
-          : {warm.used} of {warm.used + warm.skipped} solved {warm.used + warm.skipped === 1 ? "cluster" : "clusters"} started from its validated plan. The objective never rises from a validated start; results stay heuristic.
-        </span>
-      </div>
-      <ul className="flex flex-col gap-1">
-        {rows.map(({ c, i }) => {
-          const w = c.warm_start!
-          return (
-            <li key={c.id} className="flex flex-wrap items-center gap-2 text-xs" data-cluster={c.id} data-warm={w.status}>
-              <ClusterSwatch cluster={i + 1} size="sm" />
-              <Badge variant={w.status === "used" ? "success" : "warning"} size="sm">
-                {w.status === "used" ? "Used" : "Skipped"}
-              </Badge>
-              {w.status === "used" ? (
-                <span className="text-muted-foreground tabular-nums">
-                  objective {formatCount(w.initial_cost ?? 0)} → {formatCount(w.final_cost ?? 0)}
-                </span>
-              ) : (
-                <span className="text-muted-foreground" title={w.detail ?? undefined}>
-                  {WARM_REASON[w.reason ?? ""] ?? w.reason}
-                </span>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-    </section>
-  )
 }
 
 function ExportMenu({ id, hasMatrix, roads }: { id: string; hasMatrix: boolean; roads: boolean }) {
@@ -329,7 +267,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   )
 }
 
-function Results({ summary, run, runKey, canEvaluate, rerun, geo }: { summary: RunSummary; run: PipelineDetail; runKey?: string; canEvaluate: boolean; rerun: WarmRerun | null; geo: RoadGeometry }) {
+function Results({ summary, run, canFetchRoads, geo }: { summary: RunSummary; run: PipelineDetail; canFetchRoads: boolean; geo: RoadGeometry }) {
   const [cluster, setCluster] = useState<string | null>(null)
   const [hexes, setHexes] = useState(false)
   const [truck, setTruck] = useState<string | null>(null)
@@ -368,7 +306,7 @@ function Results({ summary, run, runKey, canEvaluate, rerun, geo }: { summary: R
         </div>
         <StatTile label="Shipments" value={formatCount(t.trucks)} footnote={<BoundsNote total={t.capacity_lower_bound} perCluster={t.sum_cluster_lower_bounds} trucks={t.trucks} />} />
         <StatTile
-          label={summary.settings.fleet ? "Vehicle fill" : "Trailer fill"}
+          label="Trailer fill"
           value={t.avg_fill == null ? "n/a" : formatPercent(t.avg_fill)}
           footnote={t.min_fill == null ? undefined : `Lowest ${formatPercent(t.min_fill)} · ${lowCount} under ${formatPercent(FILL_LOW)}`}
         />
@@ -377,8 +315,6 @@ function Results({ summary, run, runKey, canEvaluate, rerun, geo }: { summary: R
       </div>
 
       <PreflightNotes summary={summary} />
-      <WarmStartNotes summary={summary} />
-      <FleetUsage summary={summary} />
 
       <StepsPanel>
         <CompletedSteps summary={summary} />
@@ -391,7 +327,6 @@ function Results({ summary, run, runKey, canEvaluate, rerun, geo }: { summary: R
             <TabsTab value="map">Map</TabsTab>
             <TabsTab value="shipments">Shipments ({summary.trucks.length})</TabsTab>
             <TabsTab value="timeline">Timeline</TabsTab>
-            <TabsTab value="manual">Manual plan</TabsTab>
             <TabsTab value="unshipped">
               Unshipped{unshippedAmount ? ` (${formatMoney(unshippedAmount, { compact: true })})` : ""}
             </TabsTab>
@@ -405,7 +340,7 @@ function Results({ summary, run, runKey, canEvaluate, rerun, geo }: { summary: R
               <div className="h-[360px] overflow-hidden rounded-xl border sm:h-[440px] xl:h-auto xl:min-h-[480px] xl:flex-1">
                 <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} h3Resolution={hexes ? 5 : null} road={road} />
               </div>
-              <RoadGeometryControl geo={geo} truckId={truck} canFetch={canEvaluate} />
+              <RoadGeometryControl geo={geo} truckId={truck} canFetch={canFetchRoads} />
               <label className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Switch checked={hexes} onCheckedChange={setHexes} />
                 H3 cells (resolution 5, shaded by stop count). A map layer only; it does not change clusters.
@@ -418,10 +353,7 @@ function Results({ summary, run, runKey, canEvaluate, rerun, geo }: { summary: R
           <ShipmentTable summary={summary} clusterIndex={clusterIndex} truck={truck} onSelect={selectTruck} cluster={cluster} onClearCluster={() => setCluster(null)} runId={run.id} />
         </TabsPanel>
         <TabsPanel value="timeline" className="pt-3">
-          <TimelinePanel key={truck ?? ""} summary={summary} geo={geo} canFetch={canEvaluate} truckId={truck} onSelectTruck={selectTruck} />
-        </TabsPanel>
-        <TabsPanel value="manual" className="pt-3">
-          <ManualPlanPanel summary={summary} runId={run.id} runKey={runKey} canEvaluate={canEvaluate} rerun={rerun} />
+          <TimelinePanel key={truck ?? ""} summary={summary} geo={geo} canFetch={canFetchRoads} truckId={truck} onSelectTruck={selectTruck} />
         </TabsPanel>
         <TabsPanel value="unshipped" className="pt-3">
           <UnshippedTable summary={summary} />
@@ -481,48 +413,6 @@ function ValidityAlert({ summary, unplannedPieces }: { summary: RunSummary; unpl
 }
 
 /** Preflight checks this run recorded. A blocked run fails before this point, so these ran as warnings. */
-/** Fleet runs: trucks used per vehicle type against its fleet-wide count, and fill against each type's own capacity. */
-function FleetUsage({ summary }: { summary: RunSummary }) {
-  const usage = summary.fleet_usage
-  if (!usage) return null
-  return (
-    <section className="bg-card flex flex-col gap-2 rounded-xl border p-4" aria-label="Fleet use" data-testid="fleet-usage">
-      <h3 className="text-sm font-medium">Fleet use</h3>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Vehicle type</TableHead>
-              <TableHead className="text-right">Capacity</TableHead>
-              <TableHead className="text-right">Used / available</TableHead>
-              <TableHead className="text-right">Linear ft</TableHead>
-              <TableHead className="text-right">Average fill</TableHead>
-              <TableHead className="text-right">Lowest fill</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {usage.map((u) => (
-              <TableRow key={u.id} data-testid={`fleet-usage-${u.id}`} data-trucks={u.trucks}>
-                <TableCell className="font-medium">{u.label}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatFeet(u.capacity, 0)}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatCount(u.trucks)} / {u.count == null ? "unlimited" : formatCount(u.count)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{formatFeet(u.load)}</TableCell>
-                <TableCell className="text-right tabular-nums">{u.avg_fill == null ? "n/a" : formatPercent(u.avg_fill)}</TableCell>
-                <TableCell className="text-right tabular-nums">{u.min_fill == null ? "n/a" : formatPercent(u.min_fill)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      <p className="text-muted-foreground text-xs text-pretty">
-        Counts apply to the whole dispatch. PyVRP cannot enforce them across clusters, so each cluster was solved against the vehicles earlier clusters left and the total was checked afterwards.
-      </p>
-    </section>
-  )
-}
-
 function PreflightNotes({ summary }: { summary: RunSummary }) {
   const found = summary.preflight ?? []
   if (!found.length) return null
@@ -649,7 +539,6 @@ function ShipmentTable({
   const lastShown = Math.min((currentPage + 1) * SHIPMENT_PAGE_SIZE, rows.length)
   const labels = new Map(summary.locations.map((l) => [l.id, l.label]))
   const selected = summary.trucks.find((x) => x.id === truck)
-  const fleet = summary.settings.fleet ? new Map(summary.settings.fleet.map((v) => [v.id, v])) : null
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -674,8 +563,7 @@ function ShipmentTable({
           <TableHeader>
             <TableRow>
               <TableHead>Shipment</TableHead>
-              {fleet && <TableHead>Vehicle</TableHead>}
-              <TableHead>{fleet ? "Fill (own capacity)" : "Trailer fill"}</TableHead>
+              <TableHead>Trailer fill</TableHead>
               <TableHead>Stops</TableHead>
               <TableHead className="text-right">Linear ft</TableHead>
               <TableHead className="text-right">Loaded miles</TableHead>
@@ -700,12 +588,6 @@ function ShipmentTable({
                     <TruckTag id={x.id} cluster={clusterIndex(x.cluster_id)} className="text-muted-foreground text-[11px] font-normal" />
                   </button>
                 </TableCell>
-                {fleet && (
-                  <TableCell className="text-xs whitespace-normal" data-testid="shipment-vehicle" data-vehicle={x.vehicle_type_id}>
-                    {fleet.get(x.vehicle_type_id ?? "")?.label ?? x.vehicle_type_id}
-                    <span className="text-muted-foreground block tabular-nums">{formatFeet(fleet.get(x.vehicle_type_id ?? "")?.capacity ?? 0, 0)}</span>
-                  </TableCell>
-                )}
                 <TableCell>
                   <ShipmentFill fill={x.fill} size="sm" className="w-16" />
                 </TableCell>
@@ -755,17 +637,11 @@ function ShipmentTable({
 
 function ShipmentDetail({ summary, truck, index, cluster, runId }: { summary: RunSummary; truck: RunSummary["trucks"][number]; index: number; cluster: number; runId: string }) {
   const labels = new Map(summary.locations.map((l) => [l.id, l.label]))
-  const vehicle = summary.settings.fleet?.find((v) => v.id === truck.vehicle_type_id)
   return (
     <section className="bg-card space-y-3 rounded-xl border p-4" aria-label={`${shipmentLabel(index)} detail`}>
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="font-medium">{shipmentLabel(index)}</h3>
         <TruckTag id={truck.id} cluster={cluster} className="text-muted-foreground" />
-        {vehicle && (
-          <span className="text-xs" data-testid="shipment-detail-vehicle">
-            {vehicle.label}
-          </span>
-        )}
         <span className="text-muted-foreground text-xs tabular-nums">
           {plural(truck.visits.length, "stop")} · {miles(truck.distance_m)} loaded · {formatMoney(truck.amount_cents)}
         </span>
@@ -780,7 +656,7 @@ function ShipmentDetail({ summary, truck, index, cluster, runId }: { summary: Ru
       </div>
       <TrailerFill
         cluster={cluster}
-        capacity={vehicle?.capacity ?? summary.settings.trailer_capacity}
+        capacity={summary.settings.trailer_capacity}
         segments={truck.visits.map((v) => ({ id: v.visit_id, load: v.load, label: labels.get(v.location_id) }))}
       />
       <ol className="divide-y text-sm">
@@ -916,14 +792,11 @@ function StockCoverage({ summary }: { summary: RunSummary }) {
   )
 }
 
-/** Strategy, policy and, for CP-SAT, each stage's own status (spec §8). Runs before M5 have no record. */
+/** Strategy, policy and run time (spec §8). Runs before M5 have no record. */
 function allocationProvenance(summary: RunSummary) {
   const a = summary.allocation
   if (!a) return `${allocationSettingsLabel(summary.settings)} (run predates allocation provenance)`
-  const head = `${allocationSettingsLabel(summary.settings)}; ${a.kind === "cp_sat" ? "OR-Tools CP-SAT" : "deterministic heuristic"}, ${a.runtime_s.toFixed(2)} s`
-  const value = (st: (typeof a.stages)[number], n: number) => (st.objective === "revenue_cents" ? formatMoney(n) : formatCount(n))
-  const stages = a.stages.map((st, i) => `stage ${i + 1} ${allocationObjectiveLabel[st.objective].toLowerCase()}: ${cpSatStatusLabel[st.status]}${st.bound != null && st.status !== "optimal" ? ` (best ${value(st, st.value)}, bound ${value(st, st.bound)})` : ""}, ${st.runtime_s.toFixed(2)} s`)
-  return [head, ...stages, ...a.notes].join(". ")
+  return `${allocationSettingsLabel(summary.settings)}; deterministic heuristic, ${a.runtime_s.toFixed(2)} s`
 }
 
 function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail }) {
@@ -934,16 +807,12 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
       "Objective",
       s.objective === "trucks_then_distance"
         ? `Fewest trucks, then fewest miles (derived penalty F = n·L + 1 per cluster). ${COST_FALLBACK}`
-        : s.objective === "cost" && s.fleet
-          ? `Lowest cost by vehicle type: ${s.fleet.map((v) => `${v.label} ${formatMoney(v.fixed_cost_cents ?? 0)} per truck, ${formatMoney(v.per_mile_cents ?? 0)} per mile`).join("; ")}`
-          : s.objective === "cost"
+        : s.objective === "cost"
           ? `Lowest cost: ${formatMoney(s.cost_per_truck_cents ?? 0)} per truck, ${formatMoney(s.cost_per_mile_cents ?? 0)} per mile`
           : `Weighted distance (${s.weighted_truck_penalty_m} m per truck)`,
     ],
     ["Allocation", allocationProvenance(summary)],
-    s.fleet
-      ? ["Fleet", `${s.fleet.map((v) => `${v.label} (${formatFeet(v.capacity, 0)}, ${v.count == null ? "unlimited" : `${v.count} available`})`).join("; ")}; linear feet only, open routes. Counts are fleet-wide: clusters are solved in order against the vehicles left, then checked across clusters.`]
-      : ["Trailer", `${formatFeet(s.trailer_capacity, 0)}, linear feet only, open routes`],
+    ["Trailer", `${formatFeet(s.trailer_capacity, 0)}, linear feet only, open routes`],
     [
       "Travel",
       summary.travel?.mode === "snapshot"
@@ -960,7 +829,7 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
     ],
     ["Excluded by user", s.excluded_line_ids?.length ? plural(s.excluded_line_ids.length, "line") : "none"],
     ["Clustering", `k-means on 3D unit vectors, seed ${s.kmeans_seed}, n_init ${s.kmeans_n_init}; ${summary.clustering.fits} fits${summary.clustering.repairs.length ? `, ${summary.clustering.repairs.length} repairs` : ""}`],
-    ["Solver", `PyVRP ${summary.versions.pyvrp}, seed ${s.solver_seed}, ${s.solver_max_iterations ? `${s.solver_max_iterations} iterations or ` : ""}${s.solver_time_limit_s} s per cluster${s.warm_start ? `, warm-started from ${s.warm_start.kind === "manual_baseline" ? `manual baseline ${s.warm_start.baseline_id?.slice(0, 8)}` : `run ${s.warm_start.run_id?.slice(0, 8)}`}` : ""}`],
+    ["Solver", `PyVRP ${summary.versions.pyvrp}, seed ${s.solver_seed}, ${s.solver_max_iterations ? `${s.solver_max_iterations} iterations or ` : ""}${s.solver_time_limit_s} s per cluster`],
     ["Display", `Low fill under ${formatPercent(FILL_LOW)} (display setting, never sent to the solver)`],
     ["Versions", Object.entries(summary.versions).map(([k, v]) => `${k} ${v}`).join(" · ")],
   ]

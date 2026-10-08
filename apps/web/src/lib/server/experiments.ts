@@ -3,7 +3,6 @@ import { parseContract, type ExplorerSettings, type RunSettings, type Snapshot }
 import type { Store } from "@fillrate/db";
 import { canonical } from "@fillrate/db/canonical";
 import { changedAssumptions, compareRuns, DEFAULT_COMPARISON, expandSweep, METRICS, parseComparison, SWEEP_AXES, SweepError, type SweepAxes } from "@fillrate/db/experiments";
-import { fleetProblems, withoutEmptyFleet } from "@fillrate/db/fleet";
 import { preflightChecks } from "@fillrate/db/preflight";
 import type { TravelSnapshot } from "@fillrate/db/travel";
 import { validateScenario } from "@fillrate/db/scenarios";
@@ -37,10 +36,7 @@ function resolveTarget(store: Store, who: Principal, versionId: unknown, base: u
 
 function parseSettings(input: unknown): RunSettings {
   try {
-    const settings = withoutEmptyFleet(parseContract("RunSettings", withDefaults(input)));
-    const issues = fleetProblems(settings);
-    if (issues.length) throw new Error(issues.join(" "));
-    return settings;
+    return parseContract("RunSettings", withDefaults(input));
   }
   catch (error) { throw new ApiError(400, "invalid_settings", error instanceof Error ? error.message : "Invalid settings.", ["settings"]); }
 }

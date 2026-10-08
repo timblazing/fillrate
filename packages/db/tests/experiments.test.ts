@@ -50,14 +50,11 @@ test("k and seeds share a cohort; inventory and mileage changes form changed-ass
 
 test("allocation strategy varies within a cohort; whole-order fulfillment is a changed assumption", () => {
   const sig = (s: Partial<RunSettings>) => comparisonSignature("v1", { ...base, ...s }, versions).signature;
-  expect(sig({ allocation_strategy: "optimized", allocation_objective: "priority_then_revenue" })).toBe(sig({}));
+  expect(sig({ allocation_strategy: "priority" })).toBe(sig({}));
   expect(sig({ fulfillment_policy: "whole_order" })).not.toBe(sig({}));
-  const runs = expandSweep(base, { allocation_strategy: ["order_date_then_value", "optimized"], fulfillment_policy: ["piece", "whole_order"] });
+  const runs = expandSweep(base, { allocation_strategy: ["order_date_then_value", "priority"], fulfillment_policy: ["piece", "whole_order"] });
   expect(runs).toHaveLength(4);
-  expect(runs.map(r => r.varied)).toContainEqual({ allocation_strategy: "optimized", fulfillment_policy: "whole_order" });
-  // CP-SAT options are reset for greedy strategies, so two greedy runs that differ only there merge.
-  const merged = expandSweep({ ...base, allocation_objective: "priority_then_revenue", respect_order_date: true }, { allocation_strategy: ["first_come", "priority"] });
-  expect(merged.every(r => r.settings.allocation_objective === "revenue" && !r.settings.respect_order_date)).toBe(true);
+  expect(runs.map(r => r.varied)).toContainEqual({ allocation_strategy: "priority", fulfillment_policy: "whole_order" });
 });
 
 test("strict Pareto domination respects metric directions and declared rounding", () => {

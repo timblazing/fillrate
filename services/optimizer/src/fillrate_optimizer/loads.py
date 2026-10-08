@@ -262,22 +262,6 @@ class PartitionTime:
 
 
 @dataclass(frozen=True)
-class PartitionVehicle:
-    """One vehicle type of a partition's fleet (M6): becomes one PyVRP ``VehicleType``.
-
-    ``available`` is how many vehicles of this type this partition may use: the type's fleet-wide
-    count less what earlier clusters used (spec decisions: sequential allocation), or the visit
-    count when the type is unlimited. ``fixed_cost`` and ``distance_cost`` are the exact integer
-    PyVRP coefficients."""
-
-    id: str
-    capacity: int
-    available: int
-    fixed_cost: int
-    distance_cost: int
-
-
-@dataclass(frozen=True)
 class PartitionProblem:
     distance: np.ndarray  # raw directed meters, (m + 1) × (m + 1)
     visits: list[PartitionVisit]
@@ -289,9 +273,6 @@ class PartitionProblem:
     max_iterations: int | None = None
     max_runtime_s: float = 10.0
     time: PartitionTime | None = None
-    # M6 heterogeneous fleet. None: the single unlimited type of `capacity`, `truck_penalty` and
-    # `distance_cost` (the model every earlier run used, unchanged).
-    fleet: tuple[PartitionVehicle, ...] | None = None
 
 
 @dataclass
@@ -301,14 +282,6 @@ class PartitionResult:
     iterations: int
     runtime_s: float
     cost: int | None
-    # Warm start only: PyVRP's objective of the initial solution on this problem.
-    initial_cost: int | None = None
-    # Fleet only: the vehicle type ID of each route, parallel to ``routes``.
-    vehicle_types: list[str] | None = None
-
-
-class WarmStartRejected(ValueError):
-    """The initial routes are not a complete, PyVRP-feasible solution of this exact problem."""
 
 
 def truck_count_first_penalty(num_visits: int, max_leg_m: int) -> tuple[int, int]:
@@ -343,27 +316,6 @@ def monetary_objective(truck_cents: int, mile_cents: int) -> MonetaryObjective:
     fixed, distance = truck_cents * 201_168, mile_cents * 125
     divisor = gcd(fixed, distance) or 1
     return MonetaryObjective(fixed // divisor, distance // divisor, divisor)
-
-
-@dataclass(frozen=True)
-class FleetMonetaryObjective:
-    """Per-type PyVRP coefficients, scaled by one common divisor so that
-    ``objective × cents_numerator / cents_denominator`` is exactly cents."""
-
-    coefficients: list[tuple[int, int]]  # (fixed_cost, distance_cost) per type, input order
-    cents_numerator: int
-    cents_denominator: int = 201_168
-
-
-def fleet_monetary_objective(rates: list[tuple[int, int]]) -> FleetMonetaryObjective:
-    """The exact rational cost objective of a fleet: each type's fixed cents and per-mile cents,
-    reduced together by one common divisor (a mixed fleet shares one PyVRP objective). One type
-    gives exactly ``monetary_objective``."""
-    if not rates or any(type(rate) is not int or rate < 0 for pair in rates for rate in pair):
-        raise ValueError("cost rates must be nonnegative integer cents")
-    scaled = [(fixed * 201_168, mile * 125) for fixed, mile in rates]
-    divisor = gcd(*[v for pair in scaled for v in pair]) or 1
-    return FleetMonetaryObjective([(a // divisor, b // divisor) for a, b in scaled], divisor)
 
 
 def check_objective_range(
@@ -411,32 +363,16 @@ def build_partition_model(problem: PartitionProblem) -> pyvrp.Model:
             "tw_late": time.horizon_end_s,
             "start_late": time.depot_open_s,
         }
-    if problem.fleet is None:
-        model.add_vehicle_type(
-            num_available=len(problem.visits),
-            capacity=[problem.capacity],
-            start_depot=depot,
-            end_depot=depot,
-            fixed_cost=problem.truck_penalty,
-            unit_distance_cost=problem.distance_cost,
-            name="53ft",
-            **shift,
-        )
-    else:
-        # One PyVRP vehicle type per fleet entry with a vehicle left for this partition, in fleet
-        # order; ``fleet_types`` maps PyVRP's type index back to the fleet type ID.
-        for vehicle in problem.fleet:
-            if vehicle.available > 0:
-                model.add_vehicle_type(
-                    num_available=min(vehicle.available, len(problem.visits)),
-                    capacity=[vehicle.capacity],
-                    start_depot=depot,
-                    end_depot=depot,
-                    fixed_cost=vehicle.fixed_cost,
-                    unit_distance_cost=vehicle.distance_cost,
-                    name=vehicle.id,
-                    **shift,
-                )
+    model.add_vehicle_type(
+        num_available=len(problem.visits),
+        capacity=[problem.capacity],
+        start_depot=depot,
+        end_depot=depot,
+        fixed_cost=problem.truck_penalty,
+        unit_distance_cost=problem.distance_cost,
+        name="53ft",
+        **shift,
+    )
     for i in range(nodes):
         for j in range(nodes):
             if i == j:
@@ -454,63 +390,16 @@ def build_partition_model(problem: PartitionProblem) -> pyvrp.Model:
     return model
 
 
-def initial_solution(
-    data: pyvrp.ProblemData, routes: list[list[int]], types: list[int] | None = None
-) -> tuple[pyvrp.Solution, int]:
-    """A warm start on exactly `data`, with its objective (spec §3, §10).
-
-    Pinned PyVRP 0.14.0 accepts an incomplete or infeasible initial solution, and even one built
-    on different problem data, without complaint (tests/test_warm_start.py). Fillrate refuses those
-    instead: every client exactly once, built on the same data, complete and feasible.
-    """
-    visited = sorted(k for route in routes for k in route)
-    if visited != list(range(data.num_clients)) or any(not route for route in routes):
-        raise WarmStartRejected("initial routes must visit every client exactly once")
-    if types is None:
-        solution = pyvrp.Solution(data, routes)
-    else:
-        if len(types) != len(routes) or any(not 0 <= t < data.num_vehicle_types for t in types):
-            raise WarmStartRejected("initial routes need one available vehicle type each")
-        try:
-            solution = pyvrp.Solution(
-                data, [pyvrp.Route(data, route, t) for route, t in zip(routes, types, strict=True)]
-            )
-        except (
-            ValueError,
-            RuntimeError,
-        ) as error:  # more vehicles of a type than this partition may use
-            raise WarmStartRejected(str(error)) from error
-    if not solution.is_complete() or not solution.is_feasible():
-        raise WarmStartRejected("PyVRP reports the initial solution incomplete or infeasible")
-    cost = pyvrp.CostEvaluator([0] * len(solution.excess_load()), 0, 0).cost(solution)
-    return solution, int(cost)
-
-
-def solve_partition(
-    problem: PartitionProblem,
-    initial_routes: list[list[int]] | None = None,
-    initial_types: list[str] | None = None,
-) -> PartitionResult:
-    """Solve one partition; `initial_routes` (visit indices) warm-starts PyVRP from a plan that
-    the caller has already validated independently. It raises ``WarmStartRejected`` before any
-    search when PyVRP does not see that plan as complete and feasible."""
+def solve_partition(problem: PartitionProblem) -> PartitionResult:
+    """Solve one partition with PyVRP."""
     if not problem.visits:
         return PartitionResult([], True, 0, 0.0, 0)
-    fleet = problem.fleet
-    active = [v for v in fleet if v.available > 0] if fleet is not None else None
-    largest = max(v.capacity for v in fleet) if fleet else problem.capacity
     for visit in problem.visits:
-        if not 0 < visit.load <= largest:
+        if not 0 < visit.load <= problem.capacity:
             raise ValueError(f"visit {visit.id} load {visit.load} is outside (0, capacity]")
     check_objective_range(
-        len(problem.visits),
-        max(v.fixed_cost for v in fleet) if fleet else problem.truck_penalty,
-        problem.max_leg_m,
-        max(v.distance_cost for v in fleet) if fleet else problem.distance_cost,
+        len(problem.visits), problem.truck_penalty, problem.max_leg_m, problem.distance_cost
     )
-    if fleet is not None and not active:
-        # Every vehicle of every type is already used by earlier clusters: no candidate.
-        return PartitionResult([], False, 0, 0.0, None, vehicle_types=[])
 
     distance = problem.distance
     if (
@@ -534,25 +423,11 @@ def solve_partition(
         or not 0 <= problem.time.depot_open_s < problem.time.horizon_end_s
     ):
         raise ValueError("time data must match the partition matrix and visits")
-    # `Model.solve` is `pyvrp.solve(model.data())`; one data object keeps the initial solution
-    # on exactly the problem that is solved.
     data = build_partition_model(problem).data()
-    initial_type_index = None
-    if active is not None and initial_routes is not None:
-        position = {v.id: k for k, v in enumerate(active)}
-        if initial_types is None or any(t not in position for t in initial_types):
-            raise WarmStartRejected("initial routes use a vehicle type with none available")
-        initial_type_index = [position[t] for t in initial_types]
-    initial, initial_cost = (
-        initial_solution(data, initial_routes, initial_type_index)
-        if initial_routes is not None
-        else (None, None)
-    )
-
     stop = MaxRuntime(problem.max_runtime_s)
     if problem.max_iterations is not None:
         stop = MultipleCriteria([MaxIterations(problem.max_iterations), stop])
-    result = pyvrp.solve(data, stop, seed=problem.seed, display=False, initial_solution=initial)
+    result = pyvrp.solve(data, stop, seed=problem.seed, display=False)
     routes = [[a.idx for a in route if a.is_client()] for route in result.best.routes()]
     return PartitionResult(
         routes=routes,
@@ -560,10 +435,4 @@ def solve_partition(
         iterations=result.num_iterations,
         runtime_s=result.runtime,
         cost=int(result.cost()) if result.is_feasible() else None,
-        initial_cost=initial_cost,
-        vehicle_types=(
-            [active[route.vehicle_type()].id for route in result.best.routes()]
-            if active is not None
-            else None
-        ),
     )

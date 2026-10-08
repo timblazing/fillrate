@@ -51,7 +51,7 @@ COPY --from=zcta /opt/zcta ./zcta
 COPY services/optimizer/pyproject.toml services/optimizer/uv.lock services/optimizer/.python-version ./optimizer/
 COPY services/optimizer/src/fillrate_optimizer/*.py ./optimizer/src/fillrate_optimizer/
 COPY deploy/entrypoint.sh /usr/local/bin/fillrate-entrypoint
-RUN mkdir -p /app/data && chown node:node /app/data && /opt/venv/bin/python -c "import pyvrp, sklearn, ortools"
+RUN mkdir -p /app/data && chown node:node /app/data && /opt/venv/bin/python -c "import pyvrp, sklearn"
 USER node
 VOLUME /app/data
 EXPOSE 3000

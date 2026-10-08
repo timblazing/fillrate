@@ -21,7 +21,7 @@ from .travel import DEFAULT_CIRCUITY, DEFAULT_MAX_LEG_M
 SCHEMA_VERSION = 1
 ADAPTER_VERSION = "pyvrp-partition/1"
 
-PINNED = ("pyvrp", "ortools", "scikit-learn", "numpy", "h3", "fastapi", "pydantic")
+PINNED = ("pyvrp", "scikit-learn", "numpy", "h3", "fastapi", "pydantic")
 
 
 class Behavior(BaseModel):
@@ -155,8 +155,6 @@ BEHAVIORS = [
         ),
         restrictions=[
             "One depot, open routes, distance-only costs.",
-            "With a fleet (heterogeneous_fleet_pipeline) every vehicle type carries the same F, so "
-            "the count of trucks of any type is minimized first, then distance.",
         ],
         fixture="tests/test_pipeline.py::test_trucks_first_vs_weighted_zero_counterexample",
     ),
@@ -198,35 +196,6 @@ BEHAVIORS = [
         fixture="tests/test_time_windows.py::test_service_duration_changes_feasibility_and_truck_count",
     ),
     Behavior(
-        id="warm_start",
-        provided_by="native",
-        description=(
-            "Run setting warm_start {kind: run, run_id} or {kind: manual_baseline, baseline_id}: "
-            "each cluster starts PyVRP's search from the source's validated plan "
-            "(pyvrp.solve initial_solution). With a feasible initial solution the pinned search "
-            "keeps it as the incumbent, so the returned objective is never higher. Fillrate "
-            "passes a plan only after the independent validator accepts it on the new problem; "
-            "every cluster records used or skipped "
-            "with a reason, and the plan is a recorded input of the solve stage."
-        ),
-        restrictions=[
-            "Compatibility rule: same travel identity (estimated circuity or snapshot), a "
-            "validated source cluster that planned exactly the same visit IDs, and the same "
-            "location and load for every visit; otherwise the cluster is solved cold "
-            "(travel_changed, visit_set_changed, source_invalid, demand_changed).",
-            "The mapped plan must pass the independent validator on the new problem "
-            "(invalid_on_new_problem) and be complete and feasible to PyVRP (solver_rejected). "
-            "Pinned PyVRP accepts infeasible, incomplete or mismatched initial solutions without "
-            "an error (tests/test_warm_start.py), so Fillrate refuses them instead.",
-            "Sources are succeeded pipeline runs the submitter can read, or the submitter's saved "
-            "manual baselines that the evaluator found valid when saved. A baseline covers one "
-            "cluster of the run it was made on; other clusters are solved cold "
-            "(visit_set_changed). An invalid baseline is never a source.",
-            "Warm starts change solver provenance only, never the comparison signature.",
-        ],
-        fixture="tests/test_warm_start.py::test_feasible_initial_solution_is_never_worsened",
-    ),
-    Behavior(
         id="independent_validation",
         provided_by="validation",
         description=(
@@ -236,74 +205,6 @@ BEHAVIORS = [
             "Solver feasibility is never trusted alone."
         ),
         fixture="tests/test_pipeline.py::test_validator_rejects_solver_feasible_missing_edge_candidate",
-    ),
-    Behavior(
-        id="manual_evaluator",
-        provided_by="validation",
-        description=(
-            "A hand-edited plan for one cluster of a completed pipeline run (ordered visit IDs "
-            "per truck: reorder visits, move them between trucks, add or remove trucks) is "
-            "checked by the same independent validator against the run's recorded travel "
-            "artifact, problem, visit lineage and, for snapshot runs, the selected snapshot. "
-            "It reports concrete violations and the run's cluster metrics and objective for "
-            "both the manual and the optimized plan; the optimized plan reproduces the run."
-        ),
-        restrictions=[
-            "One cluster at a time, within that cluster's visits; visits cannot move between "
-            "clusters.",
-            "Evaluation alone stores nothing: a valid manual plan is a baseline, not a solver "
-            "result. A saved baseline (separate endpoint) can be a warm-start source only "
-            "while it is valid.",
-        ],
-        fixture=(
-            "tests/test_evaluate.py::"
-            "test_evaluating_the_optimized_routes_reproduces_the_recorded_metrics"
-        ),
-    ),
-    Behavior(
-        id="heterogeneous_fleet_pipeline",
-        provided_by="native",
-        description=(
-            "Run setting fleet: a list of vehicle types (id, label, count or unlimited, capacity "
-            "in hundredths of a foot, fixed and per-mile cents). Every cluster's PyVRP model "
-            "gets one VehicleType per type (capacity, fixed cost, unit distance cost, and a "
-            "per-cluster num_available), so capacities and costs bind natively. Fill is measured "
-            "against each truck's own capacity; stops are split to, and oversize pieces checked "
-            "against, the largest type. The independent validator checks each truck against its "
-            "type's capacity and each type's count; manual plans and warm starts carry a type "
-            "per route and are refused when they do not match the run's fleet. The fleet is part "
-            "of the comparison signature and the replay bundle."
-        ),
-        restrictions=[
-            "Delivery capacity in linear feet only: no other load dimensions, and no per-type "
-            "max distance or shift duration in the pipeline yet.",
-            "Every type starts and ends at the single depot with the same open-route workaround.",
-            "Counts are fleet-wide, which PyVRP cannot express across independent clusters; see "
-            "fleet_wide_counts. A count may be null for unlimited, as the single trailer is.",
-            "Without a fleet the pipeline is exactly the single unlimited trailer: identical "
-            "settings, stage identities and results.",
-            "Cost objective: each type's cents rates are scaled by one common divisor into exact "
-            "integer PyVRP costs and converted to cents once.",
-        ],
-        fixture="tests/test_fleet.py::test_vehicle_types_bind_capacity_and_fill_is_per_type",
-    ),
-    Behavior(
-        id="fleet_wide_counts",
-        provided_by="workaround",
-        description=(
-            "Vehicle counts apply to the whole dispatch, but clusters are solved independently. "
-            "Fillrate solves clusters in order, each against the vehicles of every type that "
-            "earlier clusters left (the model's num_available), then an independent check sums "
-            "every type across clusters and marks the plan invalid with a concrete violation "
-            "when any count is exceeded. PyVRP does not enforce counts across clusters."
-        ),
-        restrictions=[
-            "A greedy order rule, not an optimal allocation of vehicles to clusters: an early "
-            "cluster can take vehicles a later one needs, which then has no candidate.",
-            "The manual evaluator checks one cluster against the full counts; the fleet-wide sum "
-            "is a run-level check.",
-        ],
-        fixture="tests/test_fleet.py::test_counts_are_fleet_wide_across_clusters",
     ),
 ]
 

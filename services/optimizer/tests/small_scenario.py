@@ -1,24 +1,18 @@
-"""Lesson scenario "Scarce stock: piece or whole order" (spec §13, M7): synthetic data only.
+"""Small test scenario: 90 synthetic orders, 45 customers in three markets around a Memphis DC.
 
-A small Memphis DC scenario (90 orders, 45 customers in three regional markets) where one product
-(carpet rolls) is short and the others are plentiful, so the allocation strategy and the fulfillment
-policy (§8) decide who gets stock. It is small enough that every strategy, including CP-SAT, proves
-its answer in a fraction of a second, so the lesson's observations are exact, not heuristic. Routing
-uses the pipeline defaults (haversine × circuity travel); this lesson does not use road matrices.
-
-Regenerate with `uv run python -m fillrate_optimizer.lesson_allocation` (writes examples/).
+One product (carpet rolls) is short and the others are plentiful, so the allocation strategy and
+the fulfillment policy decide who gets stock. Small enough that pipeline tests run in well under a
+second. Routing uses the pipeline defaults (haversine × circuity travel).
 """
 
 from __future__ import annotations
 
-import json
 import math
-from pathlib import Path
 
 import numpy as np
 
-from .model import RunSettings, ScenarioDocument
-from .synthetic import MEMPHIS, offset
+from fillrate_optimizer.model import RunSettings, ScenarioDocument
+from fillrate_optimizer.synthetic import MEMPHIS, offset
 
 # (label, miles east, miles north): three markets, all inside one allowed drive of the depot.
 MARKETS = [("Nashville", 195, 30), ("St. Louis", 30, 245), ("Jackson MS", -20, -190)]
@@ -103,16 +97,3 @@ def build() -> ScenarioDocument:
 
 # Fixed k and an iteration budget: results repeat across machines and each run takes under a second.
 SETTINGS = RunSettings(k=3, solver_max_iterations=200, solver_time_limit_s=10)
-
-
-def main() -> None:
-    root = Path(__file__).resolve().parents[4] / "examples"
-    document = {
-        "scenario": build().model_dump(mode="json"),
-        "settings": SETTINGS.model_dump(mode="json"),
-    }
-    (root / "lesson-allocation.json").write_text(json.dumps(document, separators=(",", ":")) + "\n")
-
-
-if __name__ == "__main__":
-    main()

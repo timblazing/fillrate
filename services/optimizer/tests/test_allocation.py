@@ -1,18 +1,17 @@
-"""M5 allocation strategies (spec §8, §16 "Model correctness")."""
+"""Allocation strategies (spec §8, §16 "Model correctness")."""
 
-import itertools
 import random
 
 import pytest
 
 from fillrate_optimizer.allocation import allocate
-from fillrate_optimizer.model import RunSettings, ScenarioDocument
+from fillrate_optimizer.model import ScenarioDocument
 from fillrate_optimizer.pipeline import run_pipeline
 
 from .conftest import east
 from .test_pipeline import FAST, scenario
 
-STRATEGIES = ["order_date_then_value", "first_come", "priority", "proportional", "optimized"]
+STRATEGIES = ["order_date_then_value", "first_come", "priority", "proportional"]
 
 
 def line(lid, oid, product, ordered, value, date="2026-09-01", customer=None, priority=1):
@@ -64,72 +63,6 @@ def feasible(lines, stock, alloc, policy):
             if not (full or empty):
                 return False
     return True
-
-
-def respects_dates(lines, alloc):
-    for a, b in itertools.permutations(lines, 2):
-        if (
-            a["product_id"] == b["product_id"]
-            and a["order_date"] < b["order_date"]
-            and alloc[a["line_id"]] < a["ordered"]
-            and alloc[b["line_id"]] > 0
-        ):
-            return False
-    return True
-
-
-def oracle(lines, stock, policy, respect_order_date=False, priority=False):
-    """Exhaustive best allocation for tiny cases."""
-    if policy == "whole_order":
-        orders = sorted({ln["order_id"] for ln in lines})
-        choices = (
-            {ln["line_id"]: ln["ordered"] * (ln["order_id"] in picked) for ln in lines}
-            for r in range(len(orders) + 1)
-            for picked in map(set, itertools.combinations(orders, r))
-        )
-    else:
-        choices = (
-            dict(zip([ln["line_id"] for ln in lines], qty, strict=True))
-            for qty in itertools.product(*(range(ln["ordered"] + 1) for ln in lines))
-        )
-    best = None
-    for alloc in choices:
-        if not feasible(lines, stock, alloc, policy):
-            continue
-        if respect_order_date and not respects_dates(lines, alloc):
-            continue
-        revenue = sum(alloc[ln["line_id"]] * ln["value"] for ln in lines)
-        weighted = sum(alloc[ln["line_id"]] * ln["priority"] for ln in lines)
-        score = (weighted, revenue) if priority else (revenue,)
-        best = score if best is None or score > best else best
-    return best
-
-
-@pytest.mark.parametrize("policy", ["piece", "whole_order"])
-@pytest.mark.parametrize("respect", [False, True])
-def test_cp_sat_matches_exhaustive_oracle(policy, respect):
-    rng = random.Random(7)
-    for _ in range(40):
-        lines, stock = random_case(rng)
-        out = allocate(lines, stock, "optimized", policy, respect_order_date=respect)
-        assert out.kind == "cp_sat" and out.stages[-1].status == "optimal"
-        assert feasible(lines, stock, out.allocated, policy)
-        if respect:
-            assert respects_dates(lines, out.allocated)
-        revenue = sum(out.allocated[ln["line_id"]] * ln["value"] for ln in lines)
-        assert (revenue,) == oracle(lines, stock, policy, respect)
-
-
-def test_cp_sat_lexicographic_priority_matches_oracle():
-    rng = random.Random(11)
-    for _ in range(30):
-        lines, stock = random_case(rng)
-        out = allocate(lines, stock, "optimized", "piece", objective="priority_then_revenue")
-        assert [s.objective for s in out.stages] == ["priority_weighted_pieces", "revenue_cents"]
-        assert all(s.status == "optimal" for s in out.stages)
-        weighted = sum(out.allocated[ln["line_id"]] * ln["priority"] for ln in lines)
-        revenue = sum(out.allocated[ln["line_id"]] * ln["value"] for ln in lines)
-        assert (weighted, revenue) == oracle(lines, stock, "piece", priority=True)
 
 
 @pytest.mark.parametrize("strategy", STRATEGIES)
@@ -214,18 +147,3 @@ def test_whole_order_pipeline_excludes_the_whole_order_and_reconciles():
     }
     assert out.summary.allocation.fulfillment_policy == "whole_order"
     assert out.summary.products[0].allocated == 0
-
-
-def test_optimized_pipeline_records_cp_sat_provenance():
-    doc = scenario(
-        [("A", east(50)), ("B", east(80))],
-        [("O1", "A", "2026-09-01", "P", 3, 100), ("O2", "B", "2026-09-02", "P", 3, 900)],
-        [("P", 3)],
-    )
-    settings: RunSettings = FAST.model_copy(update={"allocation_strategy": "optimized"})
-    summary = run_pipeline(doc, settings).summary
-    assert summary.allocation.kind == "cp_sat"
-    assert summary.allocation.stages[0].status == "optimal"
-    assert summary.totals.allocated_cents == 2_700
-    respect = settings.model_copy(update={"respect_order_date": True})
-    assert run_pipeline(doc, respect).summary.totals.allocated_cents == 300

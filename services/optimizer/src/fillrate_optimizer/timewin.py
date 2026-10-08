@@ -79,7 +79,7 @@ class Finding(str):
     """One validator violation: its message text, plus a machine code and where it occurred.
 
     A ``str`` subclass, so the validation artifact and ``ClusterSummary.violations`` keep the plain
-    messages byte for byte while the manual evaluator (spec §10) reads ``code``, ``truck`` (1-based
+    messages byte for byte while callers can read ``code``, ``truck`` (1-based
     position in the plan) and ``visit_id``.
     """
 
