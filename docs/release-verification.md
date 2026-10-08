@@ -1,5 +1,15 @@
 # Release verification and hardware evidence
 
+## 2026-10-08: Integrated main image published (Codex)
+
+- Source: `f855f6564f15c1836046d9861d27043c547aa00b` (#100 squash merge; #95 deployment records were merged first).
+- [Image workflow 37710953655](https://github.com/timblazing/fillrate/actions/runs/37710953655) succeeded. CI/npm, native amd64/arm64 builds, architecture smoke tests, both benchmark modes and manifest publication all passed. Run started 2026-10-08 01:03:11 UTC and completed 01:22:57 UTC.
+- Published `ghcr.io/timblazing/fillrate:sha-f855f65` and `:latest` resolve to index `sha256:ad857042103b2959326be3eccdc08f4f16f3bc5f0a4a529b2be0ce2b859db59e`.
+- amd64 platform digest: `sha256:870012690774776a0a6231342c672ed800ecdce0ef68da1f8c8b963d95623ac1`; arm64: `sha256:44e7980cda4812b794beb268890519be9459896ccb11480ee4b6bf1be662852d`.
+- Verified with `docker manifest inspect ghcr.io/timblazing/fillrate:sha-f855f65`, workflow publication logs, and authenticated registry manifest GETs for the immutable source tag and `latest`. Local Docker lacks buildx; no local build was performed.
+- Publication only: no VPS upgrade was performed. The accepted deployed baseline remains `698fbd8` and its pinned digest/rollback record. #98 hosted road automation, targeted #88 dashboard states and #89 representative performance remain open; #93 native VPS timings are optional.
+
+
 ## 2026-10-07 image and deployment for `698fbd8`
 
 Source: `698fbd8d96abb8f174aa766566a2c0a91762ec58`. [Image workflow 37680183468](https://github.com/timblazing/fillrate/actions/runs/37680183468) passed reusable CI, npm, native amd64 and arm64 builds, both image smokes and benchmarks, and manifest publication. Published tag: `ghcr.io/timblazing/fillrate:sha-698fbd8`; multi-architecture index digest: `sha256:c76155c1b57e4a65b544b636a2c18020d74626567a882039efb96b79d6861114`. The `linux/amd64` manifest is `sha256:25d580096a5ca78d6d06dbbce68d9fe916ff59fcf79eb4f344799e4ebdbfc71e`; `linux/arm64` is `sha256:0354602c409f83b7f63770edfc7c873caa538415a2ab6a7662d5023594a6d1fb`. Registry `latest` points to the same two platform manifests.

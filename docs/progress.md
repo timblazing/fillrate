@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-08: Integrated main image published (Codex)
+
+- Source: `f855f6564f15c1836046d9861d27043c547aa00b` (#100 squash merge; #95 deployment records were merged first).
+- [Image workflow 37710953655](https://github.com/timblazing/fillrate/actions/runs/37710953655) succeeded. CI/npm, native amd64/arm64 builds, architecture smoke tests, both benchmark modes and manifest publication all passed. Run started 2026-10-08 01:03:11 UTC and completed 01:22:57 UTC.
+- Published `ghcr.io/timblazing/fillrate:sha-f855f65` and `:latest` resolve to index `sha256:ad857042103b2959326be3eccdc08f4f16f3bc5f0a4a529b2be0ce2b859db59e`.
+- amd64 platform digest: `sha256:870012690774776a0a6231342c672ed800ecdce0ef68da1f8c8b963d95623ac1`; arm64: `sha256:44e7980cda4812b794beb268890519be9459896ccb11480ee4b6bf1be662852d`.
+- Verified with `docker manifest inspect ghcr.io/timblazing/fillrate:sha-f855f65`, workflow publication logs, and authenticated registry manifest GETs for the immutable source tag and `latest`. Local Docker lacks buildx; no local build was performed.
+- Publication only: no VPS upgrade was performed. The accepted deployed baseline remains `698fbd8` and its pinned digest/rollback record. #98 hosted road automation, targeted #88 dashboard states and #89 representative performance remain open; #93 native VPS timings are optional.
+
+
 ## 2026-10-07: Integrate dashboard fixes and refocus v1 (#100, Codex)
 - Resolved #95 deployment-record conflicts while retaining owner scope/live-check evidence; #95 merged at `e89b41b`. Completed #100 against the sidebar workbench: explicit depot input/edit/versioning, distinguishing saved-scenario metadata, actionable import errors/notices, shared timeline selection and comparable experiment deltas. Review corrected the stored snapshot JSON paths and added a persistence regression assertion.
 - Passed lint (one existing globe hook warning), typecheck, production build, 176 tests with real Python worker and 144 hosted/local checks. Expanded production `--flow=dashboard-audit` passed all six areas plus shell routes at desktop 1440×900 and iPhone 16 393×852 in both themes; 52 retained captures and row-specific limits are in the [coverage audit](reviews/m8-dashboard-coverage-audit-2026-10-06.md#2026-10-07-integrated-follow-up-100).

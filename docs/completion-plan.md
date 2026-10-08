@@ -2,6 +2,8 @@
 
 Published and deployed baseline: `698fbd8`, image workflow 37680183468; digest and rollback evidence are in [the release record](releases/upgrade-698fbd8.md). Owner signed-in synthetic and road checks passed in #99; current source is ahead of that deployed image. This plan replaces stale next-step lists while preserving the technical spec and M1–M8 history. It adds no new solver engine scope.
 
+Latest published candidate: `f855f65` (#100), tested image workflow 37710953655; `sha-f855f65` and `latest` share index `sha256:ad857042103b2959326be3eccdc08f4f16f3bc5f0a4a529b2be0ce2b859db59e`. It has not been deployed. The deployed baseline above remains authoritative for live behavior.
+
 ## Definition of complete and live
 
 The current product is complete when the required frontend specification passes, documented capabilities match working behavior, all applicable correctness/access/browser checks pass on the final candidate, and the handoff accurately describes that candidate. It is live when the tested multi-architecture image is pinned and deployed, migrations/worker health and the primary workflow pass on the VPS, and the exact deployed digest and checks are recorded. Publication alone closes neither deployment nor product completion.

@@ -605,3 +605,7 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-07: Refocus v1 around integrated dashboard and hosted roads (Codex)
 - **Decision:** Integrate existing PRs before publishing the next image. Keep the owner-approved order: dashboard defects/acceptance (#88/#100), automatic hosted road workflow (#98), representative frontend performance (#89), then optional native VPS timings (#93). No new solver scope, Pi target or manual accessibility gate is added.
 - **Evidence boundary:** Passed checks and publication identify an exact candidate. A new image publication does not establish deployment or close remaining dashboard/performance acceptance; the accepted live baseline remains 698fbd8 until a newer digest is deployed and checked.
+
+## 2026-10-08: Publish the integrated main candidate after PR checks (Codex)
+- **Decision:** Complete the owner's requested merge/rebuild sequence through squash merges of #95 and #100, then publish tested source f855f65 as the multi-architecture Docker package. Preserve the refocused #98/#88/#89 delivery order and optional #93 handoff.
+- **Evidence boundary:** Workflow 37710953655 and registry manifest verification prove publication for both architectures. A new VPS deployment and its exact-digest checks remain separate; no product-completion estimate is increased for publication alone.
