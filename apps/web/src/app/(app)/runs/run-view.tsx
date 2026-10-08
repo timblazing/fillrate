@@ -78,19 +78,18 @@ function useRun(initial: PipelineDetail) {
   return [run, setRun] as const
 }
 
-export function RunView({ initial, canCancel, canFetchRoads = false, runKey, rerun, scenarioHref = null }: { initial: PipelineDetail; canCancel: boolean; canFetchRoads?: boolean; runKey?: string; rerun?: Rerun | null; scenarioHref?: string | null }) {
+export function RunView({ initial, rerun, scenarioHref = null }: { initial: PipelineDetail; rerun?: Rerun | null; scenarioHref?: string | null }) {
   const [run, setRun] = useRun(initial)
   const [cancelling, setCancelling] = useState(false)
   const active = ACTIVE.has(run.status)
-  const listHref = `/runs${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`
   const failureCode = String(run.failure?.code ?? "error")
   const ended = run.status === "failed" || run.status === "cancelled" || run.status === "interrupted"
   const failure = failureCopy(failureCode)
-  const geo = useRoadGeometry(run.id, runKey, run.status === "succeeded" && !!run.summary)
+  const geo = useRoadGeometry(run.id, run.status === "succeeded" && !!run.summary)
 
   async function cancel() {
     setCancelling(true)
-    const res = await fetch(`/api/v1/runs/${run.id}/cancel`, { method: "POST", headers: runKey ? { "x-run-key": runKey } : {} })
+    const res = await fetch(`/api/v1/runs/${run.id}/cancel`, { method: "POST" })
     const body = await res.json()
     if (res.ok) setRun(body)
     else toastManager.add({ type: "error", title: "Could not cancel", description: body.error?.message })
@@ -100,7 +99,7 @@ export function RunView({ initial, canCancel, canFetchRoads = false, runKey, rer
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon-sm" render={<Link href={listHref} aria-label="All runs" />}>
+        <Button variant="ghost" size="icon-sm" render={<Link href="/runs" aria-label="All runs" />}>
           <ArrowLeft />
         </Button>
         <PageTitle className="font-mono">Run {run.id.slice(0, 8)}</PageTitle>
@@ -111,7 +110,7 @@ export function RunView({ initial, canCancel, canFetchRoads = false, runKey, rer
           {run.settings.inventory_percent !== 100 && ` · inventory ${run.settings.inventory_percent}%`}
         </span>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          {active && canCancel && !run.cancel_requested && (
+          {active && !run.cancel_requested && (
             <Button variant="destructive-outline" size="sm" onClick={cancel} loading={cancelling}>
               <Ban aria-hidden /> Cancel
             </Button>
@@ -129,7 +128,7 @@ export function RunView({ initial, canCancel, canFetchRoads = false, runKey, rer
               <Pencil aria-hidden /> Open scenario
             </Button>
           )}
-          {ended && rerun && <RerunButton rerun={rerun} runKey={runKey} variant={run.status === "failed" && failure.fixFirst ? "outline" : "default"} />}
+          {ended && rerun && <RerunButton rerun={rerun} variant={run.status === "failed" && failure.fixFirst ? "outline" : "default"} />}
         </div>
       </div>
 
@@ -169,7 +168,7 @@ export function RunView({ initial, canCancel, canFetchRoads = false, runKey, rer
           <AlertDescription>The worker stopped responding on every attempt ({run.max_attempts}). {rerun ? "Run again starts a new run with the same version and settings." : "Start a new run from the scenario."} If it keeps stopping, check the worker&apos;s health and memory.</AlertDescription>
         </Alert>
       )}
-      {run.summary && <Results summary={run.summary} run={run} canFetchRoads={canFetchRoads} geo={geo} />}
+      {run.summary && <Results summary={run.summary} run={run} geo={geo} />}
     </>
   )
 }
@@ -267,7 +266,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   )
 }
 
-function Results({ summary, run, canFetchRoads, geo }: { summary: RunSummary; run: PipelineDetail; canFetchRoads: boolean; geo: RoadGeometry }) {
+function Results({ summary, run, geo }: { summary: RunSummary; run: PipelineDetail; geo: RoadGeometry }) {
   const [cluster, setCluster] = useState<string | null>(null)
   const [hexes, setHexes] = useState(false)
   const [truck, setTruck] = useState<string | null>(null)
@@ -340,7 +339,7 @@ function Results({ summary, run, canFetchRoads, geo }: { summary: RunSummary; ru
               <div className="h-[360px] overflow-hidden rounded-xl border sm:h-[440px] xl:h-auto xl:min-h-[480px] xl:flex-1">
                 <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} h3Resolution={hexes ? 5 : null} road={road} />
               </div>
-              <RoadGeometryControl geo={geo} truckId={truck} canFetch={canFetchRoads} />
+              <RoadGeometryControl geo={geo} truckId={truck} />
               <label className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Switch checked={hexes} onCheckedChange={setHexes} />
                 H3 cells (resolution 5, shaded by stop count). A map layer only; it does not change clusters.
@@ -353,7 +352,7 @@ function Results({ summary, run, canFetchRoads, geo }: { summary: RunSummary; ru
           <ShipmentTable summary={summary} clusterIndex={clusterIndex} truck={truck} onSelect={selectTruck} cluster={cluster} onClearCluster={() => setCluster(null)} runId={run.id} />
         </TabsPanel>
         <TabsPanel value="timeline" className="pt-3">
-          <TimelinePanel key={truck ?? ""} summary={summary} geo={geo} canFetch={canFetchRoads} truckId={truck} onSelectTruck={selectTruck} />
+          <TimelinePanel key={truck ?? ""} summary={summary} geo={geo} truckId={truck} onSelectTruck={selectTruck} />
         </TabsPanel>
         <TabsPanel value="unshipped" className="pt-3">
           <UnshippedTable summary={summary} />

@@ -23,25 +23,24 @@ export type RoadGeometry = {
 }
 
 /** Eligibility, fetched geometries and show/hide for one run. Fetches nothing until a truck's button is pressed. */
-export function useRoadGeometry(runId: string, runKey: string | undefined, enabled: boolean): RoadGeometry {
+export function useRoadGeometry(runId: string, enabled: boolean): RoadGeometry {
   const [status, setStatus] = useState<Status | null>(null)
   const [geometries, setGeometries] = useState<Record<string, RouteGeometryResponse>>({})
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const headers = useMemo((): Record<string, string> => (runKey ? { "x-run-key": runKey } : {}), [runKey])
 
   useEffect(() => {
     if (!enabled) return
     let live = true
-    fetch(`/api/v1/runs/${runId}/geometry`, { headers, cache: "no-store" })
+    fetch(`/api/v1/runs/${runId}/geometry`, { cache: "no-store" })
       .then(async (res) => (res.ok ? ((await res.json()) as Status) : null))
       .then((body) => live && setStatus(body))
       .catch(() => undefined)
     return () => {
       live = false
     }
-  }, [runId, headers, enabled])
+  }, [runId, enabled])
 
   const toggle = useCallback(
     async (truckId: string) => {
@@ -59,7 +58,7 @@ export function useRoadGeometry(runId: string, runKey: string | undefined, enabl
       try {
         const res = await fetch(`/api/v1/runs/${runId}/geometry`, {
           method: "POST",
-          headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...headers },
+          headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
           body: JSON.stringify({ truck: truckId }),
         })
         const body = await res.json()
@@ -77,7 +76,7 @@ export function useRoadGeometry(runId: string, runKey: string | undefined, enabl
       }
       setBusy(null)
     },
-    [geometries, runId, headers],
+    [geometries, runId],
   )
 
   const shown = useMemo(() => new Set(Object.keys(geometries).filter((id) => !hidden.has(id))), [geometries, hidden])
@@ -88,7 +87,7 @@ const km = (m: number | null | undefined) => (m == null ? "—" : `${(m / 1000).
 const signed = (n: number | null | undefined, unit: string, digits = 1) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(digits)} ${unit}`)
 
 /** The "Show road geometry" action for one truck, its explanation and the matrix-versus-route discrepancies. */
-export function RoadGeometryControl({ geo, truckId, canFetch = true }: { geo: RoadGeometry; truckId: string | null; canFetch?: boolean }) {
+export function RoadGeometryControl({ geo, truckId }: { geo: RoadGeometry; truckId: string | null }) {
   const { status } = geo
   if (!status) return null
   if (!status.eligible) {
@@ -104,15 +103,11 @@ export function RoadGeometryControl({ geo, truckId, canFetch = true }: { geo: Ro
   return (
     <div className="flex flex-col gap-2" data-testid="road-geometry">
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" disabled={!truckId || !canFetch} loading={busy} onClick={() => truckId && geo.toggle(truckId)} data-testid="road-geometry-button">
+        <Button size="sm" variant="outline" disabled={!truckId} loading={busy} onClick={() => truckId && geo.toggle(truckId)} data-testid="road-geometry-button">
           <Route aria-hidden /> {visible ? "Hide road geometry" : "Show road geometry"}
         </Button>
         <span className="text-muted-foreground text-xs">
-          {truckId
-            ? canFetch
-              ? "Fetches Valhalla's route for this shipment only."
-              : "Fetching needs the same access as starting runs on this server."
-            : "Select a shipment to fetch its road geometry."}
+          {truckId ? "Fetches Valhalla's route for this shipment only." : "Select a shipment to fetch its road geometry."}
         </span>
       </div>
       {geo.error && (

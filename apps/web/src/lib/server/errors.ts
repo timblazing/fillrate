@@ -1,5 +1,4 @@
 import "server-only";
-import { isAdmissionError } from "@fillrate/db";
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly fields: string[] = [], readonly retryAfterS = 0, readonly extra: Record<string, unknown> = {}) {
@@ -7,14 +6,13 @@ export class ApiError extends Error {
   }
 }
 
-// Store errors that mean "not yours or not there" answer 404 alike, so IDs reveal nothing about other owners.
+// Store errors that mean "not there" answer 404.
 const MISSING: Record<string, string> = {
   version_not_found: "No saved scenario version with this ID.",
   scenario_not_found: "No scenario with this ID.",
 };
 
 export function errorResponse(error: unknown) {
-  if (isAdmissionError(error)) error = new ApiError(429, error.code, error.message, [], Math.ceil(error.retryAfterMs / 1000));
   if (error instanceof Error && MISSING[error.message]) error = new ApiError(404, error.message, MISSING[error.message]);
   if (error instanceof ApiError) {
     const headers: Record<string, string> = error.retryAfterS ? { "Retry-After": String(error.retryAfterS) } : {};

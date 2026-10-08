@@ -2,8 +2,7 @@ import "server-only";
 import { parseContract, type ExplorerSummary, type RunSettings, type RunSummary, type ScenarioDocument, type Snapshot } from "@fillrate/contracts";
 import { EXAMPLES_OWNER, type Store } from "@fillrate/db";
 
-import { quotas, syntheticAdmission, type Principal } from "./access";
-import { mode } from "./auth";
+import { OWNER } from "./access";
 import { ApiError } from "./errors";
 
 import lesson from "../../../../../examples/lesson-fulfillment.json";
@@ -12,8 +11,7 @@ import matrixSnapshot from "../../../../../examples/lesson-matrix-snapshot.json"
 import matrix from "../../../../../examples/lesson-matrix.json";
 import m1 from "../../../../../examples/m1-synthetic.json";
 
-// Keyless and run-key submissions execute bundled synthetic scenarios only (spec §14: public
-// surfaces stay synthetic). `lesson` is the 2,000-order fulfillment example; `m1` is the small
+// Bundled synthetic scenarios. `lesson` is the 2,000-order fulfillment example; `m1` is the small
 // edge-case example (always partial coverage, so its sweeps never rank); `matrix_estimated` and
 // `matrix_recorded` are the road matrix example's one scenario on estimated travel and on its bundled
 // synthetic recorded matrix (spec §13). An example's `travel` is a travel snapshot document its
@@ -48,19 +46,8 @@ export function exampleInfo(example: Example) {
 
 export { ApiError, errorResponse } from "./errors";
 
-export const maxSweepRuns = () => quotas().maxSweepRuns;
-
-/**
- * Whether a page offers run controls (the API decides on submission). `key` is a `?key=` run key in the
- * page URL; it is checked when the run is submitted.
- */
-export function canStartRuns(who: Principal, key?: unknown) {
-  return Boolean(who.ownerId || who.runKey || process.env.PUBLIC_SYNTHETIC_RUNS === "1" || (typeof key === "string" && process.env.RUN_KEY));
-}
-
-/** What a page says instead of run controls. */
-export const runsClosedNote = () =>
-  mode().mode === "hosted" ? "Sign in to start runs. Existing runs stay viewable." : "Starting runs is disabled on this server. Existing runs stay viewable.";
+/** Upper bound on the runs one sweep (or tasks one explorer request) may expand to. */
+export const maxSweepRuns = () => 25;
 
 const exampleSnapshot = (example: Example): Snapshot => ({ schema_version: 1, document: example.scenario as unknown as Snapshot["document"] });
 const versionCache = new WeakMap<Store, Map<ExampleId, string>>();
@@ -120,13 +107,12 @@ export function parseOverrides(input: unknown): Partial<RunSettings> {
   return out;
 }
 
-export function createRun(store: Store, who: Principal, idempotencyKey: string, overrides: Partial<RunSettings>, example: Example = EXAMPLES.m1) {
+export function createRun(store: Store, idempotencyKey: string, overrides: Partial<RunSettings>, example: Example = EXAMPLES.m1) {
   if (!idempotencyKey || idempotencyKey.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
   const settings = parseContract("RunSettings", { ...example.settings, ...overrides });
   const snapshot: Snapshot = { schema_version: 1, document: settings as unknown as Snapshot["document"] };
-  const { ownerId, admission } = syntheticAdmission(who);
   try {
-    return store.enqueue(exampleVersion(store, example), snapshot, idempotencyKey, Date.now(), 3, "pipeline", { ownerId, admission });
+    return store.enqueue(exampleVersion(store, example), snapshot, idempotencyKey, Date.now(), 3, "pipeline", { ownerId: OWNER });
   } catch (error) {
     if (error instanceof Error && error.message === "idempotency_conflict")
       throw new ApiError(409, "idempotency_conflict", "This Idempotency-Key was already used with different settings.");

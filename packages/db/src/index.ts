@@ -63,11 +63,9 @@ export class Store {
   }
 
   /**
-   * Queues one run. `ownerId` is the submitter; it must own the version's scenario unless that is a bundled
-   * example. `admission` (spec §14 quotas) is checked and charged in the same write transaction as the insert,
-   * so concurrent requests and restarts cannot overshoot; an idempotent replay is never charged twice.
+   * Queues one run. `ownerId` is the submitter; it must own the version's scenario unless that is a bundled example.
    */
-  enqueue(versionId: string, settings: Snapshot, idempotencyKey: string, now = Date.now(), maxAttempts = 3, kind: RunKind = "pipeline", options: { ownerId?: string; admission?: Admission } = {}) {
+  enqueue(versionId: string, settings: Snapshot, idempotencyKey: string, now = Date.now(), maxAttempts = 3, kind: RunKind = "pipeline", options: { ownerId?: string } = {}) {
     parseContract("Snapshot", settings);
     if (!idempotencyKey || idempotencyKey.length > 300) throw new Error("invalid_idempotency_key");
     const ownerId = options.ownerId ?? OPERATOR;
@@ -80,7 +78,6 @@ export class Store {
         if (existing.requestHash !== requestHash || existing.ownerId !== ownerId) throw new Error("idempotency_conflict");
         return existing.id;
       }
-      if (options.admission) admit(tx, options.admission, 1, now);
       return insertRun(tx, versionId, settings, idempotencyKey, requestHash, now, maxAttempts, kind, ownerId);
     }, { behavior: "immediate" });
   }
@@ -197,7 +194,7 @@ export class Store {
   }
 
   /** One sweep: the experiment and all of its runs commit together, or nothing does (no partial sweep). */
-  createExperiment(input: { versionId: string; name: string; spec: unknown; comparison: unknown; runs: { settings: Snapshot; varied: unknown }[]; ownerId?: string; admission?: Admission }, idempotencyKey: string, now = Date.now()) {
+  createExperiment(input: { versionId: string; name: string; spec: unknown; comparison: unknown; runs: { settings: Snapshot; varied: unknown }[]; ownerId?: string}, idempotencyKey: string, now = Date.now()) {
     if (!idempotencyKey || idempotencyKey.length > 280) throw new Error("invalid_idempotency_key");
     if (!input.runs.length) throw new Error("empty_sweep");
     const ownerId = input.ownerId ?? OPERATOR;
@@ -212,8 +209,6 @@ export class Store {
         if (existing.requestHash !== requestHash || existing.ownerId !== ownerId) throw new Error("idempotency_conflict");
         return existing.id;
       }
-      // A sweep is one submission for the active limit, but every child run is a solve admission.
-      if (input.admission) admit(tx, input.admission, input.runs.length, now);
       const id = randomUUID();
       tx.insert(s.experiments).values({ id, versionId: input.versionId, name: input.name, spec: canonical(input.spec), comparison: canonical(input.comparison), idempotencyKey, requestHash, createdAt: now, ownerId }).run();
       input.runs.forEach((run, position) => {
@@ -253,27 +248,6 @@ export class Store {
       WHERE sc.ownerId='examples' OR sc.ownerId=?
       GROUP BY e.id ORDER BY e.createdAt DESC, e.id DESC LIMIT ?`).all(ownerId ?? "", limit) as { id: string; name: string; versionId: string; createdAt: number; runs: number; finished: number }[];
   }
-
-  /** Sliding-window budget shared by every caller of `bucket`; records `cost` only when it fits. */
-  spendRate(bucket: string, cost: number, limit: number, windowMs: number, now = Date.now()) {
-    if (!Number.isSafeInteger(cost) || cost < 1) throw new Error("invalid_rate_cost");
-    return this.db.transaction(tx => spend(tx, bucket, cost, limit, windowMs, now), { behavior: "immediate" });
-  }
-
-  /** Admission for work that is not a run (geocoding, uploads): checks and charges in one transaction, then calls `fn`. */
-  admitWork<T>(admission: Admission, cost: number, fn: () => T, now = Date.now()): T {
-    return this.db.transaction(tx => { admit(tx, admission, cost, now); return fn(); }, { behavior: "immediate" });
-  }
-
-  /** How much of each window a bucket has used, for quota displays. */
-  rateUsage(bucket: string, windowMs: number, now = Date.now()) {
-    const rows = this.db.select({ cost: s.rateEvents.cost, at: s.rateEvents.at }).from(s.rateEvents)
-      .where(and(eq(s.rateEvents.bucket, bucket), sql`${s.rateEvents.at} > ${now - windowMs}`)).orderBy(asc(s.rateEvents.at)).all();
-    return { used: rows.reduce((n, r) => n + r.cost, 0), resetsAt: rows.length ? rows[0].at + windowMs : null };
-  }
-
-  /** Unfinished submissions of one owner: a sweep counts once, as does a geocoding job. */
-  activeSubmissions(ownerId: string) { return activeSubmissions(this.db, ownerId); }
 
   /** The owner of a version's scenario ("examples" for the bundled synthetic scenarios). */
   versionOwner(versionId: string) {
@@ -331,28 +305,6 @@ export class Store {
       this.sqlite.prepare(`DELETE FROM scenarios WHERE id IN (${marks(scenarios)})`).run(...scenarios);
       this.purgeUnreferenced();
       return { scenarios: scenarios.length, runs: runs.length };
-    }).immediate();
-  }
-
-  /** Everything an owner has: scenarios (with their runs), synthetic runs and sweeps they submitted, snapshot links, scoped caches and quota ledger. */
-  deleteOwnerData(ownerId: string) {
-    if (ownerId === EXAMPLES_OWNER || ownerId === PUBLIC_OWNER) throw new Error("invalid_owner");
-    return this.sqlite.transaction(() => {
-      const scenarios = (this.sqlite.prepare("SELECT id FROM scenarios WHERE ownerId=?").all(ownerId) as { id: string }[]).map(r => r.id);
-      const own = this.sqlite.prepare("SELECT count(*) AS n FROM runs r JOIN jobs j ON j.runId=r.id WHERE r.ownerId=? AND j.status IN ('queued','claimed','running')").get(ownerId) as { n: number };
-      if (own.n) throw new Error("active_work");
-      const deleted = this.deleteScenarios(scenarios);
-      const runs = (this.sqlite.prepare("SELECT id FROM runs WHERE ownerId=?").all(ownerId) as { id: string }[]).map(r => r.id);
-      const experiments = (this.sqlite.prepare("SELECT id FROM experiments WHERE ownerId=?").all(ownerId) as { id: string }[]).map(r => r.id);
-      for (const id of experiments) this.sqlite.prepare("DELETE FROM experiment_runs WHERE experimentId=?").run(id);
-      this.sqlite.prepare("DELETE FROM experiments WHERE ownerId=?").run(ownerId);
-      this.deleteRuns(runs);
-      this.sqlite.prepare("DELETE FROM travel_snapshot_owners WHERE ownerId=?").run(ownerId);
-      this.sqlite.prepare("DELETE FROM travel_snapshots WHERE id NOT IN (SELECT snapshotId FROM travel_snapshot_owners)").run();
-      this.sqlite.prepare("DELETE FROM geocode_cache WHERE key LIKE ? ESCAPE '\\'").run(`${ownerId.replace(/[\\%_]/g, c => `\\${c}`)}|%`);
-      this.sqlite.prepare("DELETE FROM rate_events WHERE bucket LIKE ? ESCAPE '\\'").run(`%${ownerId.replace(/[\\%_]/g, c => `\\${c}`)}%`);
-      this.purgeUnreferenced();
-      return { scenarios: deleted.scenarios, runs: deleted.runs + runs.length };
     }).immediate();
   }
 
@@ -618,65 +570,9 @@ export class Store {
   }
 }
 export type RunKind = "pipeline" | "explorer" | "travel_snapshot";
-export const OPERATOR = "operator", EXAMPLES_OWNER = "examples", PUBLIC_OWNER = "public";
-
-/**
- * Persistent admission control (spec §14). `maxActive` bounds one owner's unfinished submissions, `maxQueued`
- * the global queue, and every bucket a sliding window charged `cost` (solve admissions, per account or IP).
- */
-export type Admission = { ownerId: string; maxActive?: number; maxQueued?: number; buckets?: { bucket: string; limit: number; windowMs: number; label: string }[] };
-export class AdmissionError extends Error {
-  override readonly name = "AdmissionError";
-  constructor(readonly code: "active_limit" | "queue_full" | "quota_exceeded", message: string, readonly retryAfterMs: number) { super(message); }
-}
-/** By name, not `instanceof`: bundlers may load this module more than once. */
-export const isAdmissionError = (error: unknown): error is AdmissionError => error instanceof Error && error.name === "AdmissionError";
+export const OPERATOR = "operator", EXAMPLES_OWNER = "examples";
 
 type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
-function spend(tx: Tx, bucket: string, cost: number, limit: number, windowMs: number, now: number, record = true) {
-  tx.delete(s.rateEvents).where(sql`${s.rateEvents.at} <= ${now - 7 * 24 * 3_600_000}`).run();
-  const used = tx.select({ n: sql<number>`coalesce(sum(${s.rateEvents.cost}), 0)` }).from(s.rateEvents)
-    .where(and(eq(s.rateEvents.bucket, bucket), sql`${s.rateEvents.at} > ${now - windowMs}`)).get()!.n;
-  if (used + cost > limit) {
-    // The window frees enough room once the oldest events that push it over have aged out.
-    const events = tx.select({ at: s.rateEvents.at, cost: s.rateEvents.cost }).from(s.rateEvents).where(and(eq(s.rateEvents.bucket, bucket), sql`${s.rateEvents.at} > ${now - windowMs}`)).orderBy(asc(s.rateEvents.at)).all();
-    let free = limit - used, at = now;
-    for (const e of events) { if (free >= cost) break; free += e.cost; at = e.at + windowMs; }
-    return { ok: false as const, used, retryAfterMs: cost > limit ? windowMs : Math.max(1, at - now) };
-  }
-  if (record) tx.insert(s.rateEvents).values({ id: randomUUID(), bucket, cost, at: now }).run();
-  return { ok: true as const, used: used + cost, retryAfterMs: 0 };
-}
-
-const ACTIVE_RUN = sql`status IN ('queued','claimed','running')`;
-function activeSubmissions(db: DB | Tx, ownerId: string) {
-  const row = db.get<{ n: number }>(sql`SELECT
-    (SELECT count(*) FROM runs WHERE ownerId=${ownerId} AND ${ACTIVE_RUN} AND id NOT IN (SELECT runId FROM experiment_runs))
-    + (SELECT count(DISTINCT er.experimentId) FROM experiment_runs er JOIN runs r ON r.id=er.runId WHERE r.ownerId=${ownerId} AND r.status IN ('queued','claimed','running'))
-    + (SELECT count(*) FROM geocode_jobs WHERE ownerId=${ownerId} AND status IN ('queued','running')) AS n`);
-  return row.n;
-}
-
-function admit(tx: Tx, admission: Admission, cost: number, now: number) {
-  if (admission.maxActive !== undefined) {
-    const active = activeSubmissions(tx, admission.ownerId);
-    if (active + 1 > admission.maxActive) throw new AdmissionError("active_limit", `You already have ${active} unfinished job${active === 1 ? "" : "s"} (limit ${admission.maxActive}). Wait for it to finish or cancel it.`, 15_000);
-  }
-  if (admission.maxQueued !== undefined) {
-    const active = tx.get<{ n: number }>(sql`SELECT count(*) AS n FROM jobs WHERE ${ACTIVE_RUN}`).n;
-    if (active + cost > admission.maxQueued) throw new AdmissionError("queue_full", `The solve queue is full (${active} active, limit ${admission.maxQueued}). Try again shortly.`, 30_000);
-  }
-  // Check every bucket before charging any, so a refusal charges nothing.
-  for (const b of admission.buckets ?? []) {
-    const result = spend(tx, b.bucket, cost, b.limit, b.windowMs, now, false);
-    if (!result.ok) {
-      const reset = new Date(now + result.retryAfterMs).toISOString().replace(/\.\d+Z$/, "Z");
-      const need = cost === 1 ? "" : `This request needs ${cost} ${b.label}. `;
-      throw new AdmissionError("quota_exceeded", cost > b.limit ? `This request needs ${cost} ${b.label}; the limit is ${b.limit}.` : `${need}${result.used} of ${b.limit} ${b.label} are used. Room frees up at ${reset}.`, result.retryAfterMs);
-    }
-  }
-  for (const b of admission.buckets ?? []) spend(tx, b.bucket, cost, b.limit, b.windowMs, now);
-}
 
 function insertRun(tx: Tx, versionId: string, settings: Snapshot, idempotencyKey: string, requestHash: string, now: number, maxAttempts: number, kind: RunKind, ownerId: string) {
   const id = randomUUID();

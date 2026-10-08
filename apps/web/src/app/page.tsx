@@ -1,10 +1,10 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowUpRight, Plus } from "lucide-react"
+import { ArrowRight, ArrowUpRight, Plus } from "lucide-react"
 
 import HeroGlobe from "@/components/animated/hero-globe"
 import { BrandLink } from "@/components/brand/brand-link"
-import { RequestAccessButton } from "@/components/landing/request-access-button"
+import { Button } from "@/components/ui/button"
 import { LandingHeader } from "@/components/landing/landing-header"
 
 const REPO_URL = "https://github.com/timblazing/fillrate"
@@ -37,9 +37,9 @@ const questions = [
       "Yes. Import orders, stock, and vehicles as a scenario, or start from one of the bundled synthetic examples to see how a plan comes together.",
   },
   {
-    question: "Where can I see the code and project progress?",
+    question: "Where can I see the code?",
     answer:
-      "The source code is on GitHub. The progress page shows the project milestones and recorded evidence.",
+      "The source code and issue tracker are on GitHub.",
   },
 ]
 
@@ -66,7 +66,12 @@ export default function Home() {
                 When stock is short and trucks are finite, Fillrate shows how different choices change what ships, what doesn&rsquo;t, and how full each trailer gets.
               </p>
               <div className="mt-9 flex flex-wrap items-center gap-3">
-                <RequestAccessButton />
+                <Button size="lg" className="h-11 gap-3 rounded-full pr-2 pl-5 text-sm" render={<Link href="/scenarios" />}>
+                  Open Fillrate
+                  <span className="bg-primary-foreground/10 flex size-7 items-center justify-center rounded-full">
+                    <ArrowRight aria-hidden="true" className="size-3.5" />
+                  </span>
+                </Button>
               </div>
             </div>
 

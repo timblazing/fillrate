@@ -33,7 +33,7 @@ Local Fillrate is single-user with no account. Keep it on your own machine for r
 
 ```sh
 mkdir -p data
-docker run --rm -p 127.0.0.1:3000:3000 -e FILLRATE_MODE=local \
+docker run --rm -p 127.0.0.1:3000:3000 \
   -v "$PWD/data:/app/data" ghcr.io/timblazing/fillrate:latest
 ```
 
@@ -44,7 +44,7 @@ Open http://localhost:3000. Data is stored in `./data/fillrate.sqlite`.
 ```sh
 bun install
 (cd services/optimizer && uv sync)
-FILLRATE_MODE=local bun run dev   # terminal 1: http://localhost:3000
+bun run dev                       # terminal 1: http://localhost:3000
 bun run worker                    # terminal 2: the Python solver
 ```
 

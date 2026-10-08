@@ -1,4 +1,3 @@
-import { principal } from "@/lib/server/access"
 import { initializeDatabase } from "@/lib/server/database"
 import { createExplorer } from "@/lib/server/experiments"
 import { errorResponse, runDetail } from "@/lib/server/runs"
@@ -10,10 +9,9 @@ export const dynamic = "force-dynamic"
 // Body: { versionId? (your imported version) or example? ("lesson" default, "m1"), base?: RunSettings overrides, settings: { ks, seeds, selected_k, reference_seed, h3_resolutions } }
 export async function POST(request: Request) {
   try {
-    const who = await principal(request)
     const body = await boundedJson(request)
     const store = initializeDatabase()
-    const id = createExplorer(store, who, body ?? {}, request.headers.get("idempotency-key") ?? "")
+    const id = createExplorer(store, body ?? {}, request.headers.get("idempotency-key") ?? "")
     return Response.json(runDetail(store, id), { status: 201, headers: { "Cache-Control": "private, no-store" } })
   } catch (error) {
     return errorResponse(error)

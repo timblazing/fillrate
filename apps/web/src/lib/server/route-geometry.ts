@@ -1,8 +1,7 @@
 import "server-only";
-import { EXAMPLES_OWNER, type Store } from "@fillrate/db";
+import type { Store } from "@fillrate/db";
 import { callRouteGeometry, geometryEligibility, geometryKey, geometryRequest, GeometryError, type Eligibility, type RouteGeometryResponse } from "@fillrate/db/route-geometry";
 
-import { geometryAdmission, type Principal } from "./access";
 import { workerToken } from "./database";
 import { ApiError } from "./errors";
 import { runDetail } from "./runs";
@@ -68,10 +67,9 @@ export function cachedGeometries(store: Store, runId: string): Map<string, Route
 const inflight = new Map<string, Promise<RouteGeometryResponse>>();
 
 /**
- * Fetches (or returns the cached) geometry for one truck. Only a cache miss spends quota, charged before the
- * optimizer call; a concurrent request for the same key shares one fetch.
+ * Fetches (or returns the cached) geometry for one truck. A concurrent request for the same key shares one fetch.
  */
-export async function fetchGeometry(store: Store, who: Principal, runId: string, versionId: string, truckId: unknown) {
+export async function fetchGeometry(store: Store, runId: string, truckId: unknown) {
   if (typeof truckId !== "string" || !truckId) throw new ApiError(400, "invalid_truck", "Send { truck: <truck id> }.", ["truck"]);
   const { summary, eligibility } = eligibleOrRefuse(store, runId);
   if (!summary.trucks.some(t => t.id === truckId)) throw new ApiError(404, "truck_not_found", "No truck with this ID in the run.", ["truck"]);
@@ -80,11 +78,9 @@ export async function fetchGeometry(store: Store, who: Principal, runId: string,
   if (cached) return { geometry: cached as RouteGeometryResponse, cached: true };
   const running = inflight.get(key);
   if (running) return { geometry: await running, cached: true };
-  const admission = geometryAdmission(who, store.versionOwner(versionId) === EXAMPLES_OWNER);
   const work = Promise.resolve().then(async () => {
     try {
       const request = geometryRequest(store, summary, truckId, eligibility.snapshotId);
-      if (admission) store.admitWork(admission, 1, () => undefined);
       const result = await callRouteGeometry(optimizerUrl(), workerToken(), request);
       store.saveRouteGeometry({ key, runId, truckId, snapshotId: eligibility.snapshotId, deployment: eligibility.deployment }, result);
       return result;

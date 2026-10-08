@@ -137,11 +137,3 @@ test("an experiment and all of its runs commit together and replay idempotently"
   expect(() => store.createExperiment({ versionId: "missing", name: "x", spec: {}, comparison: {}, runs }, "key-2")).toThrow(/FOREIGN KEY/);
   expect(store.listExperiments(50, "operator")).toHaveLength(1);
 });
-
-test("the global rate ledger refuses spending over the window and frees it afterwards", () => {
-  expect(store.spendRate("public", 20, 25, 60_000, 1_000).ok).toBe(true);
-  const refused = store.spendRate("public", 10, 25, 60_000, 2_000);
-  expect(refused).toMatchObject({ ok: false, used: 20, retryAfterMs: 59_000 });
-  expect(store.spendRate("other", 10, 25, 60_000, 2_000).ok).toBe(true);
-  expect(store.spendRate("public", 10, 25, 60_000, 61_001).ok).toBe(true);
-});

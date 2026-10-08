@@ -52,9 +52,4 @@ test("the example snapshot is read-only and private to the examples owner", () =
   expect(() => run(recorded.settings, "copy", own, "user:a")).toThrow("travel_snapshot_not_found");
   expect(() => store.sqlite.prepare("UPDATE travel_snapshots SET profile='x'").run()).toThrow(/immutable/);
   expect(() => store.sqlite.prepare("DELETE FROM travel_snapshots").run()).toThrow(/cannot be deleted/);
-  expect(() => store.deleteOwnerData(EXAMPLES_OWNER)).toThrow("invalid_owner");
-  // Deleting an account that uploaded the same document keeps the examples owner's link and the row.
-  store.saveTravelSnapshot(matrix, Date.now(), "user:a");
-  store.deleteOwnerData("user:a");
-  expect(store.travelSnapshotInfo(snapshotId, EXAMPLES_OWNER)?.id).toBe(snapshotId);
 });

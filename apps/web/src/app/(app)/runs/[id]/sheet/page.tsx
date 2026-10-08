@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { initializeDatabase } from "@/lib/server/database"
-import { assertRunRead, pagePrincipal } from "@/lib/server/access"
+import { assertRunRead } from "@/lib/server/access"
 import { ApiError, runDetail } from "@/lib/server/runs"
 import { type SheetColumn, shipmentSheets } from "@/lib/shipment-sheet"
 import { travelBasis } from "@/lib/units"
@@ -18,10 +18,9 @@ export default async function SheetPage({ params, searchParams }: PageProps<"/ru
   let detail
   try {
     const store = initializeDatabase()
-    assertRunRead(store, await pagePrincipal(), id)
+    assertRunRead(store, id)
     detail = runDetail(store, id)
   } catch (error) {
-    // Another owner's runs read as missing, so their existence is not revealed.
     if (error instanceof ApiError && [403, 404].includes(error.status)) notFound()
     throw error
   }

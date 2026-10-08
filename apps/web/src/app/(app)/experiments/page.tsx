@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button"
 import { ExampleSwitch } from "@/components/lab/example-switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { initializeDatabase } from "@/lib/server/database"
-import { pagePrincipal } from "@/lib/server/access"
 import { visibleExperiments } from "@/lib/server/experiments"
-import { canStartRuns, EXAMPLES, exampleInfo, maxSweepRuns, pageExample, runsClosedNote } from "@/lib/server/runs"
+import { EXAMPLES, exampleInfo, maxSweepRuns, pageExample } from "@/lib/server/runs"
 
 import { SweepBuilder } from "./sweep-builder"
 
@@ -15,14 +14,11 @@ export const dynamic = "force-dynamic"
 export const metadata = { title: "Sweeps · Fillrate" }
 
 export default async function ExperimentsPage({ searchParams }: PageProps<"/experiments">) {
-  const { key, k, example: exampleParam } = await searchParams
-  const runKey = typeof key === "string" ? key : undefined
-  const who = await pagePrincipal()
-  const experiments = visibleExperiments(initializeDatabase(), who)
+  const { k, example: exampleParam } = await searchParams
+  const experiments = visibleExperiments(initializeDatabase())
   // Sweeps default to the 2,000-order example: the small example always has an unreachable stop, so it never ranks.
   const example = pageExample(exampleParam)
   const startK = typeof k === "string" && /^\d+$/.test(k) ? Number(k) : (example.settings.k ?? 4)
-  const keyQuery = runKey ? `&key=${encodeURIComponent(runKey)}` : ""
   return (
     <Page>
       <PageHeader
@@ -34,11 +30,11 @@ export default async function ExperimentsPage({ searchParams }: PageProps<"/expe
             under the same assumptions.
           </>
         }
-        actions={<Button variant="outline" size="sm" render={<Link href={`/runs?example=${example.id}${keyQuery}`} />}>Pipeline runs</Button>}
+        actions={<Button variant="outline" size="sm" render={<Link href={`/runs?example=${example.id}`} />}>Pipeline runs</Button>}
       >
-        <ExampleSwitch examples={Object.values(EXAMPLES).map(exampleInfo)} current={example.id} href={(id) => `/experiments?example=${id}${keyQuery}`} />
+        <ExampleSwitch examples={Object.values(EXAMPLES).map(exampleInfo)} current={example.id} href={(id) => `/experiments?example=${id}`} />
         {example.id === "m1" && <p className="text-warning-foreground text-sm">The small example always leaves one stop unreachable, so its plans are partial and never ranked. Use the 2,000-order example to see Best option, 2nd best and 3rd.</p>}
-        {canStartRuns(who, key) ? <SweepBuilder key={example.id} example={example.id} initialK={startK} runKey={runKey} limit={maxSweepRuns()} /> : <p className="text-muted-foreground text-sm">{runsClosedNote().replace("runs", "sweeps").replace("runs", "sweeps")}</p>}
+        <SweepBuilder key={example.id} example={example.id} initialK={startK} limit={maxSweepRuns()} />
       </PageHeader>
       <section className="flex flex-col gap-3">
         <h2 className="text-base font-semibold">Recent sweeps</h2>
@@ -58,7 +54,7 @@ export default async function ExperimentsPage({ searchParams }: PageProps<"/expe
                 {experiments.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell>
-                      <Link href={`/experiments/${e.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`} className="underline-offset-4 hover:underline">{e.name}</Link>
+                      <Link href={`/experiments/${e.id}`} className="underline-offset-4 hover:underline">{e.name}</Link>
                       <span className="text-muted-foreground ml-2 font-mono text-xs">{e.id.slice(0, 8)}</span>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{e.finished} / {e.runs}</TableCell>

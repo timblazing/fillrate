@@ -14,7 +14,7 @@ export type Rerun =
   | { kind: "scenario"; versionId: string; settings: RunSummary["settings"] }
 
 /** Starts a new run of the same scenario version and settings (recovery after a failed, cancelled or interrupted run); the earlier run is never changed. */
-export function RerunButton({ rerun, runKey, label = "Run again", size = "sm", variant = "outline" }: { rerun: Rerun; runKey?: string; label?: string; size?: "sm" | "xs"; variant?: "outline" | "default" }) {
+export function RerunButton({ rerun, label = "Run again", size = "sm", variant = "outline" }: { rerun: Rerun; label?: string; size?: "sm" | "xs"; variant?: "outline" | "default" }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   async function start() {
@@ -26,12 +26,12 @@ export function RerunButton({ rerun, runKey, label = "Run again", size = "sm", v
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
         body: JSON.stringify(body),
       })
       const created = await res.json()
       if (!res.ok) throw new Error(created.error?.message ?? "Could not start the run.")
-      router.push(`/runs/${created.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
+      router.push(`/runs/${created.id}`)
     } catch (error) {
       toastManager.add({ type: "error", title: "Run not started", description: error instanceof Error ? error.message : undefined })
       setPending(false)

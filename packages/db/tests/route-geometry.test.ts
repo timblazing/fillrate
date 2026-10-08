@@ -66,9 +66,9 @@ test("the request is the depot then the visits in sequence order, with no return
   try { geometryRequest(store, summaryFor("valhalla", id), "C1-T2", id); expect.unreachable(); } catch (error) { expect((error as GeometryError).code).toBe("stop_without_coordinates"); }
 });
 
-test("the cache is keyed by run, truck, snapshot and deployment, stored apart from results, and goes with its run or owner", () => {
-  const saved = saveScenario(store, { document: structuredClone(example.scenario), author: "T", metadata, source: { ordersCsv: "x" }, ownerId: "user:a" });
-  const runId = store.enqueue(saved.versionId, { schema_version: 1, document: { n: 0 } }, "k1", 1, 3, "pipeline", { ownerId: "user:a" });
+test("the cache is keyed by run, truck, snapshot and deployment, stored apart from results, and goes with its run", () => {
+  const saved = saveScenario(store, { document: structuredClone(example.scenario), author: "T", metadata, source: { ordersCsv: "x" } });
+  const runId = store.enqueue(saved.versionId, { schema_version: 1, document: { n: 0 } }, "k1", 1, 3, "pipeline", { ownerId: "operator" });
   const id = snapshot("valhalla");
   const dep = "d".repeat(64);
   const key = geometryKey(runId, "C1-T1", id, dep);
@@ -83,9 +83,9 @@ test("the cache is keyed by run, truck, snapshot and deployment, stored apart fr
   expect(store.routeGeometry(key)).toEqual(payload);
   expect(store.routeGeometryTrucks(runId, dep)).toEqual(["C1-T1"]);
   expect(store.routeGeometryTrucks(runId, "e".repeat(64))).toEqual([]);
-  // Deleting the owner's data removes the run, its cached geometry and the now unreferenced artifact.
+  // Deleting the scenario removes the run, its cached geometry and the now unreferenced artifact.
   (store as unknown as { sqlite: { prepare(sql: string): { run(...a: unknown[]): unknown } } }).sqlite.prepare("UPDATE jobs SET status='cancelled' WHERE runId=?").run(runId);
-  store.deleteOwnerData("user:a");
+  store.deleteScenarios([saved.scenarioId]);
   expect(store.routeGeometry(key)).toBeNull();
   expect(store.routeGeometryTrucks(runId, dep)).toEqual([]);
 });

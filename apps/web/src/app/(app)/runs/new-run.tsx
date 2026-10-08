@@ -16,7 +16,7 @@ const kOptions = [
 
 // Starts a run of a bundled synthetic scenario. One idempotency key per click, so a retried
 // request never creates a second run.
-export function NewRun({ open, example, defaultK, runKey, closedNote = "Starting runs is disabled on this server. Existing runs stay viewable." }: { open: boolean; example: string; defaultK: number; runKey?: string; closedNote?: string }) {
+export function NewRun({ example, defaultK }: { example: string; defaultK: number }) {
   const router = useRouter()
   // Fixed k is the normal path now that the diameter policy is off (spec v1.8); start from the example's k.
   const [k, setK] = useState(String(defaultK))
@@ -28,21 +28,18 @@ export function NewRun({ open, example, defaultK, runKey, closedNote = "Starting
     try {
       const res = await fetch("/api/v1/runs", {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
         body: JSON.stringify({ example, settings: { k: k === "auto" ? null : Number(k), solver_seed: Number(seed) } }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error?.message ?? "Could not start the run.")
-      router.push(`/runs/${body.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
+      router.push(`/runs/${body.id}`)
     } catch (error) {
       toastManager.add({ type: "error", title: "Run not started", description: error instanceof Error ? error.message : undefined })
       setPending(false)
     }
   }
 
-  if (!open) {
-    return <p className="text-muted-foreground text-sm">{closedNote}</p>
-  }
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
@@ -83,22 +80,21 @@ export function NewRun({ open, example, defaultK, runKey, closedNote = "Starting
 }
 
 /** Starts a clustering-only k explorer job on a bundled example: k and k + 1 × seeds 0–9, plus H3 resolutions 1–3. */
-export function NewExplorer({ open, example, defaultK, runKey }: { open: boolean; example: string; defaultK: number; runKey?: string }) {
+export function NewExplorer({ example, defaultK }: { example: string; defaultK: number }) {
   const router = useRouter()
   const [k, setK] = useState(String(defaultK))
   const [pending, setPending] = useState(false)
-  if (!open) return null
   async function start() {
     setPending(true)
     try {
       const res = await fetch("/api/v1/explorer", {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) },
+        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
         body: JSON.stringify({ example, settings: { selected_k: Number(k), ks: [Number(k), Number(k) + 1] } }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error?.message ?? "Could not start the explorer.")
-      router.push(`/explore/${body.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
+      router.push(`/explore/${body.id}`)
     } catch (error) {
       toastManager.add({ type: "error", title: "Explorer not started", description: error instanceof Error ? error.message : undefined })
       setPending(false)

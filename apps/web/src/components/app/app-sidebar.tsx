@@ -9,7 +9,6 @@ import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@/components/
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
@@ -23,8 +22,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-import { NavUser, type NavUserProps } from "./nav-user"
-
 type NavItem = { href: string; title: string; icon: LucideIcon; items?: { href: string; title: string }[] }
 
 // Spec §4 destinations. Runs and the k explorer open from a scenario, so they sit under Scenarios.
@@ -37,16 +34,13 @@ const under = (pathname: string, href: string) => pathname === href || pathname.
 
 /** Top-level section for a path: runs and the explorer belong to Scenarios. */
 export const sectionOf = (pathname: string) =>
-  under(pathname, "/runs") || under(pathname, "/explore") ? "/scenarios" : [...navMain, { href: "/account" }, { href: "/admin" }].find(({ href }) => under(pathname, href))?.href
-
-const modeLabel = { hosted: "Hosted workspace", local: "Local workspace", operator: "Operator workspace" } as const
+  under(pathname, "/runs") || under(pathname, "/explore") ? "/scenarios" : navMain.find(({ href }) => under(pathname, href))?.href
 
 /**
- * Product sidebar, modeled on shadcn sidebar-07 (standard sidebar that collapses to icons): brand, main nav with sub-items,
- * secondary nav pinned to the bottom, and the account menu (Settings, Access requests, Sign out) in the footer.
+ * Product sidebar, modeled on shadcn sidebar-07 (standard sidebar that collapses to icons): brand and main nav with sub-items.
  * Only the header's SidebarTrigger (or ⌘B) toggles it; there is deliberately no SidebarRail.
  */
-export function AppSidebar({ admin, mode, user, ...props }: { admin: boolean; mode: keyof typeof modeLabel; user: NavUserProps | null } & ComponentProps<typeof Sidebar>) {
+export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const active = sectionOf(pathname)
   const { isMobile, setOpenMobile } = useSidebar()
@@ -64,7 +58,6 @@ export function AppSidebar({ admin, mode, user, ...props }: { admin: boolean; mo
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Fillrate</span>
-                <span className="text-muted-foreground truncate text-xs">{modeLabel[mode]}</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -114,9 +107,6 @@ export function AppSidebar({ admin, mode, user, ...props }: { admin: boolean; mo
           </SidebarGroup>
         </nav>
       </SidebarContent>
-      <SidebarFooter className="print:hidden">
-        <NavUser user={user} admin={admin} workspace={modeLabel[mode]} active={active} onNavigate={close} />
-      </SidebarFooter>
     </Sidebar>
   )
 }

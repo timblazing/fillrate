@@ -1,10 +1,10 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
 
 import { BrandLink } from "@/components/brand/brand-link"
 import { GitHubMark } from "@/components/brand/github-mark"
-import { useRequestAccess } from "@/components/landing/request-access-button"
 import { cn } from "@/lib/utils"
 
 const ring = "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -12,7 +12,6 @@ const ring = "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline
 /** Landing header: blends into the hero until the page scrolls, then picks up a border and blur. */
 export function LandingHeader({ repoUrl }: { repoUrl: string }) {
   const [scrolled, setScrolled] = useState(false)
-  const { pending, requestAccess } = useRequestAccess()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
@@ -32,14 +31,9 @@ export function LandingHeader({ repoUrl }: { repoUrl: string }) {
         <BrandLink showMark={false} className="[&>span]:text-sm" />
 
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={requestAccess}
-            disabled={pending}
-            className={cn("text-muted-foreground hover:text-foreground rounded-sm text-sm transition-colors disabled:opacity-60", ring)}
-          >
-            Dashboard
-          </button>
+          <Link href="/scenarios" className={cn("text-muted-foreground hover:text-foreground rounded-sm text-sm transition-colors", ring)}>
+            Open app
+          </Link>
           <span aria-hidden="true" className="bg-border h-4 w-px" />
           <a
             href={repoUrl}

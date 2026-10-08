@@ -17,7 +17,7 @@ import { type RoadGeometry, RoadGeometryControl } from "./road-geometry"
 const TimelineMap = dynamic(() => import("./timeline-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
 /** Timeline tab: pick a shipment, scrub its planned route, and watch the map marker follow the cursor. */
-export function TimelinePanel({ summary, geo, canFetch, truckId, onSelectTruck }: { summary: RunSummary; geo: RoadGeometry; canFetch: boolean; truckId: string | null; onSelectTruck: (id: string) => void }) {
+export function TimelinePanel({ summary, geo, truckId, onSelectTruck }: { summary: RunSummary; geo: RoadGeometry; truckId: string | null; onSelectTruck: (id: string) => void }) {
   const trucks = summary.trucks
   const [cursor, setCursor] = useState(0)
   const places = useMemo(() => new globalThis.Map(summary.locations.map((l) => [l.id, l])), [summary])
@@ -96,7 +96,7 @@ export function TimelinePanel({ summary, geo, canFetch, truckId, onSelectTruck }
             <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-center text-sm">Map unavailable: a stop on this shipment has no coordinates.</div>
           )}
         </div>
-        <RoadGeometryControl geo={geo} truckId={truck.id} canFetch={canFetch} />
+        <RoadGeometryControl geo={geo} truckId={truck.id} />
       </div>
       <TruckRouteTimeline timeline={timeline} source={source} cursor={cursor} onCursorChange={setCursor} depotLabel={summary.depot.label} clock={summary.time} />
     </div>

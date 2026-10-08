@@ -1,4 +1,4 @@
-import { assertRunRead, principal } from "@/lib/server/access"
+import { assertRunRead } from "@/lib/server/access"
 import { initializeDatabase } from "@/lib/server/database"
 import { ApiError, errorResponse } from "@/lib/server/errors"
 import { cachedGeometry, fetchGeometry, geometryStatus } from "@/lib/server/route-geometry"
@@ -14,7 +14,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
   try {
     const { id } = await ctx.params
     const store = initializeDatabase()
-    assertRunRead(store, await principal(request), id)
+    assertRunRead(store, id)
     const truck = new URL(request.url).searchParams.get("truck")
     return Response.json(truck === null ? geometryStatus(store, id) : cachedGeometry(store, id, truck), { headers })
   } catch (error) {
@@ -23,19 +23,18 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
 }
 
 // POST { truck } with an Idempotency-Key: fetches Valhalla's route for one inspected truck (never a whole run),
-// caches it and returns it. A cached truck returns at once without spending quota.
+// caches it and returns it. A cached truck returns at once at once.
 export async function POST(request: Request, ctx: RouteContext<"/api/v1/runs/[id]/geometry">) {
   try {
     const { id } = await ctx.params
-    const who = await principal(request)
     const store = initializeDatabase()
-    const view = assertRunRead(store, who, id)
+    assertRunRead(store, id)
     const key = request.headers.get("idempotency-key")
     if (!key || key.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).")
     const body = await request.json().catch(() => {
       throw new ApiError(400, "invalid_json", "Send JSON: { \"truck\": \"<truck id>\" }.")
     }) as { truck?: unknown }
-    const result = await fetchGeometry(store, who, id, view.versionId, body?.truck)
+    const result = await fetchGeometry(store, id, body?.truck)
     return Response.json({ ...result.geometry, cached: result.cached }, { headers })
   } catch (error) {
     return errorResponse(error)

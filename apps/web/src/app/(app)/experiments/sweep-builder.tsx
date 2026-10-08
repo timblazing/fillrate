@@ -40,16 +40,14 @@ function numbers(raw: string, integer: boolean) {
  * Sweep builder (spec §8a, design review `compare.vary`): k, seed, inventory and mileage first; the
  * rest under "More". Preview shows the expanded run count before anything is enqueued.
  */
-export function SweepBuilder({ initialK, runKey, limit, versionId, example, base = {}, scenarioKey, onCreated }: {
+export function SweepBuilder({ initialK, limit, versionId, example, base = {}, onCreated }: {
   initialK: number
   /** Bundled example id when sweeping a synthetic scenario. */
   example?: string
-  runKey?: string
   limit: number
-  /** Imported scenario version (operator key); omitted for the bundled synthetic example. */
+  /** Imported scenario version; omitted for the bundled synthetic example. */
   versionId?: string
   base?: Base
-  scenarioKey?: string
   onCreated?: (id: string) => void
 }) {
   const router = useRouter()
@@ -94,7 +92,7 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, example, base
     const body = { name, axes: axes(), ...(versionId ? { versionId, base } : example ? { example } : {}) }
     const res = await fetch(path, {
       method: "POST",
-      headers: { "content-type": "application/json", ...(idempotent ? { "idempotency-key": crypto.randomUUID() } : {}), ...(runKey ? { "x-run-key": runKey } : {}), ...(scenarioKey ? { "x-scenario-key": scenarioKey } : {}) },
+      headers: { "content-type": "application/json", ...(idempotent ? { "idempotency-key": crypto.randomUUID() } : {}) },
       body: JSON.stringify(body),
     })
     const json = await res.json()
@@ -109,7 +107,7 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, example, base
       else {
         const created = await call("/api/v1/experiments", true)
         if (onCreated) onCreated(created.id)
-        else router.push(`/experiments/${created.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
+        else router.push(`/experiments/${created.id}`)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Request failed.")
