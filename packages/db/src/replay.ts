@@ -3,7 +3,6 @@
 // replay script. k explorer jobs get their own bundle (`explorerReplayBundle`, M7). It runs without web credentials, network or live geocoding.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { createHash } from "node:crypto";
 import { crc32, deflateRawSync } from "node:zlib";
 import type { ExplorerSettings, ExplorerSummary, RunSummary } from "@fillrate/contracts";
 import type { Store } from "./index";
@@ -37,12 +36,6 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
   const settings = view.settings.document;
   // A run on a stored directed travel snapshot replays from that exact snapshot, offline.
   const snapshotId = (settings as { travel_snapshot_id?: string | null }).travel_snapshot_id ?? null;
-  // A warm-started run ships the exact source plan its solve stage recorded; replay checks its identity and
-  // refuses the bundle without it (fillrate_optimizer.replay).
-  const warmManifest = view.artifacts.find(a => a.stage_type === "warm_start");
-  const warm = summary.warm_start
-    ? { source: summary.warm_start.source, plan_id: summary.warm_start.plan_id, outcomes: Object.fromEntries(summary.clusters.filter(c => c.warm_start).map(c => [c.id, [c.warm_start!.status, c.warm_start!.reason ?? null]])) }
-    : undefined;
   const deterministic = Object.fromEntries(DETERMINISTIC.map(stage => [stage, view.artifacts.find(a => a.stage_type === stage)?.output_hash ?? null]));
   const expected = {
     run_id: runId,
@@ -54,23 +47,18 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
     deterministic_output_hashes: deterministic,
     // Allocation identity is always checked. Travel is the estimated matrix, or the stored directed snapshot
     // that ships in the bundle (identity-checked and replayed offline); any other provider is refused.
-    allocation: summary.allocation ? { strategy: summary.allocation.strategy, fulfillment_policy: summary.allocation.fulfillment_policy, kind: summary.allocation.kind } : undefined,
+    allocation: summary.allocation ? { strategy: summary.allocation.strategy, fulfillment_policy: summary.allocation.fulfillment_policy } : undefined,
     travel: snapshotId ? { provider: "snapshot", snapshot_id: snapshotId, summary: summary.travel ?? null } : { provider: "estimated", circuity: (settings as { travel_circuity?: number }).travel_circuity ?? 1.2 },
     iteration_based: Boolean((settings as { solver_max_iterations?: number | null }).solver_max_iterations),
-    ...(warm ? { warm_start: warm } : {}),
-    // A fleet is part of the problem: its identity (hash of the vehicle types) must reproduce; trucks per type are
-    // solver results checked only for exact runs (fillrate_optimizer.replay).
-    ...(summary.fleet_usage && summary.settings.fleet ? { fleet: { id: createHash("sha256").update(canonical(summary.settings.fleet)).digest("hex"), usage: Object.fromEntries(summary.fleet_usage.map(u => [u.id, u.trucks])) } } : {}),
   };
   const json = (value: unknown) => Buffer.from(JSON.stringify(value, null, 1) + "\n");
   const files: [string, Buffer, boolean?][] = [
-    ["README.md", Buffer.from(readme(runId, expected.iteration_based, snapshotId, warm?.source.run_id ?? null))],
+    ["README.md", Buffer.from(readme(runId, expected.iteration_based, snapshotId))],
     ["replay.py", Buffer.from(REPLAY_PY)],
     ["scenario.json", json(scenario)],
     ["settings.json", json(settings)],
     ["expected.json", json(expected)],
     // Compact canonical JSON, deflated: a 1,000-node matrix is millions of numbers.
-    ...(warmManifest ? [["warm-start.json", json(store.readArtifact(warmManifest.output_hash))] as [string, Buffer]] : []),
     ...(snapshotId ? [["travel-snapshot.json", Buffer.from(canonical(store.travelSnapshot(snapshotId))), true] as [string, Buffer, boolean]] : []),
     ...DETERMINISTIC.flatMap(stage => {
       const manifest = view.artifacts.find(a => a.stage_type === stage);
@@ -170,7 +158,7 @@ if __name__ == "__main__":
     raise SystemExit(main(root=ROOT))
 `;
 
-function readme(runId: string, iterationBased: boolean, snapshotId: string | null, warmSource: string | null) {
+function readme(runId: string, iterationBased: boolean, snapshotId: string | null) {
   return `# Fillrate replay: run ${runId}
 
 Reproduces this pipeline run offline from the files in this folder: \`scenario.json\` (the saved
@@ -181,11 +169,6 @@ ${snapshotId ? `
 This run selected the directed travel snapshot \`${snapshotId}\` (\`travel-snapshot.json\`). The script loads it
 from the bundle, checks that its content hash equals that identity and routes over its recorded legs; it
 never calls a routing service.
-` : ""}${warmSource ? `
-This run was warm-started from the validated plan of run \`${warmSource}\`. That plan ships as
-\`warm-start.json\`; the script checks that it hashes to the recorded plan identity, starts the same
-clusters from it and requires each cluster's warm-start outcome (used, or skipped with its reason) to
-reproduce. Without the file the replay is refused, never run cold.
 ` : ""}
     uv run --project optimizer python replay.py
 
@@ -194,8 +177,8 @@ reproduce. Without the file the replay is refused, never run cold.
 The script reruns the pipeline and checks:
 
 1. The deterministic stages (preflight, allocation, aggregation, clustering) reproduce the recorded
-   outputs exactly. Measured runtimes (such as a CP-SAT allocation stage's \`runtime_s\`) are
-   provenance and are left out of the comparison.
+   outputs exactly. Measured runtimes (\`runtime_s\`) are provenance and are left out of the
+   comparison.
 2. The allocation strategy and fulfillment policy match the recording, and the plan is validated
    again: its feasibility must match, and its coverage, shipments, planned revenue and loaded miles
    are compared with \`expected.json\`.
@@ -203,8 +186,6 @@ The script reruns the pipeline and checks:
    run on a directed travel snapshot, the snapshot in \`travel-snapshot.json\`: it must hash to the
    recorded identity and the recorded travel provenance must reproduce. A bundle that declared
    another provider would be refused instead of replayed with estimated travel.
-4. A run with a vehicle-type fleet in \`settings.json\` must reproduce the recorded fleet identity; the
-   trucks used per type are compared only when the run reproduces exactly.
 
 ${iterationBased
     ? "This run used an iteration budget, so on the same pinned versions and platform the solve is expected to reproduce exactly. A difference is reported and fails the replay."

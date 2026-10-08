@@ -21,27 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/evaluate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Evaluate
-         * @description Manual plan evaluation (spec §10): bounded, synchronous CPU work in FastAPI's thread
-         *     pool, never on the event loop. Only Next.js calls it, with the worker bearer token.
-         */
-        post: operations["post_evaluate_evaluate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health": {
         parameters: {
             query?: never;
@@ -104,28 +83,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AllocationStageSummary */
-        AllocationStageSummary: {
-            /** Bound */
-            bound: number | null;
-            /**
-             * Objective
-             * @enum {string}
-             */
-            objective: "revenue_cents" | "priority_weighted_pieces";
-            /** Runtime S */
-            runtime_s: number;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "optimal" | "feasible" | "infeasible" | "model_invalid" | "unknown";
-            /** Value */
-            value: number;
-        };
         /**
          * AllocationSummary
-         * @description Strategy provenance (spec §8): heuristic or CP-SAT, with each CP-SAT stage's status.
+         * @description Strategy provenance (spec §8).
          */
         AllocationSummary: {
             /**
@@ -133,22 +93,13 @@ export interface components {
              * @enum {string}
              */
             fulfillment_policy: "piece" | "whole_order";
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "heuristic" | "cp_sat";
-            /** Notes */
-            notes: string[];
             /** Runtime S */
             runtime_s: number;
-            /** Stages */
-            stages: components["schemas"]["AllocationStageSummary"][];
             /**
              * Strategy
              * @enum {string}
              */
-            strategy: "order_date_then_value" | "first_come" | "priority" | "proportional" | "optimized";
+            strategy: "order_date_then_value" | "first_come" | "priority" | "proportional";
         };
         /** Behavior */
         Behavior: {
@@ -219,18 +170,6 @@ export interface components {
             /** Latest */
             latest: string;
         };
-        /**
-         * ClusterPlan
-         * @description Ordered visit IDs per truck for one cluster; the shape of a solve artifact's routes.
-         */
-        ClusterPlan: {
-            /** Cluster Id */
-            cluster_id: string;
-            /** Routes */
-            routes: string[][];
-            /** Vehicle Types */
-            vehicle_types?: string[] | null;
-        };
         /** ClusterSummary */
         ClusterSummary: {
             /** Avg Fill */
@@ -280,45 +219,6 @@ export interface components {
             violations: string[];
             /** Visit Count */
             visit_count: number;
-            warm_start?: components["schemas"]["ClusterWarmStart"] | null;
-        };
-        /**
-         * ClusterWarmStart
-         * @description One cluster's warm-start outcome. `initial_cost` is PyVRP's objective of the mapped plan on
-         *     this run's problem; `final_cost` is the objective PyVRP returned starting from it (never higher
-         *     with a feasible start: tests/test_warm_start.py).
-         */
-        ClusterWarmStart: {
-            /**
-             * Detail
-             * @default null
-             */
-            detail: string | null;
-            /**
-             * Final Cost
-             * @default null
-             */
-            final_cost: number | null;
-            /**
-             * Initial Cost
-             * @default null
-             */
-            initial_cost: number | null;
-            /**
-             * Reason
-             * @default null
-             */
-            reason: ("travel_changed" | "visit_set_changed" | "demand_changed" | "source_invalid" | "invalid_on_new_problem" | "solver_rejected" | "fleet_changed") | null;
-            /**
-             * Source Cluster Id
-             * @default null
-             */
-            source_cluster_id: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "used" | "skipped";
         };
         /** ClusteringSummary */
         ClusteringSummary: {
@@ -413,64 +313,6 @@ export interface components {
              * @enum {string}
              */
             severity: "info" | "warning" | "error";
-        };
-        /**
-         * EvaluateRequest
-         * @description One cluster of a completed run, as its artifacts recorded it, plus the plans to evaluate.
-         *
-         *     ``cluster``, ``problem`` and ``travel`` are that cluster's entries of the clustering, problem
-         *     and (decoded) travel artifacts; ``visits`` are the aggregation's visits of the cluster.
-         *     ``reference`` is normally the run's optimized routes, evaluated alongside for comparison.
-         */
-        EvaluateRequest: {
-            /** Cluster */
-            cluster: {
-                [key: string]: unknown;
-            };
-            plan: components["schemas"]["ClusterPlan"];
-            /** Problem */
-            problem: {
-                [key: string]: unknown;
-            };
-            reference?: components["schemas"]["ClusterPlan"] | null;
-            scenario: components["schemas"]["ScenarioDocument"];
-            /**
-             * Schema Version
-             * @default 1
-             * @constant
-             */
-            schema_version: 1;
-            settings: components["schemas"]["RunSettings"];
-            /** Travel */
-            travel: {
-                [key: string]: unknown;
-            };
-            /** Travel Snapshot */
-            travel_snapshot?: {
-                [key: string]: unknown;
-            } | null;
-            /** Visits */
-            visits: {
-                [key: string]: unknown;
-            }[];
-        };
-        /** EvaluateResponse */
-        EvaluateResponse: {
-            /** Cluster Id */
-            cluster_id: string;
-            /**
-             * Evaluator Version
-             * @default fillrate-evaluate/1
-             */
-            evaluator_version: string;
-            manual: components["schemas"]["PlanEvaluation"];
-            reference?: components["schemas"]["PlanEvaluation"] | null;
-            /**
-             * Schema Version
-             * @default 1
-             * @constant
-             */
-            schema_version: 1;
         };
         /** ExplorerH3 */
         ExplorerH3: {
@@ -609,60 +451,6 @@ export interface components {
             versions: {
                 [key: string]: string;
             };
-        };
-        /**
-         * FleetTypeUse
-         * @description What a fleet run used of one vehicle type, fleet-wide (all clusters).
-         */
-        FleetTypeUse: {
-            /** Avg Fill */
-            avg_fill: number | null;
-            /** Capacity */
-            capacity: number;
-            /** Count */
-            count: number | null;
-            /** Id */
-            id: string;
-            /** Label */
-            label: string;
-            /** Load */
-            load: number;
-            /** Min Fill */
-            min_fill: number | null;
-            /** Trucks */
-            trucks: number;
-        };
-        /**
-         * FleetVehicleType
-         * @description One vehicle type of an optional heterogeneous fleet (spec §3, M6).
-         *
-         *     `count` is the number of vehicles of this type available to the whole dispatch (all clusters
-         *     together); null means unlimited, which is how the single trailer behaves today. `capacity` is
-         *     in the pipeline's capacity unit, integer hundredths of a foot. The two rates are used only by
-         *     the `cost` objective, which requires them on every type.
-         */
-        FleetVehicleType: {
-            /** Capacity */
-            capacity: number;
-            /**
-             * Count
-             * @default null
-             */
-            count: number | null;
-            /**
-             * Fixed Cost Cents
-             * @default null
-             */
-            fixed_cost_cents: number | null;
-            /** Id */
-            id: string;
-            /** Label */
-            label: string;
-            /**
-             * Per Mile Cents
-             * @default null
-             */
-            per_mile_cents: number | null;
         };
         /**
          * GeocodeMatch
@@ -909,73 +697,6 @@ export interface components {
             /** Product Id */
             product_id: string;
         };
-        /** PlanEvaluation */
-        PlanEvaluation: {
-            metrics: components["schemas"]["PlanMetrics"];
-            /** Trucks */
-            trucks: components["schemas"]["TruckSummary"][];
-            /** Valid */
-            valid: boolean;
-            /** Violations */
-            violations: components["schemas"]["PlanViolation"][];
-        };
-        /**
-         * PlanMetrics
-         * @description The run's cluster metrics for this plan, under the run's objective definition.
-         */
-        PlanMetrics: {
-            /** Avg Fill */
-            avg_fill: number | null;
-            /** Capacity Lower Bound */
-            capacity_lower_bound: number;
-            /** Distance Cost */
-            distance_cost: number;
-            /** Drive S */
-            drive_s: number | null;
-            /** Load */
-            load: number;
-            /** Loaded Distance M */
-            loaded_distance_m: number | null;
-            /** Min Fill */
-            min_fill: number | null;
-            /** Objective */
-            objective: number | null;
-            /** Objective Cents */
-            objective_cents?: number | null;
-            /** Objective Mode */
-            objective_mode: string;
-            /** Planned Amount Cents */
-            planned_amount_cents: number;
-            /** Planned Visit Count */
-            planned_visit_count: number;
-            /** Truck Penalty */
-            truck_penalty: number;
-            /** Trucks */
-            trucks: number;
-            /**
-             * Unmeasured Trucks
-             * @default 0
-             */
-            unmeasured_trucks: number;
-            /** Visit Count */
-            visit_count: number;
-            /** Wait S */
-            wait_s: number | null;
-        };
-        /** PlanViolation */
-        PlanViolation: {
-            /**
-             * Code
-             * @enum {string}
-             */
-            code: "unknown_visit" | "unreachable_visit" | "duplicate_visit" | "missing_visit" | "empty_truck" | "over_capacity" | "leg_missing" | "leg_over_limit" | "leg_mismatch" | "leg_no_duration" | "window_late" | "horizon_exceeded" | "cluster_diameter" | "vehicle_type_missing" | "unknown_vehicle_type" | "fleet_count_exceeded";
-            /** Message */
-            message: string;
-            /** Truck */
-            truck?: number | null;
-            /** Visit Id */
-            visit_id?: string | null;
-        };
         /**
          * PreflightFinding
          * @description One preflight check that found something. `action` is what the run did about it.
@@ -1147,22 +868,11 @@ export interface components {
         /** RunSettings */
         RunSettings: {
             /**
-             * Allocation Objective
-             * @default revenue
-             * @enum {string}
-             */
-            allocation_objective: "revenue" | "priority_then_revenue";
-            /**
              * Allocation Strategy
              * @default order_date_then_value
              * @enum {string}
              */
-            allocation_strategy: "order_date_then_value" | "first_come" | "priority" | "proportional" | "optimized";
-            /**
-             * Allocation Time Limit S
-             * @default 10
-             */
-            allocation_time_limit_s: number;
+            allocation_strategy: "order_date_then_value" | "first_come" | "priority" | "proportional";
             /**
              * Auto K Cap
              * @default 25
@@ -1191,8 +901,6 @@ export interface components {
             cost_per_truck_cents: number | null;
             /** Excluded Line Ids */
             excluded_line_ids?: string[];
-            /** Fleet */
-            fleet?: components["schemas"]["FleetVehicleType"][] | null;
             /**
              * Fulfillment Policy
              * @default piece
@@ -1247,11 +955,6 @@ export interface components {
             objective: "trucks_then_distance" | "weighted_distance" | "cost";
             preflight?: components["schemas"]["PreflightPolicy"];
             /**
-             * Respect Order Date
-             * @default false
-             */
-            respect_order_date: boolean;
-            /**
              * Schema Version
              * @default 1
              * @constant
@@ -1287,7 +990,6 @@ export interface components {
              * @default null
              */
             travel_snapshot_id: string | null;
-            warm_start?: components["schemas"]["WarmStartSource"] | null;
             /**
              * Weighted Truck Penalty M
              * @default null
@@ -1309,8 +1011,6 @@ export interface components {
             depot: components["schemas"]["Depot"];
             /** Diagnostics */
             diagnostics: components["schemas"]["Diagnostic"][];
-            /** Fleet Usage */
-            fleet_usage?: components["schemas"]["FleetTypeUse"][] | null;
             /** Locations */
             locations: components["schemas"]["MapLocation"][];
             /** Preflight */
@@ -1349,7 +1049,6 @@ export interface components {
             versions: {
                 [key: string]: string;
             };
-            warm_start?: components["schemas"]["WarmStartSummary"] | null;
         };
         /** ScenarioDocument */
         ScenarioDocument: {
@@ -1423,7 +1122,7 @@ export interface components {
              * Stage Type
              * @enum {string}
              */
-            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "warm_start" | "solve" | "validation" | "summary" | "explorer";
+            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "solve" | "validation" | "summary" | "explorer";
         };
         /**
          * TimeModel
@@ -1558,8 +1257,6 @@ export interface components {
             service_s_total?: number | null;
             /** Shift Start S */
             shift_start_s?: number | null;
-            /** Vehicle Type Id */
-            vehicle_type_id?: string | null;
             /** Visits */
             visits: components["schemas"]["TruckVisit"][];
             /** Wait S Total */
@@ -1657,108 +1354,6 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /**
-         * WarmStartCluster
-         * @description A source cluster: validated ones carry their routes in service order; others carry none.
-         *     Fleet plans also carry each route's vehicle type ID, parallel to `routes`.
-         */
-        WarmStartCluster: {
-            /** Cluster Id */
-            cluster_id: string;
-            /** Location Ids */
-            location_ids: string[];
-            /** Routes */
-            routes: components["schemas"]["WarmStartVisit"][][];
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "validated" | "invalid_candidate" | "no_candidate" | "nothing_to_solve";
-            /** Vehicle Types */
-            vehicle_types?: string[] | null;
-        };
-        /**
-         * WarmStartPlan
-         * @description The warm-start source interface (spec §10, M6): a plan as routes of visits with their
-         *     location and load, per source cluster, and the travel it was validated on. Its content hash is
-         *     the plan identity recorded in the `warm_start` stage artifact and the replay bundle.
-         */
-        WarmStartPlan: {
-            /** Clusters */
-            clusters: components["schemas"]["WarmStartCluster"][];
-            /** Fleet */
-            fleet?: string[] | null;
-            /**
-             * Schema Version
-             * @default 1
-             * @constant
-             */
-            schema_version: 1;
-            source: components["schemas"]["WarmStartSource"];
-            travel: components["schemas"]["WarmStartTravel"];
-        };
-        /**
-         * WarmStartSource
-         * @description Where a warm start's plan comes from (spec §10, M6). Either a succeeded pipeline run the
-         *     submitter can read (`{kind: "run", run_id}`) or one of the submitter's saved manual baselines
-         *     (`{kind: "manual_baseline", baseline_id}`). The web resolves it with owner checks and the
-         *     worker receives the source over the loopback transport; Python turns either into the same
-         *     `WarmStartPlan` document. The id field of the other kind is left out of dumps, so `run`
-         *     sources keep their original content hash.
-         */
-        WarmStartSource: {
-            /** Baseline Id */
-            baseline_id?: string | null;
-            /**
-             * Kind
-             * @default run
-             * @enum {string}
-             */
-            kind: "run" | "manual_baseline";
-            /** Run Id */
-            run_id?: string | null;
-        };
-        /** WarmStartSummary */
-        WarmStartSummary: {
-            /** Plan Id */
-            plan_id: string;
-            /** Skipped */
-            skipped: number;
-            source: components["schemas"]["WarmStartSource"];
-            /** Used */
-            used: number;
-        };
-        /**
-         * WarmStartTravel
-         * @description The travel identity the source plan was validated on: estimated haversine × circuity, or
-         *     a stored directed snapshot.
-         */
-        WarmStartTravel: {
-            /**
-             * Circuity
-             * @default null
-             */
-            circuity: number | null;
-            /**
-             * Mode
-             * @enum {string}
-             */
-            mode: "estimated" | "snapshot";
-            /**
-             * Snapshot Id
-             * @default null
-             */
-            snapshot_id: string | null;
-        };
-        /** WarmStartVisit */
-        WarmStartVisit: {
-            /** Load */
-            load: number;
-            /** Location Id */
-            location_id: string;
-            /** Visit Id */
-            visit_id: string;
-        };
         /** WorkerEvent */
         WorkerEvent: {
             /**
@@ -1800,46 +1395,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Capabilities"];
                 };
-            };
-        };
-    };
-    post_evaluate_evaluate_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EvaluateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluateResponse"];
-                };
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unprocessable Content */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

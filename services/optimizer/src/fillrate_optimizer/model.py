@@ -17,6 +17,7 @@ Count = Annotated[int, Field(strict=True, ge=0, le=9007199254740991)]
 Lat = Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
 Lon = Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
 Hash = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+AllocationStrategy = Literal["order_date_then_value", "first_come", "priority", "proportional"]
 CoordinateSource = Literal["imported", "manual", "census", "zcta", "unresolved"]
 
 
@@ -163,7 +164,7 @@ class Order(Doc):
     customer_id: Id | None = None
     location_id: Id
     order_date: Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
-    # Used by the "priority" strategy and the lexicographic CP-SAT objective (spec §8).
+    # Used by the "priority" strategy (spec §8).
     priority: Annotated[int, Field(strict=True, ge=1, le=100)] = 1
     lines: list[OrderLine] = Field(min_length=1)
 
@@ -227,52 +228,7 @@ class PreflightPolicy(Doc):
     approximate_coordinates: PreflightAction = "warn"
 
 
-class WarmStartSource(SparseDoc):
-    """Where a warm start's plan comes from (spec §10, M6). Either a succeeded pipeline run the
-    submitter can read (`{kind: "run", run_id}`) or one of the submitter's saved manual baselines
-    (`{kind: "manual_baseline", baseline_id}`). The web resolves it with owner checks and the
-    worker receives the source over the loopback transport; Python turns either into the same
-    `WarmStartPlan` document. The id field of the other kind is left out of dumps, so `run`
-    sources keep their original content hash."""
-
-    _sparse = ("run_id", "baseline_id")
-    kind: Literal["run", "manual_baseline"] = "run"
-    run_id: Id | None = None
-    baseline_id: Id | None = None
-
-    @model_validator(mode="after")
-    def _one_id(self):
-        if self.kind == "run" and (self.run_id is None or self.baseline_id is not None):
-            raise ValueError("a run warm start names run_id only")
-        if self.kind == "manual_baseline" and (self.baseline_id is None or self.run_id is not None):
-            raise ValueError("a manual baseline warm start names baseline_id only")
-        return self
-
-    @property
-    def label(self) -> str:
-        if self.kind == "run":
-            return f"run {self.run_id}"
-        return f"manual baseline {self.baseline_id}"
-
-
-class FleetVehicleType(Doc):
-    """One vehicle type of an optional heterogeneous fleet (spec §3, M6).
-
-    `count` is the number of vehicles of this type available to the whole dispatch (all clusters
-    together); null means unlimited, which is how the single trailer behaves today. `capacity` is
-    in the pipeline's capacity unit, integer hundredths of a foot. The two rates are used only by
-    the `cost` objective, which requires them on every type."""
-
-    id: Id
-    label: Annotated[str, Field(min_length=1, max_length=100)]
-    count: Annotated[int, Field(strict=True, ge=1, le=100_000)] | None = None
-    capacity: Annotated[int, Field(strict=True, ge=1, le=1_000_000)]
-    fixed_cost_cents: Count | None = None
-    per_mile_cents: Count | None = None
-
-
-class RunSettings(SparseDoc):
-    _sparse = ("warm_start", "fleet")
+class RunSettings(Doc):
     schema_version: Literal[1] = 1
     trailer_capacity: Annotated[int, Field(strict=True, ge=1, le=1_000_000)] = 5_300
     travel_circuity: Annotated[float, Field(ge=1, le=5)] = 1.2
@@ -306,47 +262,19 @@ class RunSettings(SparseDoc):
     excluded_line_ids: Annotated[list[Id], Field(max_length=25_000)] = Field(default_factory=list)
     cost_per_truck_cents: Count | None = None
     cost_per_mile_cents: Count | None = None
-    # Allocation (spec §8, M5). Greedy strategies are heuristics; "optimized" is CP-SAT.
+    # Allocation (spec §8, M5): greedy heuristics, piece-level or whole-order.
     allocation_strategy: Literal[
-        "order_date_then_value", "first_come", "priority", "proportional", "optimized"
+        "order_date_then_value", "first_come", "priority", "proportional"
     ] = "order_date_then_value"
     fulfillment_policy: Literal["piece", "whole_order"] = "piece"
-    allocation_objective: Literal["revenue", "priority_then_revenue"] = "revenue"
-    respect_order_date: bool = False
-    allocation_time_limit_s: Annotated[float, Field(gt=0, le=300)] = 10
-    # Verified warm start (M6): each cluster whose visits, demands and travel match the source plan
-    # exactly, and whose mapped plan passes the independent validator on this run's problem, starts
-    # PyVRP from that plan. Solver provenance: part of the solve stage identity, never of the
-    # comparison signature. Left out of dumps when unset.
-    warm_start: WarmStartSource | None = None
-    # Optional heterogeneous fleet (spec §3, M6). Absent: today's single unlimited trailer of
-    # `trailer_capacity`, and every document and identity is unchanged. Present: one PyVRP
-    # vehicle type per entry in every cluster, `trailer_capacity` is not used, and counts are
-    # fleet-wide (see docs/decisions.md). Left out of dumps when unset.
-    fleet: Annotated[list[FleetVehicleType], Field(min_length=1, max_length=10)] | None = None
 
     @model_validator(mode="after")
     def validate_cost_rates(self) -> RunSettings:
-        if self.fleet is not None:
-            if len({t.id for t in self.fleet}) != len(self.fleet):
-                raise ValueError("fleet vehicle type IDs must be unique")
-            if self.objective == "cost" and any(
-                t.fixed_cost_cents is None or t.per_mile_cents is None for t in self.fleet
-            ):
-                raise ValueError(
-                    "cost objective with a fleet requires fixed and per-mile cents on every type"
-                )
-        elif self.objective == "cost" and (
+        if self.objective == "cost" and (
             self.cost_per_truck_cents is None or self.cost_per_mile_cents is None
         ):
             raise ValueError("cost objective requires both truck and mile rates in integer cents")
         return self
-
-    @property
-    def max_capacity(self) -> int:
-        """The largest single-vehicle capacity: the trailer, or the biggest fleet type. Stops are
-        split to it and indivisible pieces are checked against it."""
-        return max(t.capacity for t in self.fleet) if self.fleet else self.trailer_capacity
 
 
 # ---- Run summary (results, spec §10) ----------------------------------------------------------
@@ -410,7 +338,12 @@ class TruckVisit(SparseDoc):
 
 
 class TruckSummary(SparseDoc):
-    _sparse = ("shift_start_s", "service_s_total", "wait_s_total", "end_s", "vehicle_type_id")
+    _sparse = (
+        "shift_start_s",
+        "service_s_total",
+        "wait_s_total",
+        "end_s",
+    )
     id: str
     cluster_id: str
     load: Count
@@ -425,36 +358,9 @@ class TruckSummary(SparseDoc):
     service_s_total: Count | None = None
     wait_s_total: Count | None = None
     end_s: Count | None = None
-    # Fleet runs only: the vehicle type this truck is, whose capacity `fill` is measured against.
-    vehicle_type_id: str | None = None
 
 
-WarmStartReason = Literal[
-    "travel_changed",
-    "visit_set_changed",
-    "demand_changed",
-    "source_invalid",
-    "invalid_on_new_problem",
-    "solver_rejected",
-    "fleet_changed",
-]
-
-
-class ClusterWarmStart(Doc):
-    """One cluster's warm-start outcome. `initial_cost` is PyVRP's objective of the mapped plan on
-    this run's problem; `final_cost` is the objective PyVRP returned starting from it (never higher
-    with a feasible start: tests/test_warm_start.py)."""
-
-    status: Literal["used", "skipped"]
-    reason: WarmStartReason | None = None
-    source_cluster_id: str | None = None
-    initial_cost: Count | None = None
-    final_cost: Count | None = None
-    detail: Annotated[str, Field(max_length=1000)] | None = None
-
-
-class ClusterSummary(SparseDoc):
-    _sparse = ("warm_start",)
+class ClusterSummary(Doc):
     id: str
     index: int
     location_ids: list[str]
@@ -477,8 +383,6 @@ class ClusterSummary(SparseDoc):
     iterations: int
     runtime_s: float
     violations: list[str]
-    # Present only on warm-started runs, for clusters that reached the solver.
-    warm_start: ClusterWarmStart | None = None
 
 
 class ProductReconciliation(Doc):
@@ -587,24 +491,11 @@ class Totals(Doc):
     sum_cluster_lower_bounds: int
 
 
-class AllocationStageSummary(Doc):
-    objective: Literal["revenue_cents", "priority_weighted_pieces"]
-    status: Literal["optimal", "feasible", "infeasible", "model_invalid", "unknown"]
-    value: int
-    bound: int | None
-    runtime_s: float
-
-
 class AllocationSummary(Doc):
-    """Strategy provenance (spec §8): heuristic or CP-SAT, with each CP-SAT stage's status."""
+    """Strategy provenance (spec §8)."""
 
-    strategy: Literal[
-        "order_date_then_value", "first_come", "priority", "proportional", "optimized"
-    ]
+    strategy: AllocationStrategy
     fulfillment_policy: Literal["piece", "whole_order"]
-    kind: Literal["heuristic", "cp_sat"]
-    stages: list[AllocationStageSummary]
-    notes: list[str]
     runtime_s: float
 
 
@@ -618,70 +509,8 @@ class TimeSummary(Doc):
     horizon_end_s: Count
 
 
-class WarmStartVisit(Doc):
-    visit_id: Annotated[str, Field(min_length=1, max_length=500)]
-    location_id: Id
-    load: Count
-
-
-class WarmStartCluster(SparseDoc):
-    """A source cluster: validated ones carry their routes in service order; others carry none.
-    Fleet plans also carry each route's vehicle type ID, parallel to `routes`."""
-
-    _sparse = ("vehicle_types",)
-    cluster_id: Annotated[str, Field(min_length=1, max_length=200)]
-    status: Literal["validated", "invalid_candidate", "no_candidate", "nothing_to_solve"]
-    location_ids: list[Id]
-    routes: list[list[WarmStartVisit]]
-    vehicle_types: list[Id] | None = None
-
-
-class WarmStartTravel(Doc):
-    """The travel identity the source plan was validated on: estimated haversine × circuity, or
-    a stored directed snapshot."""
-
-    mode: Literal["estimated", "snapshot"]
-    circuity: float | None = None
-    snapshot_id: Hash | None = None
-
-
-class WarmStartPlan(SparseDoc):
-    """The warm-start source interface (spec §10, M6): a plan as routes of visits with their
-    location and load, per source cluster, and the travel it was validated on. Its content hash is
-    the plan identity recorded in the `warm_start` stage artifact and the replay bundle."""
-
-    _sparse = ("fleet",)
-    schema_version: Literal[1] = 1
-    source: WarmStartSource
-    travel: WarmStartTravel
-    clusters: list[WarmStartCluster]
-    # Fleet runs only: the vehicle type IDs the source run had. A plan from a fleet run only
-    # warm-starts a fleet run and the reverse (`fleet_changed`).
-    fleet: list[Id] | None = None
-
-
-class WarmStartSummary(Doc):
-    source: WarmStartSource
-    plan_id: Hash
-    used: int
-    skipped: int
-
-
-class FleetTypeUse(Doc):
-    """What a fleet run used of one vehicle type, fleet-wide (all clusters)."""
-
-    id: Id
-    label: str
-    capacity: Count
-    count: Count | None
-    trucks: Count
-    load: Count
-    avg_fill: float | None
-    min_fill: float | None
-
-
 class RunSummary(SparseDoc):
-    _sparse = ("time", "warm_start", "fleet_usage")
+    _sparse = ("time",)
     schema_version: Literal[1] = 1
     scenario_name: str
     validity: Literal["valid", "invalid"]
@@ -703,10 +532,6 @@ class RunSummary(SparseDoc):
     travel: TravelSummary | None = None
     # Present only when the time-window adapter ran (M6).
     time: TimeSummary | None = None
-    # Present only on warm-started runs (M6).
-    warm_start: WarmStartSummary | None = None
-    # Present only on fleet runs (M6): per-type use against the fleet-wide counts.
-    fleet_usage: list[FleetTypeUse] | None = None
     diagnostics: list[Diagnostic]
     versions: dict[str, str]
 

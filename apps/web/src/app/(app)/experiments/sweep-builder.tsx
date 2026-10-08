@@ -15,7 +15,7 @@ type Base = { k?: number | null; kmeans_seed?: number; inventory_percent?: numbe
 type Preview = { count: number; limit: number; runs: { varied: Record<string, unknown>; changed: string[] }[]; solver_seconds_per_cluster: number; iterations_per_cluster: number | null }
 
 const METHODS: [string, string][] = [["kmeans", "k-means"], ["h3", "H3 cells"], ["none", "No clustering (baseline)"]]
-const ALLOCATIONS: [string, string][] = [["order_date_then_value", "Order date, then value"], ["first_come", "First come"], ["priority", "Priority, then order date"], ["proportional", "Fair share (heuristic)"], ["optimized", "Optimized (CP-SAT)"]]
+const ALLOCATIONS: [string, string][] = [["order_date_then_value", "Order date, then value"], ["first_come", "First come"], ["priority", "Priority, then order date"], ["proportional", "Fair share (heuristic)"]]
 const POLICIES: [string, string][] = [["piece", "Partial lines allowed"], ["whole_order", "Whole orders only"]]
 
 function numbers(raw: string, integer: boolean) {
@@ -171,7 +171,7 @@ export function SweepBuilder({ initialK, runKey, limit, versionId, example, base
           {checks("allocations", "Allocation", ALLOCATIONS)}
           {checks("policies", "Order fulfillment", POLICIES)}
         </div>
-        <p className="text-muted-foreground mt-2 text-xs">Allocation strategies are ranked against each other. Whole orders only is a business rule, so those runs form their own cohort. Optimized allocation uses the CP-SAT objective from run settings.</p>
+        <p className="text-muted-foreground mt-2 text-xs">Allocation strategies are ranked against each other. Whole orders only is a business rule, so those runs form their own cohort.</p>
         <p className="text-muted-foreground mt-2 text-xs">The no-clustering baseline runs only when every stop fits one solve; otherwise that run fails and the capacity lower bounds still compare.</p>
       </details>
       <div className="flex flex-wrap items-center gap-2">

@@ -1,60 +1,8 @@
 {
   "$defs": {
-    "AllocationStageSummary": {
-      "additionalProperties": false,
-      "properties": {
-        "bound": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Bound"
-        },
-        "objective": {
-          "enum": [
-            "revenue_cents",
-            "priority_weighted_pieces"
-          ],
-          "title": "Objective",
-          "type": "string"
-        },
-        "runtime_s": {
-          "title": "Runtime S",
-          "type": "number"
-        },
-        "status": {
-          "enum": [
-            "optimal",
-            "feasible",
-            "infeasible",
-            "model_invalid",
-            "unknown"
-          ],
-          "title": "Status",
-          "type": "string"
-        },
-        "value": {
-          "title": "Value",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "objective",
-        "status",
-        "value",
-        "bound",
-        "runtime_s"
-      ],
-      "title": "AllocationStageSummary",
-      "type": "object"
-    },
     "AllocationSummary": {
       "additionalProperties": false,
-      "description": "Strategy provenance (spec \u00a78): heuristic or CP-SAT, with each CP-SAT stage's status.",
+      "description": "Strategy provenance (spec \u00a78).",
       "properties": {
         "fulfillment_policy": {
           "enum": [
@@ -64,39 +12,16 @@
           "title": "Fulfillment Policy",
           "type": "string"
         },
-        "kind": {
-          "enum": [
-            "heuristic",
-            "cp_sat"
-          ],
-          "title": "Kind",
-          "type": "string"
-        },
-        "notes": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Notes",
-          "type": "array"
-        },
         "runtime_s": {
           "title": "Runtime S",
           "type": "number"
-        },
-        "stages": {
-          "items": {
-            "$ref": "#/$defs/AllocationStageSummary"
-          },
-          "title": "Stages",
-          "type": "array"
         },
         "strategy": {
           "enum": [
             "order_date_then_value",
             "first_come",
             "priority",
-            "proportional",
-            "optimized"
+            "proportional"
           ],
           "title": "Strategy",
           "type": "string"
@@ -105,9 +30,6 @@
       "required": [
         "strategy",
         "fulfillment_policy",
-        "kind",
-        "stages",
-        "notes",
         "runtime_s"
       ],
       "title": "AllocationSummary",
@@ -293,16 +215,6 @@
         "visit_count": {
           "title": "Visit Count",
           "type": "integer"
-        },
-        "warm_start": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ClusterWarmStart"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "required": [
@@ -330,99 +242,6 @@
         "violations"
       ],
       "title": "ClusterSummary",
-      "type": "object"
-    },
-    "ClusterWarmStart": {
-      "additionalProperties": false,
-      "description": "One cluster's warm-start outcome. `initial_cost` is PyVRP's objective of the mapped plan on\nthis run's problem; `final_cost` is the objective PyVRP returned starting from it (never higher\nwith a feasible start: tests/test_warm_start.py).",
-      "properties": {
-        "detail": {
-          "anyOf": [
-            {
-              "maxLength": 1000,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Detail"
-        },
-        "final_cost": {
-          "anyOf": [
-            {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Final Cost"
-        },
-        "initial_cost": {
-          "anyOf": [
-            {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Initial Cost"
-        },
-        "reason": {
-          "anyOf": [
-            {
-              "enum": [
-                "travel_changed",
-                "visit_set_changed",
-                "demand_changed",
-                "source_invalid",
-                "invalid_on_new_problem",
-                "solver_rejected",
-                "fleet_changed"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Reason"
-        },
-        "source_cluster_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Source Cluster Id"
-        },
-        "status": {
-          "enum": [
-            "used",
-            "skipped"
-          ],
-          "title": "Status",
-          "type": "string"
-        }
-      },
-      "required": [
-        "status"
-      ],
-      "title": "ClusterWarmStart",
       "type": "object"
     },
     "ClusteringSummary": {
@@ -990,160 +809,6 @@
         "versions"
       ],
       "title": "ExplorerSummary",
-      "type": "object"
-    },
-    "FleetTypeUse": {
-      "additionalProperties": false,
-      "description": "What a fleet run used of one vehicle type, fleet-wide (all clusters).",
-      "properties": {
-        "avg_fill": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Avg Fill"
-        },
-        "capacity": {
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "title": "Capacity",
-          "type": "integer"
-        },
-        "count": {
-          "anyOf": [
-            {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Count"
-        },
-        "id": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Id",
-          "type": "string"
-        },
-        "label": {
-          "title": "Label",
-          "type": "string"
-        },
-        "load": {
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "title": "Load",
-          "type": "integer"
-        },
-        "min_fill": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Min Fill"
-        },
-        "trucks": {
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "title": "Trucks",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "label",
-        "capacity",
-        "count",
-        "trucks",
-        "load",
-        "avg_fill",
-        "min_fill"
-      ],
-      "title": "FleetTypeUse",
-      "type": "object"
-    },
-    "FleetVehicleType": {
-      "additionalProperties": false,
-      "description": "One vehicle type of an optional heterogeneous fleet (spec \u00a73, M6).\n\n`count` is the number of vehicles of this type available to the whole dispatch (all clusters\ntogether); null means unlimited, which is how the single trailer behaves today. `capacity` is\nin the pipeline's capacity unit, integer hundredths of a foot. The two rates are used only by\nthe `cost` objective, which requires them on every type.",
-      "properties": {
-        "capacity": {
-          "maximum": 1000000,
-          "minimum": 1,
-          "title": "Capacity",
-          "type": "integer"
-        },
-        "count": {
-          "anyOf": [
-            {
-              "maximum": 100000,
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Count"
-        },
-        "fixed_cost_cents": {
-          "anyOf": [
-            {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Fixed Cost Cents"
-        },
-        "id": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Id",
-          "type": "string"
-        },
-        "label": {
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Label",
-          "type": "string"
-        },
-        "per_mile_cents": {
-          "anyOf": [
-            {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Per Mile Cents"
-        }
-      },
-      "required": [
-        "id",
-        "label",
-        "capacity"
-      ],
-      "title": "FleetVehicleType",
       "type": "object"
     },
     "GeocodeMatch": {
@@ -1914,33 +1579,16 @@
     "RunSettings": {
       "additionalProperties": false,
       "properties": {
-        "allocation_objective": {
-          "default": "revenue",
-          "enum": [
-            "revenue",
-            "priority_then_revenue"
-          ],
-          "title": "Allocation Objective",
-          "type": "string"
-        },
         "allocation_strategy": {
           "default": "order_date_then_value",
           "enum": [
             "order_date_then_value",
             "first_come",
             "priority",
-            "proportional",
-            "optimized"
+            "proportional"
           ],
           "title": "Allocation Strategy",
           "type": "string"
-        },
-        "allocation_time_limit_s": {
-          "default": 10,
-          "exclusiveMinimum": 0,
-          "maximum": 300,
-          "title": "Allocation Time Limit S",
-          "type": "number"
         },
         "auto_k_cap": {
           "default": 25,
@@ -2003,22 +1651,6 @@
           "maxItems": 25000,
           "title": "Excluded Line Ids",
           "type": "array"
-        },
-        "fleet": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/FleetVehicleType"
-              },
-              "maxItems": 10,
-              "minItems": 1,
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Fleet"
         },
         "fulfillment_policy": {
           "default": "piece",
@@ -2112,11 +1744,6 @@
         "preflight": {
           "$ref": "#/$defs/PreflightPolicy"
         },
-        "respect_order_date": {
-          "default": false,
-          "title": "Respect Order Date",
-          "type": "boolean"
-        },
         "schema_version": {
           "const": 1,
           "default": 1,
@@ -2178,16 +1805,6 @@
           "default": null,
           "title": "Travel Snapshot Id"
         },
-        "warm_start": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/WarmStartSource"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "weighted_truck_penalty_m": {
           "anyOf": [
             {
@@ -2247,20 +1864,6 @@
           },
           "title": "Diagnostics",
           "type": "array"
-        },
-        "fleet_usage": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/FleetTypeUse"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Fleet Usage"
         },
         "locations": {
           "items": {
@@ -2354,16 +1957,6 @@
           },
           "title": "Versions",
           "type": "object"
-        },
-        "warm_start": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/WarmStartSummary"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "required": [
@@ -2553,7 +2146,6 @@
             "clustering",
             "travel",
             "problem",
-            "warm_start",
             "solve",
             "validation",
             "summary",
@@ -2939,17 +2531,6 @@
           ],
           "title": "Shift Start S"
         },
-        "vehicle_type_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Vehicle Type Id"
-        },
         "visits": {
           "items": {
             "$ref": "#/$defs/TruckVisit"
@@ -3218,265 +2799,6 @@
         "evidence"
       ],
       "title": "UnplannedLine",
-      "type": "object"
-    },
-    "WarmStartCluster": {
-      "additionalProperties": false,
-      "description": "A source cluster: validated ones carry their routes in service order; others carry none.\nFleet plans also carry each route's vehicle type ID, parallel to `routes`.",
-      "properties": {
-        "cluster_id": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Cluster Id",
-          "type": "string"
-        },
-        "location_ids": {
-          "items": {
-            "maxLength": 200,
-            "minLength": 1,
-            "type": "string"
-          },
-          "title": "Location Ids",
-          "type": "array"
-        },
-        "routes": {
-          "items": {
-            "items": {
-              "$ref": "#/$defs/WarmStartVisit"
-            },
-            "type": "array"
-          },
-          "title": "Routes",
-          "type": "array"
-        },
-        "status": {
-          "enum": [
-            "validated",
-            "invalid_candidate",
-            "no_candidate",
-            "nothing_to_solve"
-          ],
-          "title": "Status",
-          "type": "string"
-        },
-        "vehicle_types": {
-          "anyOf": [
-            {
-              "items": {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Vehicle Types"
-        }
-      },
-      "required": [
-        "cluster_id",
-        "status",
-        "location_ids",
-        "routes"
-      ],
-      "title": "WarmStartCluster",
-      "type": "object"
-    },
-    "WarmStartPlan": {
-      "additionalProperties": false,
-      "description": "The warm-start source interface (spec \u00a710, M6): a plan as routes of visits with their\nlocation and load, per source cluster, and the travel it was validated on. Its content hash is\nthe plan identity recorded in the `warm_start` stage artifact and the replay bundle.",
-      "properties": {
-        "clusters": {
-          "items": {
-            "$ref": "#/$defs/WarmStartCluster"
-          },
-          "title": "Clusters",
-          "type": "array"
-        },
-        "fleet": {
-          "anyOf": [
-            {
-              "items": {
-                "maxLength": 200,
-                "minLength": 1,
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Fleet"
-        },
-        "schema_version": {
-          "const": 1,
-          "default": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "source": {
-          "$ref": "#/$defs/WarmStartSource"
-        },
-        "travel": {
-          "$ref": "#/$defs/WarmStartTravel"
-        }
-      },
-      "required": [
-        "source",
-        "travel",
-        "clusters"
-      ],
-      "title": "WarmStartPlan",
-      "type": "object"
-    },
-    "WarmStartSource": {
-      "additionalProperties": false,
-      "description": "Where a warm start's plan comes from (spec \u00a710, M6). Either a succeeded pipeline run the\nsubmitter can read (`{kind: \"run\", run_id}`) or one of the submitter's saved manual baselines\n(`{kind: \"manual_baseline\", baseline_id}`). The web resolves it with owner checks and the\nworker receives the source over the loopback transport; Python turns either into the same\n`WarmStartPlan` document. The id field of the other kind is left out of dumps, so `run`\nsources keep their original content hash.",
-      "properties": {
-        "baseline_id": {
-          "anyOf": [
-            {
-              "maxLength": 200,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Baseline Id"
-        },
-        "kind": {
-          "default": "run",
-          "enum": [
-            "run",
-            "manual_baseline"
-          ],
-          "title": "Kind",
-          "type": "string"
-        },
-        "run_id": {
-          "anyOf": [
-            {
-              "maxLength": 200,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Run Id"
-        }
-      },
-      "title": "WarmStartSource",
-      "type": "object"
-    },
-    "WarmStartSummary": {
-      "additionalProperties": false,
-      "properties": {
-        "plan_id": {
-          "pattern": "^[a-f0-9]{64}$",
-          "title": "Plan Id",
-          "type": "string"
-        },
-        "skipped": {
-          "title": "Skipped",
-          "type": "integer"
-        },
-        "source": {
-          "$ref": "#/$defs/WarmStartSource"
-        },
-        "used": {
-          "title": "Used",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "source",
-        "plan_id",
-        "used",
-        "skipped"
-      ],
-      "title": "WarmStartSummary",
-      "type": "object"
-    },
-    "WarmStartTravel": {
-      "additionalProperties": false,
-      "description": "The travel identity the source plan was validated on: estimated haversine \u00d7 circuity, or\na stored directed snapshot.",
-      "properties": {
-        "circuity": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Circuity"
-        },
-        "mode": {
-          "enum": [
-            "estimated",
-            "snapshot"
-          ],
-          "title": "Mode",
-          "type": "string"
-        },
-        "snapshot_id": {
-          "anyOf": [
-            {
-              "pattern": "^[a-f0-9]{64}$",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Snapshot Id"
-        }
-      },
-      "required": [
-        "mode"
-      ],
-      "title": "WarmStartTravel",
-      "type": "object"
-    },
-    "WarmStartVisit": {
-      "additionalProperties": false,
-      "properties": {
-        "load": {
-          "maximum": 9007199254740991,
-          "minimum": 0,
-          "title": "Load",
-          "type": "integer"
-        },
-        "location_id": {
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Location Id",
-          "type": "string"
-        },
-        "visit_id": {
-          "maxLength": 500,
-          "minLength": 1,
-          "title": "Visit Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "visit_id",
-        "location_id",
-        "load"
-      ],
-      "title": "WarmStartVisit",
       "type": "object"
     },
     "WorkerEvent": {

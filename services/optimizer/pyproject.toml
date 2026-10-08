@@ -5,7 +5,6 @@ description = "Fillrate optimizer service: allocation, clustering, and PyVRP loa
 requires-python = "==3.13.*"
 dependencies = [
   "pyvrp==0.14.0",
-  "ortools==9.15.6755",
   "scikit-learn==1.9.1",
   "numpy==2.5.3",
   "h3>=4,<5",

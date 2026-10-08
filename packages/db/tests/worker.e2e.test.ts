@@ -21,7 +21,6 @@ import { writeFileSync } from "node:fs";
 
 const optimizer = resolve("services/optimizer");
 const example = JSON.parse(readFileSync(resolve("examples/m1-synthetic.json"), "utf8"));
-const allocationLesson = JSON.parse(readFileSync(resolve("examples/lesson-allocation.json"), "utf8"));
 const hasUv = spawnSync("uv", ["--version"]).status === 0 && process.env.FILLRATE_SKIP_PYTHON !== "1";
 const token = "e2e-token";
 const env = { ...process.env, UV_PYTHON: "python3.13", WORKER_TOKEN: token, WORKER_POLL_SECONDS: "0.2", WORKER_HEARTBEAT_SECONDS: "0.5" };
@@ -249,22 +248,20 @@ test.skipIf(!hasUv)("sweep runs are independent solves, ranked within one cohort
   expect(replay.status).toBe(0);
 }, 180_000);
 
-test.skipIf(!hasUv)("a CP-SAT whole-order run replays from its bundle; measured allocation runtimes are not differences", async () => {
-  const lessonVersion = store.createScenario("Allocation lesson", { schema_version: 1, document: allocationLesson.scenario }, "e2e").versionId;
-  const settings = { ...allocationLesson.settings, allocation_strategy: "optimized", fulfillment_policy: "whole_order" };
-  const runId = store.enqueue(lessonVersion, { schema_version: 1, document: settings }, "optimized-whole");
+test.skipIf(!hasUv)("a whole-order run replays from its bundle", async () => {
+  const wholeVersion = store.createScenario("Whole-order example", { schema_version: 1, document: example.scenario }, "e2e").versionId;
+  const settings = { ...example.settings, fulfillment_policy: "whole_order" };
+  const runId = store.enqueue(wholeVersion, { schema_version: 1, document: settings }, "whole-order");
   startWorker("replayer");
   await waitFor(() => ["succeeded", "failed"].includes(store.runView(runId)!.status), 110_000);
   const view = store.runView(runId)!;
   expect(view.status).toBe("succeeded");
-  const allocation = store.readArtifact(view.artifacts.find(a => a.stage_type === "allocation")!.output_hash) as { stages: { status: string; runtime_s: number }[] };
-  expect(allocation.stages.map(x => x.status)).toEqual(["optimal"]);
 
   const out = join(dir, "bundle"); const file = join(dir, "bundle.zip");
   writeFileSync(file, replayBundle(store, runId, optimizer));
   expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
   const expected = JSON.parse(readFileSync(join(out, "expected.json"), "utf8"));
-  expect(expected.allocation).toEqual({ strategy: "optimized", fulfillment_policy: "whole_order", kind: "cp_sat" });
+  expect(expected.allocation).toEqual({ strategy: "order_date_then_value", fulfillment_policy: "whole_order" });
   expect(expected.travel).toEqual({ provider: "estimated", circuity: 1.2 });
   const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
   expect(replay.stdout).toMatch(/allocation\s+reproduced/);
@@ -389,42 +386,3 @@ test.skipIf(!hasUv)("a worker refuses a snapshot it cannot use and fails the run
   expect(failure(missingRun)).toMatchObject({ status: "failed", attempt: 1, code: "travel_snapshot_unavailable" });
   expect(String(failure(missingRun).message)).toContain("travel_snapshot_not_found");
 }, 120_000);
-
-test.skipIf(!hasUv)("a warm-started rerun starts each cluster from the source's validated plan and replays from its bundle", async () => {
-  const source = enqueue({}, "cold");
-  startWorker("warm");
-  await waitFor(() => ["succeeded", "failed"].includes(store.runView(source)!.status));
-  expect(store.runView(source)!.status).toBe("succeeded");
-  const rerun = enqueue({ warm_start: { kind: "run", run_id: source } }, "warm");
-  await waitFor(() => ["succeeded", "failed"].includes(store.runView(rerun)!.status));
-  const view = store.runView(rerun)!;
-  expect(view.status).toBe("succeeded");
-  expect(view.artifacts.map(a => a.stage_type)).toEqual(["preflight", "allocation", "aggregation", "clustering", "travel", "problem", "warm_start", "solve", "validation", "summary"]);
-  const warmManifest = view.artifacts.find(a => a.stage_type === "warm_start")!;
-  expect(view.artifacts.find(a => a.stage_type === "solve")!.parent_hashes).toContain(warmManifest.output_hash);
-  const plan = parseContract("WarmStartPlan", store.readArtifact(warmManifest.output_hash));
-  expect(plan.source).toEqual({ kind: "run", run_id: source });
-  const summary = parseContract("RunSummary", store.readArtifact(view.artifacts.at(-1)!.output_hash)) as RunSummary;
-  const sourceSummary = store.readArtifact(store.runView(source)!.artifacts.at(-1)!.output_hash) as RunSummary;
-  expect(summary.warm_start).toMatchObject({ source: { kind: "run", run_id: source }, plan_id: warmManifest.output_hash, skipped: 0 });
-  const used = summary.clusters.filter(c => c.warm_start);
-  expect(used.length).toBe(summary.warm_start!.used);
-  expect(used.length).toBeGreaterThan(0);
-  for (const c of used) {
-    expect(c.warm_start!.status).toBe("used");
-    expect(c.warm_start!.final_cost!).toBeLessThanOrEqual(c.warm_start!.initial_cost!);
-  }
-  expect(summary.validity).toBe(sourceSummary.validity);
-  expect(summary.totals.trucks).toBeLessThanOrEqual(sourceSummary.totals.trucks);
-
-  const out = join(dir, "bundle"); const file = join(dir, "bundle.zip");
-  writeFileSync(file, replayBundle(store, rerun, optimizer));
-  expect(spawnSync("python3", ["-c", `import zipfile; zipfile.ZipFile(${JSON.stringify(file)}).extractall(${JSON.stringify(out)})`]).status).toBe(0);
-  const expected = JSON.parse(readFileSync(join(out, "expected.json"), "utf8"));
-  expect(expected.warm_start.plan_id).toBe(warmManifest.output_hash);
-  const replay = spawnSync("uv", ["run", "--project", optimizer, "python", join(out, "replay.py")], { cwd: out, env, encoding: "utf8" });
-  expect(replay.stdout).toContain("plan identity verified");
-  expect(replay.stdout).toMatch(/warm outcomes reproduced/);
-  expect(replay.stdout).toContain("REPLAY OK");
-  expect(replay.status).toBe(0);
-}, 180_000);
