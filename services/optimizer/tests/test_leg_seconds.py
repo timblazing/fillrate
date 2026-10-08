@@ -1,30 +1,18 @@
 """Leg drive seconds on planned trucks (spec §13, M7 timeline)."""
 
-from fillrate_optimizer.model import RunSummary
+import json
+from pathlib import Path
 
-from .test_travel_snapshots import run, snapshot, snapshot_document
+from fillrate_optimizer.model import RunSettings, RunSummary, ScenarioDocument
+from fillrate_optimizer.pipeline import run_pipeline
 
 
-def test_snapshot_leg_seconds_follow_the_directed_duration_matrix():
-    document = snapshot_document()
-    ids = [node["id"] for node in document["nodes"]]
-    # Make drive time directional and unrelated to distance: A -> C takes 7 s, C -> A 900 s.
-    durations = [row[:] for row in document["durations"]]
-    durations[ids.index("A")][ids.index("C")] = 7.4
-    durations[ids.index("C")][ids.index("A")] = 900
-    summary = run(snapshot(durations=durations)).summary
-    truck = next(t for t in summary.trucks if len(t.visits) == 3)
-    legs = {v.location_id: v for v in truck.visits}
-    assert legs["C"].leg_s == 7  # nearest integer, same conversion as meters
-    assert legs["A"].leg_s == 10_000  # D -> A: 100 km at the fixture's d / 10 seconds
-    assert legs["E"].leg_s == 30_000
-    # The synthetic return to the depot is neither planned nor timed.
-    assert truck.drive_s == 10_000 + 7 + 30_000 == sum(v.leg_s for v in truck.visits)
-    # The reverse direction is a different number, so legs are read directed.
-    durations[ids.index("A")][ids.index("C")] = 901
-    flipped = run(snapshot(durations=durations)).summary
-    again = next(t for t in flipped.trucks if len(t.visits) == 3)
-    assert {v.location_id: v.leg_s for v in again.visits}["C"] == 901
+def run(_travel=None):
+    document = json.loads((Path(__file__).parents[3] / "examples/m1-synthetic.json").read_text())
+    return run_pipeline(
+        ScenarioDocument.model_validate(document["scenario"]),
+        RunSettings.model_validate(document["settings"]),
+    )
 
 
 def test_estimated_leg_seconds_use_the_constant_speed():

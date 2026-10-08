@@ -2,24 +2,13 @@
 
 from __future__ import annotations
 
-import hmac
 import os
 import threading
 from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import Annotated
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI
 
 from .capabilities import Capabilities, capabilities
-from .route_geometry import (
-    GeometryError,
-    GeometryUnavailable,
-    RouteGeometryRequest,
-    RouteGeometryResponse,
-    fetch_route_geometry,
-)
-from .valhalla import ProviderError, ValhallaConfig
 
 
 @asynccontextmanager
@@ -47,62 +36,6 @@ def health() -> dict[str, str]:
 @app.get("/capabilities")
 def get_capabilities() -> Capabilities:
     return capabilities()
-
-
-def internal_token() -> str | None:
-    """The worker bearer token Next.js also holds: WORKER_TOKEN, else the token file the web
-    process writes next to the database (the worker's own lookup, without waiting)."""
-    if token := os.environ.get("WORKER_TOKEN"):
-        return token
-    data_dir = os.environ.get("DATA_DIR")
-    path = (
-        Path(data_dir) / "worker.token"
-        if data_dir
-        else Path(__file__).resolve().parents[4] / "data/worker.token"
-    )
-    return path.read_text().strip() if path.exists() else None
-
-
-def _require_token(authorization: str | None) -> None:
-    expected = internal_token()
-    if not expected or not hmac.compare_digest(
-        (authorization or "").encode(), f"Bearer {expected}".encode()
-    ):
-        raise HTTPException(401, {"code": "unauthorized", "message": "Worker token required."})
-
-
-@app.get("/route-geometry/context", responses={401: {}})
-def get_route_geometry_context(authorization: Annotated[str | None, Header()] = None) -> dict:
-    """This deployment's Valhalla identity (no endpoint), for the web's eligibility check."""
-    _require_token(authorization)
-    from .route_geometry import deployment_identity
-
-    try:
-        return {"configured": True, **deployment_identity(ValhallaConfig.from_env())}
-    except ProviderError:
-        return {"configured": False}
-
-
-@app.post("/route-geometry", responses={401: {}, 409: {}, 422: {}, 502: {}})
-def post_route_geometry(
-    request: RouteGeometryRequest, authorization: Annotated[str | None, Header()] = None
-) -> RouteGeometryResponse:
-    """Road geometry for one inspected truck (spec §4, §7): bounded synchronous Valhalla `/route`
-    calls in the thread pool. Only Next.js calls it, with the worker bearer token."""
-    _require_token(authorization)
-    try:
-        config = ValhallaConfig.from_env()
-    except ProviderError:
-        config = None
-    try:
-        return fetch_route_geometry(request, config)
-    except GeometryUnavailable as error:
-        raise HTTPException(
-            409, {"code": "geometry_unavailable", "reason": error.reason, "message": str(error)}
-        ) from error
-    except GeometryError as error:
-        status = 502 if error.code in ("provider_unavailable", "geometry_budget") else 422
-        raise HTTPException(status, {"code": error.code, "message": str(error)}) from error
 
 
 def main() -> None:

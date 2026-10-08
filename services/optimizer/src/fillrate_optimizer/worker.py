@@ -118,7 +118,6 @@ def child_main(
     from .explorer import ExplorerError
     from .model import RunSettings, ScenarioDocument
     from .pipeline import Limits, PipelineError, run_pipeline
-    from .travel_job import TravelJobError
 
     watch_parent(os.getppid())
 
@@ -130,18 +129,6 @@ def child_main(
     try:
         if settings.get("kind") == "explorer":
             out.put(("result", explorer_result(scenario, settings, execution_id, out)))
-            return
-        if settings.get("kind") == "travel_snapshot":
-            from .travel_job import build_snapshot
-
-            summary = build_snapshot(
-                scenario,
-                store=lambda document, snapshot_id: rpc(
-                    "store_snapshot", snapshot=document, snapshot_id=snapshot_id
-                ),
-                progress=lambda detail: out.put(("progress", detail)),
-            )
-            out.put(("result", {"artifacts": [], "summary": summary}))
             return
         output = run_pipeline(
             ScenarioDocument.model_validate(scenario),
@@ -164,13 +151,6 @@ def child_main(
             )
             if transport
             else None,
-            # Immutable directed travel snapshot named by the settings; the pipeline re-checks
-            # its identity, so the transport is not trusted for content.
-            snapshot_loader=(
-                lambda snapshot_id: rpc("snapshot", snapshot_id=snapshot_id)["snapshot"]
-            )
-            if transport
-            else None,
         )
         artifacts = (
             []
@@ -190,7 +170,7 @@ def child_main(
                 },
             )
         )
-    except (PipelineError, ExplorerError, TravelJobError) as error:
+    except (PipelineError, ExplorerError) as error:
         out.put(("error", {"code": error.code, "message": str(error)}))
     except Exception as error:  # pydantic validation and anything unexpected
         out.put(("error", {"code": type(error).__name__, "message": str(error)[:2000]}))

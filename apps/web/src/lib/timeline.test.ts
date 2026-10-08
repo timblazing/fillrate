@@ -51,9 +51,9 @@ describe("route timeline", () => {
   })
 
   it("labels the timing source and always flags the schematic geometry", () => {
-    expect(timingSource({ mode: "estimated", provider: "haversine" }).timing).toBe("Estimated drive time (constant speed)")
-    expect(timingSource({ mode: "snapshot", provider: "imported" }).timing).toBe("Imported matrix durations")
-    expect(timingSource(null).geometry).toContain("road geometry not available")
+    expect(timingSource({ mode: "estimated" }).timing).toBe("Estimated drive time (constant speed)")
+    expect(timingSource({ mode: "snapshot" }).timing).toBe("Recorded matrix durations (older run)")
+    expect(timingSource(null).geometry).toContain("show the road path")
     expect(formatClock(3849)).toBe("1:04:09")
   })
 

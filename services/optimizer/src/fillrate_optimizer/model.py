@@ -232,10 +232,6 @@ class RunSettings(Doc):
     schema_version: Literal[1] = 1
     trailer_capacity: Annotated[int, Field(strict=True, ge=1, le=1_000_000)] = 5_300
     travel_circuity: Annotated[float, Field(ge=1, le=5)] = 1.2
-    # Identity (content hash) of a stored, immutable directed travel snapshot (spec §7, M6). When
-    # set, legs, reachability and preflight use that matrix and `travel_circuity` is not used for
-    # travel. Null means estimated travel: haversine × `travel_circuity`.
-    travel_snapshot_id: Hash | None = None
     cluster_circuity: Annotated[float, Field(ge=1, le=5)] = 1.2
     max_leg_m: Annotated[int, Field(strict=True, ge=1, le=20_000_000)] = 804_672
     # Optional policy, off by default (spec v1.8 §1): the 500-mile rule is per leg only.
@@ -320,7 +316,7 @@ class TruckVisit(SparseDoc):
     location_id: Id
     sequence: int
     leg_m: Count
-    # Drive seconds for the same directed leg from the selected provider's duration matrix.
+    # Drive seconds for the same directed leg from the estimated duration matrix.
     # None on results persisted before M7 (timing unavailable, never inferred).
     leg_s: Count | None = None
     load: Count
@@ -453,19 +449,14 @@ class PreflightFinding(Doc):
 
 
 class TravelSummary(Doc):
-    """Which travel data the run used (spec §7): estimated, or a stored directed snapshot."""
+    """Which travel data the run used (spec §7): always estimated haversine × circuity."""
 
-    mode: Literal["estimated", "snapshot"]
+    mode: Literal["estimated"]
     provider: Annotated[str, Field(max_length=200)]
     provider_version: Annotated[str, Field(max_length=200)]
     dataset_revision: Annotated[str, Field(max_length=200)]
     profile: Annotated[str, Field(max_length=200)]
-    # Estimated travel only.
     circuity: float | None = None
-    # Snapshot travel only: the immutable snapshot's identity, its node count and warning count.
-    snapshot_id: Hash | None = None
-    node_count: int | None = None
-    warning_count: int | None = None
 
 
 class Diagnostic(Doc):

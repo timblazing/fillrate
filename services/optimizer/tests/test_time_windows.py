@@ -299,7 +299,6 @@ def test_validate_cluster_rejects_a_solver_feasible_window_violation():
 
     locs = sorted(by_loc)
     reader = duration_leg_reader(
-        None,
         locs,
         scenario.depot,
         {loc.id: (loc.lat, loc.lon) for loc in scenario.locations},
@@ -317,7 +316,7 @@ def test_validate_cluster_rejects_a_solver_feasible_window_violation():
             [by_loc["TW-F"]],
         ],
     }
-    check = validate_cluster(meta, prob, trav, solve, visits, lines, settings, None, reader)
+    check = validate_cluster(meta, prob, trav, solve, visits, lines, settings, reader)
     assert not check["valid"]
     assert any("TW-A: service would start" in v and "window end" in v for v in check["violations"])
 
@@ -417,4 +416,3 @@ def test_capabilities_list_the_time_behaviors_with_resolving_fixtures():
         assert behavior.availability == "implemented" and behavior.provided_by == "native"
         module, _, test = behavior.fixture.partition("::")
         assert test in globals() and module == "tests/test_time_windows.py"
-    assert behaviors["directed_road_travel"].availability == "implemented"

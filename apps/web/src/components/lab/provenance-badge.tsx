@@ -1,4 +1,4 @@
-import { CircleSlash, Crosshair, FileInput, Hand, Landmark, MapPinned, Route, Ruler, TableProperties } from "lucide-react"
+import { CircleSlash, Crosshair, FileInput, Hand, Landmark, MapPinned } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip"
@@ -54,41 +54,6 @@ export function CoordinateSourceBadge({ source, className }: { source: Coordinat
       >
         <Icon />
         {label}
-      </TooltipTrigger>
-      <TooltipPopup>{hint}</TooltipPopup>
-    </Tooltip>
-  )
-}
-
-// Travel matrix provenance (spec §7). Haversine is always labeled as an estimate.
-export type TravelMode = "haversine" | "valhalla" | "imported"
-
-const travelModes: Record<TravelMode, { label: string; icon: typeof Ruler; hint: string }> = {
-  haversine: {
-    label: "Estimated · haversine",
-    icon: Ruler,
-    hint: "Great-circle miles × the circuity factor. The 500 mi single-drive limit uses these solver miles.",
-  },
-  valhalla: { label: "Valhalla road network", icon: Route, hint: "Directed road distances and durations (truck costing)" },
-  imported: { label: "Imported matrix", icon: TableProperties, hint: "User-supplied directed matrix" },
-}
-
-export function TravelModeBadge({
-  mode,
-  detail,
-  className,
-}: {
-  mode: TravelMode
-  detail?: string
-  className?: string
-}) {
-  const { label, icon: Icon, hint } = travelModes[mode]
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<Badge variant={mode === "haversine" ? "secondary" : "outline"} className={className} />}>
-        <Icon />
-        {label}
-        {detail && <span className="text-muted-foreground font-normal">· {detail}</span>}
       </TooltipTrigger>
       <TooltipPopup>{hint}</TooltipPopup>
     </Tooltip>

@@ -1,10 +1,7 @@
 """Submission policy checks mirrored by packages/db/src/preflight.ts.
 
 These checks are user policy, not routing feasibility. Excluded lines do not
-contribute to a stop's demand or its policy findings. With estimated travel the leg test is
-haversine × circuity; with a selected travel snapshot it uses that directed matrix, so a stop
-is "far" when the depot → stop leg is missing or over the limit, and "reachable via stops" when
-a chain of allowed directed legs reaches it.
+contribute to a stop's demand or its policy findings. The leg test is haversine × circuity.
 """
 
 from collections import defaultdict
@@ -19,8 +16,7 @@ from .timeplan import (
     shortest_seconds_from_depot,
     time_context,
 )
-from .travel import EARTH_RADIUS_M, distance_matrix_m, reachable
-from .travel_provider import TravelSnapshot, stop_nodes
+from .travel import EARTH_RADIUS_M, distance_matrix_m
 
 
 def _straight_distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -53,26 +49,16 @@ def _far_stops(
     scenario: ScenarioDocument,
     settings: RunSettings,
     points: dict[str, tuple[float, float]],
-    snapshot: TravelSnapshot | None,
 ) -> tuple[set[str], set[str]]:
     """Stops whose direct leg from the depot is not allowed, and the stops reachable by a chain."""
     depot = scenario.depot
-    if snapshot is None:
-        circuity, limit = settings.travel_circuity, settings.max_leg_m
-        far = {
-            loc_id
-            for loc_id, (lat, lon) in points.items()
-            if round(_straight_distance_m(depot.lat, depot.lon, lat, lon) * circuity) > limit
-        }
-        return far, (_reachable_via_stops(depot, points, limit, circuity) if far else set())
-    nodes = stop_nodes(depot.id, (depot.lat, depot.lon), points)
-    meters, _ = snapshot.effective(nodes)
+    circuity, limit = settings.travel_circuity, settings.max_leg_m
     far = {
-        node.id
-        for j, node in enumerate(nodes[1:], start=1)
-        if not 0 <= meters[0, j] <= settings.max_leg_m
+        loc_id
+        for loc_id, (lat, lon) in points.items()
+        if round(_straight_distance_m(depot.lat, depot.lon, lat, lon) * circuity) > limit
     }
-    return far, {nodes[i].id for i in reachable(meters, settings.max_leg_m) if i > 0}
+    return far, (_reachable_via_stops(depot, points, limit, circuity) if far else set())
 
 
 def _hms(seconds: float) -> str:
@@ -86,7 +72,6 @@ def _time_findings(
     settings: RunSettings,
     points: dict[str, tuple[float, float]],
     active: dict[str, list[str]],
-    snapshot: TravelSnapshot | None,
 ) -> list[PreflightFinding]:
     """Provable time findings only. `window_unreachable` uses the shortest chain of allowed
     legs from the depot, ignoring other stops' service and waiting, so it is a lower bound on
@@ -105,16 +90,12 @@ def _time_findings(
             )
     unreachable: dict[str, str] = {}
     depot = scenario.depot
-    nodes = stop_nodes(depot.id, (depot.lat, depot.lon), points)
-    if snapshot is None:
-        coords = np.array([(n.lat, n.lon) for n in nodes])
-        meters = distance_matrix_m(coords, settings.travel_circuity)
-        seconds = estimated_seconds(coords, settings.travel_circuity)
-    else:
-        meters, seconds = snapshot.effective(nodes)
+    ids = ["depot", *sorted(points)]
+    coords = np.array([(depot.lat, depot.lon)] + [points[i] for i in ids[1:]])
+    meters = distance_matrix_m(coords, settings.travel_circuity)
+    seconds = estimated_seconds(coords, settings.travel_circuity)
     shortest = shortest_seconds_from_depot(meters, seconds, settings.max_leg_m)
-    for i, node in enumerate(nodes[1:], start=1):
-        loc_id = node.id
+    for i, loc_id in enumerate(ids[1:], start=1):
         vt = tctx.locations.get(loc_id)
         if loc_id in empty or not np.isfinite(shortest[i]):
             continue
@@ -148,9 +129,7 @@ def _time_findings(
     return out
 
 
-def preflight_checks(
-    scenario: ScenarioDocument, settings: RunSettings, snapshot: TravelSnapshot | None = None
-) -> list[PreflightFinding]:
+def preflight_checks(scenario: ScenarioDocument, settings: RunSettings) -> list[PreflightFinding]:
     locations = {loc.id: loc for loc in scenario.locations}
     products = {product.id: product for product in scenario.products}
     all_ids = {line.id for order in scenario.orders for line in order.lines}
@@ -182,7 +161,7 @@ def preflight_checks(
             grouped[(loc.id, order.customer_id or order.id)].append(
                 (line.id, line.ordered_pieces * lf)
             )
-    far, chained = _far_stops(scenario, settings, points, snapshot)
+    far, chained = _far_stops(scenario, settings, points)
     for loc_id in sorted(far):
         check = "far_via_stop" if loc_id in chained else "far_from_depot"
         found[check][loc_id].extend(located_lines[loc_id])
@@ -210,5 +189,5 @@ def preflight_checks(
                 )
             )
     if tctx := time_context(scenario):
-        out.extend(_time_findings(tctx, scenario, settings, points, active_lines, snapshot))
+        out.extend(_time_findings(tctx, scenario, settings, points, active_lines))
     return out

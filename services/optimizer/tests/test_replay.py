@@ -159,17 +159,17 @@ def test_main_exit_status_follows_the_replay(tmp_path):
 
 
 def test_bundles_declare_estimated_travel_and_other_providers_are_refused(tmp_path):
-    """Road and imported matrices are M6; replaying them as estimated travel would be wrong."""
+    """Replaying other providers them as estimated travel would be wrong."""
     expected = write_bundle(tmp_path, settings())
     assert expected["travel"] == {"provider": "estimated", "circuity": 1.2}
     edit(
         tmp_path,
         "expected.json",
-        lambda d: d.update(travel={"provider": "valhalla", "profile": "truck"}),
+        lambda d: d.update(travel={"provider": "other", "profile": "truck"}),
     )
     lines: list[str] = []
     assert replay(tmp_path, out=lines.append) == ["travel_provider"]
-    assert "valhalla" in lines[0]
+    assert "other" in lines[0]
     assert not any(line.startswith("preflight") for line in lines)  # refused before any rerun
 
 

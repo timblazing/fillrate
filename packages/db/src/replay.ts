@@ -6,7 +6,6 @@ import { join, relative } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 import type { ExplorerSettings, ExplorerSummary, RunSummary } from "@fillrate/contracts";
 import type { Store } from "./index";
-import { canonical } from "./canonical";
 
 export const MAX_BUNDLE_BYTES = 16 * 1024 * 1024;
 const DETERMINISTIC = ["preflight", "allocation", "aggregation", "clustering"] as const;
@@ -33,9 +32,9 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
   if (!summaryManifest) throw new Error("run_not_replayable");
   const summary = store.readArtifact(summaryManifest.output_hash) as RunSummary;
   const scenario = store.versionDocument(view.versionId).document;
-  const settings = view.settings.document;
-  // A run on a stored directed travel snapshot replays from that exact snapshot, offline.
-  const snapshotId = (settings as { travel_snapshot_id?: string | null }).travel_snapshot_id ?? null;
+  // Runs stored before road travel was removed carry a null `travel_snapshot_id`, which current settings reject.
+  const settings: Record<string, unknown> = { ...view.settings.document };
+  delete settings.travel_snapshot_id;
   const deterministic = Object.fromEntries(DETERMINISTIC.map(stage => [stage, view.artifacts.find(a => a.stage_type === stage)?.output_hash ?? null]));
   const expected = {
     run_id: runId,
@@ -45,29 +44,25 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
     clustering: summary.clustering,
     versions: summary.versions,
     deterministic_output_hashes: deterministic,
-    // Allocation identity is always checked. Travel is the estimated matrix, or the stored directed snapshot
-    // that ships in the bundle (identity-checked and replayed offline); any other provider is refused.
+    // Allocation identity is always checked. Travel is the estimated matrix; any other provider is refused.
     allocation: summary.allocation ? { strategy: summary.allocation.strategy, fulfillment_policy: summary.allocation.fulfillment_policy } : undefined,
-    travel: snapshotId ? { provider: "snapshot", snapshot_id: snapshotId, summary: summary.travel ?? null } : { provider: "estimated", circuity: (settings as { travel_circuity?: number }).travel_circuity ?? 1.2 },
+    travel: { provider: "estimated", circuity: (settings as { travel_circuity?: number }).travel_circuity ?? 1.2 },
     iteration_based: Boolean((settings as { solver_max_iterations?: number | null }).solver_max_iterations),
   };
   const json = (value: unknown) => Buffer.from(JSON.stringify(value, null, 1) + "\n");
   const files: [string, Buffer, boolean?][] = [
-    ["README.md", Buffer.from(readme(runId, expected.iteration_based, snapshotId))],
+    ["README.md", Buffer.from(readme(runId, expected.iteration_based))],
     ["replay.py", Buffer.from(REPLAY_PY)],
     ["scenario.json", json(scenario)],
     ["settings.json", json(settings)],
     ["expected.json", json(expected)],
-    // Compact canonical JSON, deflated: a 1,000-node matrix is millions of numbers.
-    ...(snapshotId ? [["travel-snapshot.json", Buffer.from(canonical(store.travelSnapshot(snapshotId))), true] as [string, Buffer, boolean]] : []),
     ...DETERMINISTIC.flatMap(stage => {
       const manifest = view.artifacts.find(a => a.stage_type === stage);
       return manifest ? [[`artifacts/${stage}.json`, json({ manifest, payload: store.readArtifact(manifest.output_hash) })] as [string, Buffer]] : [];
     }),
     ...optimizerFiles(sourceDir),
   ];
-  // The 16 MiB bound covers the scenario, settings, artifacts and source. A travel snapshot is bounded by its
-  // own 64 MiB limit at storage time (a 1,000-node matrix is tens of MB even deflated).
+  // The 16 MiB bound covers the scenario, settings, artifacts and source.
   if (files.reduce((n, [, data, deflate]) => n + (deflate ? 0 : data.length), 0) > MAX_BUNDLE_BYTES) throw new Error("bundle_too_large");
   return zipStore(files);
 }
@@ -75,7 +70,7 @@ export function replayBundle(store: Store, runId: string, sourceDir: string) {
 /**
  * k explorer bundle (spec §8a, §9, §13; M7): the scenario version, the recorded `ExplorerSettings` and the recorded
  * explorer artifact in `expected.json`. The checks live in `fillrate_optimizer.explorer_replay`. The explorer
- * clusters on the spatial metric only (creation refuses a travel snapshot), so the bundle declares that and nothing
+ * clusters on the spatial metric only, so the bundle declares that and nothing
  * else; the replay refuses any other provider.
  */
 export function explorerReplayBundle(store: Store, runId: string, sourceDir: string) {
@@ -136,8 +131,8 @@ The script reruns the explorer with the recorded task allowance (${summary.max_t
    a different partition changes counts, labels or the statistics by far more than the tolerance
    and fails.
 3. Travel: the explorer clusters on the spatial metric (straight-line distance × the recorded
-   cluster circuity) and never reads a travel matrix. A bundle that declares any other provider,
-   or settings that name a travel snapshot, is refused instead of replayed.
+   cluster circuity) and never reads a travel matrix. A bundle that declares any other provider
+   is refused instead of replayed.
 
 Different package versions are reported; differences still fail. These statistics describe how the
 groupings behave across seeds. They are not solver objectives or probabilities of correctness.
@@ -158,18 +153,14 @@ if __name__ == "__main__":
     raise SystemExit(main(root=ROOT))
 `;
 
-function readme(runId: string, iterationBased: boolean, snapshotId: string | null) {
+function readme(runId: string, iterationBased: boolean) {
   return `# Fillrate replay: run ${runId}
 
 Reproduces this pipeline run offline from the files in this folder: \`scenario.json\` (the saved
 scenario version), \`settings.json\` (the recorded run settings), the pinned optimizer source in
 \`optimizer/\` with its \`uv.lock\`, and \`artifacts/\` (the recorded preflight, allocation,
 aggregation and clustering outputs). No web credentials, network access or geocoding are needed.
-${snapshotId ? `
-This run selected the directed travel snapshot \`${snapshotId}\` (\`travel-snapshot.json\`). The script loads it
-from the bundle, checks that its content hash equals that identity and routes over its recorded legs; it
-never calls a routing service.
-` : ""}
+
     uv run --project optimizer python replay.py
 
 (Python 3.13; or \`pip install ./optimizer\` and \`python replay.py\`.)
@@ -182,10 +173,8 @@ The script reruns the pipeline and checks:
 2. The allocation strategy and fulfillment policy match the recording, and the plan is validated
    again: its feasibility must match, and its coverage, shipments, planned revenue and loaded miles
    are compared with \`expected.json\`.
-3. Travel is the estimated matrix (straight-line distance × the recorded circuity factor) or, for a
-   run on a directed travel snapshot, the snapshot in \`travel-snapshot.json\`: it must hash to the
-   recorded identity and the recorded travel provenance must reproduce. A bundle that declared
-   another provider would be refused instead of replayed with estimated travel.
+3. Travel is the estimated matrix (straight-line distance × the recorded circuity factor). A bundle
+   that declared another provider would be refused instead of replayed with estimated travel.
 
 ${iterationBased
     ? "This run used an iteration budget, so on the same pinned versions and platform the solve is expected to reproduce exactly. A difference is reported and fails the replay."

@@ -29,7 +29,7 @@ const questions = [
   {
     question: "How are travel distances calculated?",
     answer:
-      "The default is an estimated distance based on straight-line distance and a configurable circuity factor. Fillrate labels estimated travel clearly. Imported directed travel matrices are also supported. Hosted Valhalla road travel covers Oklahoma, Texas, New Mexico, Colorado, Kansas, Missouri, and Arkansas. Stops outside that coverage are reported unreachable for road travel; estimated travel and imported matrices remain available.",
+      "The default is an estimated distance based on straight-line distance and a configurable circuity factor. Fillrate labels estimated travel clearly. Roads never feed the optimizer; you can optionally draw a selected shipment's road path and road miles on the map from the public Valhalla server (display only, with OpenStreetMap credit).",
   },
   {
     question: "Can I use my own orders and inventory?",

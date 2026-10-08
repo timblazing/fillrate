@@ -15,4 +15,3 @@ __pycache__/
 .ruff_cache/
 test-results/
 playwright-report/
-deploy/valhalla-data/

@@ -1076,206 +1076,6 @@
         "title": "GeocodeMatch",
         "type": "object"
       },
-      "GeometryLeg": {
-        "additionalProperties": false,
-        "properties": {
-          "coordinates": {
-            "anyOf": [
-              {
-                "items": {
-                  "items": {
-                    "type": "number"
-                  },
-                  "type": "array"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Coordinates"
-          },
-          "delta_m": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Delta M"
-          },
-          "delta_s": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Delta S"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "from_id": {
-            "title": "From Id",
-            "type": "string"
-          },
-          "index": {
-            "title": "Index",
-            "type": "integer"
-          },
-          "matrix_m": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Matrix M"
-          },
-          "matrix_s": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Matrix S"
-          },
-          "notable": {
-            "default": false,
-            "title": "Notable",
-            "type": "boolean"
-          },
-          "relative_m": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Relative M"
-          },
-          "relative_s": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Relative S"
-          },
-          "route_m": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Route M"
-          },
-          "route_s": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Route S"
-          },
-          "status": {
-            "enum": [
-              "ok",
-              "same_location",
-              "no_route",
-              "rejected"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "to_id": {
-            "title": "To Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "index",
-          "from_id",
-          "to_id",
-          "status"
-        ],
-        "title": "GeometryLeg",
-        "type": "object"
-      },
-      "GeometryStop": {
-        "additionalProperties": false,
-        "description": "A node of the truck's physical sequence: the depot, then each visit's location in order.",
-        "properties": {
-          "id": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Id",
-            "type": "string"
-          },
-          "lat": {
-            "maximum": 90.0,
-            "minimum": -90.0,
-            "title": "Lat",
-            "type": "number"
-          },
-          "lon": {
-            "maximum": 180.0,
-            "minimum": -180.0,
-            "title": "Lon",
-            "type": "number"
-          }
-        },
-        "required": [
-          "id",
-          "lat",
-          "lon"
-        ],
-        "title": "GeometryStop",
-        "type": "object"
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "title": "Detail",
-            "type": "array"
-          }
-        },
-        "title": "HTTPValidationError",
-        "type": "object"
-      },
       "InventoryItem": {
         "additionalProperties": false,
         "properties": {
@@ -1979,117 +1779,6 @@
         "title": "Repair",
         "type": "object"
       },
-      "RouteGeometryRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "schema_version": {
-            "const": 1,
-            "default": 1,
-            "title": "Schema Version",
-            "type": "integer"
-          },
-          "snapshot": {
-            "additionalProperties": true,
-            "title": "Snapshot",
-            "type": "object"
-          },
-          "snapshot_id": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Snapshot Id",
-            "type": "string"
-          },
-          "stops": {
-            "items": {
-              "$ref": "#/components/schemas/GeometryStop"
-            },
-            "maxItems": 1000,
-            "minItems": 2,
-            "title": "Stops",
-            "type": "array"
-          },
-          "truck_id": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Truck Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "snapshot_id",
-          "snapshot",
-          "truck_id",
-          "stops"
-        ],
-        "title": "RouteGeometryRequest",
-        "type": "object"
-      },
-      "RouteGeometryResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "chunks": {
-            "additionalProperties": true,
-            "title": "Chunks",
-            "type": "object"
-          },
-          "geometry_version": {
-            "default": "fillrate-route-geometry/1",
-            "title": "Geometry Version",
-            "type": "string"
-          },
-          "kind": {
-            "const": "valhalla_road",
-            "default": "valhalla_road",
-            "title": "Kind",
-            "type": "string"
-          },
-          "legs": {
-            "items": {
-              "$ref": "#/components/schemas/GeometryLeg"
-            },
-            "title": "Legs",
-            "type": "array"
-          },
-          "note": {
-            "default": "Valhalla's route for the same legs, shown for display. The plan was optimized on the recorded travel matrix; these paths do not prove which roads the solver used.",
-            "title": "Note",
-            "type": "string"
-          },
-          "provider": {
-            "additionalProperties": true,
-            "title": "Provider",
-            "type": "object"
-          },
-          "schema_version": {
-            "const": 1,
-            "default": 1,
-            "title": "Schema Version",
-            "type": "integer"
-          },
-          "snapshot_id": {
-            "title": "Snapshot Id",
-            "type": "string"
-          },
-          "summary": {
-            "additionalProperties": true,
-            "title": "Summary",
-            "type": "object"
-          },
-          "truck_id": {
-            "title": "Truck Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "snapshot_id",
-          "truck_id",
-          "provider",
-          "legs",
-          "chunks",
-          "summary"
-        ],
-        "title": "RouteGeometryResponse",
-        "type": "object"
-      },
       "RunSettings": {
         "additionalProperties": false,
         "properties": {
@@ -2305,19 +1994,6 @@
             "minimum": 1,
             "title": "Travel Circuity",
             "type": "number"
-          },
-          "travel_snapshot_id": {
-            "anyOf": [
-              {
-                "pattern": "^[a-f0-9]{64}$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Travel Snapshot Id"
           },
           "weighted_truck_penalty_m": {
             "anyOf": [
@@ -2869,7 +2545,7 @@
       },
       "TravelSummary": {
         "additionalProperties": false,
-        "description": "Which travel data the run used (spec \u00a77): estimated, or a stored directed snapshot.",
+        "description": "Which travel data the run used (spec \u00a77): always estimated haversine \u00d7 circuity.",
         "properties": {
           "circuity": {
             "anyOf": [
@@ -2889,24 +2565,9 @@
             "type": "string"
           },
           "mode": {
-            "enum": [
-              "estimated",
-              "snapshot"
-            ],
+            "const": "estimated",
             "title": "Mode",
             "type": "string"
-          },
-          "node_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Node Count"
           },
           "profile": {
             "maxLength": 200,
@@ -2922,31 +2583,6 @@
             "maxLength": 200,
             "title": "Provider Version",
             "type": "string"
-          },
-          "snapshot_id": {
-            "anyOf": [
-              {
-                "pattern": "^[a-f0-9]{64}$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Snapshot Id"
-          },
-          "warning_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Warning Count"
           }
         },
         "required": [
@@ -3336,46 +2972,6 @@
         "title": "UnplannedLine",
         "type": "object"
       },
-      "ValidationError": {
-        "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "title": "Location",
-            "type": "array"
-          },
-          "msg": {
-            "title": "Message",
-            "type": "string"
-          },
-          "type": {
-            "title": "Error Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError",
-        "type": "object"
-      },
       "WorkerEvent": {
         "additionalProperties": false,
         "properties": {
@@ -3461,117 +3057,6 @@
           }
         },
         "summary": "Health"
-      }
-    },
-    "/route-geometry": {
-      "post": {
-        "description": "Road geometry for one inspected truck (spec \u00a74, \u00a77): bounded synchronous Valhalla `/route`\ncalls in the thread pool. Only Next.js calls it, with the worker bearer token.",
-        "operationId": "post_route_geometry_route_geometry_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RouteGeometryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RouteGeometryResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "409": {
-            "description": "Conflict"
-          },
-          "422": {
-            "description": "Unprocessable Content"
-          },
-          "502": {
-            "description": "Bad Gateway"
-          }
-        },
-        "summary": "Post Route Geometry"
-      }
-    },
-    "/route-geometry/context": {
-      "get": {
-        "description": "This deployment's Valhalla identity (no endpoint), for the web's eligibility check.",
-        "operationId": "get_route_geometry_context_route_geometry_context_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Route Geometry Context Route Geometry Context Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Route Geometry Context"
       }
     }
   }

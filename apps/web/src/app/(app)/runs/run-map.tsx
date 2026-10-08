@@ -19,7 +19,7 @@ import { RouteLegend } from "./road-geometry"
 const tokens = [...Array.from({ length: 8 }, (_, i) => `--route-${i + 1}`), "--background", "--muted-foreground", "--destructive"]
 
 // Run results map (spec §10): stops by cluster, cluster hulls, and shipment paths drawn as straight
-// lines (schematic, not road geometry). Hollow red rings are unshipped or excluded locations.
+// lines (schematic, not road geometry) unless a road path was fetched for the shipment. Hollow red rings are unshipped or excluded locations.
 export default function RunMap({
   summary,
   cluster,
@@ -34,8 +34,8 @@ export default function RunMap({
   onSelectCluster: (id: string | null) => void
   /** Optional H3 map layer (spec §11: off by default, resolution 5, shaded by stop count). */
   h3Resolution?: number | null
-  /** Valhalla road lines for trucks whose geometry was fetched and is shown, by truck id (display only). */
-  road?: { label: string; paths: Record<string, (LonLat[] | null)[]> } | null
+  /** Valhalla road lines, per leg, for shipments whose road path was fetched and is shown, by truck id (display only). */
+  road?: Record<string, LonLat[][]> | null
 }) {
   const { resolvedTheme } = useTheme()
   const colors = useCssColors(tokens, resolvedTheme)
@@ -113,13 +113,12 @@ export default function RunMap({
         {ready && <MapGeoJSON id="run-hulls" data={hulls} fillPaint={hullFill} linePaint={hullLine} />}
         {ready &&
           trucks.flatMap((t) => {
-            const legs = road?.paths[t.id]
+            const legs = road?.[t.id]
             if (!legs) return []
-            // Road lines are solid; a leg Valhalla could not route is left undrawn rather than replaced by a straight line.
-            return legs.flatMap((path, i) => (path ? [<MapRoute key={`${t.id}-${i}`} id={`run-road-${t.id}-${i}`} coordinates={path} color={color(t.cluster_id)} width={truck ? 4 : 2.5} opacity={0.95} interactive={false} />] : []))
+            return legs.map((path, i) => <MapRoute key={`${t.id}-${i}`} id={`run-road-${t.id}-${i}`} coordinates={path} color={color(t.cluster_id)} width={truck ? 4 : 2.5} opacity={0.95} interactive={false} />)
           })}
         {ready &&
-          trucks.filter((t) => !road?.paths[t.id]).map((t) => (
+          trucks.filter((t) => !road?.[t.id]).map((t) => (
             <MapRoute
               key={t.id}
               id={`run-truck-${t.id}`}
@@ -148,7 +147,7 @@ export default function RunMap({
         </MapMarker>
         <MapControls />
       </Map>
-      <RouteLegend road={trucks.some((t) => road?.paths[t.id]) ? road!.label : null} schematic={trucks.some((t) => !road?.paths[t.id])} color={truck ? color(trucks[0]?.cluster_id) : undefined} />
+      <RouteLegend road={trucks.some((t) => road?.[t.id])} schematic={trucks.some((t) => !road?.[t.id])} color={truck ? color(trucks[0]?.cluster_id) : undefined} />
     </div>
   )
 }

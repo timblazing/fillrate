@@ -12,10 +12,6 @@ export type RunSettings = components["schemas"]["RunSettings"];
 export type RunSummary = components["schemas"]["RunSummary"];
 export type ExplorerSettings = components["schemas"]["ExplorerSettings"];
 export type ExplorerSummary = components["schemas"]["ExplorerSummary"];
-// Valhalla road geometry for one inspected truck (FastAPI /route-geometry, spec §4, §7).
-export type RouteGeometryRequest = components["schemas"]["RouteGeometryRequest"];
-export type RouteGeometryResponse = components["schemas"]["RouteGeometryResponse"];
-export type GeometryLeg = components["schemas"]["GeometryLeg"];
 export type ContractName = "StageManifest" | "WorkerEvent" | "Snapshot" | "Lease" | "ScenarioDocument" | "RunSettings" | "RunSummary" | "ExplorerSettings" | "ExplorerSummary";
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });

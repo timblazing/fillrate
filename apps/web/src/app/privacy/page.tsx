@@ -10,10 +10,11 @@ export default function PrivacyPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Data and privacy</h1>
         <section className="flex flex-col gap-2">
           <h2 className="text-base font-semibold">What is stored</h2>
-          <p>Fillrate has no accounts. The scenarios you import (orders, stock, locations and addresses), their versions, runs, sweeps, results, geocoding answers and travel snapshots are stored in the SQLite database on the machine running the app. Deleting a scenario removes its versions, runs and sweeps.</p>
+          <p>Fillrate has no accounts. The scenarios you import (orders, stock, locations and addresses), their versions, runs, sweeps, results and geocoding answers are stored in the SQLite database on the machine running the app. Deleting a scenario removes its versions, runs and sweeps.</p>
         </section>
         <section className="flex flex-col gap-2">
           <h2 className="text-base font-semibold">Geocoding</h2>
+          <p>When you choose Show road path on a shipment, your browser sends that shipment&apos;s depot and stop coordinates to the public Valhalla routing server (valhalla1.openstreetmap.de, run by FOSSGIS). Nothing is sent otherwise.</p>
           <p>When you geocode addresses, they are sent to the U.S. Census Bureau geocoder (no account or key). ZIP code fallbacks use a lookup table on the server and send nothing.</p>
         </section>
         <section className="flex flex-col gap-2">
