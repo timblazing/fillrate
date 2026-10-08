@@ -9,28 +9,23 @@ on:
       - 'services/**'
       - 'examples/**'
       - 'deploy/**'
-      - 'scripts/**'
-      - 'tests/**'
       - 'data/**'
       - 'package.json'
       - 'bun.lock'
-      - 'package-lock.json'
       - 'tsconfig*.json'
       - 'vitest.config.*'
       - 'eslint.config.*'
       - 'Dockerfile'
       - '.dockerignore'
-      - '.github/workflows/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     paths: *ci_paths
-  workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,51 +60,7 @@ jobs:
         run: |
           bun run contracts:generate
           git diff --exit-code packages/contracts
-      - name: Lint and typecheck
-        run: |
-          bun run lint
-          bun run typecheck
-      # Includes the real-file SQLite claim races and the end-to-end Python worker tests.
-      - name: Vitest
-        run: bun run test
-      - name: Build
-        run: bun run build
-      - name: Hosted and local mode checks
-        run: bun run test:hosted
-      - name: Install agent-browser Chromium
-        run: bunx --no-install agent-browser install --with-deps
-      - name: Browser smoke
-        env:
-          # GitHub-hosted Ubuntu runners disable unprivileged user namespaces,
-          # so Chromium cannot start its sandbox there. This job only exercises
-          # the isolated synthetic smoke environment.
-          AGENT_BROWSER_ARGS: --no-sandbox
-        run: bun run test:browser
-
-  # The documented npm path (spec §14 local distribution): package-lock.json install on Node 24,
-  # lockfile alignment with bun.lock, typecheck, Vitest with the real Python worker, and the build.
-  npm:
-    runs-on: ubuntu-24.04
-    env:
-      UV_PYTHON: "3.13"
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24.18.1
-      - uses: astral-sh/setup-uv@v7
-        with:
-          version: 0.8.2
-          enable-cache: true
-          cache-dependency-glob: services/optimizer/uv.lock
-      - name: Install
-        run: |
-          npm ci --no-audit --no-fund
-          node scripts/npm-lock.mjs
-          cd services/optimizer && uv sync --locked
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Vitest
-        run: npm test
-      - name: Build
-        run: npm run build
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build

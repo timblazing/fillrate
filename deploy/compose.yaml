@@ -1,34 +1,10 @@
-# Reference deployment (spec §14). One container runs the web app, the optimizer and the worker.
-# Optional road service: deploy/valhalla/prepare.sh <region>..., then
-#   docker compose --profile valhalla up -d
-# and add the lines from `deploy/valhalla/prepare.sh env` to .env (docs/valhalla.md).
+# Minimal example: one container runs the web app, the optimizer and the worker.
 services:
   fillrate:
     image: ghcr.io/timblazing/fillrate:latest
     restart: unless-stopped
-    ports: ["${BIND_ADDR:-127.0.0.1}:3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     volumes: ["./data:/app/data"]  # the image runs as uid 1000 (node); make ./data writable by it
-    env_file: [{ path: .env, required: false }]
-  valhalla:
-    # Pinned multi-arch index (linux/amd64 + linux/arm64); keep in step with deploy/valhalla/prepare.sh.
-    image: ghcr.io/valhalla/valhalla-scripted:3.9.0@sha256:89daaf61547167893cf58c03defd43c6eba0071dc965988c16a629260f8ac683
-    profiles: ["valhalla"]
-    restart: unless-stopped
-    # Extracts, extract-meta.json and valhalla.json from prepare.sh; tiles are built here on first start.
-    volumes: ["${VALHALLA_DATA:-./valhalla-data}:/custom_files"]
+    env_file: [{ path: .env, required: false }]  # optional overrides, see .env.example
     environment:
-      use_tiles_ignore_pbf: "False"    # rebuild when the extract set changes
-      update_existing_config: "True"   # keep prepare.sh's limits, fill in the image's paths
-      use_default_speeds_config: "True" # prepare.sh downloads the pinned file, so nothing is fetched here
-      build_admins: "True"
-      build_time_zones: "True"
-      build_elevation: "False"
-      build_transit: "False"
-      serve_tiles: "True"
-    # No host port: the app reaches it as http://valhalla:8002 on the Compose network.
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/status"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 2h                  # the first start builds tiles
+      FILLRATE_MODE: local
