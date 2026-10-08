@@ -1,5 +1,11 @@
 # Progress
 
+## 2026-10-08: Uniform page layout and standard sidebar (Claude)
+- Added `components/app/page.tsx` (`Page`, `PageHeader`, `PageTitle`, `PageSection`) and moved every `app/(app)` page onto it. Widths were 3xl/5xl/6xl/7xl with different padding; they now share one `max-w-7xl` frame, gutters and rhythm, and section headings share one size. AGENTS.md documents the convention for new pages.
+- Sidebar: standard (non-inset) sidebar-07 arrangement, no rail, so only the trigger or ⌘/Ctrl+B toggles it. Learn and Labs sit in the bottom nav group. Settings and admin Access requests (pending count badge, plus a dot on the avatar) are in the account menu above Sign out. Local/operator mode shows a workspace menu with Settings.
+- Verified: typecheck, lint (existing globe hook warning only), production build, `bun run test:browser` (all flows passed; road geometry skipped without a live Valhalla; needs `UV_PYTHON=/opt/homebrew/bin/python3.13` on this Mac), headless desktop 1440×900 and phone 393×852 screenshots of the scenarios, runs, experiments, learn, lesson, labs and settings pages in local mode, collapsed sidebar, and the account menu (local workspace and the gallery's hosted user). Not live until a new image is published and deployed.
+- Docs reconciled: `f855f65` is the deployed baseline in the completion plan, owner actions and progress; stale #90/#91/#92/Pi references removed from current-state sections; open issues commented with current state.
+
 ## 2026-10-08: Hostinger updated to f855f65 (Codex)
 
 Owner authorized Fillrate-only VPS cleanup and deployment. Existing `~/containers/fillrate/compose.yaml` now pins `ghcr.io/timblazing/fillrate@sha256:ad857042103b2959326be3eccdc08f4f16f3bc5f0a4a529b2be0ce2b859db59e` (tested source `f855f65`, image workflow [37710953655](https://github.com/timblazing/fillrate/actions/runs/37710953655)). Both platform manifests were rechecked before deployment. Only the Fillrate app container was recreated; Valhalla and unrelated VPS services were untouched.
@@ -186,16 +192,15 @@ Published-image baseline: `e95f3cb`; release evidence integrated on `main` at `4
   - [ ] Measured 2,000-order and matrix frontend responsiveness/performance acceptance; the 443-shipment transition and 1,001-node preview are scoped observations only, with final candidate/cold and broader interaction measurements open.
   - [x] Basemap v1 decision and specified attribution links: owner accepts keyless CARTO risk; source/terms and light/dark rendered credit evidence are recorded in [basemap.md](basemap.md). Key/tier configuration remains a later owner follow-up.
   - [x] Current runtime image publication for `e95f3cb`: run 37482591185, both architecture smokes and manifest recorded in #72.
-  - [x] Current tested runtime update for `698fbd8` published and deployed by digest; exact workflow, manifest and host checks are recorded above. A later dashboard fix that changes runtime code needs its own tested release.
-  - [ ] Owner signed-in primary workflow on the deployed digest; see [issue #91](https://github.com/timblazing/fillrate/issues/91).
-  - [ ] Native target timings on VPS/Pi for full distribution handoff.
-
+  - [x] Integrated source `f855f65` published (image workflow 37710953655, both architecture smokes) and deployed on Hostinger by digest on 2026-10-08 with backup, health, worker and anonymous access checks.
+  - [x] Owner signed-in primary workflow and hosted road check on a deployed digest (`698fbd8`, #99; #91 and #92 closed).
+  - [ ] Hosted road automation: automatic matrices, coverage blocking, default road geometry and truthful export labels ([#98](https://github.com/timblazing/fillrate/issues/98)).
   - [ ] Final dashboard image release and deployed-digest evidence.
-  - [ ] Native timings on the VPS for full distribution handoff.
+  - [ ] Optional: native timings on the VPS for the full distribution handoff ([#93](https://github.com/timblazing/fillrate/issues/93)).
 
 ## Current state
 
-The hosted first release is accepted, and the tested runtime source `698fbd8` is now deployed by digest. M8 dashboard acceptance remains open. Current technical capabilities are determined by merged source and executable proofs; see dated history and the release record for scope and evidence.
+The hosted first release is accepted, and the tested integrated source `f855f65` is deployed on Hostinger by digest (2026-10-08). M8 remains open on hosted road automation (#98), the remaining targeted dashboard states (#88) and representative frontend performance (#89). Current technical capabilities are determined by merged source and executable proofs; see dated history and the release record for scope and evidence.
 
 Gallery Blocks use illustrative fixtures; product result screens use persisted runs. Shared components exist, but full composition/interaction parity and optimization require the frontend audit. No `.fig` work is needed.
 
@@ -204,12 +209,8 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 - Six-Block production integration and state acceptance remain open under [frontend-spec.md](frontend-spec.md); see [issue #88](https://github.com/timblazing/fillrate/issues/88). The 2,000-order and near-limit matrix evidence is scoped local browser data; representative 601-node, cold-load, broader interaction and tail-latency profiling remain open in [issue #89](https://github.com/timblazing/fillrate/issues/89). The displayed heatmap stays at its bounded 12×12 sample.
 - The 443-shipment persisted results transition meets the proposed 200 ms response target in three warm local trials per viewport; the table pages 50 rows and selection does not fetch the full result. This does not close matrix, whole-dashboard, cold-load or target-device performance acceptance.
 - Recovery states and shipment-sheet print have local browser acceptance (2026-10-06 entries); the worker-crash retry banner is not browser-tested.
-- The 52-state post-fix axe/focus/theme/reduced-motion rerun passes; manual contrast-incomplete cases, VoiceOver, physical-device and gallery checks remain in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md) and [issue #90](https://github.com/timblazing/fillrate/issues/90).
-- The `698fbd8` image is published and deployed by digest; CI, both architecture smokes, backup integrity, health, worker and anonymous hosted/request checks passed. The owner's signed-in synthetic workflow remains open in [issue #91](https://github.com/timblazing/fillrate/issues/91). Runtime fixes after M8 acceptance will need a new image release.
-- Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The live signed-in UI road check is pending in [issue #92](https://github.com/timblazing/fillrate/issues/92). Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
-
-- The 52-state post-fix axe/focus/theme/reduced-motion rerun passes; manual contrast-incomplete cases and gallery checks remain in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md) and [issue #90](https://github.com/timblazing/fillrate/issues/90).
-- The `e95f3cb` image is published (PR #72); final dashboard image publication and deployment by digest remain open in [issue #91](https://github.com/timblazing/fillrate/issues/91). Deployment is owner-controlled and is not inferred from a successful image workflow.
+- Accessibility is out of scope for the v1 demo (owner, 2026-10-07; #90 closed as not planned). The 52-state automated rerun stays as historical evidence in [the accessibility record](reviews/m8-accessibility-audit-2026-10-07.md).
+- `f855f65` is deployed by digest; runtime changes merged after it (including the 2026-10-08 app shell/layout update) need a new tested image release and deployment before they are live.
 - Hosted Valhalla covers OK/TX/NM/CO/KS/MO/AR only; stops outside it are unreachable on road snapshots. The owner's signed-in UI road check passed on 2026-10-07 ([#92](https://github.com/timblazing/fillrate/issues/92)); default road travel and geometry are tracked in [#98](https://github.com/timblazing/fillrate/issues/98). Matrix builds on the 1-CPU cap are slow for wide extents (a random 25 × 25 block across ~1,000 km took ~49 s).
 - Keyless CARTO is the owner-accepted v1 configuration. The terms record and specified rendered credit links exist; no CARTO key, tier or use classification is claimed.
 - Native timings on the VPS are missing ([issue #93](https://github.com/timblazing/fillrate/issues/93)). Historical image timings/recovery remain valid for their recorded digest only.
@@ -225,8 +226,8 @@ Gallery Blocks use illustrative fixtures; product result screens use persisted r
 
 ## Waiting on the primary user (come back to this)
 
-See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for the final dashboard upgrade; VPS Valhalla service/coverage/timing evidence exists, and the owner’s signed-in road UI check passed (2026-10-07); native target timings close the broader handoff. Real samples, rates and off-host backups retain their explicit optional/deferred scope. No design-file action remains.
+See [owner-actions.md](owner-actions.md). Deploy-by-digest is required for the final dashboard release; `f855f65` is the current deployed baseline. Native VPS timings (#93) are optional handoff evidence. Real samples, rates and off-host backups retain their explicit optional/deferred scope. No design-file action remains.
 
 ## Next step
 
-Continue with [issue #88](https://github.com/timblazing/fillrate/issues/88), [issue #89](https://github.com/timblazing/fillrate/issues/89), and [issue #90](https://github.com/timblazing/fillrate/issues/90) for dashboard, performance and manual accessibility acceptance. Finish the owner's live workflow in [#91](https://github.com/timblazing/fillrate/issues/91), road geometry in [#92](https://github.com/timblazing/fillrate/issues/92), and native timing evidence in [#93](https://github.com/timblazing/fillrate/issues/93). Runtime fixes from #88–#90 may require another published image. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.
+[#98](https://github.com/timblazing/fillrate/issues/98) hosted road automation, then the remaining targeted [#88](https://github.com/timblazing/fillrate/issues/88) dashboard states and [#89](https://github.com/timblazing/fillrate/issues/89) representative performance. Publish and deploy the integrated candidate afterwards. [#93](https://github.com/timblazing/fillrate/issues/93) native timings are optional. See [completion-plan.md](completion-plan.md) for dependencies and exit evidence.

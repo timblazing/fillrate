@@ -77,7 +77,7 @@ export function Step({ n, title, observe, children }: { n: number; title: string
   return (
     <section className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" aria-labelledby={`step-${n}`}>
       <div className="flex flex-col gap-3">
-        <h2 id={`step-${n}`} className="text-lg font-semibold tracking-tight">
+        <h2 id={`step-${n}`} className="text-base font-semibold">
           <span className="text-muted-foreground tabular-nums">{n}.</span> {title}
         </h2>
         <div className="flex flex-wrap items-end gap-3">{children}</div>
@@ -98,7 +98,7 @@ export function Step({ n, title, observe, children }: { n: number; title: string
 export function ModelFields({ fields, notModeled }: { fields: readonly (readonly [string, string])[]; notModeled: string }) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="model-fields">
-      <h2 id="model-fields" className="text-sm font-medium">Model fields this lesson uses</h2>
+      <h2 id="model-fields" className="text-base font-semibold">Model fields this lesson uses</h2>
       <dl className="bg-card grid gap-x-6 gap-y-2 rounded-xl border p-4 text-sm sm:grid-cols-[max-content_minmax(0,1fr)]">
         {fields.map(([name, text]) => (
           <div key={name} className="contents">

@@ -1,8 +1,8 @@
 # Complete Fillrate and update the live release
 
-Published and deployed baseline: `698fbd8`, image workflow 37680183468; digest and rollback evidence are in [the release record](releases/upgrade-698fbd8.md). Owner signed-in synthetic and road checks passed in #99; current source is ahead of that deployed image. This plan replaces stale next-step lists while preserving the technical spec and M1–M8 history. It adds no new solver engine scope.
+Deployed baseline: `f855f65` (#100), tested image workflow 37710953655, pinned on Hostinger by index `sha256:ad857042103b2959326be3eccdc08f4f16f3bc5f0a4a529b2be0ce2b859db59e` on 2026-10-08 with backup, health, worker and anonymous access checks ([release verification](release-verification.md)). Rollback image: `698fbd8` ([release record](releases/upgrade-698fbd8.md)), on which the owner's signed-in synthetic and road checks passed (#99). This plan replaces stale next-step lists while preserving the technical spec and M1–M8 history. It adds no new solver engine scope.
 
-Latest published candidate: `f855f65` (#100), tested image workflow 37710953655; `sha-f855f65` and `latest` share index `sha256:ad857042103b2959326be3eccdc08f4f16f3bc5f0a4a529b2be0ce2b859db59e`. It has not been deployed. The deployed baseline above remains authoritative for live behavior.
+Source merged after `f855f65` is not live until a new tested image is published and deployed.
 
 ## Definition of complete and live
 
@@ -12,7 +12,7 @@ Hosted v1 uses Valhalla roads in OK and bordering states. Issue #98 automates ma
 
 ## Current focus
 
-Dashboard fixes and expanded audit evidence are in #100. Deliver #98 hosted road automation, close the remaining targeted #88 states alongside it, then close #89 representative performance acceptance. Publish the integrated candidate and verify its deployment. #93 native VPS timings remain optional handoff evidence. Manual accessibility/VoiceOver, physical-device testing, Raspberry Pi, design-file maintenance and new solver scope are excluded from the v1 demo.
+Dashboard fixes and expanded audit evidence merged in #100 and are deployed. Deliver #98 hosted road automation, close the remaining targeted #88 states alongside it, then close #89 representative performance acceptance. Publish the integrated candidate and verify its deployment. #93 native VPS timings remain optional handoff evidence. Manual accessibility/VoiceOver, physical-device testing, Raspberry Pi, design-file maintenance and new solver scope are excluded from the v1 demo.
 
 ## Delivery order and reviewable slices
 
@@ -28,7 +28,7 @@ Dashboard fixes and expanded audit evidence are in #100. Deliver #98 hosted road
 | In v1 (owner, 2026-10-07): VPS roads | [Issue #92](https://github.com/timblazing/fillrate/issues/92) | OK + bordering states, prebuilt tiles | Done 2026-10-07: pinned provider/graph identity and coverage, VPS matrix/route checks, memory/disk/latency evidence, app path through Fillrate on the same bundle. Owner's signed-in UI check passed 2026-10-07 |
 | P2: native target handoff | [Issue #93](https://github.com/timblazing/fillrate/issues/93) | VPS access and matching source/settings | Bun/npm/uv timings and startup evidence on the VPS, with runtime versions and limitations |
 
-Historical publications and the deployed 698fbd8 baseline prove their recorded sources. Integrated dashboard runtime changes require a new tested image release; record it separately from deployment.
+Historical publications and the deployed f855f65 baseline prove their recorded sources. Integrated dashboard runtime changes require a new tested image release; record it separately from deployment.
 
 ## Launch checklist
 

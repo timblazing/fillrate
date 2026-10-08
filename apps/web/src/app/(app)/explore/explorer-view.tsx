@@ -7,6 +7,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
+import { PageTitle } from "@/components/app/page"
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
 import { KElbowChart } from "@/components/lab/k-elbow-chart"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -62,7 +63,7 @@ export function ExplorerView({ initial, imported, example, canRun, runKey }: { i
         <Button variant="ghost" size="icon-sm" render={<Link href={imported ? "/scenarios" : `/runs${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`} aria-label="Back" />}>
           <ArrowLeft />
         </Button>
-        <h1 className="text-lg font-semibold">k explorer <span className="font-mono">{run.id.slice(0, 8)}</span></h1>
+        <PageTitle>k explorer <span className="font-mono">{run.id.slice(0, 8)}</span></PageTitle>
         <JobStatusBadge state={run.status as JobState} />
         <span className="text-muted-foreground text-xs tabular-nums">
           {settings.ks ? `k ${settings.ks.join(", ")}` : "k near the selected value"} · seeds {(settings.seeds ?? []).join(", ")} · H3 {(settings.h3_resolutions ?? []).join(", ") || "none"}

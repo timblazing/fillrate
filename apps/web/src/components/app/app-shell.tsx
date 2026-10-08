@@ -46,7 +46,11 @@ export function crumbsFor(pathname: string): Crumb[] {
   }
 }
 
-/** Application frame for the signed-in product (shadcn sidebar-08 layout): inset sidebar plus a breadcrumb header. */
+/**
+ * Application frame for the signed-in product (shadcn sidebar-07 layout): a standard sidebar that collapses to icons, plus a
+ * sticky breadcrumb header. Pages render inside it with `Page` from `./page`, which owns width, gutters and spacing.
+ * The content column is a div, not SidebarInset's <main>, because each page supplies its own <main>.
+ */
 export function AppShell({
   admin,
   mode,
@@ -66,9 +70,9 @@ export function AppShell({
       <AppSidebar admin={admin} mode={mode} user={user} />
       <div
         data-slot="sidebar-inset"
-        className="bg-background relative flex w-full min-w-0 flex-1 flex-col md:m-2 md:ms-0 md:rounded-xl md:shadow-sm/5 md:ring-1 md:ring-border/60 print:m-0 print:rounded-none print:shadow-none print:ring-0"
+        className="bg-background relative flex w-full min-w-0 flex-1 flex-col"
       >
-        <header className="bg-background/80 sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b px-4 backdrop-blur-md md:rounded-t-xl print:hidden">
+        <header className="bg-background/80 sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b px-4 backdrop-blur-md print:hidden">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <Breadcrumb className="min-w-0">

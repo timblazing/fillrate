@@ -141,7 +141,7 @@ function Comparison({ north, south }: { north: Detail; south: Detail }) {
   ]
   return (
     <section className="flex flex-col gap-3" aria-labelledby="comparison">
-      <h2 id="comparison" className="text-sm font-medium">Side by side</h2>
+      <h2 id="comparison" className="text-base font-semibold">Side by side</h2>
       <div className="overflow-x-auto rounded-xl border">
         <Table aria-label="Side-by-side comparison" data-testid="groups-comparison">
           <TableHeader>

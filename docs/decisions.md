@@ -613,3 +613,10 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-08: Deploy integrated candidate with Fillrate-only cleanup (Codex)
 - **Decision:** Owner authorized updating Hostinger and cleaning only Fillrate-owned resources. Pin tested f855f65 by immutable digest, preserve live hosted/OAuth and Valhalla settings, back up configuration/database first, and retain the immediately preceding image for rollback.
 - **Evidence boundary:** Live health, worker, SQLite integrity, backup timer and anonymous access checks passed. No new signed-in acceptance or product completion is claimed. Active database/tiles and unrelated services were preserved.
+
+## 2026-10-08: Standard sidebar, account menu and one page layout (Claude)
+- **Decision:** The signed-in shell moves from the inset sidebar-08 arrangement to the standard shadcn sidebar-07 arrangement: a full-height sidebar with a border that collapses to icons. Platform nav keeps Scenarios (Workbench, Pipeline runs) and Experiments. Learn and Labs move to the bottom nav group. Settings and, for admins, Access requests (with the pending count) move into the footer account menu above Sign out, as in shadcn's NavUser. Local and operator deployments have no account, so the footer shows the workspace with Settings only. `SidebarRail` is removed, so only the header trigger or ⌘/Ctrl+B toggles the sidebar.
+- **Decision:** Every page under `app/(app)` renders one `Page` from `components/app/page.tsx` (`max-w-7xl`, shared gutters and `gap-8`) with `PageHeader` (title, description, actions, controls) or, for toolbar-style detail views, `PageTitle`. Section headings are `text-base font-semibold`. Pages no longer set their own width or padding, and lesson pages drop their duplicate "Lessons" link because the breadcrumb provides it.
+- **Reason:** Owner review of the deployed dashboard: page widths and spacing differed from page to page (3xl to 7xl), clicking the sidebar border toggled it by accident, and account pages belong in the account menu.
+- **Supersedes:** the 2026-10-07 sidebar-08 decision's inset variant and its placement of Settings/Access requests.
+
