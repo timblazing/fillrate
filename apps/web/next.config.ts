@@ -17,7 +17,6 @@ const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     "/api/v1/runs/*/export": [
       "../../services/optimizer/tests/**/*",
-      "../../services/optimizer/benchmarks/**/*",
       "../../services/optimizer/**/__pycache__/**/*",
       "../../services/optimizer/.venv/**/*",
     ],

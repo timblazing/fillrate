@@ -41,4 +41,4 @@ deploy              Dockerfile entrypoint and a sample compose file
 - Design tokens live in `apps/web/src/app/globals.css`. MapLibre can't read CSS variables, so resolve colors with `useCssColors` from `src/lib/css-color.ts`.
 - Product pages under `app/(app)` render inside `AppShell` (add new routes to `crumbsFor` in `components/app/app-shell.tsx`) and return one `<Page>` from `@/components/app/page` with a `<PageHeader>` and `<PageSection>`s. Don't set per-page `max-w-*`, `mx-auto` or padding. Sidebar nav is in `components/app/app-sidebar.tsx`.
 - Before using a Next.js API, read the bundled guide in `apps/web/node_modules/next/dist/docs/`.
-- Browser checks use the local `agent-browser` CLI only (headless; desktop 1440×900 and iPhone 16 393×852), against local servers with synthetic data.
+- Browser checks use the local `agent-browser` CLI (installed globally, not a repo dependency), headless at desktop 1440×900 and iPhone 16 393×852, against local servers with synthetic data.
