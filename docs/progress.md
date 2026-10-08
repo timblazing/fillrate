@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-10-08: Hostinger updated to f855f65 (Codex)
+
+Owner authorized Fillrate-only VPS cleanup and deployment. Existing `~/containers/fillrate/compose.yaml` now pins `ghcr.io/timblazing/fillrate@sha256:ad857042103b2959326be3eccdc08f4f16f3bc5f0a4a529b2be0ce2b859db59e` (tested source `f855f65`, image workflow [37710953655](https://github.com/timblazing/fillrate/actions/runs/37710953655)). Both platform manifests were rechecked before deployment. Only the Fillrate app container was recreated; Valhalla and unrelated VPS services were untouched.
+
+- Private pre-upgrade Compose and online SQLite backup: `/home/clay/containers/fillrate/backups/upgrade-f855f65-20261008T163934Z`. Backup `fillrate-20261008T163934Z.sqlite` SHA-256: `29b5c019b4a14dc3ae1bc3124eacd61ec9102e339a2147005327b70c2347f9d2`; checksum and backup integrity passed.
+- App/container health, connected worker, live SQLite integrity and 12 migrations passed. Public HTTPS health and anonymous hosted/request policy passed; anonymous admin endpoint returned 404. Backup timer remains active. Valhalla stays healthy with graph/config identity `sha256:208e3e70ea06dfa730910332081b2cff0b6cc2aa3758441ce335c09f4bbe338d`.
+- Removed only generated `valhalla/__pycache__/region_check.cpython-313.pyc` and its empty directory. No unused Fillrate containers/volumes or expired backups were found. Retained database volume `fillrate_fillrate-data`, 3.6 GiB active tiles, protected backups and immediate rollback image `698fbd8`. No global Docker prune was run. Host disk was 11% used before upgrade.
+- Rollback: in `~/containers/fillrate`, copy the private upgrade directory's `compose.before.yaml` to `compose.yaml`, then `docker compose config --quiet` and `docker compose up -d --no-deps fillrate`; repeat health/worker/access checks. No schema migrations changed between these images, so application rollback retains the current database.
+- This verifies deployment and operational health, not a new signed-in workflow acceptance. #98, remaining #88 and #89 remain open; #93 timings stay optional.
+
 ## 2026-10-08: Integrated main image published (Codex)
 
 - Source: `f855f6564f15c1836046d9861d27043c547aa00b` (#100 squash merge; #95 deployment records were merged first).
