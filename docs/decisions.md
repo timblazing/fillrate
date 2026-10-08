@@ -609,3 +609,7 @@ Keep the weighted spec completion as the first of five stat cards on `/dev`. Rem
 ## 2026-10-08: Publish the integrated main candidate after PR checks (Codex)
 - **Decision:** Complete the owner's requested merge/rebuild sequence through squash merges of #95 and #100, then publish tested source f855f65 as the multi-architecture Docker package. Preserve the refocused #98/#88/#89 delivery order and optional #93 handoff.
 - **Evidence boundary:** Workflow 37710953655 and registry manifest verification prove publication for both architectures. A new VPS deployment and its exact-digest checks remain separate; no product-completion estimate is increased for publication alone.
+
+## 2026-10-08: Deploy integrated candidate with Fillrate-only cleanup (Codex)
+- **Decision:** Owner authorized updating Hostinger and cleaning only Fillrate-owned resources. Pin tested f855f65 by immutable digest, preserve live hosted/OAuth and Valhalla settings, back up configuration/database first, and retain the immediately preceding image for rollback.
+- **Evidence boundary:** Live health, worker, SQLite integrity, backup timer and anonymous access checks passed. No new signed-in acceptance or product completion is claimed. Active database/tiles and unrelated services were preserved.
