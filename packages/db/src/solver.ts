@@ -5,10 +5,10 @@ import type { RunFailure, RunResult, Store } from "./index";
 
 export const DEFAULT_OPTIMIZER_URL = "http://127.0.0.1:8000";
 
-type Reply = { status: number; body: unknown };
+export type Reply = { status: number; body: unknown };
 
 /** POST JSON with no client-side timeout (a solve can take minutes; the service enforces its own wall limit). */
-function postJson(url: string, body: unknown): Promise<Reply> {
+export function postJson(url: string, body: unknown): Promise<Reply> {
   return new Promise((resolve, reject) => {
     const req = request(url, { method: "POST", headers: { "content-type": "application/json" } }, res => {
       const chunks: Buffer[] = [];
