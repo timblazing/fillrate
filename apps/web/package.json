@@ -15,7 +15,6 @@
     "@fillrate/contracts": "0.1.0",
     "@fillrate/db": "0.1.0",
     "@number-flow/react": "^0.6.2",
-    "@tanstack/react-table": "^9.2.4",
     "@turf/circle": "^7.4.0",
     "@turf/convex": "^7.4.0",
     "@turf/helpers": "^7.4.0",

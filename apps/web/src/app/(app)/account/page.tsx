@@ -29,7 +29,7 @@ export default async function AccountPage() {
         {current === "operator" && <p className="text-muted-foreground text-sm text-pretty">This server has no accounts. Imported scenarios belong to its operator and need the operator key.</p>}
         {current === "hosted" && !who.user && (
           <>
-            <p className="text-muted-foreground text-sm text-pretty">Sign in with GitHub to request access to import, save and run your own scenarios. Lessons and the bundled examples stay open to everyone.</p>
+            <p className="text-muted-foreground text-sm text-pretty">Sign in with GitHub to request access to import, save and run your own scenarios. The bundled examples stay open to everyone.</p>
             <div><SignInButton /></div>
           </>
         )}

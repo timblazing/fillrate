@@ -1,4 +1,4 @@
-"""The road matrix lesson's "what to look for" claims (`app/learn/road-matrices`)."""
+"""The road matrix lesson's "what to look for" claims."""
 
 import json
 from pathlib import Path

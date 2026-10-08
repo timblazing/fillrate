@@ -25,7 +25,7 @@ export default async function ScenariosPage() {
       />
       {current === "hosted" && !who.ownerId
         ? <Card>
-            <CardHeader><CardTitle render={<h2 />}>Request access to work with your own data</CardTitle><CardDescription>Sign in with GitHub to request access. Lessons and bundled examples stay open to everyone.</CardDescription></CardHeader>
+            <CardHeader><CardTitle render={<h2 />}>Request access to work with your own data</CardTitle><CardDescription>Sign in with GitHub to request access. Bundled examples stay open to everyone.</CardDescription></CardHeader>
             <CardPanel><SignInButton /></CardPanel>
           </Card>
         : <ScenarioWorkbench access={{ mode: current, account: who.user?.name ?? null }} />}

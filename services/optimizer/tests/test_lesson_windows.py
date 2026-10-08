@@ -1,4 +1,4 @@
-"""The time windows lesson's "what to look for" claims (`app/learn/time-windows`)."""
+"""The time windows lesson's "what to look for" claims."""
 
 import json
 from pathlib import Path

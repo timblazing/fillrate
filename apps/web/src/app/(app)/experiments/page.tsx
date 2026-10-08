@@ -19,7 +19,7 @@ export default async function ExperimentsPage({ searchParams }: PageProps<"/expe
   const runKey = typeof key === "string" ? key : undefined
   const who = await pagePrincipal()
   const experiments = visibleExperiments(initializeDatabase(), who)
-  // Sweeps default to the lesson scenario: the small example always has an unreachable stop, so it never ranks.
+  // Sweeps default to the 2,000-order example: the small example always has an unreachable stop, so it never ranks.
   const example = pageExample(exampleParam)
   const startK = typeof k === "string" && /^\d+$/.test(k) ? Number(k) : (example.settings.k ?? 4)
   const keyQuery = runKey ? `&key=${encodeURIComponent(runKey)}` : ""
@@ -37,7 +37,7 @@ export default async function ExperimentsPage({ searchParams }: PageProps<"/expe
         actions={<Button variant="outline" size="sm" render={<Link href={`/runs?example=${example.id}${keyQuery}`} />}>Pipeline runs</Button>}
       >
         <ExampleSwitch examples={Object.values(EXAMPLES).map(exampleInfo)} current={example.id} href={(id) => `/experiments?example=${id}${keyQuery}`} />
-        {example.id === "m1" && <p className="text-warning-foreground text-sm">The small example always leaves one stop unreachable, so its plans are partial and never ranked. Use the lesson scenario to see Best option, 2nd best and 3rd.</p>}
+        {example.id === "m1" && <p className="text-warning-foreground text-sm">The small example always leaves one stop unreachable, so its plans are partial and never ranked. Use the 2,000-order example to see Best option, 2nd best and 3rd.</p>}
         {canStartRuns(who, key) ? <SweepBuilder key={example.id} example={example.id} initialK={startK} runKey={runKey} limit={maxSweepRuns()} /> : <p className="text-muted-foreground text-sm">{runsClosedNote().replace("runs", "sweeps").replace("runs", "sweeps")}</p>}
       </PageHeader>
       <section className="flex flex-col gap-3">
