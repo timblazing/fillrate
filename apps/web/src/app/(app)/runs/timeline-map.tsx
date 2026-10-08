@@ -16,7 +16,7 @@ const tokens = Array.from({ length: 8 }, (_, i) => `--route-${i + 1}`)
 
 // One truck's planned route on the map: schematic straight segments between stops, or Valhalla road lines when they
 // were fetched (display only), and a marker interpolated along the current leg by the timeline cursor.
-export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel, roadLabel = null }: { timeline: Timeline; cursor: CursorState | null; routeIndex: number; depotLabel: string; roadLabel?: string | null }) {
+export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel }: { timeline: Timeline; cursor: CursorState | null; routeIndex: number; depotLabel: string }) {
   const { resolvedTheme } = useTheme()
   const colors = useCssColors(tokens, resolvedTheme)
   const color = colors[`--route-${((routeIndex - 1) % 8) + 1}`]
@@ -29,7 +29,7 @@ export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel, 
       <Map theme={resolvedTheme === "dark" ? "dark" : "light"} center={depot} zoom={5} attributionControl={{ compact: false }}>
         <FitBounds points={path} fitKey={timeline.truckId} />
         {color && !timeline.legPaths && <MapRoute id={`timeline-${timeline.truckId}`} coordinates={path} color={color} width={3} opacity={0.8} dashArray={[2, 1.5]} interactive={false} />}
-        {color && timeline.legPaths?.map((leg, i) => (leg ? <MapRoute key={i} id={`timeline-${timeline.truckId}-road-${i}`} coordinates={leg} color={color} width={4} opacity={0.95} interactive={false} /> : null))}
+        {color && timeline.legPaths?.map((leg, i) => <MapRoute key={i} id={`timeline-${timeline.truckId}-road-${i}`} coordinates={leg} color={color} width={4} opacity={0.95} interactive={false} />)}
         {timeline.stops.map((s) => (
           <MapMarker key={s.visitId} longitude={s.lon!} latitude={s.lat!}>
             <MarkerContent>
@@ -60,7 +60,7 @@ export default function TimelineMap({ timeline, cursor, routeIndex, depotLabel, 
         )}
         <MapControls />
       </Map>
-      <RouteLegend road={timeline.legPaths ? roadLabel : null} schematic={!timeline.legPaths} color={color} />
+      <RouteLegend road={!!timeline.legPaths} schematic={!timeline.legPaths} color={color} />
       {cursor && (
         <span data-testid="timeline-map-state" className="bg-background/90 absolute top-2 left-2 rounded-md px-2 py-1 text-[11px] backdrop-blur">
           {{ depot: "At depot", drive: "Driving", wait: "Waiting for window", service: "Service" }[cursor.phase]}

@@ -1,5 +1,4 @@
 import type { ScenarioDocument } from "@fillrate/contracts";
-import { bindingMessage, bindNodes, effectiveMeters, reachableFromDepot, stopNodes, type TravelSnapshot } from "./travel";
 
 /** Submission policy, mirrored in fillrate_optimizer/preflight.py. */
 export type PreflightCheck = "missing_coordinates" | "far_from_depot" | "oversize_stop" | "far_via_stop" | "approximate_coordinates";
@@ -10,8 +9,6 @@ export type PreflightSettings = {
   trailer_capacity?: number;
   travel_circuity?: number;
   max_leg_m?: number;
-  /** Identity of the selected directed travel snapshot; the caller must then pass that snapshot. */
-  travel_snapshot_id?: string | null;
   excluded_line_ids?: string[];
   preflight?: Partial<Record<Exclude<PreflightCheck, "far_via_stop">, "block" | "warn">>;
 };
@@ -35,50 +32,13 @@ function reachableViaStops(depot: { lat: number; lon: number }, points: Map<stri
   }
   return seen;
 }
-/**
- * Stops that carry demand and have coordinates: what a travel snapshot must describe for this run
- * (the pipeline's allocated stops are a subset). The same set preflight.py checks.
- */
-export function demandStops(scenario: ScenarioDocument, excludedLineIds: Iterable<string> = []) {
-  const excluded = new Set(excludedLineIds);
-  const locations = new Map(scenario.locations.map(x => [x.id, x]));
-  const stops = new Map<string, { lat: number; lon: number }>();
-  for (const order of scenario.orders) {
-    const loc = locations.get(order.location_id);
-    if (!loc || loc.lat === null || loc.lon === null || loc.coordinate_source === "unresolved") continue;
-    if (order.lines.some(x => x.ordered_pieces > 0 && !excluded.has(x.id))) stops.set(loc.id, { lat: loc.lat, lon: loc.lon });
-  }
-  return stops;
+function farStops(scenario: ScenarioDocument, points: Map<string, { lat: number; lon: number }>, maxLeg: number, circuity: number) {
+  const far = new Set([...points].filter(([, to]) => Math.round(distanceM(scenario.depot, to) * circuity) > maxLeg).map(([id]) => id));
+  return { far, chained: far.size ? reachableViaStops(scenario.depot, points, maxLeg, circuity) : new Set<string>() };
 }
 
-function farStops(scenario: ScenarioDocument, points: Map<string, { lat: number; lon: number }>, maxLeg: number, circuity: number, snapshot?: TravelSnapshot) {
-  if (!snapshot) {
-    const far = new Set([...points].filter(([, to]) => Math.round(distanceM(scenario.depot, to) * circuity) > maxLeg).map(([id]) => id));
-    return { far, chained: far.size ? reachableViaStops(scenario.depot, points, maxLeg, circuity) : new Set<string>() };
-  }
-  const nodes = stopNodes(scenario.depot, points);
-  const meters = effectiveMeters(snapshot, nodes);
-  const far = new Set(nodes.slice(1).filter((_, j) => !(meters[0][j + 1] >= 0 && meters[0][j + 1] <= maxLeg)).map(n => n.id));
-  return { far, chained: new Set([...reachableFromDepot(meters, maxLeg)].filter(i => i > 0).map(i => nodes[i].id)) };
-}
-
-/**
- * Rejects a run whose scenario no longer matches the travel snapshot it selected: a stop the snapshot
- * lacks, or one whose coordinates were edited after the snapshot was taken (spec §7: coordinate edits
- * invalidate the matrix). Throws `travel_snapshot_stale` (or `travel_snapshot_nodes` for an ID clash).
- */
-export function assertSnapshotBinding(scenario: ScenarioDocument, excludedLineIds: Iterable<string>, snapshot: TravelSnapshot) {
-  const binding = bindNodes(snapshot, stopNodes(scenario.depot, demandStops(scenario, excludedLineIds)));
-  if (binding.missing.length || binding.moved.length) throw Object.assign(new Error(`travel_snapshot_stale: ${bindingMessage(binding)}`), { binding });
-}
-
-/**
- * Policy checks for a submission. With a selected travel snapshot, "far" means the depot → stop leg is
- * missing or over the limit in that directed matrix, and "via stop" means a chain of allowed directed legs
- * reaches it; without one, legs are haversine × circuity (preflight.py mirrors both).
- */
-export function preflightChecks(scenario: ScenarioDocument, settings: PreflightSettings = {}, snapshot?: TravelSnapshot): PreflightFinding[] {
-  if (Boolean(settings.travel_snapshot_id) !== Boolean(snapshot)) throw new Error("travel_snapshot_required: the selected travel snapshot must be loaded for preflight");
+/** Policy checks for a submission. Legs are haversine × circuity (preflight.py mirrors this). */
+export function preflightChecks(scenario: ScenarioDocument, settings: PreflightSettings = {}): PreflightFinding[] {
   const locations = new Map(scenario.locations.map(x => [x.id, x]));
   const products = new Map(scenario.products.map(x => [x.id, x]));
   const allIds = new Set(scenario.orders.flatMap(x => x.lines.map(y => y.id)));
@@ -116,7 +76,7 @@ export function preflightChecks(scenario: ScenarioDocument, settings: PreflightS
       grouped.set(groupKey, group);
     }
   }
-  const { far, chained } = farStops(scenario, points, maxLeg, circuity, snapshot);
+  const { far, chained } = farStops(scenario, points, maxLeg, circuity);
   for (const id of [...far].sort()) for (const lineId of locatedLines.get(id) ?? []) add(chained.has(id) ? "far_via_stop" : "far_from_depot", id, lineId);
   for (const [key, group] of grouped) if (group.load > largestCapacity(settings)) {
     const [id] = JSON.parse(key) as [string, string];

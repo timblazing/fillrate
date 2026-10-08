@@ -13,11 +13,9 @@ Semantics (see the bundle README):
   match. Coverage, shipments, planned revenue and loaded miles must match only when the run used an
   iteration budget on the recorded versions; with a time budget, an override or version drift they
   are reported, not required.
-* Travel is the pipeline's estimated haversine × circuity matrix, which the settings already carry,
-  or the stored directed travel snapshot named by `travel_snapshot_id` (M6). A snapshot ships in
-  the bundle as `travel-snapshot.json`; it must hash to the recorded identity before anything is
-  rerun, and the recorded travel provenance must reproduce. A bundle that declares any other
-  travel provider is refused rather than silently replayed with estimated travel.
+* Travel is the pipeline's estimated haversine × circuity matrix, which the settings already carry.
+  A bundle that declares any other travel provider is refused rather than silently replayed with
+  estimated travel.
 """
 
 from __future__ import annotations
@@ -32,14 +30,11 @@ from typing import Any
 from .canonical import content_hash
 from .model import RunSettings, ScenarioDocument
 from .pipeline import PipelineOutput, run_pipeline, versions
-from .travel_provider import TravelSnapshot
 
 DETERMINISTIC_STAGES = ("preflight", "allocation", "aggregation", "clustering")
 # Measured wall-clock values recorded as provenance; they never repeat and are not results.
 MEASURED_KEYS = frozenset({"runtime_s"})
 ESTIMATED_TRAVEL = "estimated"
-SNAPSHOT_TRAVEL = "snapshot"
-SNAPSHOT_FILE = "travel-snapshot.json"
 
 
 def without_measured(value: Any) -> Any:
@@ -80,30 +75,7 @@ def expected_record(run_id: str, output: PipelineOutput, settings: RunSettings) 
 
 
 def travel_record(output: PipelineOutput, settings: RunSettings) -> dict[str, Any]:
-    travel = output.summary.travel
-    if travel is not None and travel.mode == "snapshot":
-        return {
-            "provider": SNAPSHOT_TRAVEL,
-            "snapshot_id": settings.travel_snapshot_id,
-            "summary": travel.model_dump(mode="json"),
-        }
     return {"provider": ESTIMATED_TRAVEL, "circuity": settings.travel_circuity}
-
-
-def load_snapshot(root: Path, settings: RunSettings, travel: dict[str, Any], out) -> TravelSnapshot:
-    """The bundled snapshot, or a ValueError naming why it cannot be trusted."""
-    recorded = travel.get("snapshot_id")
-    if settings.travel_snapshot_id != recorded:
-        raise ValueError("the settings and expected.json name different travel snapshots")
-    path = root / SNAPSHOT_FILE
-    if not path.exists():
-        raise ValueError(f"the bundle declares a travel snapshot but {SNAPSHOT_FILE} is missing")
-    snapshot = TravelSnapshot.model_validate(json.loads(path.read_text()))
-    verified = snapshot.identity == recorded
-    out(f"{'travel':<12} {'snapshot identity verified' if verified else 'IDENTITY DIFFERS'}")
-    if not verified:
-        raise ValueError(f"{SNAPSHOT_FILE} does not hash to the recorded identity")
-    return snapshot
 
 
 def recorded_payload(root: Path, stage: str) -> Any | None:
@@ -118,21 +90,11 @@ def replay(
     expected = json.loads((root / "expected.json").read_text())
     travel = expected.get("travel") or {"provider": ESTIMATED_TRAVEL}
     provider = travel.get("provider")
-    if provider not in (ESTIMATED_TRAVEL, SNAPSHOT_TRAVEL):
+    if provider != ESTIMATED_TRAVEL:
         out(f"travel provider {provider!r} cannot be replayed by this optimizer")
         return ["travel_provider"]
     scenario = ScenarioDocument.model_validate(json.loads((root / "scenario.json").read_text()))
     settings = RunSettings.model_validate(json.loads((root / "settings.json").read_text()))
-    snapshot = None
-    if provider == ESTIMATED_TRAVEL and settings.travel_snapshot_id:
-        out("the settings select a travel snapshot but the bundle records estimated travel")
-        return ["travel_provider"]
-    if provider == SNAPSHOT_TRAVEL:
-        try:
-            snapshot = load_snapshot(root, settings, travel, out)
-        except ValueError as error:
-            out(f"{error}\nREPLAY FAILED: travel_snapshot")
-            return ["travel_snapshot"]
     exact = bool(expected["iteration_based"])
     if iterations:
         settings = settings.model_copy(update={"solver_max_iterations": iterations})
@@ -143,7 +105,7 @@ def replay(
         out(f"note: versions differ from the recording: {drift}")
         exact = False
 
-    result = run_pipeline(scenario, settings, travel_snapshot=snapshot)
+    result = run_pipeline(scenario, settings)
     failures: list[str] = []
     hashes = {a.stage: a.manifest["output_hash"] for a in result.artifacts}
     payloads = {a.stage: a.payload for a in result.artifacts}
@@ -161,12 +123,6 @@ def replay(
             failures.append(stage)
 
     summary, totals = result.summary, expected["totals"]
-    if snapshot and travel.get("summary") is not None:
-        recorded_travel = summary.travel.model_dump(mode="json") if summary.travel else None
-        same = recorded_travel == travel["summary"]
-        out(f"{'travel data':<12} {'reproduced' if same else 'DIFFERS'}")
-        if not same:
-            failures.append("travel_data")
     recorded_allocation = expected.get("allocation")
     if recorded_allocation:
         now = {

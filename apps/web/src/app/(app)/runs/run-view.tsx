@@ -28,7 +28,6 @@ import { METERS_PER_MILE } from "@/lib/shipment-sheet"
 import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, formatPercent, plural, travelBasis } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
-import { legPaths, roadLabel } from "@/lib/road-geometry"
 
 import { type RoadGeometry, RoadGeometryControl, useRoadGeometry } from "./road-geometry"
 import { TimelinePanel } from "./timeline-panel"
@@ -85,7 +84,7 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
   const failureCode = String(run.failure?.code ?? "error")
   const ended = run.status === "failed" || run.status === "cancelled" || run.status === "interrupted"
   const failure = failureCopy(failureCode)
-  const geo = useRoadGeometry(run.id, run.status === "succeeded" && !!run.summary)
+  const geo = useRoadGeometry()
 
   async function cancel() {
     setCancelling(true)
@@ -120,7 +119,7 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
               <Button variant="outline" size="sm" render={<Link href={`/runs/${run.id}/sheet`} />}>
                 <Printer aria-hidden /> Shipment sheets
               </Button>
-              <ExportMenu id={run.id} hasMatrix={run.summary?.travel?.mode === "snapshot"} roads={geo.status?.eligible === true && (Object.keys(geo.geometries).length > 0 || geo.status.fetched_trucks.length > 0)} />
+              <ExportMenu id={run.id} />
             </>
           )}
           {ended && scenarioHref && (
@@ -179,12 +178,10 @@ function failureCopy(code: string): { title: string; next: string; fixFirst: boo
     return { title: "Blocked by preflight checks", next: "Open the scenario to fix or exclude the flagged stops, or change the check to a warning, then run again. Running the same version again is blocked the same way.", fixFirst: true }
   if (code === "run_wall_limit")
     return { title: "Stopped at the run time limit", next: "Lower the solve time per cluster or split the work into more clusters, then run again.", fixFirst: true }
-  if (code === "travel_snapshot_stale" || code === "travel_snapshot_not_found")
-    return { title: "Travel matrix no longer matches", next: "Rebuild or reselect the travel matrix for this version in the scenario, then run again.", fixFirst: true }
   return { title: "Run failed", next: "Run again to retry with the same version and settings. If it fails the same way, the input or settings need to change.", fixFirst: false }
 }
 
-function ExportMenu({ id, hasMatrix, roads }: { id: string; hasMatrix: boolean; roads: boolean }) {
+function ExportMenu({ id }: { id: string }) {
   const href = (q: string) => `/api/v1/runs/${id}/export?${q}`
   return (
     <Menu>
@@ -200,8 +197,6 @@ function ExportMenu({ id, hasMatrix, roads }: { id: string; hasMatrix: boolean; 
           ["format=csv&table=clusters", "Clusters CSV"],
           ["format=csv&table=products", "Stock reconciliation CSV"],
           ["format=geojson", "GeoJSON routes (schematic lines)"],
-          ...(roads ? [["format=geojson&geometry=road", "GeoJSON routes with fetched road geometry"]] : []),
-          ...(hasMatrix ? [["format=matrix&as=csv", "Travel matrix CSV"], ["format=matrix&as=json", "Travel matrix JSON (with node binding)"]] : []),
           ["format=python", "Python replay bundle (.zip)"],
         ].map(([q, label]) => (
           <MenuItem key={q} render={<a href={href(q)} download />}>
@@ -276,11 +271,7 @@ function Results({ summary, run, geo }: { summary: RunSummary; run: PipelineDeta
   const clusterIndex = (id: string | null | undefined) => (id ? summary.clusters.findIndex((c) => c.id === id) + 1 : 0)
   const unshippedAmount = summary.unplanned.reduce((s, u) => s + u.amount_cents, 0)
   const lowCount = summary.trucks.filter((x) => fillBand(x.fill) === "low").length
-  const road = useMemo(() => {
-    const ids = [...geo.shown].filter((id) => geo.geometries[id])
-    if (!ids.length) return null
-    return { label: roadLabel(geo.geometries[ids[0]]), paths: Object.fromEntries(ids.map((id) => [id, legPaths(geo.geometries[id], summary.trucks.find((x) => x.id === id)?.visits.length ?? 0)])) }
-  }, [geo.shown, geo.geometries, summary.trucks])
+  const road = useMemo(() => (geo.shown.size ? Object.fromEntries([...geo.shown].map((id) => [id, geo.paths[id].legs])) : null), [geo.shown, geo.paths])
   const selectTruck = (id: string | null) => {
     setTruck(id)
     if (id) setCluster(summary.trucks.find((x) => x.id === id)?.cluster_id ?? null)
@@ -339,7 +330,7 @@ function Results({ summary, run, geo }: { summary: RunSummary; run: PipelineDeta
               <div className="h-[360px] overflow-hidden rounded-xl border sm:h-[440px] xl:h-auto xl:min-h-[480px] xl:flex-1">
                 <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} h3Resolution={hexes ? 5 : null} road={road} />
               </div>
-              <RoadGeometryControl geo={geo} truckId={truck} />
+              <RoadGeometryControl geo={geo} summary={summary} truckId={truck} />
               <label className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Switch checked={hexes} onCheckedChange={setHexes} />
                 H3 cells (resolution 5, shaded by stop count). A map layer only; it does not change clusters.
@@ -814,8 +805,8 @@ function Provenance({ summary, run }: { summary: RunSummary; run: PipelineDetail
     ["Trailer", `${formatFeet(s.trailer_capacity, 0)}, linear feet only, open routes`],
     [
       "Travel",
-      summary.travel?.mode === "snapshot"
-        ? `Directed ${summary.travel.provider} matrix ${summary.travel.snapshot_id?.slice(0, 12)} · ${summary.travel.provider_version} · ${summary.travel.dataset_revision} · ${summary.travel.profile}`
+      summary.travel && summary.travel.mode !== "estimated"
+        ? "Recorded travel matrix (an older version of Fillrate)"
         : `Estimated: haversine × ${s.travel_circuity} at a constant speed`,
     ],
     ["Max single drive", `${miles(s.max_leg_m)}, including depot → first stop (not the return)`],

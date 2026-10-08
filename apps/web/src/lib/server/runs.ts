@@ -6,21 +6,13 @@ import { OWNER } from "./access";
 import { ApiError } from "./errors";
 
 import lesson from "../../../../../examples/lesson-fulfillment.json";
-import matrixEstimated from "../../../../../examples/lesson-matrix-estimated.json";
-import matrixSnapshot from "../../../../../examples/lesson-matrix-snapshot.json";
-import matrix from "../../../../../examples/lesson-matrix.json";
 import m1 from "../../../../../examples/m1-synthetic.json";
 
 // Bundled synthetic scenarios. `lesson` is the 2,000-order fulfillment example; `m1` is the small
-// edge-case example (always partial coverage, so its sweeps never rank); `matrix_estimated` and
-// `matrix_recorded` are the road matrix example's one scenario on estimated travel and on its bundled
-// synthetic recorded matrix (spec §13). An example's `travel` is a travel snapshot document its
-// settings select; it is stored for the examples owner before the first run.
+// edge-case example (always partial coverage, so its sweeps never rank).
 export const EXAMPLES = {
   m1: { id: "m1", scenario: m1.scenario as ScenarioDocument, settings: m1.settings as RunSettings, blurb: "Small edge-case example: a shortage, an oversize piece, an unreachable stop" },
   lesson: { id: "lesson", scenario: lesson.scenario as ScenarioDocument, settings: lesson.settings as RunSettings, blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete" },
-  matrix_estimated: { id: "matrix_estimated", scenario: matrixEstimated.scenario as ScenarioDocument, settings: matrixEstimated.settings as RunSettings, blurb: "Road matrix lesson on estimated travel: seven stops, straight-line distance × 1.2" },
-  matrix_recorded: { id: "matrix_recorded", scenario: matrix.scenario as ScenarioDocument, settings: matrix.settings as RunSettings, travel: matrixSnapshot as unknown, blurb: "Road matrix lesson on a synthetic recorded directed matrix (not real roads): a one-way river crossing and a ridge detour" },
 } as const;
 export type ExampleId = keyof typeof EXAMPLES;
 export type Example = (typeof EXAMPLES)[ExampleId];
@@ -36,7 +28,7 @@ export function parseExample(input: unknown, fallback: ExampleId): Example {
   throw new ApiError(400, "unknown_example", `Unknown example; use one of ${Object.keys(EXAMPLES).join(", ")}.`, ["example"]);
 }
 
-const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", matrix_estimated: "Road matrix lesson, estimated", matrix_recorded: "Road matrix lesson, recorded matrix" };
+const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders" };
 
 /** Small listing for pages and `GET /api/v1/examples`. */
 export function exampleInfo(example: Example) {
@@ -61,7 +53,6 @@ export function exampleVersion(store: Store, example: Example = EXAMPLES.m1) {
     id = store.findVersion(snapshot)?.id ?? store.createScenario(example.scenario.name, snapshot, "Fillrate examples", Date.now(), EXAMPLES_OWNER).versionId;
     cache.set(example.id, id);
   }
-  if ("travel" in example && example.settings.travel_snapshot_id) store.seedExampleTravelSnapshot(example.travel, example.settings.travel_snapshot_id);
   return id;
 }
 
@@ -134,15 +125,13 @@ export function explorerSummary(store: Store, runId: string): ExplorerSummary | 
 export function runDetail(store: Store, runId: string) {
   const view = store.runView(runId);
   if (!view) throw new ApiError(404, "run_not_found", "No run with this ID.");
-  if (view.kind === "travel_snapshot") return { ...baseDetail(view), kind: "travel_snapshot" as const, explorer_settings: null, settings: null, summary: null, explorer: null, travel_snapshot: travelJobResult(view) };
+  // Matrix builds from older versions no longer exist as a feature.
+  if ((view.kind as string) === "travel_snapshot") throw new ApiError(404, "run_not_found", "No run with this ID.");
   if (view.kind === "explorer") return { ...baseDetail(view), kind: "explorer" as const, explorer_settings: view.settings.document, settings: null, summary: null, explorer: view.status === "succeeded" ? explorerSummary(store, runId) : null };
-  return { ...baseDetail(view), kind: "pipeline" as const, explorer_settings: null, settings: view.settings.document as unknown as RunSettings, summary: view.status === "succeeded" ? runSummary(store, runId) : null, explorer: null };
-}
-
-/** The finished build's summary (snapshot_id, node_count, blocks) from its succeeded event. */
-function travelJobResult(view: NonNullable<ReturnType<Store["runView"]>>) {
-  const done = view.events.find(e => e.kind === "succeeded")?.payload as { snapshot_id?: string; node_count?: number; blocks?: number } | undefined;
-  return done?.snapshot_id ? { snapshot_id: done.snapshot_id, node_count: done.node_count ?? null, blocks: done.blocks ?? null } : null;
+  // Runs stored before road travel was removed carry a null `travel_snapshot_id`, which current settings reject.
+  const settings: Record<string, unknown> = { ...view.settings.document };
+  delete settings.travel_snapshot_id;
+  return { ...baseDetail(view), kind: "pipeline" as const, explorer_settings: null, settings: settings as unknown as RunSettings, summary: view.status === "succeeded" ? runSummary(store, runId) : null, explorer: null };
 }
 
 export function baseDetail(view: NonNullable<ReturnType<Store["runView"]>>) {

@@ -54,16 +54,16 @@ export function cssPercent(ratio: number) {
   return `${(Math.max(0, ratio) * 100).toFixed(2)}%`
 }
 
-type TravelBasisInput = { mode: "estimated" | "snapshot"; provider: string; dataset_revision: string } | null | undefined
+/** `mode` is "estimated" for every current run; runs stored by older versions may say "snapshot" (a recorded matrix). */
+type TravelBasisInput = { mode: string } | null | undefined
 
 /**
- * How a run measured its miles (spec §7, §10). Estimated miles (haversine × circuity) and miles from a recorded
- * directed matrix are different measurement systems and are labeled so they are never read as interchangeable.
+ * How a run measured its miles (spec §7, §10): estimated (haversine × circuity), never road miles. Runs stored
+ * by older versions that used a recorded matrix get a plain label instead.
  */
 export function travelBasis(travel: TravelBasisInput, circuity: number) {
-  if (travel?.mode === "snapshot") {
-    const source = travel.provider === "valhalla" ? "Valhalla road matrix" : "recorded matrix"
-    return { step: "Recorded", unit: "matrix miles", note: `From the ${source} (${travel.dataset_revision}), open routes`, sentence: `Miles come from the ${source} (${travel.dataset_revision}), not from straight lines.` }
+  if (travel && travel.mode !== "estimated") {
+    return { step: "Recorded", unit: "matrix miles", note: "From a travel matrix recorded by an older version, open routes", sentence: "Miles come from a travel matrix recorded by an older version of Fillrate." }
   }
   return { step: `× ${circuity}`, unit: "haversine miles", note: `Estimated: haversine × ${circuity}, open routes`, sentence: `Miles are estimated (haversine × ${circuity}), not road miles.` }
 }

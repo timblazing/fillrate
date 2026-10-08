@@ -223,7 +223,6 @@
   "schema_version": 1,
   "trailer_capacity": 5300,
   "travel_circuity": 1.2,
-  "travel_snapshot_id": null,
   "cluster_circuity": 1.2,
   "max_leg_m": 804672,
   "max_cluster_diameter_m": null,

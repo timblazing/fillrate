@@ -82,13 +82,13 @@ export type Timeline = {
   /** True when every stop and the depot have coordinates, so a position can be drawn. */
   located: boolean
   depot: { lat: number; lon: number }
-  /** Valhalla road line for the leg into stop i (index 0 from the depot), when road geometry was fetched; null where
-   * Valhalla found no route. Absent without road geometry: the cursor then moves along straight segments. */
-  legPaths?: (LonLat[] | null)[]
+  /** Valhalla road line for the leg into stop i (index 0 from the depot), when the road path was fetched. Absent
+   * without it: the cursor then moves along straight segments. */
+  legPaths?: LonLat[][]
 }
 
 /** The same timeline with fetched road geometry attached; the cursor then follows the road lines. */
-export const withRoadPaths = (timeline: Timeline, legPaths: (LonLat[] | null)[]): Timeline => ({ ...timeline, legPaths })
+export const withRoadPaths = (timeline: Timeline, legPaths: LonLat[][]): Timeline => ({ ...timeline, legPaths })
 
 const partsOf = (epochS: number, timeZone: string) => {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(epochS * 1000))
@@ -242,11 +242,10 @@ export function formatDriveTime(seconds: number) {
 
 export type TimingSource = { timing: string; geometry: string }
 
-/** Labels for where durations and geometry come from. Road geometry is never available yet. */
-export function timingSource(travel: { mode: "estimated" | "snapshot"; provider: string } | null | undefined, road?: string | null): TimingSource {
-  const geometry = road ? `${road} — a simulation along planned leg durations (no live traffic or GPS)` : "Schematic straight-line path — road geometry not available"
+/** Labels for where durations and geometry come from. Runs stored by older versions may carry a recorded matrix. */
+export function timingSource(travel: { mode: string } | null | undefined, road?: string | null): TimingSource {
+  const geometry = road ? `${road} — a simulation along planned leg durations (no live traffic or GPS)` : "Schematic straight-line path — show the road path to draw roads"
   if (!travel) return { timing: "Drive time source not recorded", geometry }
   if (travel.mode === "estimated") return { timing: "Estimated drive time (constant speed)", geometry }
-  if (travel.provider === "valhalla") return { timing: "Valhalla matrix durations", geometry }
-  return { timing: "Imported matrix durations", geometry }
+  return { timing: "Recorded matrix durations (older run)", geometry }
 }

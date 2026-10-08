@@ -1,27 +1,79 @@
-import type { RouteGeometryResponse } from "@fillrate/contracts"
+import type { RunSummary } from "@fillrate/contracts"
 
-// Client-safe helpers for Valhalla road geometry (spec §4, §10). Display only: the plan was optimized on the
-// recorded matrix; these paths are Valhalla's route for the same legs.
+// Display-only road paths from the public Valhalla server, fetched by the browser for one selected shipment.
+// The plan is always optimized on estimated travel (haversine × circuity); these lines never feed back into it.
 export type LonLat = [number, number]
 
-export const ROAD_COPY =
-  "This plan was optimized on the recorded travel matrix. The drawn roads are a display of Valhalla's route for the same legs, not proof of what the solver used. Valhalla's route can differ slightly from the matrix; differences are listed below."
+export const VALHALLA_URL = process.env.NEXT_PUBLIC_VALHALLA_URL || "https://valhalla1.openstreetmap.de/route"
+/** The public server limits locations per request; longer routes are fetched in overlapping chunks. */
+export const MAX_LOCATIONS = 20
+export const ROAD_CREDIT = "Routing © Valhalla / FOSSGIS, data © OpenStreetMap contributors"
+export const ROAD_COPY = "Road path is a display of Valhalla's route for the same stops. The plan was optimized on estimated distances, so road miles can differ."
 export const SIMULATION_COPY = "Simulation along planned leg durations, proportional to distance along the road line. No live traffic or GPS."
 
-export const INELIGIBLE_COPY: Record<string, string> = {
-  estimated_travel: "No road geometry: this run used estimated travel (straight line × circuity), not a road matrix.",
-  imported_matrix: "No road geometry: this run used an imported matrix, not Valhalla.",
-  provider_context_mismatch: "No road geometry: this server's Valhalla differs from the one that built the run's matrix (version, dataset, graph or costing).",
-  valhalla_not_configured: "No road geometry: Valhalla is not configured on this server.",
+/** A fetched road path for one shipment: `legs[i]` is the line into stop i (index 0 from the depot). */
+export type RoadPath = { legs: LonLat[][]; miles: number }
+
+/** Depot, then the shipment's stops in route order, as [lon, lat]; null when any stop has no coordinates. */
+export function routeStops(summary: RunSummary, truckId: string | null): LonLat[] | null {
+  const truck = summary.trucks.find((t) => t.id === truckId)
+  if (!truck) return null
+  const places = new globalThis.Map(summary.locations.map((l) => [l.id, l]))
+  const stops: LonLat[] = [[summary.depot.lon, summary.depot.lat]]
+  for (const visit of [...truck.visits].sort((a, b) => a.sequence - b.sequence)) {
+    const place = places.get(visit.location_id)
+    if (place?.lat == null || place.lon == null) return null
+    stops.push([place.lon, place.lat])
+  }
+  return stops
 }
 
-export const roadLabel = (g: Pick<RouteGeometryResponse, "provider">) => `Road geometry (Valhalla truck, ${String((g.provider as { dataset_revision?: string }).dataset_revision ?? "dataset unknown")})`
-
-/** Per-leg paths in stop order: index i is the leg into stop i (index 0 comes from the depot); null when Valhalla found no route. */
-export function legPaths(g: Pick<RouteGeometryResponse, "legs">, count: number): (LonLat[] | null)[] {
-  const out: (LonLat[] | null)[] = Array.from({ length: count }, () => null)
-  for (const leg of g.legs) if (leg.index >= 0 && leg.index < count && leg.coordinates && leg.coordinates.length >= 2) out[leg.index] = leg.coordinates as LonLat[]
+/** Decodes an encoded polyline with 6 digits of precision (Valhalla) into [lon, lat] pairs. */
+export function decodePolyline6(encoded: string): LonLat[] {
+  const out: LonLat[] = []
+  let index = 0, lat = 0, lon = 0
+  const next = () => {
+    let result = 0, shift = 0, byte: number
+    do {
+      byte = encoded.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20)
+    return result & 1 ? ~(result >> 1) : result >> 1
+  }
+  while (index < encoded.length) {
+    lat += next()
+    lon += next()
+    out.push([lon / 1e6, lat / 1e6])
+  }
   return out
+}
+
+/** Consecutive chunks of at most `size` locations; the last location of one chunk is the first of the next. */
+export function chunkLocations<T>(locations: T[], size = MAX_LOCATIONS): T[][] {
+  const chunks: T[][] = []
+  for (let start = 0; start < locations.length - 1; start += size - 1) chunks.push(locations.slice(start, start + size))
+  return chunks
+}
+
+/** Truck-costing road path through `stops` (depot first, in route order; open route, no return). One request per chunk, in sequence. */
+export async function fetchRoadPath(stops: LonLat[], signal?: AbortSignal): Promise<RoadPath> {
+  const legs: LonLat[][] = []
+  let miles = 0
+  for (const chunk of chunkLocations(stops)) {
+    const res = await fetch(VALHALLA_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ locations: chunk.map(([lon, lat]) => ({ lat, lon })), costing: "truck", units: "miles", directions_type: "none" }),
+      signal,
+    })
+    if (!res.ok) throw new Error(res.status === 400 ? "Valhalla found no route for these stops." : `Valhalla returned HTTP ${res.status}.`)
+    const trip = ((await res.json()) as { trip?: { legs?: { shape: string }[]; summary?: { length?: number } } }).trip
+    if (!trip?.legs || trip.legs.length !== chunk.length - 1) throw new Error("Valhalla returned an unexpected route.")
+    for (const leg of trip.legs) legs.push(decodePolyline6(leg.shape))
+    miles += trip.summary?.length ?? 0
+  }
+  return { legs, miles }
 }
 
 const meters = (a: LonLat, b: LonLat) => {

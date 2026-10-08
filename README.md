@@ -20,10 +20,11 @@ Allocate limited inventory to open orders, group delivery stops, and build trail
 - **Clustering.** k-means on stop locations, with a k and seed explorer to check how stable the grouping is.
 - **Load building.** [PyVRP](https://pyvrp.org/) builds loads per cluster using linear-foot capacity, open routes, a per-leg mile limit and optional time windows.
 - **Validation.** An independent validator checks every plan and explains why each line did or didn't ship.
+- **Map and inspection.** Cluster map, per-shipment timeline and optional road path display via the public Valhalla server (display only, drawn by your browser on request; routing © Valhalla / FOSSGIS, data © OpenStreetMap contributors).
 - **Comparison.** Put runs side by side on fill, revenue, trucks and miles.
 - **Exports.** JSON, CSV, GeoJSON and a Python replay bundle that reproduces a run with PyVRP.
 
-Distances are estimated as straight-line miles × 1.2.
+Distances are estimated as straight-line miles × a circuity factor (default 1.2). Roads never feed the optimizer.
 
 ## Run it locally
 

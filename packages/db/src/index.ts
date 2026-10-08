@@ -3,13 +3,11 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { gzipSync, gunzipSync } from "node:zlib";
 import Database from "better-sqlite3";
-import { and, eq, asc, desc, sql } from "drizzle-orm";
+import { and, eq, asc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { parseContract, type Lease, type ScenarioDocument, type StageManifest, type Snapshot, type WorkerEvent } from "@fillrate/contracts";
-import { assertSnapshotBinding, demandStops } from "./preflight";
+import { parseContract, type Lease, type StageManifest, type Snapshot, type WorkerEvent } from "@fillrate/contracts";
 import * as s from "./schema";
-import { bindingMessage, bindNodes, MAX_SNAPSHOT_BYTES, normalizeSnapshot, rememberIdentity, snapshotIdentity, stopNodes, type TravelSnapshot } from "./travel";
 
 export const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export const MAX_COMPLETION_BYTES = 16 * 1024 * 1024;
@@ -70,7 +68,6 @@ export class Store {
     if (!idempotencyKey || idempotencyKey.length > 300) throw new Error("invalid_idempotency_key");
     const ownerId = options.ownerId ?? OPERATOR;
     this.assertSubmitter(versionId, ownerId);
-    if (kind === "pipeline") this.checkTravel(versionId, settings, new Map());
     const requestHash = contentHash(canonical({ versionId, settings, ...(kind === "pipeline" ? {} : { kind }) }));
     return this.db.transaction(tx => {
       const existing = tx.select().from(s.runs).where(eq(s.runs.idempotencyKey, idempotencyKey)).get();
@@ -82,117 +79,6 @@ export class Store {
     }, { behavior: "immediate" });
   }
 
-  /**
-   * Run settings that select a travel snapshot must name a stored one, and every stop with demand must
-   * match the snapshot's coordinates, or the run would route over a stale matrix (spec §7).
-   */
-  private checkTravel(versionId: string, settings: Snapshot, loaded: Map<string, TravelSnapshot>) {
-    const document = settings.document as { travel_snapshot_id?: string | null; excluded_line_ids?: string[] };
-    if (!document.travel_snapshot_id) return;
-    let snapshot = loaded.get(document.travel_snapshot_id);
-    if (!snapshot) {
-      if (!this.ownsTravelSnapshot(document.travel_snapshot_id, this.versionOwner(versionId))) throw new Error("travel_snapshot_not_found: no stored travel snapshot has this identity");
-      snapshot = this.travelSnapshot(document.travel_snapshot_id); loaded.set(document.travel_snapshot_id, snapshot);
-    }
-    assertSnapshotBinding(this.versionDocument(versionId).document as unknown as ScenarioDocument, document.excluded_line_ids ?? [], snapshot);
-  }
-
-  /** Stores a validated snapshot under its content hash. Saving the same document again is a no-op. */
-  saveTravelSnapshot(input: unknown, now = Date.now(), ownerId = OPERATOR) {
-    const snapshot = normalizeSnapshot(input);
-    const bytes = Buffer.from(canonical(snapshot));
-    if (bytes.length > MAX_SNAPSHOT_BYTES) throw new Error(`travel_snapshot_too_large: ${bytes.length} bytes exceed ${MAX_SNAPSHOT_BYTES}`);
-    const id = contentHash(bytes);
-    const created = this.db.insert(s.travelSnapshots).values({ id, compressed: gzipSync(bytes), byteLength: bytes.length, nodeCount: snapshot.nodes.length, provider: snapshot.provider, providerVersion: snapshot.provider_version, datasetRevision: snapshot.dataset_revision, profile: snapshot.profile, createdAt: now }).onConflictDoNothing().run().changes > 0;
-    this.db.insert(s.travelSnapshotOwners).values({ snapshotId: id, ownerId, createdAt: now }).onConflictDoNothing().run();
-    return { created, ...this.travelSnapshotInfo(id, ownerId)! };
-  }
-
-  /**
-   * Stores a bundled example's recorded snapshot (from `examples/`) for the examples owner, idempotently by content
-   * hash. Its identity must be the one the example's settings select. Snapshot rows are immutable and no caller acts
-   * as the examples owner, so the example snapshot is read-only and stays out of every account's snapshot list.
-   */
-  seedExampleTravelSnapshot(input: unknown, expectedId: string, now = Date.now()) {
-    if (this.ownsTravelSnapshot(expectedId, EXAMPLES_OWNER)) return expectedId;
-    const id = snapshotIdentity(normalizeSnapshot(input));
-    if (id !== expectedId) throw new Error(`travel_snapshot_hash_mismatch: the bundled snapshot hashes to ${id.slice(0, 12)}, not the selected ${expectedId.slice(0, 12)}`);
-    return this.saveTravelSnapshot(input, now, EXAMPLES_OWNER).id;
-  }
-
-  ownsTravelSnapshot(id: string, ownerId: string) {
-    return Boolean(this.db.select().from(s.travelSnapshotOwners).where(and(eq(s.travelSnapshotOwners.snapshotId, id), eq(s.travelSnapshotOwners.ownerId, ownerId))).get());
-  }
-
-  /** Metadata for an owner's snapshot; another owner's identity reads as missing. */
-  travelSnapshotInfo(id: string, ownerId = OPERATOR) {
-    if (!this.ownsTravelSnapshot(id, ownerId)) return null;
-    return this.db.select({ id: s.travelSnapshots.id, byteLength: s.travelSnapshots.byteLength, nodeCount: s.travelSnapshots.nodeCount, provider: s.travelSnapshots.provider, providerVersion: s.travelSnapshots.providerVersion, datasetRevision: s.travelSnapshots.datasetRevision, profile: s.travelSnapshots.profile, createdAt: s.travelSnapshots.createdAt })
-      .from(s.travelSnapshots).where(eq(s.travelSnapshots.id, id)).get() ?? null;
-  }
-
-  /** Recent snapshots visible to one owner. */
-  listTravelSnapshots(ownerId = OPERATOR, limit = 50) {
-    return this.db.select({ id: s.travelSnapshots.id, byteLength: s.travelSnapshots.byteLength, nodeCount: s.travelSnapshots.nodeCount, provider: s.travelSnapshots.provider, providerVersion: s.travelSnapshots.providerVersion, datasetRevision: s.travelSnapshots.datasetRevision, profile: s.travelSnapshots.profile, createdAt: s.travelSnapshots.createdAt })
-      .from(s.travelSnapshots).innerJoin(s.travelSnapshotOwners, eq(s.travelSnapshots.id, s.travelSnapshotOwners.snapshotId))
-      .where(eq(s.travelSnapshotOwners.ownerId, ownerId)).orderBy(desc(s.travelSnapshotOwners.createdAt)).limit(Math.max(1, Math.min(100, limit))).all();
-  }
-
-  /** The stored snapshot, re-hashed on every read: a row that no longer matches its identity is corrupt. */
-  travelSnapshot(id: string): TravelSnapshot {
-    const row = this.db.select().from(s.travelSnapshots).where(eq(s.travelSnapshots.id, id)).get();
-    if (!row) throw new Error("travel_snapshot_not_found: no stored travel snapshot has this identity");
-    const bytes = gunzipSync(row.compressed, { maxOutputLength: MAX_SNAPSHOT_BYTES });
-    if (bytes.length !== row.byteLength || contentHash(bytes) !== id) throw new Error("travel_snapshot_corrupt: stored bytes do not match the identity");
-    const snapshot = JSON.parse(bytes.toString("utf8")) as TravelSnapshot;
-    rememberIdentity(snapshot, id);
-    return snapshot;
-  }
-
-  /** Nodes a travel snapshot job must cover for this version: the depot and every stop with demand, in pipeline order. */
-  travelSnapshotNodes(versionId: string) {
-    const document = this.versionDocument(versionId).document as unknown as ScenarioDocument;
-    return stopNodes(document.depot, demandStops(document));
-  }
-
-  /**
-   * Stores the snapshot a leased `travel_snapshot` run built, for the run's owner. The server re-validates and
-   * re-hashes it (the claimed identity must match), requires it to bind to the run's version without missing
-   * or moved nodes, and refuses once cancellation was requested, all in the write transaction, so a cancelled
-   * build never leaves a snapshot behind.
-   */
-  storeLeaseTravelSnapshot(lease: Lease, input: unknown, claimedId: string, now = Date.now()) {
-    parseContract("Lease", lease);
-    const snapshot = normalizeSnapshot(input);
-    const bytes = Buffer.from(canonical(snapshot));
-    if (bytes.length > MAX_SNAPSHOT_BYTES) throw new Error(`travel_snapshot_too_large: ${bytes.length} bytes exceed ${MAX_SNAPSHOT_BYTES}`);
-    const id = contentHash(bytes);
-    if (id !== claimedId) throw new Error("travel_snapshot_hash_mismatch: the snapshot does not match its claimed identity");
-    if (snapshot.provider !== "valhalla") throw new Error("invalid_travel_snapshot: provider must be valhalla");
-    return this.db.transaction(tx => {
-      const job = tx.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get();
-      assertLease(job, lease, now);
-      if (job!.cancelRequested) throw new Error("cancel_requested");
-      const run = tx.select().from(s.runs).where(eq(s.runs.id, job!.runId)).get()!;
-      if (run.kind !== "travel_snapshot") throw new Error("travel_snapshot_not_job: this run does not build a travel snapshot");
-      const binding = bindNodes(snapshot, this.travelSnapshotNodes(run.versionId));
-      if (binding.missing.length || binding.moved.length) throw new Error(`travel_snapshot_stale: ${bindingMessage(binding)}`);
-      const created = tx.insert(s.travelSnapshots).values({ id, compressed: gzipSync(bytes), byteLength: bytes.length, nodeCount: snapshot.nodes.length, provider: snapshot.provider, providerVersion: snapshot.provider_version, datasetRevision: snapshot.dataset_revision, profile: snapshot.profile, createdAt: now }).onConflictDoNothing().run().changes > 0;
-      tx.insert(s.travelSnapshotOwners).values({ snapshotId: id, ownerId: run.ownerId, createdAt: now }).onConflictDoNothing().run();
-      return { id, created };
-    }, { behavior: "immediate" });
-  }
-
-  /** The snapshot a leased run selected, for its worker; any other identity is refused. */
-  leaseTravelSnapshot(lease: Lease, snapshotId: string, now = Date.now()) {
-    parseContract("Lease", lease);
-    const job = this.db.select().from(s.jobs).where(eq(s.jobs.id, lease.job_id)).get();
-    assertLease(job, lease, now);
-    const run = this.db.select().from(s.runs).where(eq(s.runs.id, job!.runId)).get()!;
-    if ((JSON.parse(run.settings) as Snapshot).document.travel_snapshot_id !== snapshotId) throw new Error("travel_snapshot_not_selected: this run did not select that snapshot");
-    return this.travelSnapshot(snapshotId);
-  }
-
   /** One sweep: the experiment and all of its runs commit together, or nothing does (no partial sweep). */
   createExperiment(input: { versionId: string; name: string; spec: unknown; comparison: unknown; runs: { settings: Snapshot; varied: unknown }[]; ownerId?: string}, idempotencyKey: string, now = Date.now()) {
     if (!idempotencyKey || idempotencyKey.length > 280) throw new Error("invalid_idempotency_key");
@@ -200,8 +86,6 @@ export class Store {
     const ownerId = input.ownerId ?? OPERATOR;
     this.assertSubmitter(input.versionId, ownerId);
     for (const run of input.runs) parseContract("Snapshot", run.settings);
-    const loaded = new Map<string, TravelSnapshot>();
-    for (const run of input.runs) this.checkTravel(input.versionId, run.settings, loaded);
     const requestHash = contentHash(canonical({ versionId: input.versionId, name: input.name, spec: input.spec, runs: input.runs }));
     return this.db.transaction(tx => {
       const existing = tx.select().from(s.experiments).where(eq(s.experiments.idempotencyKey, idempotencyKey)).get();
@@ -313,7 +197,6 @@ export class Store {
       const job = this.sqlite.prepare("SELECT id FROM jobs WHERE runId=?").get(runId) as { id: string } | undefined;
       this.sqlite.prepare("DELETE FROM experiment_runs WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM stage_cache WHERE runId=?").run(runId);
-      this.sqlite.prepare("DELETE FROM route_geometry WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM run_artifacts WHERE runId=?").run(runId);
       this.sqlite.prepare("DELETE FROM cluster_jobs WHERE runId=?").run(runId);
       if (job) {
@@ -328,7 +211,7 @@ export class Store {
   /** Content-addressed artifacts that no run, cache entry or geocoding answer references any more. */
   private purgeUnreferenced() {
     this.sqlite.prepare(`DELETE FROM artifacts WHERE hash NOT IN (SELECT artifactHash FROM run_artifacts)
-      AND hash NOT IN (SELECT artifactHash FROM stage_cache) AND hash NOT IN (SELECT artifactHash FROM route_geometry) AND hash NOT IN (SELECT responseRef FROM geocode_cache WHERE responseRef IS NOT NULL)`).run();
+      AND hash NOT IN (SELECT artifactHash FROM stage_cache) AND hash NOT IN (SELECT responseRef FROM geocode_cache WHERE responseRef IS NOT NULL)`).run();
   }
 
   claim(workerId: string, now = Date.now(), leaseMs = 60_000) {
@@ -537,30 +420,6 @@ export class Store {
     return Object.fromEntries(rows.map(r => [r.status, r.n])) as Record<string, number>;
   }
 
-  /** Stores one truck's road geometry beside, not inside, the run's results. Idempotent by key. */
-  saveRouteGeometry(input: { key: string; runId: string; truckId: string; snapshotId: string; deployment: string }, payload: unknown, now = Date.now()) {
-    const bytes = Buffer.from(canonical(payload));
-    if (bytes.length > MAX_ARTIFACT_BYTES) throw new Error("artifact_too_large");
-    const hash = contentHash(bytes);
-    this.db.transaction(tx => {
-      tx.insert(s.artifacts).values({ hash, compressed: gzipSync(bytes), byteLength: bytes.length }).onConflictDoNothing().run();
-      tx.insert(s.routeGeometry).values({ ...input, artifactHash: hash, createdAt: now }).onConflictDoUpdate({ target: s.routeGeometry.key, set: { artifactHash: hash, createdAt: now } }).run();
-    }, { behavior: "immediate" });
-    return hash;
-  }
-
-  /** The cached geometry for a key, or null. Callers must have passed the run's read check. */
-  routeGeometry(key: string): unknown | null {
-    const row = this.db.select().from(s.routeGeometry).where(eq(s.routeGeometry.key, key)).get();
-    return row ? this.readArtifact(row.artifactHash) : null;
-  }
-
-  /** Truck IDs with cached geometry for a run under one deployment identity. */
-  routeGeometryTrucks(runId: string, deployment: string): string[] {
-    return this.db.select({ truckId: s.routeGeometry.truckId }).from(s.routeGeometry)
-      .where(and(eq(s.routeGeometry.runId, runId), eq(s.routeGeometry.deployment, deployment))).all().map(r => r.truckId);
-  }
-
   readArtifact(hash: string): unknown {
     const artifact = this.db.select().from(s.artifacts).where(eq(s.artifacts.hash, hash)).get();
     if (!artifact) throw new Error("artifact_not_found");
@@ -569,7 +428,7 @@ export class Store {
     return JSON.parse(bytes.toString("utf8"));
   }
 }
-export type RunKind = "pipeline" | "explorer" | "travel_snapshot";
+export type RunKind = "pipeline" | "explorer";
 export const OPERATOR = "operator", EXAMPLES_OWNER = "examples";
 
 type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];

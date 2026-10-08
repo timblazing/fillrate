@@ -104,24 +104,3 @@ export const geocodeJobs = sqliteTable("geocode_jobs", {
   error: text(), idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(), updatedAt: integer().notNull(),
   ownerId: text().notNull().default("operator"),
 }, t => [index("geocode_jobs_by_date").on(t.createdAt)]);
-
-// M6 directed travel snapshots (spec §7): immutable, stored by content hash (`id` = sha256 of the canonical
-// document, verified on every read). Run settings name one by id; triggers forbid update and delete.
-export const travelSnapshots = sqliteTable("travel_snapshots", {
-  id: text().primaryKey(), compressed: blob({mode: "buffer"}).notNull(), byteLength: integer().notNull(),
-  nodeCount: integer().notNull(), provider: text().notNull(), providerVersion: text().notNull(),
-  datasetRevision: text().notNull(), profile: text().notNull(), createdAt: integer().notNull(),
-});
-// A snapshot is stored once by content hash; each owner that uploaded it holds a link, and reads need one.
-export const travelSnapshotOwners = sqliteTable("travel_snapshot_owners", {
-  snapshotId: text().notNull().references(() => travelSnapshots.id), ownerId: text().notNull(), createdAt: integer().notNull(),
-}, t => [primaryKey({ columns: [t.snapshotId, t.ownerId] }), index("snapshot_owner").on(t.ownerId)]);
-
-// Valhalla road geometry for one inspected truck (spec §4, §7), cached apart from run results. `key` is a
-// content hash of run, truck, snapshot identity and deployment identity; the payload is a content-addressed
-// artifact. Rows go with their run and are never read without the run's read check.
-export const routeGeometry = sqliteTable("route_geometry", {
-  key: text().primaryKey(), runId: text().notNull().references(() => runs.id), truckId: text().notNull(),
-  snapshotId: text().notNull(), deployment: text().notNull(), artifactHash: text().notNull().references(() => artifacts.hash),
-  createdAt: integer().notNull(),
-}, t => [index("route_geometry_by_run").on(t.runId)]);

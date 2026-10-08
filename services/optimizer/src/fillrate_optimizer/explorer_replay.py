@@ -20,8 +20,8 @@ Semantics (see the bundle README):
   The output says whether the replay is bit-identical to the recorded artifact or only within
   tolerance.
 * The explorer clusters on the symmetric spatial metric (haversine × cluster circuity) and never
-  reads a travel matrix: the web app refuses a travel snapshot for it. A bundle that declares any
-  other travel provider, or settings naming a snapshot, is refused before anything is rerun.
+  reads a travel matrix. A bundle that declares any other travel provider is refused before
+  anything is rerun.
 * Version drift is reported; differences are still failures (the README says to replay on the
   pinned lock).
 """
@@ -159,9 +159,6 @@ def replay(root: Path, *, out: Callable[[str], None] = print) -> list[str]:
         return ["travel_provider"]
     scenario = ScenarioDocument.model_validate(json.loads((root / "scenario.json").read_text()))
     settings = ExplorerSettings.model_validate(json.loads((root / "settings.json").read_text()))
-    if settings.base.travel_snapshot_id:
-        out("the settings select a travel snapshot; the k explorer never reads one")
-        return ["travel_provider"]
     out(
         f"{'travel':<12} spatial metric (haversine × cluster circuity "
         f"{settings.base.cluster_circuity}); no matrix needed"

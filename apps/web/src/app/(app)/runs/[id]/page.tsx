@@ -44,7 +44,6 @@ export default async function RunPage({ params }: PageProps<"/runs/[id]">) {
     throw error
   }
   // Matrix builds have no run view; their progress and result live in the scenario matrix panel.
-  if (detail.kind === "travel_snapshot") redirect("/scenarios")
   if (detail.kind === "explorer") redirect(`/explore/${id}`)
   return (
     <Page>

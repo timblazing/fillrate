@@ -137,8 +137,7 @@ def test_edited_settings_are_not_the_recorded_experiment(bundle):
 @pytest.mark.parametrize(
     "travel",
     [
-        {"provider": "valhalla", "profile": "truck"},
-        {"provider": "snapshot", "snapshot_id": "0" * 64},
+        {"provider": "other", "profile": "truck"},
         {"provider": "estimated"},  # a pipeline declaration, not the spatial metric
     ],
 )
@@ -148,13 +147,6 @@ def test_other_travel_providers_are_refused_before_any_rerun(bundle, travel):
     assert replay(bundle, out=lines.append) == ["travel_provider"]
     assert "cannot be replayed" in lines[0]
     assert len(lines) == 1
-
-
-def test_settings_naming_a_snapshot_are_refused(bundle):
-    edit(bundle, "settings.json", lambda d: d["base"].update(travel_snapshot_id="0" * 64))
-    lines: list[str] = []
-    assert replay(bundle, out=lines.append) == ["travel_provider"]
-    assert "never reads" in lines[0]
 
 
 def test_a_pipeline_bundle_is_not_an_explorer_bundle(bundle):

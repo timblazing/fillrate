@@ -8,7 +8,6 @@ import { TruckRouteTimeline } from "@/components/lab/truck-route-timeline"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { legPaths, roadLabel as labelOf } from "@/lib/road-geometry"
 import { buildTimeline, cursorAt, formatDriveTime, timingSource, withRoadPaths } from "@/lib/timeline"
 import { formatFeet } from "@/lib/units"
 
@@ -24,10 +23,9 @@ export function TimelinePanel({ summary, geo, truckId, onSelectTruck }: { summar
   const truck = trucks.find((t) => t.id === truckId) ?? trucks[0]
   const base = useMemo(() => (truck ? buildTimeline(truck, summary.depot, places, summary.time) : null), [truck, summary.depot, places, summary.time])
   // Fetched road geometry only changes the drawn line and the cursor's path; timing stays the planned leg durations.
-  const geometry = truck ? geo.geometries[truck.id] : undefined
-  const roadShown = !!truck && !!geometry && geo.shown.has(truck.id)
-  const timeline = useMemo(() => (base && roadShown && geometry ? withRoadPaths(base, legPaths(geometry, base.stops.length)) : base), [base, roadShown, geometry])
-  const roadLabel = roadShown && geometry ? labelOf(geometry) : null
+  const road = truck && geo.shown.has(truck.id) ? geo.paths[truck.id] : undefined
+  const timeline = useMemo(() => (base && road ? withRoadPaths(base, road.legs) : base), [base, road])
+  const roadLabel = road ? "Road path (Valhalla truck)" : null
   const source = timingSource(summary.travel, roadLabel)
 
   if (summary.validity === "invalid") {
@@ -91,12 +89,12 @@ export function TimelinePanel({ summary, geo, truckId, onSelectTruck }: { summar
         </div>
         <div className="h-[320px] overflow-hidden rounded-xl border sm:h-[400px] xl:h-auto xl:min-h-[440px] xl:flex-1">
           {timeline.located ? (
-            <TimelineMap timeline={timeline} cursor={state} routeIndex={clusterIndex} depotLabel={summary.depot.label} roadLabel={roadLabel} />
+            <TimelineMap timeline={timeline} cursor={state} routeIndex={clusterIndex} depotLabel={summary.depot.label} />
           ) : (
             <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-center text-sm">Map unavailable: a stop on this shipment has no coordinates.</div>
           )}
         </div>
-        <RoadGeometryControl geo={geo} truckId={truck.id} />
+        <RoadGeometryControl geo={geo} summary={summary} truckId={truck.id} />
       </div>
       <TruckRouteTimeline timeline={timeline} source={source} cursor={cursor} onCursorChange={setCursor} depotLabel={summary.depot.label} clock={summary.time} />
     </div>

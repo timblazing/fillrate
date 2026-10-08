@@ -33,7 +33,6 @@ export function expandSweep(base: RunSettings, axes: SweepAxes, limit = DEFAULT_
     if (!Array.isArray(values) || values.length === 0 || values.length > 100) throw new SweepError("invalid_axis", `Axis ${axis} needs 1–100 values.`);
     if (new Set(values.map(v => canonical(v))).size !== values.length) throw new SweepError("invalid_axis", `Axis ${axis} repeats a value.`);
   }
-  if (base.travel_snapshot_id && axes.travel_circuity !== undefined) throw new SweepError("invalid_axis", "Travel circuity does not apply when a travel snapshot is selected; its recorded legs are used.");
   const product = used.reduce((n, axis) => n * axes[axis]!.length, 1);
   if (product > 100_000) throw new SweepError("too_many_runs", `This sweep expands to ${product} runs; the limit is ${limit}.`, product);
   let combos: Partial<RunSettings>[] = [{}];
@@ -84,11 +83,7 @@ export function comparisonSignature(versionId: string, settings: RunSettings, ve
     // from before M5 are unchanged.
     ...(settings.fulfillment_policy === "whole_order" ? { fulfillment: "whole_order" } : {}),
     units: { capacity: settings.trailer_capacity, distance: "m", money: "cents" },
-    // A selected travel snapshot replaces the estimating circuity: its identity (a hash of its coordinates,
-    // provider, dataset, profile, options and every raw value) is the travel assumption. Added only when
-    // set, so signatures of estimated runs are unchanged.
-    metrics: { version: METRICS_VERSION, travel_circuity: settings.travel_snapshot_id ? null : settings.travel_circuity, cluster_circuity: settings.cluster_circuity },
-    ...(settings.travel_snapshot_id ? { travel: { snapshot: settings.travel_snapshot_id } } : {}),
+    metrics: { version: METRICS_VERSION, travel_circuity: settings.travel_circuity, cluster_circuity: settings.cluster_circuity },
     validation: { max_leg_m: settings.max_leg_m, max_cluster_diameter_m: settings.max_cluster_diameter_m, pipeline: versions.pipeline ?? null },
   };
   return { signature: createHash("sha256").update(canonical(definition)).digest("hex"), definition };
@@ -104,8 +99,7 @@ function eligibilityPolicy(preflight: RunSettings["preflight"]) {
 export function changedAssumptions(base: RunSettings, settings: RunSettings) {
   const out: string[] = [];
   if (settings.inventory_percent !== base.inventory_percent) out.push(`Inventory ${settings.inventory_percent}%`);
-  if ((settings.travel_snapshot_id ?? null) !== (base.travel_snapshot_id ?? null)) out.push(settings.travel_snapshot_id ? "Road travel snapshot" : "Estimated travel");
-  else if (!settings.travel_snapshot_id && settings.travel_circuity !== base.travel_circuity) out.push(`Travel circuity ${settings.travel_circuity}`);
+  if (settings.travel_circuity !== base.travel_circuity) out.push(`Travel circuity ${settings.travel_circuity}`);
   if (settings.cluster_circuity !== base.cluster_circuity) out.push(`Cluster circuity ${settings.cluster_circuity}`);
   if (settings.max_leg_m !== base.max_leg_m) out.push(`Leg limit ${Math.round(settings.max_leg_m / 1609.344)} mi`);
   if (settings.max_cluster_diameter_m !== base.max_cluster_diameter_m) out.push("Diameter policy");

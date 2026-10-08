@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { toastManager } from "@/components/ui/toast"
 
 const METERS_PER_MILE = 1609.344
-type Base = { k?: number | null; kmeans_seed?: number; inventory_percent?: number; travel_circuity?: number; travel_snapshot_id?: string | null; max_leg_m?: number; solver_seed?: number; cluster_strategy?: string; h3_resolution?: number; allocation_strategy?: string; fulfillment_policy?: string }
+type Base = { k?: number | null; kmeans_seed?: number; inventory_percent?: number; travel_circuity?: number; max_leg_m?: number; solver_seed?: number; cluster_strategy?: string; h3_resolution?: number; allocation_strategy?: string; fulfillment_policy?: string }
 type Preview = { count: number; limit: number; runs: { varied: Record<string, unknown>; changed: string[] }[]; solver_seconds_per_cluster: number; iterations_per_cluster: number | null }
 
 const METHODS: [string, string][] = [["kmeans", "k-means"], ["h3", "H3 cells"], ["none", "No clustering (baseline)"]]
@@ -79,7 +79,7 @@ export function SweepBuilder({ initialK, limit, versionId, example, base = {}, o
     if (!fields.methods.every((m) => m === "none")) add("kmeans_seed", numbers(fields.kmeans_seed, true), base.kmeans_seed ?? 0)
     if (fields.methods.includes("h3")) add("h3_resolution", numbers(fields.h3_resolution, true), base.h3_resolution ?? 2)
     add("inventory_percent", numbers(fields.inventory_percent, true), base.inventory_percent ?? 100)
-    if (!base.travel_snapshot_id) add("travel_circuity", numbers(fields.travel_circuity, false), base.travel_circuity ?? 1.2)
+    add("travel_circuity", numbers(fields.travel_circuity, false), base.travel_circuity ?? 1.2)
     add("max_leg_m", numbers(fields.leg_miles, false).map((mi) => Math.round(mi * METERS_PER_MILE)), base.max_leg_m ?? 804_672)
     add("solver_seed", numbers(fields.solver_seed, true), base.solver_seed ?? 0)
     add("allocation_strategy", fields.allocations, base.allocation_strategy ?? "order_date_then_value")
@@ -148,7 +148,7 @@ export function SweepBuilder({ initialK, limit, versionId, example, base = {}, o
         {text("kmeans_seed", "k-means seeds", "e.g. 0, 1, 2")}
         {text("inventory_percent", "Inventory available (%)", "Changed assumption: ranked separately")}
         <div className="grid grid-cols-2 gap-2">
-          {base.travel_snapshot_id ? <p className="text-muted-foreground col-span-2 self-center text-xs">Mileage factor sweeps use estimated travel; this matrix sweep keeps the imported distances.</p> : text("travel_circuity", "Circuity", "Mileage factor")}
+          {text("travel_circuity", "Circuity", "Mileage factor")}
           {text("leg_miles", "Leg limit (mi)", "Per drive")}
         </div>
       </div>

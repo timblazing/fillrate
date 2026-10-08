@@ -22,7 +22,7 @@ def js_number(value: float) -> str:
     if value == 0:
         return "0"
     # Fast path for the range where Python's shortest repr and ECMAScript agree (plain decimal
-    # notation). Travel snapshots hash millions of numbers; the Decimal path is exact but slow.
+    # notation). Large matrices hash millions of numbers; the Decimal path is exact but slow.
     magnitude = abs(value)
     if 1e-4 <= magnitude < 1e16:
         return str(int(value)) if value.is_integer() else repr(value)

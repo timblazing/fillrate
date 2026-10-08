@@ -4,11 +4,9 @@ import type { Store } from "@fillrate/db";
 import { canonical } from "@fillrate/db/canonical";
 import { changedAssumptions, compareRuns, DEFAULT_COMPARISON, expandSweep, METRICS, parseComparison, SWEEP_AXES, SweepError, type SweepAxes } from "@fillrate/db/experiments";
 import { preflightChecks } from "@fillrate/db/preflight";
-import type { TravelSnapshot } from "@fillrate/db/travel";
 import { validateScenario } from "@fillrate/db/scenarios";
 import { assertOwnVersion, assertVersionRead, OWNER } from "./access";
 import { ApiError, exampleForVersion, exampleSettings, exampleVersion, maxSweepRuns, parseExample, runSummary, type Example } from "./runs";
-import { selectedTravel, travelError } from "./scenarios";
 
 /** Anything but a bundled example is an imported (owned) scenario. */
 export const isImportedVersion = (store: Store, versionId: string) => {
@@ -72,8 +70,6 @@ export function createExplorer(store: Store, body: { versionId?: unknown; exampl
   if (tasks > limit) throw new ApiError(422, "too_many_tasks", `This explorer request is ${tasks} clustering tasks; the limit is ${limit}. Choose fewer k values, seeds or H3 resolutions.`, ["settings"]);
   const target = resolveTarget(store, body.versionId, body.base, body.example);
   if (!target.imported) checkSynthetic(target.base);
-  // The explorer clusters on the symmetric spatial metric only; recording a road snapshot it never reads would mislead.
-  if (target.base.travel_snapshot_id) throw new ApiError(400, "invalid_settings", "The k explorer does not use travel snapshots.", ["base.travel_snapshot_id"]);
   let settings: ExplorerSettings;
   try { settings = parseContract("ExplorerSettings", { seeds: DEFAULT_SEEDS, h3_resolutions: [1, 2, 3], reference_seed: 0, ks: null, selected_k: target.base.k ?? null, ...raw, schema_version: 1, kind: "explorer", base: target.base }); }
   catch (error) { throw new ApiError(400, "invalid_settings", error instanceof Error ? error.message : "Invalid explorer settings.", ["settings"]); }
@@ -113,8 +109,7 @@ export function createSweep(store: Store, body: SweepBody, idempotencyKey: strin
   if (!target.imported) runs.forEach(r => checkSynthetic(r.settings));
   else {
     const document = validateScenario(store.versionDocument(target.versionId).document);
-    const loaded = new Map<string, TravelSnapshot>();
-    const blocked = runs.flatMap(r => preflightChecks(document, r.settings, selectedTravel(store, document, r.settings, target.ownerId, loaded)).filter(f => f.action === "block").flatMap(f => f.line_ids));
+    const blocked = runs.flatMap(r => preflightChecks(document, r.settings).filter(f => f.action === "block").flatMap(f => f.line_ids));
     if (blocked.length) throw new ApiError(422, "preflight_blocked", "Resolve blocking checks, exclude affected lines, or change the check to a warning before sweeping.", [...new Set(blocked)]);
   }
   const comparison = parseCompare(body.comparison ?? DEFAULT_COMPARISON);
@@ -201,5 +196,5 @@ export function visibleExperiments(store: Store) {
 
 function idempotency(error: unknown) {
   if (error instanceof Error && error.message === "idempotency_conflict") return new ApiError(409, "idempotency_conflict", "This Idempotency-Key was already used with a different request.");
-  return travelError(error);
+  return error;
 }

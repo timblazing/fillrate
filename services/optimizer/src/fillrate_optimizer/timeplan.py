@@ -8,8 +8,7 @@ import numpy as np
 
 from .model import ScenarioDocument
 from .timewin import VisitTime, elapsed_s
-from .travel import haversine_m
-from .travel_provider import ESTIMATED_SPEED_M_PER_S
+from .travel import ESTIMATED_SPEED_M_PER_S, haversine_m
 
 
 @dataclass(frozen=True)
@@ -51,13 +50,9 @@ def time_context(scenario: ScenarioDocument) -> TimeContext | None:
     )
 
 
-def duration_leg_reader(raw_seconds, loc_ids, depot, stops, circuity):
-    """`leg_s(a, b)` drive seconds by travel-node name ("depot" or a location ID), from the
-    selected snapshot's duration matrix or, for estimated travel, the estimated provider's
+def duration_leg_reader(loc_ids, depot, stops, circuity):
+    """`leg_s(a, b)` estimated drive seconds by travel-node name ("depot" or a location ID):
     haversine x circuity / constant speed."""
-    index = {"depot": 0, **{loc: i + 1 for i, loc in enumerate(loc_ids)}}
-    if raw_seconds is not None:
-        return lambda a, b: int(raw_seconds[index[a], index[b]])
     coords = {"depot": (depot.lat, depot.lon), **stops}
 
     def leg(a: str, b: str) -> int:
