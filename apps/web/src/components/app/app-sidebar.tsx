@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronRight, FlaskConical, LayoutGrid, Truck, type LucideIcon } from "lucide-react"
+import { ChevronRight, FlaskConical, LayoutGrid, Play, Truck, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { type ComponentProps } from "react"
@@ -30,6 +30,9 @@ const navMain: NavItem[] = [
   { href: "/experiments", title: "Experiments", icon: FlaskConical },
 ]
 
+// Playground mode (the hosted demo) has nothing stored, so it shows one item.
+const navPlayground: NavItem[] = [{ href: "/playground", title: "Playground", icon: Play }]
+
 const under = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`)
 
 /** Top-level section for a path: runs and the explorer belong to Scenarios. */
@@ -40,7 +43,7 @@ export const sectionOf = (pathname: string) =>
  * Product sidebar, modeled on shadcn sidebar-07 (standard sidebar that collapses to icons): brand and main nav with sub-items.
  * Only the header's SidebarTrigger (or ⌘B) toggles it; there is deliberately no SidebarRail.
  */
-export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ playground = false, ...props }: ComponentProps<typeof Sidebar> & { playground?: boolean }) {
   const pathname = usePathname()
   const active = sectionOf(pathname)
   const { isMobile, setOpenMobile } = useSidebar()
@@ -52,7 +55,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="Overview" render={<Link href="/scenarios" onClick={close} />}>
+            <SidebarMenuButton size="lg" tooltip="Overview" render={<Link href={playground ? "/playground" : "/scenarios"} onClick={close} />}>
               <div className="bg-foreground text-background flex aspect-square size-8 items-center justify-center rounded-lg">
                 <Truck className="size-4" />
               </div>
@@ -68,7 +71,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
           <SidebarGroup>
             <SidebarGroupLabel>Platform</SidebarGroupLabel>
             <SidebarMenu>
-              {navMain.map((item) => (
+              {(playground ? navPlayground : navMain).map((item) => (
                 <Collapsible key={item.href} defaultOpen={item.href === active} render={<SidebarMenuItem />}>
                   <SidebarMenuButton
                     tooltip={item.title}

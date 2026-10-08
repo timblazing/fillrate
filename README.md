@@ -49,6 +49,10 @@ bun run dev                       # terminal 1: http://localhost:3000
 bun run optimizer                 # terminal 2: the Python solver service (127.0.0.1:8000)
 ```
 
+## Playground mode
+
+Set `FILLRATE_PLAYGROUND=1` to serve a stateless playground, meant for a hosted demo. Only `/playground` exists: visitors run the bundled example or upload an orders and inventory CSV (with latitude and longitude), and nothing is stored (no database is opened). Runs are capped by `PLAYGROUND_MAX_ORDERS` (default 2000) and `PLAYGROUND_SOLVE_SECONDS` (default 60, whole run); solver time is limited to 5 seconds per cluster, and one run goes at a time.
+
 Built with Next.js, SQLite, Python and PyVRP. Contributors and coding agents, see [`AGENTS.md`](AGENTS.md).
 
 ## License

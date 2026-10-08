@@ -151,7 +151,7 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
           <AlertDescription>The solver process was stopped. Nothing from this run is counted as planned.{rerun ? " Run again starts a new run with the same version and settings." : ""}</AlertDescription>
         </Alert>
       )}
-      {run.summary && <Results summary={run.summary} run={run} geo={geo} />}
+      {run.summary && <Results summary={run.summary} runId={run.id} geo={geo} />}
     </>
   )
 }
@@ -246,7 +246,8 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   )
 }
 
-function Results({ summary, run, geo }: { summary: RunSummary; run: PipelineDetail; geo: RoadGeometry }) {
+/** `runId` is null for results that are not stored (the playground), which hides the links into stored runs. */
+export function Results({ summary, runId, geo }: { summary: RunSummary; runId: string | null; geo: RoadGeometry }) {
   const [cluster, setCluster] = useState<string | null>(null)
   const [hexes, setHexes] = useState(false)
   const [truck, setTruck] = useState<string | null>(null)
@@ -325,7 +326,7 @@ function Results({ summary, run, geo }: { summary: RunSummary; run: PipelineDeta
           </div>
         </TabsPanel>
         <TabsPanel value="shipments" className="pt-3">
-          <ShipmentTable summary={summary} clusterIndex={clusterIndex} truck={truck} onSelect={selectTruck} cluster={cluster} onClearCluster={() => setCluster(null)} runId={run.id} />
+          <ShipmentTable summary={summary} clusterIndex={clusterIndex} truck={truck} onSelect={selectTruck} cluster={cluster} onClearCluster={() => setCluster(null)} runId={runId} />
         </TabsPanel>
         <TabsPanel value="timeline" className="pt-3">
           <TimelinePanel key={truck ?? ""} summary={summary} geo={geo} truckId={truck} onSelectTruck={selectTruck} />
@@ -500,7 +501,7 @@ function ShipmentTable({
   onSelect: (id: string | null) => void
   cluster: string | null
   onClearCluster: () => void
-  runId: string
+  runId: string | null
 }) {
   const [pagination, setPagination] = useState({ cluster, page: 0 })
   const page = pagination.cluster === cluster ? pagination.page : 0
@@ -574,9 +575,11 @@ function ShipmentTable({
                 <TableCell className="text-right tabular-nums">{miles(x.distance_m)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatMoney(x.amount_cents)}</TableCell>
                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                  <Button size="icon-xs" variant="ghost" render={<Link href={`/runs/${runId}/sheet?shipment=${encodeURIComponent(x.id)}`} aria-label={`Sheet for ${shipmentLabel(number.get(x.id) ?? 0)}`} />}>
-                    <Printer />
-                  </Button>
+                  {runId && (
+                    <Button size="icon-xs" variant="ghost" render={<Link href={`/runs/${runId}/sheet?shipment=${encodeURIComponent(x.id)}`} aria-label={`Sheet for ${shipmentLabel(number.get(x.id) ?? 0)}`} />}>
+                      <Printer />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -610,7 +613,7 @@ function ShipmentTable({
   )
 }
 
-function ShipmentDetail({ summary, truck, index, cluster, runId }: { summary: RunSummary; truck: RunSummary["trucks"][number]; index: number; cluster: number; runId: string }) {
+function ShipmentDetail({ summary, truck, index, cluster, runId }: { summary: RunSummary; truck: RunSummary["trucks"][number]; index: number; cluster: number; runId: string | null }) {
   const labels = new Map(summary.locations.map((l) => [l.id, l.label]))
   return (
     <section className="bg-card space-y-3 rounded-xl border p-4" aria-label={`${shipmentLabel(index)} detail`}>
@@ -620,14 +623,14 @@ function ShipmentDetail({ summary, truck, index, cluster, runId }: { summary: Ru
         <span className="text-muted-foreground text-xs tabular-nums">
           {plural(truck.visits.length, "stop")} · {miles(truck.distance_m)} loaded · {formatMoney(truck.amount_cents)}
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        {runId && <div className="ml-auto flex items-center gap-2">
           <Button size="xs" variant="outline" render={<Link href={`/runs/${runId}/sheet?shipment=${encodeURIComponent(truck.id)}`} />}>
             <Printer aria-hidden /> Print sheet
           </Button>
           <Button size="xs" variant="ghost" render={<a href={`/api/v1/runs/${runId}/export?format=csv&table=sheet&truck=${encodeURIComponent(truck.id)}`} download />}>
             <Download aria-hidden /> CSV
           </Button>
-        </div>
+        </div>}
       </div>
       <TrailerFill
         cluster={cluster}

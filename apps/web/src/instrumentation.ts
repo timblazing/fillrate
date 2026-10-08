@@ -1,5 +1,6 @@
 export async function register() {
-  if (process.env.NEXT_RUNTIME === "nodejs") {
+  // Playground mode is stateless: no database.
+  if (process.env.NEXT_RUNTIME === "nodejs" && process.env.FILLRATE_PLAYGROUND !== "1") {
     // Build workers also run register(); only a serving process owns running solves.
     const serving = process.env.NEXT_PHASE !== "phase-production-build"
     const { initializeDatabase } = await import("./lib/server/database")
