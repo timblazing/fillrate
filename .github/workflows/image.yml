@@ -48,7 +48,7 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Smoke test (amd64)
         run: |
-          docker run -d --name fillrate -p 127.0.0.1:3000:3000 -e FILLRATE_MODE=local \
+          docker run -d --name fillrate -p 127.0.0.1:3000:3000 \
             --platform linux/amd64 "$IMAGE:sha-${GITHUB_SHA::7}"
           for i in $(seq 1 45); do
             if curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then echo healthy; exit 0; fi

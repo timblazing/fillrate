@@ -54,13 +54,13 @@ function usePolled(initial: ExplorerDetail) {
   return run
 }
 
-export function ExplorerView({ initial, imported, example, canRun, runKey }: { initial: ExplorerDetail; imported: boolean; example: string | null; canRun: boolean; runKey?: string }) {
+export function ExplorerView({ initial, imported, example }: { initial: ExplorerDetail; imported: boolean; example: string | null }) {
   const run = usePolled(initial)
   const settings = run.explorer_settings as unknown as ExplorerSettings
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon-sm" render={<Link href={imported ? "/scenarios" : `/runs${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`} aria-label="Back" />}>
+        <Button variant="ghost" size="icon-sm" render={<Link href={imported ? "/scenarios" : "/runs"} aria-label="Back" />}>
           <ArrowLeft />
         </Button>
         <PageTitle>k explorer <span className="font-mono">{run.id.slice(0, 8)}</span></PageTitle>
@@ -85,12 +85,12 @@ export function ExplorerView({ initial, imported, example, canRun, runKey }: { i
           <AlertDescription>{String(run.failure?.message ?? "The worker reported a failure.")}</AlertDescription>
         </Alert>
       )}
-      {run.explorer && <Results summary={run.explorer} imported={imported} example={example} canRun={canRun} runKey={runKey} />}
+      {run.explorer && <Results summary={run.explorer} imported={imported} example={example} />}
     </>
   )
 }
 
-function Results({ summary, imported, example, canRun, runKey }: { summary: ExplorerSummary; imported: boolean; example: string | null; canRun: boolean; runKey?: string }) {
+function Results({ summary, imported, example }: { summary: ExplorerSummary; imported: boolean; example: string | null }) {
   const router = useRouter()
   const [repaired, setRepaired] = useState(false)
   const [k, setK] = useState(summary.selected_k)
@@ -102,7 +102,7 @@ function Results({ summary, imported, example, canRun, runKey }: { summary: Expl
   const agreements = summary.locations.map((l) => (repaired ? l.agreement_repaired : l.agreement_raw))
   const low = agreements.filter((a) => a != null && a < AGREEMENT_LOW).length
   const singletons = agreements.filter((a) => a == null).length
-  const headers = { "content-type": "application/json", "idempotency-key": crypto.randomUUID(), ...(runKey ? { "x-run-key": runKey } : {}) }
+  const headers = { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }
 
   async function useK() {
     if (imported) {
@@ -118,7 +118,7 @@ function Results({ summary, imported, example, canRun, runKey }: { summary: Expl
       setPending(null)
       return
     }
-    router.push(`/runs/${body.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
+    router.push(`/runs/${body.id}`)
   }
 
   async function agreementAt() {
@@ -131,7 +131,7 @@ function Results({ summary, imported, example, canRun, runKey }: { summary: Expl
       setPending(null)
       return
     }
-    router.push(`/explore/${body.id}${runKey ? `?key=${encodeURIComponent(runKey)}` : ""}`)
+    router.push(`/explore/${body.id}`)
   }
 
   return (
@@ -231,21 +231,19 @@ function Results({ summary, imported, example, canRun, runKey }: { summary: Expl
             <div className="text-muted-foreground text-xs">{imported ? "Carries k and seed into the scenario's run settings." : "Starts a pipeline run of the bundled example with this k and seed."}</div>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
-            {k !== summary.selected_k && canRun && (
+            {k !== summary.selected_k && (
               <Button variant="outline" size="sm" onClick={agreementAt} loading={pending === "agreement"}>
                 Seed agreement at k = {k}
               </Button>
             )}
-            {!imported && canRun && (
-              <Button variant="outline" size="sm" render={<Link href={`/experiments?k=${k}${example ? `&example=${example}` : ""}${runKey ? `&key=${encodeURIComponent(runKey)}` : ""}`} />}>
+            {!imported && (
+              <Button variant="outline" size="sm" render={<Link href={`/experiments?k=${k}${example ? `&example=${example}` : ""}`} />}>
                 <FlaskConical aria-hidden /> Sweep around k = {k}
               </Button>
             )}
-            {canRun && (
-              <Button size="sm" onClick={useK} loading={pending === "use"}>
-                {imported ? <Check aria-hidden /> : <Play aria-hidden />} Use this k
-              </Button>
-            )}
+            <Button size="sm" onClick={useK} loading={pending === "use"}>
+              {imported ? <Check aria-hidden /> : <Play aria-hidden />} Use this k
+            </Button>
           </div>
         </div>
       </div>

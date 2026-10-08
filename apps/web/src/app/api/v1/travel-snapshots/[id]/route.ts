@@ -1,17 +1,16 @@
-import { principal, requireOwner } from "@/lib/server/access"
+import { OWNER } from "@/lib/server/access"
 import { initializeDatabase } from "@/lib/server/database"
 import { errorResponse, ApiError } from "@/lib/server/runs"
 import { snapshotCanonicalJson, snapshotCsv } from "@fillrate/db/travel-export"
 import { travelSnapshotPreview } from "@/lib/server/travel-snapshot-preview"
 export const dynamic = "force-dynamic"
 // Metadata by default (`?inspect=1` adds a sample). `?format=json` downloads the canonical snapshot (its sha256 is the
-// identity) and `?format=csv` the long-form directed matrix; both need the owner, like the metadata.
+// identity) and `?format=csv` the long-form directed matrix; same as the metadata.
 export async function GET(request: Request, context: RouteContext<"/api/v1/travel-snapshots/[id]">) {
   try {
-    const ownerId = requireOwner(await principal(request))
     const { id } = await context.params
     const store = initializeDatabase()
-    const info = store.travelSnapshotInfo(id, ownerId)
+    const info = store.travelSnapshotInfo(id, OWNER)
     if (!info) throw new ApiError(404, "travel_snapshot_not_found", "No stored travel snapshot has this identity.")
     const format = new URL(request.url).searchParams.get("format")
     if (format !== null) {

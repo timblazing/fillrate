@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { redirect } from "next/navigation"
 
 import { Page, PageHeader } from "@/components/app/page"
 import { Button } from "@/components/ui/button"
@@ -7,8 +6,7 @@ import { ExampleSwitch } from "@/components/lab/example-switch"
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { initializeDatabase } from "@/lib/server/database"
-import { pagePrincipal } from "@/lib/server/access"
-import { canStartRuns, EXAMPLES, exampleInfo, pageExample, runsClosedNote } from "@/lib/server/runs"
+import { EXAMPLES, exampleInfo, pageExample } from "@/lib/server/runs"
 import { visibleRuns } from "@/lib/server/scenarios"
 
 import { NewExplorer, NewRun } from "./new-run"
@@ -17,13 +15,9 @@ export const dynamic = "force-dynamic"
 export const metadata = { title: "Runs · Fillrate" }
 
 export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
-  const { key, example: exampleParam } = await searchParams
-  const who = await pagePrincipal()
-  if (who.kind === "pending") redirect("/request-access")
-  const runs = visibleRuns(initializeDatabase(), who)
-  const open = canStartRuns(who, key)
+  const { example: exampleParam } = await searchParams
+  const runs = visibleRuns(initializeDatabase())
   const example = exampleInfo(pageExample(exampleParam))
-  const keyQuery = typeof key === "string" ? `&key=${encodeURIComponent(key)}` : ""
 
   return (
     <Page>
@@ -33,18 +27,18 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
           <>
             Each run allocates stock, groups stops into clusters with k-means, builds 53 ft shipments with PyVRP and validates every
             shipment independently. Runs here use a bundled synthetic scenario; imported data lives under scenarios. The list shows
-            example runs and runs on your own scenarios.
+            example runs and runs on your saved scenarios.
           </>
         }
         actions={
           <>
             <Button variant="outline" size="sm" render={<Link href="/scenarios" />}>Scenarios</Button>
-            <Button variant="outline" size="sm" render={<Link href={`/experiments?example=${example.id}${keyQuery}`} />}>Sweeps</Button>
+            <Button variant="outline" size="sm" render={<Link href={`/experiments?example=${example.id}`} />}>Sweeps</Button>
           </>
         }
       >
-        <ExampleSwitch examples={Object.values(EXAMPLES).map(exampleInfo)} current={example.id} href={(id) => `/runs?example=${id}${keyQuery}`} />
-        <NewRun key={example.id} open={open} closedNote={runsClosedNote()} example={example.id} defaultK={example.k ?? 4} runKey={typeof key === "string" ? key : undefined} />
+        <ExampleSwitch examples={Object.values(EXAMPLES).map(exampleInfo)} current={example.id} href={(id) => `/runs?example=${id}`} />
+        <NewRun key={example.id} example={example.id} defaultK={example.k ?? 4} />
       </PageHeader>
 
       <section className="flex flex-col gap-3">
@@ -53,7 +47,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
           Clusters the same stops for two k values near your choice with seeds 0–9, plus H3 cells at resolutions 1–3, without solving any
           shipments. Use it to pick a k whose groupings do not depend on the seed.
         </p>
-        <NewExplorer key={example.id} open={open} example={example.id} defaultK={example.k ?? 4} runKey={typeof key === "string" ? key : undefined} />
+        <NewExplorer key={example.id} example={example.id} defaultK={example.k ?? 4} />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -75,7 +69,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
                 {runs.map((run) => (
                   <TableRow key={run.id}>
                     <TableCell>
-                      <Link href={`/${run.kind === "explorer" ? "explore" : "runs"}/${run.id}${typeof key === "string" ? `?key=${encodeURIComponent(key)}` : ""}`} className="font-mono text-xs underline-offset-4 hover:underline">
+                      <Link href={`/${run.kind === "explorer" ? "explore" : "runs"}/${run.id}`} className="font-mono text-xs underline-offset-4 hover:underline">
                         {run.id.slice(0, 8)}
                       </Link>
                     </TableCell>

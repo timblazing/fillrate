@@ -4,13 +4,13 @@ import type { Store } from "@fillrate/db";
 import { validateScenario } from "@fillrate/db/scenarios";
 import { assertSnapshotBinding, preflightChecks } from "@fillrate/db/preflight";
 import type { Binding, TravelSnapshot } from "@fillrate/db/travel";
-import { admission, assertOwnVersion, type Principal } from "./access";
+import { assertOwnVersion, OWNER } from "./access";
 import { ApiError } from "./errors";
 
-/** Runs on bundled examples plus the caller's own scenarios. */
-export function visibleRuns(store: Store, who: Principal) {
+/** Runs on bundled examples plus saved scenarios. */
+export function visibleRuns(store: Store) {
   // Matrix builds are listed in the scenario matrix panel, not as pipeline runs.
-  return store.listRuns(50, who.ownerId).filter(run => run.kind !== "travel_snapshot");
+  return store.listRuns(50, OWNER).filter(run => run.kind !== "travel_snapshot");
 }
 export async function boundedJson(request: Request, limit = 10 * 1024 * 1024) {
   const reader = request.body?.getReader();
@@ -51,14 +51,14 @@ export function selectedTravel(store: Store, document: ScenarioDocument, setting
   } catch (error) { throw travelError(error); }
 }
 
-export function createScenarioRun(store: Store, who: Principal, versionId: string, rawSettings: unknown, key: string) {
-  const ownerId = assertOwnVersion(store, who, versionId);
+export function createScenarioRun(store: Store, versionId: string, rawSettings: unknown, key: string) {
+  const ownerId = assertOwnVersion(store, versionId);
   if (!key || key.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
   const document = validateScenario(store.versionDocument(versionId).document);
   const settings = parseContract("RunSettings", rawSettings);
   const findings = preflightChecks(document, settings, selectedTravel(store, document, settings, ownerId));
   const blockers = findings.filter(x => x.action === "block");
   if (blockers.length) throw new ApiError(422, "preflight_blocked", "Resolve blocking checks, exclude affected lines, or change the check to a warning.", blockers.flatMap(x => x.line_ids));
-  try { return store.enqueue(versionId, {schema_version: 1, document: settings} as unknown as Snapshot, key, Date.now(), 3, "pipeline", { ownerId, admission: admission(who) }); }
+  try { return store.enqueue(versionId, {schema_version: 1, document: settings} as unknown as Snapshot, key, Date.now(), 3, "pipeline", { ownerId }); }
   catch (error) { throw travelError(error); }
 }

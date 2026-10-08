@@ -8,7 +8,7 @@ import { gzipSync } from "node:zlib";
 import type { ScenarioDocument } from "@fillrate/contracts";
 import { canonical } from "./canonical";
 import { csvRecords } from "./imports";
-import { contentHash, OPERATOR, type Admission, type Store } from "./index";
+import { contentHash, OPERATOR, type Store } from "./index";
 import { saveScenario, scenarioVersion, type ScenarioMetadata } from "./scenarios";
 
 export const CENSUS_BENCHMARK = "Public_AR_Current";
@@ -257,7 +257,7 @@ export type GeocodeJob = {
   resultVersionId: string | null; resultScenarioId: string | null; branched: boolean; error: string | null; createdAt: number; updatedAt: number;
 };
 
-export function createGeocodeJob(store: Store, input: { versionId: string; options: unknown; author: string; metadata: ScenarioMetadata; idempotencyKey: string; ownerId?: string; admission?: Admission }) {
+export function createGeocodeJob(store: Store, input: { versionId: string; options: unknown; author: string; metadata: ScenarioMetadata; idempotencyKey: string; ownerId?: string }) {
   const ownerId = input.ownerId ?? OPERATOR;
   if (!input.idempotencyKey || input.idempotencyKey.length > 200) throw new Error("invalid_idempotency_key");
   if (!input.author?.trim() || input.author.length > 100) throw new Error("invalid_author");
@@ -273,7 +273,7 @@ export function createGeocodeJob(store: Store, input: { versionId: string; optio
         .run(id, input.versionId, "queued", canonical(options), input.author.trim(), canonical(input.metadata), input.idempotencyKey, requestHash, now, now, ownerId);
       return { id, created: true };
     };
-    return input.admission ? store.admitWork(input.admission, 1, create) : create();
+    return create();
   }).immediate();
 }
 

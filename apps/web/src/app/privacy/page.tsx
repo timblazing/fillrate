@@ -2,7 +2,6 @@ import { PublicHeader } from "@/components/brand/public-header"
 
 export const metadata = { title: "Data and privacy · Fillrate" }
 
-// Spec §14 disclosures for the hosted service: what is stored, retention, deletion, backups and geocoding.
 export default function PrivacyPage() {
   return (
     <div className="flex min-h-dvh flex-col">
@@ -11,23 +10,15 @@ export default function PrivacyPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Data and privacy</h1>
         <section className="flex flex-col gap-2">
           <h2 className="text-base font-semibold">What is stored</h2>
-          <p>Signing in with GitHub stores your GitHub name, email address and avatar link, a session record and the GitHub account link. Fillrate does not post to GitHub or read your repositories.</p>
-          <p>The owner sees your request note and GitHub profile details to decide whether to grant access.</p>
-          <p>Scenarios you import (orders, stock, locations and addresses), their versions, runs, sweeps, results, geocoding answers and travel snapshots are stored in the server&apos;s database and belong to your account. Other accounts cannot list, open or reuse them, whatever their IDs or content hashes.</p>
-        </section>
-        <section className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold">Retention and deletion</h2>
-          <p>Your data stays until you delete it. Deleting a scenario removes its versions, branches, runs and sweeps at once. Deleting your account removes everything it owns, its sessions and the GitHub link. Download your data from the account page first if you want a copy.</p>
-          <p>The server keeps database backups for recovery. A deleted item remains in backups made before the deletion until those backups expire, at most 30 days later, and is not restored into the service.</p>
+          <p>Fillrate has no accounts. The scenarios you import (orders, stock, locations and addresses), their versions, runs, sweeps, results, geocoding answers and travel snapshots are stored in the SQLite database on the machine running the app. Deleting a scenario removes its versions, runs and sweeps.</p>
         </section>
         <section className="flex flex-col gap-2">
           <h2 className="text-base font-semibold">Geocoding</h2>
-          <p>When you geocode addresses, they are sent to the U.S. Census Bureau geocoder (no account or key). ZIP code fallbacks use a lookup table on the server and send nothing. Answers are cached for your account only.</p>
+          <p>When you geocode addresses, they are sent to the U.S. Census Bureau geocoder (no account or key). ZIP code fallbacks use a lookup table on the server and send nothing.</p>
         </section>
         <section className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold">Limits and logs</h2>
-          <p>Free accounts have daily limits on solves, geocoding, saves and uploads, shown on the account page. Server logs record job IDs, timings and error codes, not addresses or tokens.</p>
-          <p>Bundled examples use synthetic data. On the hosted service, product pages require sign-in and approved access.</p>
+          <h2 className="text-base font-semibold">Logs</h2>
+          <p>Server logs record job IDs, timings and error codes, not addresses or tokens. Bundled examples use synthetic data.</p>
         </section>
       </main>
     </div>

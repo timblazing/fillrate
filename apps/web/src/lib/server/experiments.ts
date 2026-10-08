@@ -6,8 +6,7 @@ import { changedAssumptions, compareRuns, DEFAULT_COMPARISON, expandSweep, METRI
 import { preflightChecks } from "@fillrate/db/preflight";
 import type { TravelSnapshot } from "@fillrate/db/travel";
 import { validateScenario } from "@fillrate/db/scenarios";
-import { PUBLIC_OWNER } from "@fillrate/db";
-import { admission, assertOwnVersion, assertVersionRead, syntheticAdmission, type Principal } from "./access";
+import { assertOwnVersion, assertVersionRead, OWNER } from "./access";
 import { ApiError, exampleForVersion, exampleSettings, exampleVersion, maxSweepRuns, parseExample, runSummary, type Example } from "./runs";
 import { selectedTravel, travelError } from "./scenarios";
 
@@ -19,19 +18,16 @@ export const isImportedVersion = (store: Store, versionId: string) => {
 /** Explorer jobs and sweeps on a bundled example default to the lesson scenario (the M1 example never ranks). */
 const DEFAULT_EXAMPLE = "lesson";
 
-/**
- * Imported versions need their owner; bundled synthetic examples are open to accounts, the operator and the
- * run key, or the anonymous public budget. Returns the version, the base settings and the admission to charge.
- */
-function resolveTarget(store: Store, who: Principal, versionId: unknown, base: unknown, exampleId: unknown) {
+/** An imported version or a bundled synthetic example; returns the version, the base settings and the owner. */
+function resolveTarget(store: Store, versionId: unknown, base: unknown, exampleId: unknown) {
   if (versionId === undefined || versionId === null) {
     const example = parseExample(exampleId, DEFAULT_EXAMPLE);
     const settings = syntheticBase(base, example);
-    return { versionId: exampleVersion(store, example), base: settings, imported: false, ...syntheticAdmission(who) };
+    return { versionId: exampleVersion(store, example), base: settings, imported: false, ownerId: OWNER };
   }
   if (exampleId !== undefined && exampleId !== null) throw new ApiError(400, "invalid_request", "Send either versionId or example, not both.", ["example"]);
-  const ownerId = assertOwnVersion(store, who, versionId);
-  return { versionId: versionId as string, base: parseSettings(base ?? {}), imported: true, ownerId, admission: admission(who) };
+  const ownerId = assertOwnVersion(store, versionId);
+  return { versionId: versionId as string, base: parseSettings(base ?? {}), imported: true, ownerId };
 }
 
 function parseSettings(input: unknown): RunSettings {
@@ -67,21 +63,21 @@ export function explorerTasks(settings: { ks?: number[] | null; seeds?: number[]
 }
 const DEFAULT_SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-export function createExplorer(store: Store, who: Principal, body: { versionId?: unknown; example?: unknown; settings?: unknown; base?: unknown }, idempotencyKey: string) {
+export function createExplorer(store: Store, body: { versionId?: unknown; example?: unknown; settings?: unknown; base?: unknown }, idempotencyKey: string) {
   if (!idempotencyKey || idempotencyKey.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
   const raw = (body.settings ?? {}) as Record<string, unknown>;
   if (typeof raw !== "object" || Array.isArray(raw) || "base" in raw) throw new ApiError(400, "invalid_settings", "Explorer settings must be an object; send base settings as `base`.", ["settings"]);
   const tasks = explorerTasks(raw as never);
   const limit = maxSweepRuns();
   if (tasks > limit) throw new ApiError(422, "too_many_tasks", `This explorer request is ${tasks} clustering tasks; the limit is ${limit}. Choose fewer k values, seeds or H3 resolutions.`, ["settings"]);
-  const target = resolveTarget(store, who, body.versionId, body.base, body.example);
+  const target = resolveTarget(store, body.versionId, body.base, body.example);
   if (!target.imported) checkSynthetic(target.base);
   // The explorer clusters on the symmetric spatial metric only; recording a road snapshot it never reads would mislead.
   if (target.base.travel_snapshot_id) throw new ApiError(400, "invalid_settings", "The k explorer does not use travel snapshots.", ["base.travel_snapshot_id"]);
   let settings: ExplorerSettings;
   try { settings = parseContract("ExplorerSettings", { seeds: DEFAULT_SEEDS, h3_resolutions: [1, 2, 3], reference_seed: 0, ks: null, selected_k: target.base.k ?? null, ...raw, schema_version: 1, kind: "explorer", base: target.base }); }
   catch (error) { throw new ApiError(400, "invalid_settings", error instanceof Error ? error.message : "Invalid explorer settings.", ["settings"]); }
-  try { return store.enqueue(target.versionId, { schema_version: 1, document: settings as unknown as Snapshot["document"] }, idempotencyKey, Date.now(), 3, "explorer", { ownerId: target.ownerId, admission: target.admission }); }
+  try { return store.enqueue(target.versionId, { schema_version: 1, document: settings as unknown as Snapshot["document"] }, idempotencyKey, Date.now(), 3, "explorer", { ownerId: target.ownerId }); }
   catch (error) { throw idempotency(error); }
 }
 
@@ -100,20 +96,19 @@ function expand(base: RunSettings, axes: unknown) {
 }
 
 /** Preview: the expanded runs and the upper solver budget, without enqueueing anything. */
-export function previewSweep(store: Store, who: Principal, body: SweepBody) {
+export function previewSweep(store: Store, body: SweepBody) {
   const imported = typeof body.versionId === "string";
-  if (imported) assertOwnVersion(store, who, body.versionId);
+  if (imported) assertOwnVersion(store, body.versionId);
   const base = imported ? parseSettings(body.base ?? {}) : syntheticBase(body.base, parseExample(body.example, DEFAULT_EXAMPLE));
   const runs = expand(base, body.axes);
   const perCluster = base.solver_time_limit_s;
   return { runs: runs.map(r => ({ varied: r.varied, changed: changedAssumptions(base, r.settings) })), count: runs.length, limit: maxSweepRuns(), solver_seconds_per_cluster: perCluster, iterations_per_cluster: base.solver_max_iterations ?? null };
 }
 
-export function createSweep(store: Store, who: Principal, body: SweepBody, idempotencyKey: string) {
+export function createSweep(store: Store, body: SweepBody, idempotencyKey: string) {
   if (!idempotencyKey || idempotencyKey.length > 180) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–180 characters).", ["Idempotency-Key"]);
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : "Sweep";
-  // Quotas are checked and charged (one admission per child run) inside the transaction that creates the sweep.
-  const target = resolveTarget(store, who, body.versionId, body.base, body.example);
+  const target = resolveTarget(store, body.versionId, body.base, body.example);
   const runs = expand(target.base, body.axes);
   if (!target.imported) runs.forEach(r => checkSynthetic(r.settings));
   else {
@@ -125,7 +120,7 @@ export function createSweep(store: Store, who: Principal, body: SweepBody, idemp
   const comparison = parseCompare(body.comparison ?? DEFAULT_COMPARISON);
   try {
     return store.createExperiment({
-      versionId: target.versionId, name, ownerId: target.ownerId, admission: target.admission,
+      versionId: target.versionId, name, ownerId: target.ownerId,
       spec: { base: target.base, axes: body.axes, metrics_version: "fillrate-metrics/1" },
       comparison,
       runs: runs.map(r => ({ settings: { schema_version: 1, document: r.settings as unknown as Snapshot["document"] }, varied: r.varied })),
@@ -138,20 +133,17 @@ function parseCompare(input: unknown) {
   catch (error) { throw new ApiError(400, "invalid_comparison", error instanceof Error ? error.message : "Invalid comparison.", ["comparison"]); }
 }
 
-export function saveExperimentComparison(store: Store, who: Principal, id: string, input: unknown) {
+export function saveExperimentComparison(store: Store, id: string, input: unknown) {
   const experiment = store.experiment(id);
   if (!experiment) throw new ApiError(404, "experiment_not_found", "No experiment with this ID.");
-  assertExperimentRead(store, who, experiment.versionId);
-  if (!canEditExperiment(who, experiment.ownerId)) throw new ApiError(403, "forbidden", "Only whoever started this sweep can change its ranking.");
+  assertExperimentRead(store, experiment.versionId);
   store.saveComparison(id, parseCompare(input));
   return experimentDetail(store, id);
 }
 
-export function assertExperimentRead(store: Store, who: Principal, versionId: string) {
-  assertVersionRead(store, who, versionId, new ApiError(404, "experiment_not_found", "No experiment with this ID."));
+export function assertExperimentRead(store: Store, versionId: string) {
+  assertVersionRead(store, versionId, new ApiError(404, "experiment_not_found", "No experiment with this ID."));
 }
-/** The submitter edits a sweep's ranking; anonymous public sweeps need the run key or the operator. */
-export const canEditExperiment = (who: Principal, ownerId: string) => (who.ownerId !== null && who.ownerId === ownerId) || (ownerId === PUBLIC_OWNER && who.runKey);
 
 export function experimentDetail(store: Store, id: string) {
   const experiment = store.experiment(id);
@@ -202,9 +194,9 @@ export function experimentCsv(detail: ExperimentDetail) {
   return [...header, ...detail.runs.map(r => [r.id, r.position, r.status, r.varied, r.changed.join("; "), r.label, r.rank, r.non_dominated, r.eligible, r.reason, ...keys.map(k => r.metrics?.[k] ?? null)].map(cell).join(","))].join("\n") + "\n";
 }
 
-/** Sweeps on the bundled examples plus the caller's own. */
-export function visibleExperiments(store: Store, who: Principal) {
-  return store.listExperiments(50, who.ownerId);
+/** Sweeps on the bundled examples plus saved scenarios. */
+export function visibleExperiments(store: Store) {
+  return store.listExperiments(50, OWNER);
 }
 
 function idempotency(error: unknown) {

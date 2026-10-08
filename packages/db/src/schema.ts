@@ -1,9 +1,8 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, blob, uniqueIndex, index, check, primaryKey, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
-// Owners (spec §14): "operator" is the account-free local / operator-key dataset, "user:<id>" a hosted
-// account, "examples" the bundled synthetic scenarios (publicly readable) and, on runs only, "public" for an
-// anonymous synthetic submission. Access checks compare these; IDs and content hashes never grant access.
+// Owners: "operator" is the single account-free dataset every caller works in; "examples" are the bundled
+// synthetic scenarios. Rows from older hosted databases may carry other owner values and are simply not listed.
 export const scenarios = sqliteTable("scenarios", {
   id: text().primaryKey(), name: text().notNull(), createdAt: integer().notNull(),
   ownerId: text().notNull().default("operator"),
@@ -19,7 +18,7 @@ export const runs = sqliteTable("runs", {
   idempotencyKey: text().notNull().unique(), requestHash: text().notNull(), createdAt: integer().notNull(),
   // "pipeline" runs the fulfillment pipeline; "explorer" is a clustering-only k explorer job (M4).
   kind: text().notNull().default("pipeline"),
-  // Who submitted it (quotas, cancel). Reads follow the scenario's owner.
+  // Who submitted it (cancel). Reads follow the scenario's owner.
   ownerId: text().notNull().default("operator"),
 }, t => [index("run_status_date").on(t.status, t.createdAt), index("runs_by_owner").on(t.ownerId, t.status)]);
 export const jobs = sqliteTable("jobs", {
@@ -89,10 +88,6 @@ export const experimentRuns = sqliteTable("experiment_runs", {
   id: text().primaryKey(), experimentId: text().notNull().references(() => experiments.id),
   runId: text().notNull().unique().references(() => runs.id), position: integer().notNull(), varied: text().notNull(),
 }, t => [uniqueIndex("experiment_position").on(t.experimentId, t.position)]);
-// Global (not per-client) submission ledger for public rate limits; access never depends on forwarded headers.
-export const rateEvents = sqliteTable("rate_events", {
-  id: text().primaryKey(), bucket: text().notNull(), cost: integer().notNull(), at: integer().notNull(),
-}, t => [index("rate_bucket_time").on(t.bucket, t.at)]);
 
 // M5 geocoding (spec §6). Census results are cached by normalized address, provider, benchmark and
 // request options; `responseRef` points at the raw provider response stored in `artifacts`.
@@ -130,44 +125,3 @@ export const routeGeometry = sqliteTable("route_geometry", {
   snapshotId: text().notNull(), deployment: text().notNull(), artifactHash: text().notNull().references(() => artifacts.hash),
   createdAt: integer().notNull(),
 }, t => [index("route_geometry_by_run").on(t.runId)]);
-
-// Better Auth tables (hosted mode only; local mode never writes them). Column names follow Better Auth's
-// Drizzle SQLite schema. Owner IDs elsewhere are "user:" + user.id, so the provider stays replaceable.
-const ms = (name: string) => integer(name, { mode: "timestamp_ms" });
-const stamp = (name: string) => ms(name).default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`).notNull();
-const created = () => stamp("created_at");
-export const user = sqliteTable("user", {
-  id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
-  emailVerified: integer("email_verified", { mode: "boolean" }).default(false).notNull(), image: text("image"),
-  createdAt: created(), updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
-});
-export const session = sqliteTable("session", {
-  id: text("id").primaryKey(), expiresAt: ms("expires_at").notNull(), token: text("token").notNull().unique(),
-  createdAt: created(), updatedAt: ms("updated_at").$onUpdate(() => new Date()).notNull(),
-  ipAddress: text("ip_address"), userAgent: text("user_agent"),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-}, t => [index("session_userId_idx").on(t.userId)]);
-export const account = sqliteTable("account", {
-  id: text("id").primaryKey(), accountId: text("account_id").notNull(), providerId: text("provider_id").notNull(),
-  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  accessToken: text("access_token"), refreshToken: text("refresh_token"), idToken: text("id_token"),
-  accessTokenExpiresAt: ms("access_token_expires_at"), refreshTokenExpiresAt: ms("refresh_token_expires_at"),
-  scope: text("scope"), password: text("password"),
-  createdAt: created(), updatedAt: ms("updated_at").$onUpdate(() => new Date()).notNull(),
-}, t => [index("account_userId_idx").on(t.userId)]);
-export const verification = sqliteTable("verification", {
-  id: text("id").primaryKey(), identifier: text("identifier").notNull(), value: text("value").notNull(),
-  expiresAt: ms("expires_at").notNull(), createdAt: created(), updatedAt: stamp("updated_at").$onUpdate(() => new Date()),
-}, t => [index("verification_identifier_idx").on(t.identifier)]);
-
-export const accessRequests = sqliteTable("access_requests", {
-  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
-  status: text("status", { enum: ["pending", "approved", "denied", "revoked"] }).notNull(),
-  note: text("note"), requestedAt: integer("requested_at").notNull(),
-  decidedAt: integer("decided_at"), decidedBy: text("decided_by"), updatedAt: integer("updated_at").notNull(),
-}, t => [index("access_requests_status_requested").on(t.status, t.requestedAt)]);
-
-export const adminEvents = sqliteTable("admin_events", {
-  id: text("id").primaryKey(), adminId: text("admin_id").notNull(),
-  userId: text("user_id").notNull(), action: text("action").notNull(), createdAt: integer("created_at").notNull(),
-});

@@ -51,8 +51,6 @@ function errorMessage(data: unknown, fallback: string) {
 
 /** Browser workflow for importing, selecting, and inspecting immutable directed matrices. */
 export function TravelMatrixPanel({
-  accessMode,
-  operatorKey,
   document,
   excludedLineIds,
   selectedId,
@@ -60,8 +58,6 @@ export function TravelMatrixPanel({
   versionId,
   versionSaved,
 }: {
-  accessMode: "hosted" | "local" | "operator"
-  operatorKey: string
   document: ScenarioDocument
   excludedLineIds: string[]
   selectedId: string | null
@@ -85,7 +81,6 @@ export function TravelMatrixPanel({
       method,
       headers: {
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-        ...(accessMode === "operator" && operatorKey ? { "x-scenario-key": operatorKey } : {}),
       },
       body: body === undefined ? undefined : rawJson ? body as string : JSON.stringify(body),
       cache: "no-store",
@@ -96,7 +91,6 @@ export function TravelMatrixPanel({
   }
 
   async function loadSnapshots() {
-    if (accessMode === "operator" && !operatorKey) return
     try {
       const result = await request<{ snapshots: SnapshotInfo[] }>("/api/v1/travel-snapshots")
       setSnapshots(result.snapshots)
@@ -105,22 +99,18 @@ export function TravelMatrixPanel({
   }
 
   useEffect(() => {
-    if (accessMode === "operator" && !operatorKey) return
-    const timer = window.setTimeout(() => { void loadSnapshots() }, accessMode === "operator" ? 300 : 0)
+    const timer = window.setTimeout(() => { void loadSnapshots() }, 0)
     return () => window.clearTimeout(timer)
-    // `loadSnapshots` deliberately reads the current key and is triggered after key entry settles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessMode, operatorKey])
+  }, [])
 
   useEffect(() => {
-    if (accessMode === "operator" && !operatorKey) return
     let cancelled = false
     request<{ valhalla: { configured: boolean } }>("/api/v1/travel-snapshots/jobs").then(
       value => { if (!cancelled) setConfigured(value.valhalla.configured) },
       () => { if (!cancelled) setConfigured(null) })
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessMode, operatorKey])
+  }, [])
 
   const buildId = build && ["queued", "running"].includes(build.status) ? build.id : null
   useEffect(() => {
@@ -176,7 +166,6 @@ export function TravelMatrixPanel({
       if (!cancelled) { setInspected(value); setSnapshots(current => current.some(row => row.id === value.id) ? current : [value, ...current]) }
     }, error => { if (!cancelled) { setInspected(null); setLoadError(error instanceof Error ? error.message : "Could not inspect the selected matrix.") } })
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
   const binding = useMemo(() => {
@@ -189,12 +178,11 @@ export function TravelMatrixPanel({
     return { required, nodes }
   }, [document, excludedLineIds, inspected])
 
-  /** Downloads through fetch so the operator key header travels with the request. */
+  /** Downloads through fetch so errors show in the panel. */
   async function downloadSnapshot(id: string, format: "json" | "csv") {
     setLoadError("")
     try {
       const response = await fetch(`/api/v1/travel-snapshots/${id}?format=${format}`, {
-        headers: accessMode === "operator" && operatorKey ? { "x-scenario-key": operatorKey } : {},
         cache: "no-store",
       })
       if (!response.ok) throw new Error(errorMessage(await response.json(), `Download failed (${response.status}).`))
@@ -326,7 +314,6 @@ export function TravelMatrixPanel({
           <Button variant="outline" disabled={busy || !text.trim()} onClick={() => void inspectFile()}>{busy && !preview ? "Checking…" : "Preview matrix"}</Button>
           <Button disabled={busy || !preview} onClick={() => void savePreview()}>{busy && preview ? "Saving…" : "Save matrix"}</Button>
           <Button variant="ghost" disabled={busy} onClick={() => { setText(""); setPreview(null); setMessage(""); setLoadError("") }}>Clear file</Button>
-          {accessMode === "operator" && <Button variant="ghost" disabled={busy || !operatorKey} onClick={() => void loadSnapshots()}>Refresh saved matrices</Button>}
         </div>
         {preview && <div className="space-y-2 rounded-md border p-3 text-sm">
           <p className="font-medium">Valid snapshot · {preview.nodeCount} nodes · {preview.reachableEdges.toLocaleString()} / {preview.possibleEdges.toLocaleString()} directed edges present</p>
@@ -334,7 +321,6 @@ export function TravelMatrixPanel({
           <div className="overflow-x-auto"><MatrixHeatmap nodes={preview.sampleNodes.map(node => node.id)} values={preview.distances} unit={preview.distanceUnits} className="min-w-[34rem]" /></div>
         </div>}
         {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
-        {accessMode === "operator" && !operatorKey && <p role="alert" className="text-sm text-destructive">Enter the operator key to load or save matrices.</p>}
       </div>
     </details>
   </section>
