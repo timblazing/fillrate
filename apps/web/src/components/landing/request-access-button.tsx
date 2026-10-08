@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { toastManager } from "@/components/ui/toast"
 import { signInWithGitHub, type Me } from "@/lib/client/auth-client"
 
-export function RequestAccessButton() {
+/** Sends signed-in users to the app and everyone else through GitHub sign-in to the access request. */
+export function useRequestAccess() {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   async function requestAccess() {
@@ -28,6 +29,11 @@ export function RequestAccessButton() {
       setPending(false)
     }
   }
+  return { pending, requestAccess }
+}
+
+export function RequestAccessButton() {
+  const { pending, requestAccess } = useRequestAccess()
   return (
     <Button size="lg" className="h-11 gap-3 rounded-full pr-2 pl-5 text-sm" loading={pending} onClick={requestAccess}>
       Get started
