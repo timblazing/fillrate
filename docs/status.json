@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-07",
+  "updated": "2026-10-08",
   "focus": "M8",
   "productBehavior": 82,
   "milestones": {
@@ -49,7 +49,7 @@
       "weight": 7,
       "done": 90,
       "state": "active",
-      "notes": "Planning estimate: 90%. 698fbd8 deployment and owner checks accepted; #100 dashboard fixes pass six-area production audit with 52 captures, 176 tests and 144 access checks. Remaining: #98 hosted road automation, targeted #88 states, #89 broad/cold performance, integrated image/deployment; optional #93 native VPS timings. Manual accessibility and Pi are outside v1 demo scope."
+      "notes": "Planning estimate: 90%. #95/#100 merged; f855f65 passed CI/npm and tested amd64/arm64 image publication (37710953655). Dashboard audit retains 52 captures. Deployed baseline remains 698fbd8. Open: #98 hosted road automation, targeted #88 states, #89 broad/cold performance and next digest deployment; #93 native VPS timings optional. Manual accessibility/Pi excluded."
     }
   },
   "nextUp": [
