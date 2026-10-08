@@ -7,12 +7,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun --cwd apps/web run dev",
+    "dev": "cd apps/web && bun run dev",
     "worker": "cd services/optimizer && FILLRATE_WORKER=1 UV_PYTHON=python3.13 uv run fillrate-optimizer",
-    "build": "bun --cwd apps/web run build",
-    "start": "bun --cwd apps/web run start",
-    "lint": "bun --cwd apps/web run lint && bun run lint:packages",
-    "typecheck": "bun run typecheck:packages && bun --cwd apps/web run typecheck",
+    "build": "cd apps/web && bun run build",
+    "start": "cd apps/web && bun run start",
+    "lint": "bun run lint:packages && cd apps/web && bun run lint",
+    "typecheck": "bun run typecheck:packages && cd apps/web && bun run typecheck",
     "test": "node node_modules/vitest/vitest.mjs run",
     "db:generate": "node node_modules/drizzle-kit/bin.cjs generate --config packages/db/drizzle.config.ts",
     "contracts:generate": "cd services/optimizer && UV_PYTHON=python3.13 uv run python -m fillrate_optimizer.export_contracts && cd ../.. && node node_modules/openapi-typescript/bin/cli.js packages/contracts/openapi.json -o packages/contracts/src/generated.ts",
