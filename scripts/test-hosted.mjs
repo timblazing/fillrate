@@ -270,10 +270,10 @@ try {
     check("pending run list is 403", (await call(b, "/api/v1/runs", as(user))).body?.error?.code === "access_pending");
     check("pending export is 403", (await call(b, "/api/v1/me/export", as(user))).status === 403);
     check("pending page redirects", (await fetch(`${b}/scenarios`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");
-    for (const path of ["/scenarios", "/runs", "/experiments", "/labs", "/learn", "/learn/fulfillment-pipeline", "/account", "/admin", "/request-access", "/dev/blocks/app-header"]) {
+    for (const path of ["/scenarios", "/runs", "/experiments", "/labs", "/learn", "/learn/fulfillment-pipeline", "/account", "/admin", "/request-access"]) {
       check(`anonymous page ${path} redirects home`, (await fetch(`${b}${path}`, { redirect: "manual" })).headers.get("location") === "/");
     }
-    for (const path of ["/", "/privacy", "/dev", "/dev/components"]) {
+    for (const path of ["/", "/privacy"]) {
       check(`public page ${path} stays available`, (await fetch(`${b}${path}`)).status === 200);
     }
     check("pending lesson redirects to request", (await fetch(`${b}/learn/fulfillment-pipeline`, { headers: user.headers, redirect: "manual" })).headers.get("location") === "/request-access");

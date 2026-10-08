@@ -125,7 +125,6 @@ export default function Home() {
           <BrandLink showMark={false} className="text-muted-foreground hover:text-foreground transition-colors [&>span]:text-sm [&>span]:font-normal" />
           <nav aria-label="Footer" className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
             <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={linkRing}>GitHub</a>
-            <Link href="/dev" className={linkRing}>Progress</Link>
             <Link href="/privacy" className={linkRing}>Privacy</Link>
           </nav>
         </div>
