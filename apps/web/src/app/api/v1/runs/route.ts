@@ -12,12 +12,12 @@ export async function GET() {
   }
 }
 
-// Creates a run of a bundled synthetic scenario (`example`: "m1" default or "lesson"). Settings: k, kmeans_seed, solver_seed, inventory_percent, allocation_strategy, fulfillment_policy. Requires an Idempotency-Key header.
+// Creates a run of a bundled synthetic scenario (`example`: "m1" default or "lesson"). Settings: k, kmeans_seed, solver_seed, inventory_percent, allocation_strategy, fulfillment_policy.
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as { settings?: unknown; example?: unknown }
     const store = initializeDatabase()
-    const id = createRun(store, request.headers.get("idempotency-key") ?? "", parseOverrides(body?.settings), parseExample(body?.example, "m1"))
+    const id = createRun(store, parseOverrides(body?.settings), parseExample(body?.example, "m1"))
     return Response.json(runDetail(store, id), { status: 201 })
   } catch (error) {
     return errorResponse(error)

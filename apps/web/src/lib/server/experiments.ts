@@ -6,7 +6,8 @@ import { changedAssumptions, compareRuns, DEFAULT_COMPARISON, expandSweep, METRI
 import { preflightChecks } from "@fillrate/db/preflight";
 import { validateScenario } from "@fillrate/db/scenarios";
 import { assertOwnVersion, assertVersionRead, OWNER } from "./access";
-import { ApiError, exampleForVersion, exampleSettings, exampleVersion, maxSweepRuns, parseExample, runSummary, type Example } from "./runs";
+import { solver } from "./database";
+import { ApiError, exampleForVersion, exampleSettings, exampleVersion, launchRun, maxSweepRuns, parseExample, runSummary, type Example } from "./runs";
 
 /** Anything but a bundled example is an imported (owned) scenario. */
 export const isImportedVersion = (store: Store, versionId: string) => {
@@ -61,8 +62,7 @@ export function explorerTasks(settings: { ks?: number[] | null; seeds?: number[]
 }
 const DEFAULT_SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-export function createExplorer(store: Store, body: { versionId?: unknown; example?: unknown; settings?: unknown; base?: unknown }, idempotencyKey: string) {
-  if (!idempotencyKey || idempotencyKey.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
+export function createExplorer(store: Store, body: { versionId?: unknown; example?: unknown; settings?: unknown; base?: unknown }) {
   const raw = (body.settings ?? {}) as Record<string, unknown>;
   if (typeof raw !== "object" || Array.isArray(raw) || "base" in raw) throw new ApiError(400, "invalid_settings", "Explorer settings must be an object; send base settings as `base`.", ["settings"]);
   const tasks = explorerTasks(raw as never);
@@ -73,8 +73,7 @@ export function createExplorer(store: Store, body: { versionId?: unknown; exampl
   let settings: ExplorerSettings;
   try { settings = parseContract("ExplorerSettings", { seeds: DEFAULT_SEEDS, h3_resolutions: [1, 2, 3], reference_seed: 0, ks: null, selected_k: target.base.k ?? null, ...raw, schema_version: 1, kind: "explorer", base: target.base }); }
   catch (error) { throw new ApiError(400, "invalid_settings", error instanceof Error ? error.message : "Invalid explorer settings.", ["settings"]); }
-  try { return store.enqueue(target.versionId, { schema_version: 1, document: settings as unknown as Snapshot["document"] }, idempotencyKey, Date.now(), 3, "explorer", { ownerId: target.ownerId }); }
-  catch (error) { throw idempotency(error); }
+  return launchRun(store, target.versionId, { schema_version: 1, document: settings as unknown as Snapshot["document"] }, "explorer", target.ownerId);
 }
 
 // ---- Sweeps ----------------------------------------------------------------------------------------
@@ -101,8 +100,7 @@ export function previewSweep(store: Store, body: SweepBody) {
   return { runs: runs.map(r => ({ varied: r.varied, changed: changedAssumptions(base, r.settings) })), count: runs.length, limit: maxSweepRuns(), solver_seconds_per_cluster: perCluster, iterations_per_cluster: base.solver_max_iterations ?? null };
 }
 
-export function createSweep(store: Store, body: SweepBody, idempotencyKey: string) {
-  if (!idempotencyKey || idempotencyKey.length > 180) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–180 characters).", ["Idempotency-Key"]);
+export function createSweep(store: Store, body: SweepBody) {
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : "Sweep";
   const target = resolveTarget(store, body.versionId, body.base, body.example);
   const runs = expand(target.base, body.axes);
@@ -113,14 +111,15 @@ export function createSweep(store: Store, body: SweepBody, idempotencyKey: strin
     if (blocked.length) throw new ApiError(422, "preflight_blocked", "Resolve blocking checks, exclude affected lines, or change the check to a warning before sweeping.", [...new Set(blocked)]);
   }
   const comparison = parseCompare(body.comparison ?? DEFAULT_COMPARISON);
-  try {
-    return store.createExperiment({
-      versionId: target.versionId, name, ownerId: target.ownerId,
-      spec: { base: target.base, axes: body.axes, metrics_version: "fillrate-metrics/1" },
-      comparison,
-      runs: runs.map(r => ({ settings: { schema_version: 1, document: r.settings as unknown as Snapshot["document"] }, varied: r.varied })),
-    }, idempotencyKey);
-  } catch (error) { throw idempotency(error); }
+  const { id, runIds } = store.createExperiment({
+    versionId: target.versionId, name, ownerId: target.ownerId,
+    spec: { base: target.base, axes: body.axes, metrics_version: "fillrate-metrics/1" },
+    comparison,
+    runs: runs.map(r => ({ settings: { schema_version: 1, document: r.settings as unknown as Snapshot["document"] }, varied: r.varied })),
+  });
+  // The runs solve one after another, in sweep order.
+  for (const runId of runIds) void solver().start(runId);
+  return id;
 }
 
 function parseCompare(input: unknown) {
@@ -148,10 +147,9 @@ export function experimentDetail(store: Store, id: string) {
   const members = experiment.runs.map(run => {
     const settings = run.settings as unknown as RunSettings;
     const summary = run.status === "succeeded" ? runSummary(store, run.runId) : null;
-    const solve = store.runView(run.runId)?.artifacts.find(a => a.stage_type === "solve");
-    return { run, settings, summary, solveReused: Boolean(solve?.reused_from) };
+    return { run, settings, summary };
   });
-  const compared = compareRuns(members.map(m => ({ id: m.run.runId, status: m.run.status, versionId: experiment.versionId, settings: m.settings, summary: m.summary, solveReused: m.solveReused })), comparison);
+  const compared = compareRuns(members.map(m => ({ id: m.run.runId, status: m.run.status, versionId: experiment.versionId, settings: m.settings, summary: m.summary })), comparison);
   return {
     schema_version: 1,
     id: experiment.id, name: experiment.name, version_id: experiment.versionId, created_at: experiment.createdAt,
@@ -192,9 +190,4 @@ export function experimentCsv(detail: ExperimentDetail) {
 /** Sweeps on the bundled examples plus saved scenarios. */
 export function visibleExperiments(store: Store) {
   return store.listExperiments(50, OWNER);
-}
-
-function idempotency(error: unknown) {
-  if (error instanceof Error && error.message === "idempotency_conflict") return new ApiError(409, "idempotency_conflict", "This Idempotency-Key was already used with a different request.");
-  return error;
 }

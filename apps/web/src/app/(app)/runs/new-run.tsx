@@ -14,8 +14,7 @@ const kOptions = [
   ...Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: `k = ${i + 1}` })),
 ]
 
-// Starts a run of a bundled synthetic scenario. One idempotency key per click, so a retried
-// request never creates a second run.
+// Starts a run of a bundled synthetic scenario.
 export function NewRun({ example, defaultK }: { example: string; defaultK: number }) {
   const router = useRouter()
   // Fixed k is the normal path now that the diameter policy is off (spec v1.8); start from the example's k.
@@ -28,7 +27,7 @@ export function NewRun({ example, defaultK }: { example: string; defaultK: numbe
     try {
       const res = await fetch("/api/v1/runs", {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ example, settings: { k: k === "auto" ? null : Number(k), solver_seed: Number(seed) } }),
       })
       const body = await res.json()
@@ -89,7 +88,7 @@ export function NewExplorer({ example, defaultK }: { example: string; defaultK: 
     try {
       const res = await fetch("/api/v1/explorer", {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ example, settings: { selected_k: Number(k), ks: [Number(k), Number(k) + 1] } }),
       })
       const body = await res.json()

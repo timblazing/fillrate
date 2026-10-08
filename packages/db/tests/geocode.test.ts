@@ -148,9 +148,7 @@ describe("geocoding jobs", () => {
 
   it("saves the result as the next version with the report in its source", async () => {
     const first = imported();
-    const job = createGeocodeJob(store, { versionId: first.versionId, options: {}, author: "Geocoder", metadata, idempotencyKey: "k1" });
-    expect(createGeocodeJob(store, { versionId: first.versionId, options: {}, author: "Geocoder", metadata, idempotencyKey: "k1" })).toEqual({ id: job.id, created: false });
-    expect(() => createGeocodeJob(store, { versionId: first.versionId, options: { fallback: "off" }, author: "Geocoder", metadata, idempotencyKey: "k1" })).toThrow("idempotency_conflict");
+    const job = createGeocodeJob(store, { versionId: first.versionId, options: {}, author: "Geocoder", metadata });
     const done = await runGeocodeJob(store, config, job.id);
     expect(done).toMatchObject({ status: "succeeded", branched: false, report: { census_exact: 1, zcta: 1 }, progress: { done: 2, total: 2 } });
     const saved = scenarioVersion(store, first.scenarioId);
@@ -164,19 +162,19 @@ describe("geocoding jobs", () => {
 
   it("branches instead of overwriting when the scenario moved on, and fails cleanly", async () => {
     const first = imported();
-    const job = createGeocodeJob(store, { versionId: first.versionId, options: {}, author: "Geocoder", metadata, idempotencyKey: "k2" });
+    const job = createGeocodeJob(store, { versionId: first.versionId, options: {}, author: "Geocoder", metadata });
     const doc = scenarioVersion(store, first.scenarioId).document;
     saveScenario(store, { document: { ...doc, name: "Edited meanwhile" }, author: "Editor", metadata, scenarioId: first.scenarioId, expectedVersionId: first.versionId });
     const done = await runGeocodeJob(store, config, job.id);
     expect(done).toMatchObject({ status: "succeeded", branched: true });
     expect(scenarioVersion(store, first.scenarioId).document.name).toBe("Edited meanwhile");
 
-    const failing = createGeocodeJob(store, { versionId: first.versionId, options: { regeocode: true }, author: "Geocoder", metadata, idempotencyKey: "k3" });
+    const failing = createGeocodeJob(store, { versionId: first.versionId, options: { regeocode: true }, author: "Geocoder", metadata });
     store.sqlite.prepare("DELETE FROM geocode_cache").run();
     const broken = { ...config, fetch: (async () => new Response("down", { status: 503 })) as typeof fetch };
     expect(await runGeocodeJob(store, broken, failing.id)).toMatchObject({ status: "failed", error: "The Census batch geocoder returned HTTP 503." });
 
-    const stale = createGeocodeJob(store, { versionId: first.versionId, options: {}, author: "Geocoder", metadata, idempotencyKey: "k4" });
+    const stale = createGeocodeJob(store, { versionId: first.versionId, options: {}, author: "Geocoder", metadata });
     expect(failInterruptedGeocodeJobs(store)).toBe(1);
     expect(geocodeJob(store, stale.id)!.status).toBe("failed");
   });

@@ -1,11 +1,10 @@
-import { Ban, Check, CircleDashed, CirclePause, Loader, TriangleAlert, Unplug } from "lucide-react"
+import { Ban, Check, CircleDashed, Loader, TriangleAlert, Unplug } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-// Durable job states (spec §9). Cancellation requests are tracked separately from the final state.
+// Run states. "interrupted" only appears on runs made before direct solves.
 export type JobState =
   | "queued"
-  | "claimed"
   | "running"
   | "succeeded"
   | "failed"
@@ -14,7 +13,6 @@ export type JobState =
 
 const states: Record<JobState, { label: string; icon: typeof Check; className: string }> = {
   queued: { label: "Queued", icon: CircleDashed, className: "text-muted-foreground bg-muted" },
-  claimed: { label: "Claimed", icon: CirclePause, className: "text-info-foreground bg-info/8" },
   running: { label: "Running", icon: Loader, className: "text-info-foreground bg-info/12" },
   succeeded: { label: "Succeeded", icon: Check, className: "text-success-foreground bg-success/10" },
   failed: { label: "Failed", icon: TriangleAlert, className: "text-destructive-foreground bg-destructive/10" },
@@ -43,7 +41,7 @@ export function JobStatusBadge({ state, className }: { state: JobState; classNam
 
 // Compact dot for dense tables and run lists.
 export function JobStatusDot({ state }: { state: JobState }) {
-  const live = state === "running" || state === "claimed"
+  const live = state === "running"
   return (
     <span className="relative inline-flex size-2.5" aria-label={states[state].label} role="img">
       {live && (
@@ -54,7 +52,6 @@ export function JobStatusDot({ state }: { state: JobState }) {
           "relative size-2.5 rounded-full",
           {
             queued: "border-muted-foreground border-2 border-dashed",
-            claimed: "bg-info/60",
             running: "bg-info",
             succeeded: "bg-success",
             failed: "bg-destructive",

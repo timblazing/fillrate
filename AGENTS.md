@@ -19,7 +19,7 @@ Canonical instructions for Codex and Claude Code (`CLAUDE.md` imports this file)
 ## Layout
 ```
 apps/web            Next.js App Router UI and API, coss ui (Base UI) + mapcn
-services/optimizer  Python FastAPI worker: allocation, k-means, PyVRP, validation (uv, Python 3.13)
+services/optimizer  Python FastAPI solver service: allocation, k-means, PyVRP, validation (uv, Python 3.13)
 packages/db         Drizzle schema/migrations and SQLite access (Node only)
 packages/contracts  Types generated from the Python models
 examples            Bundled synthetic example scenario
@@ -27,7 +27,7 @@ deploy              Dockerfile entrypoint and a sample compose file
 ```
 
 ## Commands (repo root; Bun is the package manager, Node 24 the runtime)
-- `bun install`, `bun run dev` (http://localhost:3000), `bun run worker` (Python worker, run next to `dev`)
+- `bun install`, `bun run dev` (http://localhost:3000), `bun run optimizer` (Python solver service on 127.0.0.1:8000, run next to `dev`)
 - `bun run lint`, `bun run typecheck`, `bun run build`, `bun run test`
 - `bun run db:generate` after schema changes; migrations apply at web startup
 - `bun run contracts:generate` after changing `model.py`/`contracts.py`
@@ -35,7 +35,7 @@ deploy              Dockerfile entrypoint and a sample compose file
 - Don't build Docker images locally; CI builds them.
 
 ## Conventions
-- Python is a private worker and never opens SQLite. Don't use Bun-only APIs (`bun:sqlite`, `Bun.*`) in application code.
+- Runs are direct solves: the web app inserts a run, then calls the Python service (`POST /solve`, one at a time; `FILLRATE_OPTIMIZER_URL`). Python is private and never opens SQLite. Don't use Bun-only APIs (`bun:sqlite`, `Bun.*`) in application code.
 - `apps/web/src/components/ui/*` is vendored registry code. Add or update it with `bunx --bun shadcn@latest add @coss/<name>` from `apps/web`; don't hand-edit it.
 - Use Base UI's `render` prop, never `asChild`. Status colors come from the coss tokens `--info`, `--success`, `--warning` and `--destructive-foreground`.
 - Design tokens live in `apps/web/src/app/globals.css`. MapLibre can't read CSS variables, so resolve colors with `useCssColors` from `src/lib/css-color.ts`.

@@ -5,7 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./transport": "./src/transport.ts",
+    "./solver": "./src/solver.ts",
     "./scenarios": "./src/scenarios.ts",
     "./imports": "./src/imports.ts",
     "./preflight": "./src/preflight.ts",

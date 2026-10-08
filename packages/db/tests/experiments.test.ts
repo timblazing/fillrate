@@ -83,7 +83,7 @@ test("ranking: non-dominated first, then revenue, shipments, miles; ties share a
   expect(fewest.rows.filter(r => r.rank === 1).map(r => r.id).sort()).toEqual(["c", "d"]);
 });
 
-test("invalid, partial, unfinished, reused and other-cohort runs are listed but never ranked", () => {
+test("invalid, partial, unfinished and other-cohort runs are listed but never ranked", () => {
   const good = summary({ planned: 100, util: 0.9, centroid: 10, trucks: 3 });
   const out = compareRuns([
     run("ok", good),
@@ -91,7 +91,6 @@ test("invalid, partial, unfinished, reused and other-cohort runs are listed but 
     run("invalid", summary({ planned: 999, util: 1, centroid: 1, trucks: 1 }, { validity: "invalid" })),
     run("partial", summary({ planned: 999, util: 1, centroid: 1, trucks: 1 }, { coverage: "partial" })),
     run("running", null, {}, "running"),
-    { ...run("reused", good), solveReused: true },
     run("inventory", summary({ planned: 999, util: 1, centroid: 1, trucks: 1 }), { inventory_percent: 50 }),
   ]);
   const by = Object.fromEntries(out.rows.map(r => [r.id, r]));
@@ -100,7 +99,6 @@ test("invalid, partial, unfinished, reused and other-cohort runs are listed but 
   expect(by.invalid.reason).toBe("Invalid plan");
   expect(by.partial.reason).toBe("Partial plan");
   expect(by.running.reason).toBe("Run running");
-  expect(by.reused.reason).toMatch(/Reused solve/);
   expect(by.inventory.reason).toMatch(/Different cohort/);
   expect(out.cohorts).toHaveLength(2);
   // Choosing the inventory cohort ranks it alone.
@@ -122,18 +120,17 @@ let dir: string, store: Store;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "fillrate-exp-")); store = openDatabase(join(dir, "t.sqlite")); });
 afterEach(() => { store.close(); rmSync(dir, { recursive: true, force: true }); });
 
-test("an experiment and all of its runs commit together and replay idempotently", () => {
+test("an experiment and all of its runs commit together", () => {
   const versionId = store.createScenario("S", { schema_version: 1, document: { s: 1 } }, "T").versionId;
   const runs = expandSweep(base, { k: [2, 3] }).map(r => ({ settings: { schema_version: 1 as const, document: r.settings as never }, varied: r.varied }));
-  const id = store.createExperiment({ versionId, name: "k sweep", spec: { axes: { k: [2, 3] } }, comparison: DEFAULT_COMPARISON, runs }, "key-1");
-  expect(store.createExperiment({ versionId, name: "k sweep", spec: { axes: { k: [2, 3] } }, comparison: DEFAULT_COMPARISON, runs }, "key-1")).toBe(id);
-  expect(() => store.createExperiment({ versionId, name: "other", spec: {}, comparison: DEFAULT_COMPARISON, runs }, "key-1")).toThrow("idempotency_conflict");
+  const { id, runIds } = store.createExperiment({ versionId, name: "k sweep", spec: { axes: { k: [2, 3] } }, comparison: DEFAULT_COMPARISON, runs });
+  expect(runIds).toHaveLength(2);
   const view = store.experiment(id)!;
   expect(view.runs.map(r => [r.position, r.varied, r.status])).toEqual([[0, { k: 2 }, "queued"], [1, { k: 3 }, "queued"]]);
-  expect(store.queueStats().queued).toBe(2);
+  expect(store.runCounts().queued).toBe(2);
   store.saveComparison(id, parseComparison({ order: ["trucks"] }));
   expect((store.experiment(id)!.comparison as { order: string[] }).order).toEqual(["trucks"]);
   // A failing insert rolls back the whole sweep.
-  expect(() => store.createExperiment({ versionId: "missing", name: "x", spec: {}, comparison: {}, runs }, "key-2")).toThrow(/FOREIGN KEY/);
+  expect(() => store.createExperiment({ versionId: "missing", name: "x", spec: {}, comparison: {}, runs })).toThrow(/FOREIGN KEY/);
   expect(store.listExperiments(50, "operator")).toHaveLength(1);
 });

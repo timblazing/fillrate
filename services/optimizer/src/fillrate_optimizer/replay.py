@@ -62,7 +62,7 @@ def expected_record(run_id: str, output: PipelineOutput, settings: RunSettings) 
         "versions": summary.versions,
         "deterministic_output_hashes": {
             stage: next(
-                (a.manifest["output_hash"] for a in output.artifacts if a.stage == stage), None
+                (content_hash(a.payload) for a in output.artifacts if a.stage == stage), None
             )
             for stage in DETERMINISTIC_STAGES
         },
@@ -107,7 +107,7 @@ def replay(
 
     result = run_pipeline(scenario, settings)
     failures: list[str] = []
-    hashes = {a.stage: a.manifest["output_hash"] for a in result.artifacts}
+    hashes = {a.stage: content_hash(a.payload) for a in result.artifacts}
     payloads = {a.stage: a.payload for a in result.artifacts}
     for stage, recorded in expected["deterministic_output_hashes"].items():
         recorded_stage = recorded_payload(root, stage)

@@ -454,19 +454,11 @@
       "ContractBundle": {
         "additionalProperties": false,
         "properties": {
-          "event": {
-            "$ref": "#/components/schemas/WorkerEvent"
-          },
-          "manifest": {
-            "$ref": "#/components/schemas/StageManifest"
-          },
           "snapshot": {
             "$ref": "#/components/schemas/Snapshot"
           }
         },
         "required": [
-          "manifest",
-          "event",
           "snapshot"
         ],
         "title": "ContractBundle",
@@ -1076,6 +1068,19 @@
         "title": "GeocodeMatch",
         "type": "object"
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "InventoryItem": {
         "additionalProperties": false,
         "properties": {
@@ -1100,41 +1105,6 @@
         "type": "object"
       },
       "JsonValue": {},
-      "Lease": {
-        "additionalProperties": false,
-        "properties": {
-          "attempt": {
-            "maximum": 9007199254740991,
-            "minimum": 1,
-            "title": "Attempt",
-            "type": "integer"
-          },
-          "job_id": {
-            "format": "uuid",
-            "title": "Job Id",
-            "type": "string"
-          },
-          "lease_token": {
-            "format": "uuid",
-            "title": "Lease Token",
-            "type": "string"
-          },
-          "worker_id": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Worker Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "job_id",
-          "worker_id",
-          "lease_token",
-          "attempt"
-        ],
-        "title": "Lease",
-        "type": "object"
-      },
       "Limits": {
         "properties": {
           "max_orders": {
@@ -2257,106 +2227,38 @@
         "title": "Snapshot",
         "type": "object"
       },
-      "StageManifest": {
-        "additionalProperties": false,
+      "SolveRequest": {
         "properties": {
-          "adapter_version": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Adapter Version",
-            "type": "string"
-          },
-          "created_at_ms": {
-            "maximum": 9007199254740991,
-            "minimum": 1,
-            "title": "Created At Ms",
-            "type": "integer"
-          },
-          "effective_settings": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/JsonValue"
-            },
-            "title": "Effective Settings",
-            "type": "object"
-          },
-          "execution_id": {
-            "format": "uuid",
-            "title": "Execution Id",
-            "type": "string"
-          },
-          "input_hash": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Input Hash",
-            "type": "string"
-          },
-          "output_hash": {
-            "pattern": "^[a-f0-9]{64}$",
-            "title": "Output Hash",
-            "type": "string"
-          },
-          "parent_hashes": {
-            "items": {
-              "pattern": "^[a-f0-9]{64}$",
-              "type": "string"
-            },
-            "maxItems": 1000,
-            "title": "Parent Hashes",
-            "type": "array"
-          },
-          "producer_version": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Producer Version",
-            "type": "string"
-          },
-          "reused_from": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Reused From"
-          },
-          "schema_version": {
-            "const": 1,
-            "default": 1,
-            "title": "Schema Version",
-            "type": "integer"
-          },
-          "stage_type": {
+          "kind": {
             "enum": [
-              "preflight",
-              "allocation",
-              "aggregation",
-              "clustering",
-              "travel",
-              "problem",
-              "solve",
-              "validation",
-              "summary",
+              "pipeline",
               "explorer"
             ],
-            "title": "Stage Type",
+            "title": "Kind",
+            "type": "string"
+          },
+          "scenario": {
+            "additionalProperties": true,
+            "title": "Scenario",
+            "type": "object"
+          },
+          "settings": {
+            "additionalProperties": true,
+            "title": "Settings",
+            "type": "object"
+          },
+          "solve_id": {
+            "title": "Solve Id",
             "type": "string"
           }
         },
         "required": [
-          "stage_type",
-          "input_hash",
-          "output_hash",
-          "producer_version",
-          "adapter_version",
-          "parent_hashes",
-          "effective_settings",
-          "created_at_ms",
-          "execution_id"
+          "kind",
+          "solve_id",
+          "scenario",
+          "settings"
         ],
-        "title": "StageManifest",
+        "title": "SolveRequest",
         "type": "object"
       },
       "TimeModel": {
@@ -2972,43 +2874,44 @@
         "title": "UnplannedLine",
         "type": "object"
       },
-      "WorkerEvent": {
-        "additionalProperties": false,
+      "ValidationError": {
         "properties": {
-          "kind": {
-            "enum": [
-              "progress",
-              "succeeded",
-              "failed",
-              "cancelled"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "lease": {
-            "$ref": "#/components/schemas/Lease"
-          },
-          "payload": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/JsonValue"
-            },
-            "title": "Payload",
+          "ctx": {
+            "title": "Context",
             "type": "object"
           },
-          "sequence": {
-            "maximum": 9007199254740991,
-            "minimum": 1,
-            "title": "Sequence",
-            "type": "integer"
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
           }
         },
         "required": [
-          "lease",
-          "sequence",
-          "kind",
-          "payload"
+          "loc",
+          "msg",
+          "type"
         ],
-        "title": "WorkerEvent",
+        "title": "ValidationError",
         "type": "object"
       }
     }
@@ -3019,6 +2922,50 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/cancel/{solve_id}": {
+      "post": {
+        "description": "Kills the solve's child, or marks a queued solve so it never starts.",
+        "operationId": "post_cancel_cancel__solve_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "solve_id",
+            "required": true,
+            "schema": {
+              "title": "Solve Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Post Cancel Cancel  Solve Id  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Cancel"
+      }
+    },
     "/capabilities": {
       "get": {
         "operationId": "get_capabilities_capabilities_get",
@@ -3057,6 +3004,42 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/solve": {
+      "post": {
+        "operationId": "post_solve_solve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Solve"
       }
     }
   }

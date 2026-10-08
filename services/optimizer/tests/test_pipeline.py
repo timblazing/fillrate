@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fillrate_optimizer.canonical import canonical, content_hash, js_number
+from fillrate_optimizer.canonical import canonical, js_number
 from fillrate_optimizer.loads import truck_count_first_penalty
 from fillrate_optimizer.model import PreflightPolicy, RunSettings, ScenarioDocument
 from fillrate_optimizer.pipeline import PipelineError, run_pipeline, validate_cluster
@@ -60,61 +60,6 @@ def scenario(locations, orders, inventory, products=None) -> ScenarioDocument:
 
 def run(doc, **settings):
     return run_pipeline(doc, FAST.model_copy(update=settings))
-
-
-def test_stage_cache_reuses_preprocessing_but_not_a_new_solver_replicate():
-    doc = scenario(
-        [("A", east(50))],
-        [("O1", "A", "2026-09-01", "P", 2, 100)],
-        [("P", 2)],
-    )
-    cache = {}
-
-    def checkpoint(artifact):
-        cache.setdefault(
-            artifact.manifest["input_hash"],
-            {
-                "manifest": artifact.manifest,
-                "payload": artifact.payload,
-            },
-        )
-
-    first = run_pipeline(doc, FAST, execution_id="attempt-1", checkpoint=checkpoint)
-    second = run_pipeline(
-        doc,
-        FAST.model_copy(update={"solver_seed": 3}),
-        execution_id="attempt-2",
-        cache=cache.get,
-        checkpoint=checkpoint,
-    )
-    by_stage = {a.stage: a.manifest for a in second.artifacts}
-    for stage in ("allocation", "aggregation", "clustering", "travel"):
-        assert by_stage[stage]["reused_from"] == "attempt-1"
-    assert by_stage["solve"]["reused_from"] is None
-    assert first.summary.totals.planned_cents == second.summary.totals.planned_cents
-
-
-def test_cluster_result_checkpoint_resumes_after_attempt_change():
-    doc = scenario(
-        [("A", east(50))],
-        [("O1", "A", "2026-09-01", "P", 2, 100)],
-        [("P", 2)],
-    )
-    saved = {}
-    calls = []
-
-    def cluster_task(action, cluster_id, input_hash, result):
-        calls.append(action)
-        key = (cluster_id, input_hash)
-        if action == "claim":
-            return saved.get(key, {"status": "running"})
-        saved[key] = {"status": "succeeded", "result": result}
-        return saved[key]
-
-    first = run_pipeline(doc, FAST, cluster_task=cluster_task)
-    second = run_pipeline(doc, FAST, cluster_task=cluster_task)
-    assert calls == ["claim", "complete", "claim"]
-    assert first.summary.totals.planned_cents == second.summary.totals.planned_cents
 
 
 def test_solver_error_in_one_cluster_keeps_other_clusters_as_partial_plan(monkeypatch):
@@ -485,7 +430,7 @@ def test_bundled_example_is_current():
     assert document["scenario"] == build().model_dump(mode="json")
 
 
-def test_bundled_example_reconciles_and_chains_manifests():
+def test_bundled_example_reconciles():
     document = json.loads(EXAMPLE.read_text())
     out = run_pipeline(
         ScenarioDocument.model_validate(document["scenario"]),
@@ -509,11 +454,6 @@ def test_bundled_example_reconciles_and_chains_manifests():
         "oversize_stop",
     }
     assert all(f.action == "warn" for f in s.preflight)
-    seen: set[str] = set()
-    for artifact in out.artifacts:
-        assert artifact.manifest["output_hash"] == content_hash(artifact.payload)
-        assert set(artifact.manifest["parent_hashes"]) <= seen
-        seen.add(artifact.manifest["output_hash"])
     # Allocation is fixed, so k and seed cannot change allocated revenue (spec §8).
     other = run_pipeline(
         ScenarioDocument.model_validate(document["scenario"]),

@@ -46,7 +46,7 @@ Open http://localhost:3000. Data is stored in `./data/fillrate.sqlite`.
 bun install
 (cd services/optimizer && uv sync)
 bun run dev                       # terminal 1: http://localhost:3000
-bun run worker                    # terminal 2: the Python solver
+bun run optimizer                 # terminal 2: the Python solver service (127.0.0.1:8000)
 ```
 
 Built with Next.js, SQLite, Python and PyVRP. Contributors and coding agents, see [`AGENTS.md`](AGENTS.md).

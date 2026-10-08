@@ -37,7 +37,7 @@ def write_bundle(root: Path, config: RunSettings, scenario: ScenarioDocument = S
     for artifact in output.artifacts:
         if artifact.stage in DETERMINISTIC_STAGES:
             (root / "artifacts" / f"{artifact.stage}.json").write_text(
-                json.dumps({"manifest": artifact.manifest, "payload": artifact.payload})
+                json.dumps({"payload": artifact.payload})
             )
     return expected
 

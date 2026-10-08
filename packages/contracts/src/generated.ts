@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/cancel/{solve_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Cancel
+         * @description Kills the solve's child, or marks a queued solve so it never starts.
+         */
+        post: operations["post_cancel_cancel__solve_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/capabilities": {
         parameters: {
             query?: never;
@@ -32,6 +52,23 @@ export interface paths {
         get: operations["health_health_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/solve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Solve */
+        post: operations["post_solve_solve_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -208,8 +245,6 @@ export interface components {
         };
         /** ContractBundle */
         ContractBundle: {
-            event: components["schemas"]["WorkerEvent"];
-            manifest: components["schemas"]["StageManifest"];
             snapshot: components["schemas"]["Snapshot"];
         };
         /**
@@ -449,6 +484,11 @@ export interface components {
              */
             zcta: string | null;
         };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /** InventoryItem */
         InventoryItem: {
             /** Available Pieces */
@@ -457,23 +497,6 @@ export interface components {
             product_id: string;
         };
         JsonValue: unknown;
-        /** Lease */
-        Lease: {
-            /** Attempt */
-            attempt: number;
-            /**
-             * Job Id
-             * Format: uuid
-             */
-            job_id: string;
-            /**
-             * Lease Token
-             * Format: uuid
-             */
-            lease_token: string;
-            /** Worker Id */
-            worker_id: string;
-        };
         /** Limits */
         Limits: {
             /**
@@ -920,45 +943,23 @@ export interface components {
              */
             schema_version: 1;
         };
-        /** StageManifest */
-        StageManifest: {
-            /** Adapter Version */
-            adapter_version: string;
-            /** Created At Ms */
-            created_at_ms: number;
-            /** Effective Settings */
-            effective_settings: {
-                [key: string]: components["schemas"]["JsonValue"];
-            };
+        /** SolveRequest */
+        SolveRequest: {
             /**
-             * Execution Id
-             * Format: uuid
-             */
-            execution_id: string;
-            /** Input Hash */
-            input_hash: string;
-            /** Output Hash */
-            output_hash: string;
-            /** Parent Hashes */
-            parent_hashes: string[];
-            /** Producer Version */
-            producer_version: string;
-            /**
-             * Reused From
-             * @default null
-             */
-            reused_from: string | null;
-            /**
-             * Schema Version
-             * @default 1
-             * @constant
-             */
-            schema_version: 1;
-            /**
-             * Stage Type
+             * Kind
              * @enum {string}
              */
-            stage_type: "preflight" | "allocation" | "aggregation" | "clustering" | "travel" | "problem" | "solve" | "validation" | "summary" | "explorer";
+            kind: "pipeline" | "explorer";
+            /** Scenario */
+            scenario: {
+                [key: string]: unknown;
+            };
+            /** Settings */
+            settings: {
+                [key: string]: unknown;
+            };
+            /** Solve Id */
+            solve_id: string;
         };
         /**
          * TimeModel
@@ -1162,20 +1163,18 @@ export interface components {
              */
             stage: "preflight" | "allocation" | "problem" | "solve" | "validation";
         };
-        /** WorkerEvent */
-        WorkerEvent: {
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "progress" | "succeeded" | "failed" | "cancelled";
-            lease: components["schemas"]["Lease"];
-            /** Payload */
-            payload: {
-                [key: string]: components["schemas"]["JsonValue"];
-            };
-            /** Sequence */
-            sequence: number;
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
         };
     };
     responses: never;
@@ -1186,6 +1185,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    post_cancel_cancel__solve_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                solve_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_capabilities_capabilities_get: {
         parameters: {
             query?: never;
@@ -1224,6 +1256,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    post_solve_solve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -5,6 +5,7 @@ import { validateScenario } from "@fillrate/db/scenarios";
 import { preflightChecks } from "@fillrate/db/preflight";
 import { assertOwnVersion, OWNER } from "./access";
 import { ApiError } from "./errors";
+import { launchRun } from "./runs";
 
 /** Runs on bundled examples plus saved scenarios. */
 export function visibleRuns(store: Store) {
@@ -23,13 +24,12 @@ export async function boundedJson(request: Request, limit = 10 * 1024 * 1024) {
   }
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
-export function createScenarioRun(store: Store, versionId: string, rawSettings: unknown, key: string) {
+export function createScenarioRun(store: Store, versionId: string, rawSettings: unknown) {
   const ownerId = assertOwnVersion(store, versionId);
-  if (!key || key.length > 200) throw new ApiError(400, "invalid_idempotency_key", "Send an Idempotency-Key header (1–200 characters).", ["Idempotency-Key"]);
   const document = validateScenario(store.versionDocument(versionId).document);
   const settings = parseContract("RunSettings", rawSettings);
   const findings = preflightChecks(document, settings);
   const blockers = findings.filter(x => x.action === "block");
   if (blockers.length) throw new ApiError(422, "preflight_blocked", "Resolve blocking checks, exclude affected lines, or change the check to a warning.", blockers.flatMap(x => x.line_ids));
-  return store.enqueue(versionId, {schema_version: 1, document: settings} as unknown as Snapshot, key, Date.now(), 3, "pipeline", { ownerId });
+  return launchRun(store, versionId, {schema_version: 1, document: settings} as unknown as Snapshot, "pipeline", ownerId);
 }

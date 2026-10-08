@@ -88,11 +88,11 @@ export function SweepBuilder({ initialK, limit, versionId, example, base = {}, o
     return out
   }
 
-  async function call(path: string, idempotent: boolean) {
+  async function call(path: string) {
     const body = { name, axes: axes(), ...(versionId ? { versionId, base } : example ? { example } : {}) }
     const res = await fetch(path, {
       method: "POST",
-      headers: { "content-type": "application/json", ...(idempotent ? { "idempotency-key": crypto.randomUUID() } : {}) },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     })
     const json = await res.json()
@@ -103,9 +103,9 @@ export function SweepBuilder({ initialK, limit, versionId, example, base = {}, o
     setPending(kind)
     setError("")
     try {
-      if (kind === "preview") setPreview(await call("/api/v1/experiments/preview", false))
+      if (kind === "preview") setPreview(await call("/api/v1/experiments/preview"))
       else {
-        const created = await call("/api/v1/experiments", true)
+        const created = await call("/api/v1/experiments")
         if (onCreated) onCreated(created.id)
         else router.push(`/experiments/${created.id}`)
       }
