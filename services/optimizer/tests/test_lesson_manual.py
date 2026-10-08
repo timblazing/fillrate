@@ -1,4 +1,4 @@
-"""Claims in the manual versus optimized routes lesson (`app/learn/manual-routes`)."""
+"""Claims in the manual versus optimized routes lesson."""
 
 import json
 from pathlib import Path

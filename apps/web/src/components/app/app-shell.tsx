@@ -14,7 +14,6 @@ import type { NavUserProps } from "./nav-user"
 type Crumb = { label: string; href?: string }
 
 const short = (id: string) => id.slice(0, 8)
-const title = (slug: string) => slug.charAt(0).toUpperCase() + slug.slice(1).replaceAll("-", " ")
 
 /** Breadcrumb trail for the current route; the sidebar carries the brand and the account, so the header only locates the page. */
 export function crumbsFor(pathname: string): Crumb[] {
@@ -33,10 +32,6 @@ export function crumbsFor(pathname: string): Crumb[] {
       return [{ label: "Scenarios", href: "/scenarios" }, { label: "k explorer" }]
     case "experiments":
       return id ? [{ label: "Experiments", href: "/experiments" }, { label: `Sweep ${short(id)}` }] : [{ label: "Experiments" }]
-    case "learn":
-      return id ? [{ label: "Learn", href: "/learn" }, { label: title(id) }] : [{ label: "Learn" }]
-    case "labs":
-      return id ? [{ label: "Labs", href: "/labs" }, { label: `Lab run ${short(id)}` }] : [{ label: "Labs" }]
     case "account":
       return [{ label: "Settings" }]
     case "admin":

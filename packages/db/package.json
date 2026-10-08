@@ -13,7 +13,6 @@
     "./travel": "./src/travel.ts",
     "./travel-job": "./src/travel-job.ts",
     "./travel-export": "./src/travel-export.ts",
-    "./lab": "./src/lab.ts",
     "./experiments": "./src/experiments.ts",
     "./evaluate": "./src/evaluate.ts",
     "./route-geometry": "./src/route-geometry.ts",

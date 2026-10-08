@@ -1,4 +1,4 @@
-"""The truck capacity lesson's "what to look for" claims (`app/learn/truck-capacity`)."""
+"""The truck capacity lesson's "what to look for" claims."""
 
 import json
 import math

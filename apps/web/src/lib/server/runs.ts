@@ -14,17 +14,15 @@ import lesson from "../../../../../examples/lesson-fulfillment.json";
 import matrixEstimated from "../../../../../examples/lesson-matrix-estimated.json";
 import matrixSnapshot from "../../../../../examples/lesson-matrix-snapshot.json";
 import matrix from "../../../../../examples/lesson-matrix.json";
-import manual from "../../../../../examples/lesson-manual.json";
-import seeds from "../../../../../examples/lesson-seeds.json";
 import windowsOff from "../../../../../examples/lesson-windows-off.json";
 import windows from "../../../../../examples/lesson-windows.json";
+import manual from "../../../../../examples/lesson-manual.json";
 import m1 from "../../../../../examples/m1-synthetic.json";
 
 // Keyless and run-key submissions execute bundled synthetic scenarios only (spec §14: public
 // surfaces stay synthetic). `m1` is the small edge-case example (always partial coverage, so its
 // sweeps never rank); `lesson` is the 2,000-order flagship lesson scenario; `allocation` is the small
-// scarce-stock scenario for the allocation lesson; `capacity` and `seeds` are the small truck-capacity and
-// seed-sensitivity lesson scenarios; `windows` and `windows_off` are the time-window lesson's stops with
+// scarce-stock scenario for the allocation lesson; `capacity` is the small truck-capacity scenario; `windows` and `windows_off` are the time-window lesson's stops with
 // and without their delivery windows; `matrix_estimated` and `matrix_recorded` are the road matrix lesson's one
 // scenario on estimated travel and on its bundled synthetic recorded matrix (spec §13). An example's `travel` is a
 // travel snapshot document its settings select; it is stored for the examples owner before the first run.
@@ -35,22 +33,19 @@ export const EXAMPLES = {
   lesson: { id: "lesson", scenario: lesson.scenario as ScenarioDocument, settings: lesson.settings as RunSettings, blurb: "Flagship lesson: 2,000 orders with scarce stock, valid and complete" },
   allocation: { id: "allocation", scenario: allocation.scenario as ScenarioDocument, settings: allocation.settings as RunSettings, blurb: "Allocation lesson: scarce carpet rolls, so strategy and piece or whole-order policy decide who ships" },
   capacity: { id: "capacity", scenario: capacity.scenario as ScenarioDocument, settings: capacity.settings as RunSettings, blurb: "Truck capacity lesson: plentiful stock on 53 ft trailers, so linear feet set the truck count and one oversize stop splits" },
-  seeds: { id: "seeds", scenario: seeds.scenario as ScenarioDocument, settings: seeds.settings as RunSettings, blurb: "Seed lesson: 60 evenly spread stops, so the k-means seed changes the clusters, trucks and miles" },
+  manual: { id: "manual", scenario: manual.scenario as ScenarioDocument, settings: manual.settings as RunSettings, blurb: "Ten stops around Memphis on three trucks, to compare a dispatcher's plan with the optimized one" },
   windows: { id: "windows", scenario: windows.scenario as ScenarioDocument, settings: windows.settings as RunSettings, blurb: "Time-window lesson: nine stops with service durations and delivery windows, so trucks wait and the windows set the truck count" },
   windows_off: { id: "windows_off", scenario: windowsOff.scenario as ScenarioDocument, settings: windowsOff.settings as RunSettings, blurb: "Time-window lesson without windows: the same nine stops and service durations, no delivery windows" },
   matrix_estimated: { id: "matrix_estimated", scenario: matrixEstimated.scenario as ScenarioDocument, settings: matrixEstimated.settings as RunSettings, blurb: "Road matrix lesson on estimated travel: seven stops, straight-line distance × 1.2" },
   matrix_recorded: { id: "matrix_recorded", scenario: matrix.scenario as ScenarioDocument, settings: matrix.settings as RunSettings, travel: matrixSnapshot as unknown, blurb: "Road matrix lesson on a synthetic recorded directed matrix (not real roads): a one-way river crossing and a ridge detour" },
   fleet: { id: "fleet", scenario: fleet.scenario as ScenarioDocument, settings: fleet.settings as RunSettings, blurb: "Mixed fleet: 24 stops served by three 53 ft trailers and eight 26 ft box trucks, so counts and per-type capacity and cost shape the plan" },
-  manual: { id: "manual", scenario: manual.scenario as ScenarioDocument, settings: manual.settings as RunSettings, blurb: "Manual routes lesson: ten stops around Memphis on three trucks, to compare a dispatcher's plan with the optimized one" },
 } as const;
 export type ExampleId = keyof typeof EXAMPLES;
 export type Example = (typeof EXAMPLES)[ExampleId];
 export const exampleScenario = EXAMPLES.m1.scenario;
-/** The manual routes lesson's dispatcher plans: location IDs per truck, in visit order. */
-export const MANUAL_LESSON_PLANS = manual.plans as { in_order: string[][]; east_west: string[][] };
 export const exampleSettings = EXAMPLES.m1.settings;
 
-/** The example a page's `?example=` names; anything else is the flagship lesson. */
+/** The example a page's `?example=` names; anything else is the 2,000-order fulfillment example. */
 export const pageExample = (param: unknown): Example => (typeof param === "string" && Object.hasOwn(EXAMPLES, param) ? EXAMPLES[param as ExampleId] : EXAMPLES.lesson);
 
 export function parseExample(input: unknown, fallback: ExampleId): Example {
@@ -59,7 +54,7 @@ export function parseExample(input: unknown, fallback: ExampleId): Example {
   throw new ApiError(400, "unknown_example", `Unknown example; use one of ${Object.keys(EXAMPLES).join(", ")}.`, ["example"]);
 }
 
-const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", seeds: "Seed lesson", windows: "Time-window lesson", windows_off: "Time-window lesson, no windows", manual: "Manual routes lesson", fleet: "Mixed fleet example", matrix_estimated: "Road matrix lesson, estimated", matrix_recorded: "Road matrix lesson, recorded matrix" };
+const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson: "Lesson, 2,000 orders", allocation: "Allocation lesson", capacity: "Truck capacity lesson", manual: "Ten stops, three trucks", windows: "Time-window lesson", windows_off: "Time-window lesson, no windows", fleet: "Mixed fleet example", matrix_estimated: "Road matrix lesson, estimated", matrix_recorded: "Road matrix lesson, recorded matrix" };
 
 /** Small listing for pages and `GET /api/v1/examples`. */
 export function exampleInfo(example: Example) {
@@ -173,8 +168,6 @@ export function explorerSummary(store: Store, runId: string): ExplorerSummary | 
 export function runDetail(store: Store, runId: string) {
   const view = store.runView(runId);
   if (!view) throw new ApiError(404, "run_not_found", "No run with this ID.");
-  // Lab runs have their own detail (lib/server/lab.ts, /labs/<id>); here they carry only the shared fields.
-  if (view.kind === "lab") return { ...baseDetail(view), kind: "lab" as const, explorer_settings: null, settings: null, summary: null, explorer: null };
   if (view.kind === "travel_snapshot") return { ...baseDetail(view), kind: "travel_snapshot" as const, explorer_settings: null, settings: null, summary: null, explorer: null, travel_snapshot: travelJobResult(view) };
   if (view.kind === "explorer") return { ...baseDetail(view), kind: "explorer" as const, explorer_settings: view.settings.document, settings: null, summary: null, explorer: view.status === "succeeded" ? explorerSummary(store, runId) : null };
   return { ...baseDetail(view), kind: "pipeline" as const, explorer_settings: null, settings: view.settings.document as unknown as RunSettings, summary: view.status === "succeeded" ? runSummary(store, runId) : null, explorer: null };

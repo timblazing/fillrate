@@ -10,7 +10,6 @@ import { buildRouteGeoJson } from "@/lib/geojson"
 import { ApiError, errorResponse, runDetail } from "@/lib/server/runs"
 import { accessError, assertRunRead, principal } from "@/lib/server/access"
 import { cachedGeometries } from "@/lib/server/route-geometry"
-import { labExportResponse } from "@/lib/server/lab"
 
 export const dynamic = "force-dynamic"
 
@@ -26,8 +25,6 @@ export async function GET(request: Request, ctx: RouteContext<"/api/v1/runs/[id]
     const who = await principal(request)
     if (who.kind === "pending") throw accessError(who)
     const view = assertRunRead(store, who, id)
-    // Lab runs have their own export (also at /api/v1/lab/runs/<id>/export): instance, result and reproduction script.
-    if (view.kind === "lab") return labExportResponse(store, id, format)
     const name = `fillrate-run-${id.slice(0, 8)}`
     if (format === "json") {
       return new Response(JSON.stringify(exportJson(store, id), null, 1), {

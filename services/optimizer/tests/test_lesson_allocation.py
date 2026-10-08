@@ -1,4 +1,4 @@
-"""The allocation lesson's "what to look for" claims (`app/learn/allocation-policies`)."""
+"""The allocation lesson's "what to look for" claims."""
 
 import json
 from collections import defaultdict

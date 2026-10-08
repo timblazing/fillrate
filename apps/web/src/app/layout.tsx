@@ -24,7 +24,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: "Fillrate",
-  description: "Private workbench for learning, testing, and comparing open-source PyVRP.",
+  description: "Private workbench for testing and comparing open-source PyVRP.",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

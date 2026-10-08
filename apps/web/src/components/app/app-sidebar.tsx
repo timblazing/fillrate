@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronRight, FlaskConical, GraduationCap, LayoutGrid, Route, Truck, type LucideIcon } from "lucide-react"
+import { ChevronRight, FlaskConical, LayoutGrid, Truck, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { type ComponentProps } from "react"
@@ -11,7 +11,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
@@ -34,17 +33,11 @@ const navMain: NavItem[] = [
   { href: "/experiments", title: "Experiments", icon: FlaskConical },
 ]
 
-// Supporting destinations, pinned above the account menu: lessons and the Solver Lab (spec §4 "Progressive depth", M6).
-const navSecondary: NavItem[] = [
-  { href: "/learn", title: "Learn", icon: GraduationCap },
-  { href: "/labs", title: "Labs", icon: Route },
-]
-
 const under = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`)
 
 /** Top-level section for a path: runs and the explorer belong to Scenarios. */
 export const sectionOf = (pathname: string) =>
-  under(pathname, "/runs") || under(pathname, "/explore") ? "/scenarios" : [...navMain, ...navSecondary, { href: "/account" }, { href: "/admin" }].find(({ href }) => under(pathname, href))?.href
+  under(pathname, "/runs") || under(pathname, "/explore") ? "/scenarios" : [...navMain, { href: "/account" }, { href: "/admin" }].find(({ href }) => under(pathname, href))?.href
 
 const modeLabel = { hosted: "Hosted workspace", local: "Local workspace", operator: "Operator workspace" } as const
 
@@ -118,25 +111,6 @@ export function AppSidebar({ admin, mode, user, ...props }: { admin: boolean; mo
                 </Collapsible>
               ))}
             </SidebarMenu>
-          </SidebarGroup>
-          <SidebarGroup className="mt-auto">
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {navSecondary.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      tooltip={item.title}
-                      isActive={item.href === active}
-                      aria-current={item.href === active ? "page" : undefined}
-                      render={<Link href={item.href} onClick={close} />}
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
           </SidebarGroup>
         </nav>
       </SidebarContent>

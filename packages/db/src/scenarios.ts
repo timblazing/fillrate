@@ -24,16 +24,14 @@ export function validateMetadata(input: ScenarioMetadata) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.planningDate) || new Date(input.planningDate).toISOString().slice(0, 10) !== input.planningDate || !input.browserId || input.browserId.length > 200) throw new Error("invalid_metadata");
   return input;
 }
-// Solver Lab instances are stored as versions too (packages/db/src/lab.ts); they are not scenarios.
-const NOT_LAB = "coalesce(json_extract(v.document, '$.document.kind'), '') <> 'lab_instance'";
-/** One owner's scenarios at their latest revision (bundled examples and lab instances are never listed). */
+/** One owner's scenarios at their latest revision (bundled examples are never listed). */
 export function scenarioList(store: Store, ownerId = OPERATOR) {
-  return store.sqlite.prepare(`SELECT s.id, s.name, v.id AS versionId, v.revision, v.author, v.createdAt, json_extract(v.document,'$.document.depot.label') AS depotLabel, (SELECT COUNT(*) FROM json_each(v.document,'$.document.orders')) AS orderCount, (SELECT parentVersionId FROM scenario_versions WHERE scenarioId=s.id AND revision=1) AS branchedFrom FROM scenarios s JOIN scenario_versions v ON v.scenarioId=s.id WHERE s.ownerId=? AND ${NOT_LAB} AND v.revision=(SELECT MAX(revision) FROM scenario_versions WHERE scenarioId=s.id) ORDER BY v.createdAt DESC LIMIT 100`).all(ownerId);
+  return store.sqlite.prepare(`SELECT s.id, s.name, v.id AS versionId, v.revision, v.author, v.createdAt, json_extract(v.document,'$.document.depot.label') AS depotLabel, (SELECT COUNT(*) FROM json_each(v.document,'$.document.orders')) AS orderCount, (SELECT parentVersionId FROM scenario_versions WHERE scenarioId=s.id AND revision=1) AS branchedFrom FROM scenarios s JOIN scenario_versions v ON v.scenarioId=s.id WHERE s.ownerId=? AND v.revision=(SELECT MAX(revision) FROM scenario_versions WHERE scenarioId=s.id) ORDER BY v.createdAt DESC LIMIT 100`).all(ownerId);
 }
-/** A version of one owner's scenario; another owner's scenario (or a lab instance) reads as missing. */
+/** A version of one owner's scenario; another owner's scenario reads as missing. */
 export function scenarioVersion(store: Store, scenarioId: string, versionId?: string, ownerId = OPERATOR) {
   if (store.scenarioOwner(scenarioId) !== ownerId) throw new Error("scenario_not_found");
-  const row = store.sqlite.prepare(`SELECT * FROM scenario_versions v WHERE scenarioId=? AND ${NOT_LAB} ${versionId ? "AND id=?" : "ORDER BY revision DESC LIMIT 1"}`).get(...(versionId ? [scenarioId, versionId] : [scenarioId])) as { id: string; scenarioId: string; revision: number; parentVersionId: string | null; document: string; author: string; createdAt: number } | undefined;
+  const row = store.sqlite.prepare(`SELECT * FROM scenario_versions v WHERE scenarioId=? ${versionId ? "AND id=?" : "ORDER BY revision DESC LIMIT 1"}`).get(...(versionId ? [scenarioId, versionId] : [scenarioId])) as { id: string; scenarioId: string; revision: number; parentVersionId: string | null; document: string; author: string; createdAt: number } | undefined;
   if (!row) throw new Error("scenario_not_found");
   const source = store.sqlite.prepare("SELECT source, metadata FROM scenario_sources WHERE versionId=?").get(row.id) as { source: string; metadata: string } | undefined;
   return { ...row, document: JSON.parse(row.document).document as ScenarioDocument, source: source ? JSON.parse(source.source) : null, metadata: source ? JSON.parse(source.metadata) as ScenarioMetadata : null };
@@ -58,7 +56,6 @@ export function saveScenario(store: Store, input: { document: unknown; author: s
     }
     let scenarioId = input.scenarioId, versionId: string;
     if (scenarioId && store.scenarioOwner(scenarioId) !== ownerId) throw new Error("scenario_not_found");
-    if (scenarioId && store.sqlite.prepare(`SELECT 1 FROM scenario_versions v WHERE scenarioId=? AND NOT (${NOT_LAB}) LIMIT 1`).get(scenarioId)) throw new Error("scenario_not_found");
     if (scenarioId && input.branch) {
       if (!input.expectedVersionId) throw new Error("version_required");
       scenarioVersion(store, scenarioId, input.expectedVersionId, ownerId);
