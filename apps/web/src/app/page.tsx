@@ -6,7 +6,6 @@ import HeroGlobe from "@/components/animated/hero-globe"
 import { BrandLink } from "@/components/brand/brand-link"
 import { RequestAccessButton } from "@/components/landing/request-access-button"
 import { LandingHeader } from "@/components/landing/landing-header"
-import { Button } from "@/components/ui/button"
 
 const REPO_URL = "https://github.com/timblazing/fillrate"
 
@@ -59,9 +58,6 @@ export default function Home() {
           />
           <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-4 pt-16 pb-20 sm:px-6 sm:pt-20 lg:pt-20 lg:pb-28 xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] xl:gap-12">
             <div className="max-w-3xl">
-              <p className="text-muted-foreground mb-5 text-xs font-medium tracking-[0.14em] text-pretty uppercase sm:text-sm">
-                Open-source order fulfillment and truckload planning
-              </p>
               <h1 id="hero-title" className="text-foreground text-[3.25rem] leading-[0.95] font-semibold tracking-[-0.06em] text-balance sm:text-7xl xl:text-[clamp(4.5rem,6.4vw,5.25rem)]">
                 Make more of <br className="hidden xl:block" />
                 every truckload.
@@ -71,9 +67,6 @@ export default function Home() {
               </p>
               <div className="mt-9 flex flex-wrap items-center gap-3">
                 <RequestAccessButton />
-                <Button size="lg" variant="ghost" className="text-muted-foreground h-11 rounded-full px-4 text-sm" render={<a href={REPO_URL} target="_blank" rel="noopener noreferrer" />}>
-                  View on GitHub
-                </Button>
               </div>
             </div>
 
@@ -127,21 +120,14 @@ export default function Home() {
         </section>
       </main>
 
-      <footer>
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="flex flex-col gap-6 py-10 sm:flex-row sm:items-center sm:justify-between">
-            <BrandLink className="[&>span]:text-sm" />
-            <nav aria-label="Footer" className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-              <Link href="/dev" className={linkRing}>Project progress</Link>
-              <Link href="/privacy" className={linkRing}>Privacy</Link>
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={linkRing}>GitHub</a>
-            </nav>
-          </div>
-          <div className="border-t py-6">
-            <p className="text-muted-foreground max-w-2xl text-xs leading-relaxed text-pretty">
-              Fillrate is an open-source planning workbench. Example scenarios use synthetic data, and estimated travel is labeled as an estimate.
-            </p>
-          </div>
+      <footer className="border-t">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <BrandLink showMark={false} className="text-muted-foreground hover:text-foreground transition-colors [&>span]:text-sm [&>span]:font-normal" />
+          <nav aria-label="Footer" className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={linkRing}>GitHub</a>
+            <Link href="/dev" className={linkRing}>Progress</Link>
+            <Link href="/privacy" className={linkRing}>Privacy</Link>
+          </nav>
         </div>
       </footer>
     </div>
