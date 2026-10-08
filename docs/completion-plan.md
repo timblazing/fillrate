@@ -10,7 +10,7 @@ Hosted v1 uses Valhalla roads in OK and bordering states. Issue #98 automates ma
 
 ## Current focus
 
-Finish and verify #100 for dashboard defects, then deliver #98 hosted road automation, then close #89 representative performance acceptance. Publish the integrated candidate and verify its deployment. #93 native VPS timings remain optional handoff evidence. Manual accessibility/VoiceOver, physical-device testing, Raspberry Pi, design-file maintenance and new solver scope are excluded from the v1 demo.
+Dashboard fixes and expanded audit evidence are in #100. Deliver #98 hosted road automation, close the remaining targeted #88 states alongside it, then close #89 representative performance acceptance. Publish the integrated candidate and verify its deployment. #93 native VPS timings remain optional handoff evidence. Manual accessibility/VoiceOver, physical-device testing, Raspberry Pi, design-file maintenance and new solver scope are excluded from the v1 demo.
 
 ## Delivery order and reviewable slices
 
@@ -19,20 +19,21 @@ Finish and verify #100 for dashboard defects, then deliver #98 hosted road autom
 | Complete: first image publication | Release session, merged #72 | Green runtime source `e95f3cb` | Run 37482591185 passed both architecture smokes; manifest/digest recorded in release-verification.md |
 | P1: dashboard coverage audit | Implementation session | Current frontend + accepted gallery Blocks | All six frontend-spec rows have observed gaps/intentional differences, production paths and desktop/phone captures; prioritize workflow defects first |
 | P1: dashboard integration | [Issue #88](https://github.com/timblazing/fillrate/issues/88) | Audit findings | Orders/configuration → run/results → explorer/comparison delivered in scoped PRs with real data, functional and visual evidence; shared gallery/product composites where appropriate |
+| P1: hosted road workflow | [Issue #98](https://github.com/timblazing/fillrate/issues/98) | Integrated dashboard workbench | Automatic exact matrix reuse/build, named coverage blocks, cached road geometry by default, truthful CSV/GeoJSON exports; local/Learn estimated travel retained |
 | P1: frontend performance | [Issue #89](https://github.com/timblazing/fillrate/issues/89) | Baseline measurements; integrate alongside UI fixes | Recorded 2,000-order/matrix measurements meet frontend-spec budgets; identified bottlenecks fixed; no fixture output used as product evidence |
 | P1: candidate verification | Implementation session | Final integrated dashboard candidate | Lint/typecheck/build, relevant full suites and contracts, hosted/local acceptance, complete applicable browser coverage; capability and docs reconciliation |
-| P1: final image and deployment | [Issue #91](https://github.com/timblazing/fillrate/issues/91) | Candidate green; image workflow | Both architecture smokes and published digest; pre-upgrade backup, deploy-by-digest, migration/health/access and live synthetic workflow checks; rollback reference |
+| P1: final image and deployment | Release session (historical owner check #91 is closed) | Candidate green; image workflow | Both architecture smokes and published digest; pre-upgrade backup, deploy-by-digest, migration/health/access and live synthetic workflow checks; rollback reference |
 | In v1 (owner, 2026-10-07): VPS roads | [Issue #92](https://github.com/timblazing/fillrate/issues/92) | OK + bordering states, prebuilt tiles | Done 2026-10-07: pinned provider/graph identity and coverage, VPS matrix/route checks, memory/disk/latency evidence, app path through Fillrate on the same bundle. Owner's signed-in UI check passed 2026-10-07 |
 | P2: native target handoff | [Issue #93](https://github.com/timblazing/fillrate/issues/93) | VPS access and matching source/settings | Bun/npm/uv timings and startup evidence on the VPS, with runtime versions and limitations |
 
-The current publication task completed in #72 independently of dashboard work. It proves only its source image; dashboard runtime changes will need a later image release. Preserve the recorded release-verification evidence and do not duplicate the completed dispatch.
+Historical publications and the deployed 698fbd8 baseline prove their recorded sources. Integrated dashboard runtime changes require a new tested image release; record it separately from deployment.
 
 ## Launch checklist
 
 - [ ] Dashboard coverage/integration/performance evidence passes [frontend-spec.md](frontend-spec.md).
 - [ ] Final candidate verification is recorded with exact source; older green checks are labeled historical.
 - [x] Basemap v1 decision and specified attribution links are recorded in [basemap.md](basemap.md): owner accepts keyless CARTO risk, and rendered credits were checked in light/dark themes. Key/tier configuration remains a later owner follow-up.
-- [x] `image.yml` for current source `698fbd8` passed on amd64 and arm64; registry manifest/digest confirmed.
+- [x] `image.yml` for deployed baseline `698fbd8` passed on amd64 and arm64; registry manifest/digest confirmed.
 - [x] Owner backup, digest pin and VPS upgrade for `698fbd8`; 12 migrations, database integrity, health, worker connection and backup timer verified. See [release record](releases/upgrade-698fbd8.md).
 - [x] Live anonymous hosted/request behavior and anonymous admin denial checked after deployment.
 - [x] Owner verified signed-in behavior and synthetic import → run → inspect → export on deployed `698fbd8` (#99); no live two-account test is added to the previously waived gate.

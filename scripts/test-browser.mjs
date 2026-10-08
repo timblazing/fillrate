@@ -12,8 +12,8 @@ const optimizerDir = join(root, "services/optimizer");
 const agentBrowser = join(root, "node_modules/.bin/agent-browser");
 const selected = process.argv.find((arg) => arg.startsWith("--flow="))?.slice("--flow=".length) ?? "all";
 // The import flow expects to save the first protected scenario, so flows that add their own scenarios run after it.
-const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs", "baselines", "fleet", "recovery", "road-geometry", "accessibility"];
-const flows = selected === "all" ? allFlows.filter(flow => flow !== "accessibility") : [selected];
+const allFlows = ["lesson", "import", "matrix", "experiment", "lessons", "time-windows", "manual-plan", "cancel", "edit", "labs", "warm-start", "road-matrices", "lab-lessons", "lab-depots", "lab-reloads", "lab-prizes", "lab-groups", "lab-pairs", "baselines", "fleet", "recovery", "road-geometry", "accessibility", "dashboard-audit"];
+const flows = selected === "all" ? allFlows.filter(flow => flow !== "accessibility" && flow !== "dashboard-audit") : [selected];
 if (flows.some((flow) => !allFlows.includes(flow))) throw new Error(`Use ${allFlows.map((flow) => `--flow=${flow}`).join(", ")}, or --flow=all.`);
 
 const dataDir = mkdtempSync(join(tmpdir(), "fillrate-browser-smoke-"));
@@ -103,6 +103,8 @@ function assertViewport(width, height) {
     browser("set", "device", "iPhone 16");
     browser("set", "viewport", String(width), String(height), "1");
   } else setViewport(width, height);
+  // Let a viewport change settle (map canvases resize on the next frame) before measuring overflow.
+  try { browser("wait", "--fn", "(()=>{const e=document.documentElement;return e.scrollWidth<=e.clientWidth})()", "--timeout", "4000"); } catch { /* measured and reported below */ }
   const output = browser("eval", "JSON.stringify({width:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth,height:document.documentElement.clientHeight})");
   let dims;
   try { dims = JSON.parse(JSON.parse(output)); } catch { try { dims = JSON.parse(output); } catch { throw new Error(`Could not read browser viewport dimensions: ${output}`); } }
@@ -400,6 +402,8 @@ async function importFlow(baseURL, scenarioKey) {
   fillLabel("Display name", "Browser smoke");
   fillLabel("Scenario name", "Bounded browser import");
   fillLabel("Depot label", "Memphis depot");
+  fillLabel("Depot latitude", "35.1495");
+  fillLabel("Depot longitude", "-90.049");
   const orders = [
     "order_id,line_id,order_date,customer_id,location_id,location_label,latitude,longitude,product,ordered_pieces,net_value_per_piece,linear_feet_per_piece,priority",
     "SMOKE-1,SMOKE-L1,2026-10-01,Smoke Customer,SMOKE-C1,Smoke Customer,35.16,-90.05,SMOKE-SKU,10,25.00,1.00,1",
@@ -480,6 +484,8 @@ async function matrixFlow(baseURL, scenarioKey) {
   fillLabel("Display name", "Matrix smoke");
   fillLabel("Scenario name", "Directed matrix import");
   fillLabel("Depot label", "Memphis depot");
+  fillLabel("Depot latitude", "35.1495");
+  fillLabel("Depot longitude", "-90.049");
   // Three stops near the depot (all within ~15 km), so any imported leg of 40+ km is clearly not the estimate.
   const header = "order_id,line_id,order_date,customer_id,location_id,location_label,latitude,longitude,product,ordered_pieces,net_value_per_piece,linear_feet_per_piece,priority";
   const orders = [header,
@@ -770,6 +776,8 @@ async function importInWorkbench(baseURL, scenarioKey, { author, name, orders, i
   fillLabel("Display name", author);
   fillLabel("Scenario name", name);
   fillLabel("Depot label", "Memphis depot");
+  fillLabel("Depot latitude", "35.1495");
+  fillLabel("Depot longitude", "-90.049");
   fillCss('textarea[aria-label="orders CSV content"]', [ORDER_HEADER, ...orders].join("\n"));
   fillCss('textarea[aria-label="inventory CSV content"]', inventory);
   clickButton("Preview import");
@@ -788,7 +796,7 @@ function openSavedScenario(baseURL, scenarioKey, author, label) {
   fillLabel("Display name", author);
   clickButton("Load scenarios");
   browser("wait", "--text", label, "--timeout", "20000");
-  clickButton(label);
+  clickButtonStartingWith(label);
   browser("wait", "--text", "Run settings", "--timeout", "20000");
 }
 
@@ -1149,7 +1157,7 @@ async function experimentFlow(baseURL, runKey) {
   const best = experiment.runs.find((run) => run.label === "Best option" || run.rank === 1);
   expect(best, "Completed experiment does not identify a Best option.");
   expect(best.metrics?.planned_cents > 0 && best.metrics?.trucks > 0, `Best option has empty comparison metrics: ${JSON.stringify(best.metrics)}`);
-  browser("wait", "--text", "Best option", "--timeout", "30000");
+  browser("wait", "--fn", "!!document.querySelector('section[aria-label=\"Ranked options\"] a')", "--timeout", "30000");
   const page = snapshot();
   expect(page.includes("Best option") && page.includes("shipments"), "Rendered comparison does not show its Best option and shipment metric.");
   assertViewport(1440, 900);
@@ -2534,6 +2542,245 @@ async function accessibilityFlow(baseURL, runKey) {
   console.log(`  accessibility: ${report.checks.length} checks passed; report ${out}`);
 }
 
+
+// Six-Block production dashboard acceptance (frontend-spec "Required coverage audit", M8). Explicit only:
+// `bun run test:browser --flow=dashboard-audit`. AUDIT_SHOTS=<dir> keeps desktop/phone x light/dark captures.
+const AUDIT_SHOTS = process.env.AUDIT_SHOTS ? resolve(process.env.AUDIT_SHOTS) : null;
+function setTheme(theme) {
+  browser("eval", `localStorage.setItem("theme", ${JSON.stringify(theme)}); window.dispatchEvent(new StorageEvent("storage", {key: "theme", newValue: ${JSON.stringify(theme)}}))`);
+  browser("wait", "--fn", `document.documentElement.classList.contains(${JSON.stringify(theme)})`, "--timeout", "10000");
+}
+// Runs `prepare` (re-establishing page state after each reload) then checks bounds and saves a capture per theme and viewport.
+function auditShots(name, prepare) {
+  if (AUDIT_SHOTS) mkdirSync(AUDIT_SHOTS, { recursive: true });
+  for (const theme of ["light", "dark"]) {
+    setTheme(theme);
+    for (const [width, height] of [[1440, 900], [393, 852]]) {
+      assertViewport(width, height);
+      prepare?.(width);
+      browser("wait", "800");
+      if (AUDIT_SHOTS) browser("screenshot", join(AUDIT_SHOTS, `${name}-${theme}-${width}.png`));
+    }
+  }
+  setTheme("light");
+  assertViewport(1440, 900);
+}
+const clickTabStartingWith = (prefix) => {
+  const name = evalValue(`[...document.querySelectorAll('[role="tab"]')].find(el => el.innerText.trim().startsWith(${JSON.stringify(prefix)}))?.innerText.trim()`);
+  expect(name, `Missing ${prefix} tab.`);
+  clickTab(name);
+};
+const hasEnabledButton = (name) => evalValue(`[...document.querySelectorAll('button')].some((b) => b.innerText.trim() === ${JSON.stringify(name)} && !b.disabled)`) === true;
+const hasText = (text) => String(parsedText()).includes(text);
+function expectText(text, message) { expect(hasText(text), `${message} (missing "${text}")`); }
+
+async function dashboardAuditFlow(baseURL, runKey, scenarioKey) {
+  console.log("Browser audit: six production Blocks");
+  const access = `?key=${encodeURIComponent(runKey)}`;
+  const runId = await lessonFlow(baseURL, runKey);
+  const { id: experimentId, explorerId } = await experimentFlow(baseURL, runKey);
+  beginBrowserFlow("dashboard-audit");
+  browser("errors", "--clear");
+  browser("console", "--clear");
+
+  // Row 1: Orders & inventory. Import errors and notices are separate and actionable; fixed data saves with provenance and shortages.
+  const H = "order_id,line_id,order_date,customer_id,location_id,location_label,address,latitude,longitude,product,ordered_pieces,net_value_per_piece,linear_feet_per_piece,priority";
+  const bad = [H,
+    "A-1,A-1a,2026-10-01,Acme,C-1,Acme DC,,35.16,-90.05,SKU-1,10,25.00,1.00,1",
+    'A-2,A-2a,2026-10-01,Beta,C-2,Beta Yard,"125 N Main St, Memphis, TN 38103",,,SKU-1,40,25.00,1.00,1',
+    "A-3,A-3a,2026-10-01,Gamma,C-3,Gamma,,,,SKU-2,5,25.00,1.00,1",
+    "A-3,A-3a,2026-10-01,Gamma,C-3,Gamma,,35.2,-90.1,SKU-2,7,25.00,1.00,1",
+    "A-4,A-4a,2026-10-01,Delta,C-1,Acme DC,,35.99,-90.05,SKU-1,abc,25.00,1.00,1"].join("\n");
+  const good = [H,
+    "A-1,A-1a,2026-10-01,Acme,C-1,Acme DC,,35.16,-90.05,SKU-1,10,25.00,1.00,1",
+    'A-2,A-2a,2026-10-01,Beta,C-2,Beta Yard,"125 N Main St, Memphis, TN 38103",,,SKU-1,40,25.00,1.00,1',
+    "A-3,A-3a,2026-10-01,Gamma,C-3,Gamma,,35.2,-90.1,SKU-2,7,25.00,1.00,1",
+    "A-4,A-4a,2026-10-01,Delta,C-4,Delta,,35.99,-90.05,SKU-1,3,25.00,1.00,1"].join("\n");
+  const importAudit = (orders, inventory) => {
+    open(`${baseURL}/scenarios`);
+    browser("wait", "--text", "Import", "--timeout", "15000");
+    fillLabel("Operator key", scenarioKey);
+    fillLabel("Display name", "Audit");
+    fillLabel("Scenario name", "Audit messy import");
+    fillCss('textarea[aria-label="orders CSV content"]', orders);
+    fillCss('textarea[aria-label="inventory CSV content"]', inventory);
+    // No default depot: Preview stays disabled and says why until the depot label and coordinates are entered.
+    expect(!hasEnabledButton("Preview import") && hasText("There is no default depot."), "Preview import must require an explicit depot.");
+    fillLabel("Depot label", "Audit depot");
+    fillLabel("Depot latitude", "35.1495");
+    expect(!hasEnabledButton("Preview import"), "Preview import must stay disabled with only a depot label.");
+    fillLabel("Depot longitude", "-90.049");
+    clickButton("Preview import");
+  };
+  importAudit(bad, "product,available_pieces\nSKU-1,30\n");
+  browser("wait", "--text", "import errors", "--timeout", "20000");
+  expectText("5 import errors: fix these and preview again", "Import preview does not count its errors");
+  expectText("Error · orders row 4, address", "Missing-coordinate error does not name its row and column");
+  expectText("Error · orders row 5, line_id", "Duplicate-line error does not name its row and column");
+  expectText("Error · orders row 6, location_id", "Conflicting-location error does not name its row and column");
+  expectText("Notice · orders row 3, address", "Address-only line is not shown as a notice");
+  expect(Number(evalValue(`[...document.querySelectorAll("button")].filter(b=>b.innerText.trim()==="Save import"&&!b.disabled).length`)) === 0, "Save import must stay disabled while the preview has errors.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  auditShots("orders-import-errors");
+  importAudit(good, "product,available_pieces\nSKU-1,30\n");
+  browser("wait", "--text", "Missing inventory for SKU-2", "--timeout", "20000");
+  expectText("enter zero explicitly if unavailable", "Missing-inventory error is not actionable");
+  importAudit(good, "product,available_pieces\nSKU-1,30\nSKU-2,0\n");
+  browser("wait", "--text", "ready to save", "--timeout", "20000");
+  clickButton("Save import");
+  browser("wait", "--text", "Import saved as version 1.", "--timeout", "25000");
+  expect(hasText("Depot: Audit depot") && hasText("(35.1495, -90.049)"), "The loaded scenario does not show its depot.");
+  for (const text of ["Data review", "Unresolved", "ordered beyond stock", "1 address without coordinates yet", "Imported"]) expectText(text, "Saved scenario review is missing a section");
+  expect(/SKU-1 \(53 ordered, 30 on hand\)/.test(String(parsedText())), "Stock versus demand shortage line is missing or wrong.");
+  clickButton("Coordinates (1 to review)");
+  browser("wait", "--text", "Beta Yard", "--timeout", "10000");
+  expectText("Unresolved", "Coordinates tab does not show the unresolved location");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  // Loaded-scenario depot: shown, editable, and saved as a new version; the list tells identical names apart.
+  fillLabel("Depot name", "Audit depot east");
+  browser("press", "Enter");
+  fillLabel("Depot latitude (loaded)", "35.2");
+  browser("press", "Enter");
+  expectText("Unsaved changes", "Editing the depot did not mark the scenario unsaved");
+  expectText("Depot: Audit depot east", "Depot edit is not shown");
+  clickButton("Save version");
+  browser("wait", "--text", "Version 2", "--timeout", "20000");
+  const saved = (await fetchOkJson(baseURL, "/api/v1/scenarios", scenarioKey)).scenarios.find((row) => row.name === "Audit messy import");
+  expect(saved.revision === 2 && saved.depotLabel === "Audit depot east" && saved.orderCount === 4 && saved.createdAt > 0, `Scenario list lacks depot/order count/time: ${JSON.stringify(saved)}`);
+  const savedDoc = await fetchOkJson(baseURL, `/api/v1/scenarios/${saved.id}`, scenarioKey);
+  expect(savedDoc.document.depot.lat === 35.2 && savedDoc.document.depot.label === "Audit depot east", "Depot edit was not persisted in the new version.");
+  const openAudit = () => {
+    open(`${baseURL}/scenarios`);
+    fillLabel("Operator key", scenarioKey);
+    fillLabel("Display name", "Audit");
+    clickButton("Load scenarios");
+    browser("wait", "--text", "Audit messy import", "--timeout", "20000");
+    expectText("Audit depot east · 4 orders · Audit", "Scenario list does not distinguish scenarios by time, depot and order count");
+    clickButtonStartingWith("Audit messy import · v2");
+    browser("wait", "--text", "Run settings", "--timeout", "20000");
+  };
+  auditShots("orders-data-review", () => { openAudit(); clickButton("Coordinates (1 to review)"); browser("wait", "--text", "Beta Yard", "--timeout", "10000"); });
+
+  // Row 2: Run pipeline. Resolved settings with units, a blocking preflight on the unresolved address, and the persisted settings on the run.
+  openAudit();
+  for (const label of ["Trailer capacity (hundredths ft)", "Maximum leg (meters)", "Time per cluster (seconds)", "Travel circuity (estimated only)", "missing coordinates"]) expectText(label, "Run settings lack a labeled, unit-bearing field");
+  clickButton("Review and run saved version");
+  browser("wait", "--text", "Blocks run", "--timeout", "20000");
+  expectText("Resolve the blocking checks", "A blocked run does not explain how to proceed");
+  expectText("missing coordinates", "Preflight finding does not name its check");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  auditShots("pipeline-preflight-blocked");
+  const runPath = `/runs/${runId}${access}`;
+  open(`${baseURL}${runPath}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  for (const text of ["Preflight", "Allocation", "Aggregation", "Clustering", "Travel", "Solve", "Validation", "Summary"]) expectText(text, "Run page lacks an actual pipeline stage");
+  clickTab("Provenance");
+  for (const text of ["Trailer", "Solver", "Clustering"]) expectText(text, "Provenance tab lacks resolved settings");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+
+  // Row 3: Workbench. One selection shared by the map, cluster table, shipment table and timeline; survives tab changes and filtering.
+  const run = await fetchOkJson(baseURL, `/api/v1/runs/${runId}`, runKey, "x-run-key");
+  const clusters = run.summary.clusters;
+  const target = run.summary.trucks.find((t) => t.cluster_id === clusters[1].id);
+  const selection = () => evalValue(`JSON.stringify([...document.querySelectorAll('tr[aria-selected=true],tr[data-state=selected],[aria-pressed=true]')].map(e=>e.innerText.replace(/\\s+/g,' ').trim().slice(0,40)))`);
+  const prepareSelection = () => {
+    open(`${baseURL}${runPath}`);
+    browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+    clickButton("Cluster 2");
+    expect(String(selection()).includes("C2"), `Cluster 2 was not selected in the map cluster table: ${selection()}`);
+    clickTab(`Shipments (${run.summary.trucks.length})`);
+    browser("wait", "--text", "in this cluster", "--timeout", "10000");
+    browser("eval", `[...document.querySelectorAll("tbody button")].find((b) => b.innerText.includes(${JSON.stringify(target.id)}))?.click()`);
+  };
+  prepareSelection();
+  expect(String(selection()).includes(target.id), `Shipment ${target.id} was not selected: ${selection()}`);
+  clickTab("Timeline");
+  browser("wait", "--fn", "!!document.querySelector('ol[aria-label=\"Planned route timeline\"]')", "--timeout", "20000");
+  expect(String(parsedText()).includes(target.id), `Timeline did not follow the selected shipment ${target.id}.`);
+  clickTab("Map");
+  browser("wait", "800");
+  expect(String(selection()).includes("C2"), `Cluster selection was lost after the Timeline tab: ${selection()}`);
+  clickTab(`Shipments (${run.summary.trucks.length})`);
+  expect(String(selection()).includes(target.id), `Shipment selection was lost after switching tabs: ${selection()}`);
+  clickButton("Show all");
+  // The selected shipment can be off the first page after clearing the filter. Verify shared state in the timeline.
+  clickTab("Timeline");
+  expectText(target.id, "Timeline selection was lost after clearing the cluster filter");
+  clickTab(`Shipments (${run.summary.trucks.length})`);
+  expect(hasText("Shipment results table") || Number(evalValue("document.querySelectorAll('[aria-label=\"Shipment results table\"],[role=region]').length")) > 0, "Shipment table equivalent of the map is missing.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  auditShots("workbench-selection", prepareSelection);
+  // Phone navigation: tabs stay reachable and the app navigation opens.
+  setViewport(393, 852);
+  browser("eval", "window.scrollTo(0,0)");
+  expect(Number(evalValue("document.querySelectorAll('[role=tab]').length")) >= 6, "Run tabs are missing at phone width.");
+  setViewport(1440, 900);
+
+  // Row 4: Results. Revenue-first metrics, unshipped reasons with the lost value, validation and travel basis, then the sheet.
+  open(`${baseURL}${runPath}`);
+  browser("wait", "--text", "Validated, complete", "--timeout", "20000");
+  for (const text of ["Planned revenue", "Loaded miles", "Trailer fill", "Estimated: haversine"]) expectText(text, "Results header lacks revenue, fill or its travel basis");
+  clickTabStartingWith("Unshipped");
+  browser("wait", "--text", "Reason", "--timeout", "10000");
+  clickTab("Stock");
+  expectText("Stock", "Stock tab did not open");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  auditShots("results-unshipped", () => { browser("wait", "--text", "Validated, complete", "--timeout", "20000"); clickTabStartingWith("Unshipped"); });
+  open(`${baseURL}/runs/${runId}/sheet${access}&shipment=${encodeURIComponent(run.summary.trucks[0].id)}`);
+  browser("wait", "--text", run.summary.trucks[0].id, "--timeout", "15000");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  auditShots("results-sheet");
+
+  // Row 5: k explorer. Table equivalent of the chart, stability, explicit k choice, replay link, and a failed or unknown job.
+  open(`${baseURL}/explore/${explorerId}${access}`);
+  browser("wait", "--text", "Python replay bundle", "--timeout", "20000");
+  for (const text of ["Error sum", "Stability", "most stable", "Seed agreement", "Use this k", "not a probability"]) expectText(text, "Explorer lacks a required diagnostic");
+  clickButton("2");
+  expectText("Seed agreement at k = 2", "Choosing k in the table does not offer its seed agreement run");
+  browser("find", "role", "switch", "click");
+  expectText("After diameter repair", "Repair toggle is missing");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  auditShots("explorer-confidence");
+  open(`${baseURL}/explore/00000000-0000-4000-8000-000000000000${access}`);
+  expect(hasText("could not be found") || hasText("404") || hasText("Not found"), "A missing explorer job should show a not-found state.");
+
+  // Row 6: Iteration comparison. Best option, deltas against it, cohort, per-run failures and the cancellation boundary.
+  open(`${baseURL}/experiments/${experimentId}${access}`);
+  browser("wait", "--text", "Best option", "--timeout", "20000");
+  for (const text of ["Ranking order", "Cohort", "Lower bounds", "difference from the Best option", "Sweeps have no cancel control"]) expectText(text, "Comparison lacks a required element");
+  expect(hasText("= Best") || /[+−]\$?[\d.,]+/.test(String(parsedText())), "Ranked runs show no metric delta against the Best option.");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+  auditShots("comparison-ranking");
+  open(`${baseURL}/experiments${access}`);
+  browser("wait", "--text", "Sweeps", "--timeout", "15000");
+  assertViewport(1440, 900);
+  assertViewport(393, 852);
+
+  // Shell, Learn, Labs and empty/error states.
+  for (const [name, path, text] of [["landing", "/", "Fillrate"], ["runs", "/runs", "runs"], ["learn", `/learn${access}`, "Learn"], ["labs", "/labs", "Solver Lab"], ["lesson", `/learn/fulfillment-pipeline${access}`, "Fulfillment pipeline"]]) {
+    open(`${baseURL}${path}`);
+    browser("wait", "--text", text, "--timeout", "15000");
+    assertViewport(1440, 900);
+    assertViewport(393, 852);
+    auditShots(`shell-${name}`);
+  }
+  open(`${baseURL}/runs/00000000-0000-4000-8000-000000000000${access}`);
+  expect(hasText("could not be found") || hasText("404") || hasText("Not found"), "A missing run should show a not-found state.");
+  assertViewport(393, 852);
+  assertViewport(1440, 900);
+  checkBrowserDiagnostics("dashboard audit");
+  console.log("  passed: six-Block audit (orders, pipeline, workbench, results, explorer, comparison) and shell states at both viewports, light and dark");
+}
+
 process.once("SIGINT", () => void stop().finally(() => process.exit(130)));
 process.once("SIGTERM", () => void stop().finally(() => process.exit(143)));
 
@@ -2579,6 +2826,7 @@ try {
   });
   for (const flow of flows) {
     if (flow === "accessibility") await accessibilityFlow(baseURL, runKey);
+    if (flow === "dashboard-audit") await dashboardAuditFlow(baseURL, runKey, scenarioKey);
     if (flow === "lesson") await lessonFlow(baseURL, runKey);
     if (flow === "import") await importFlow(baseURL, scenarioKey);
     if (flow === "matrix") await matrixFlow(baseURL, scenarioKey);

@@ -4,6 +4,8 @@ This extends technical spec §§4, 10, 11 and 16. It is required M8 completion w
 
 ## Current evidence and scope
 
+The v1 demo prioritizes persisted workflow defects (#88), automatic hosted roads (#98), then representative performance (#89). Manual accessibility/VoiceOver and physical-device acceptance are outside owner scope; preserve accessible primitives and existing automated checks. Hosted-road requirements in technical spec Current v1 demo scope supersede the old manual matrix/geometry interaction once #98 lands.
+
 Source inspection on `e95f3cb` shows six gallery Blocks in `apps/web/src/app/dev/components/sections/blocks.tsx`. Production screens are separate compositions: `scenario-workbench.tsx`, `run-view.tsx`, explorer and experiment views. Both gallery and product use shared `components/lab` pieces, but imports alone do not prove visual or interaction parity. Gallery Block text still describes pre-M3 design candidates; it must become a current reference during implementation. This documentation pass did not visually audit those screens or measure browser performance.
 
 Use the accepted hierarchy and interactions, adapted to real persisted data and current capabilities. Do not force every gallery component onto every screen. Reuse shared production composites where behavior is the same; keep fixture adapters in the gallery. Production modules must not depend on gallery fixtures or simulated solver outputs. Maintain coss/Base UI composition, CSS tokens, mapcn and existing accessible parts. CSS and the running gallery are authoritative; no `.fig` export or OpenPencil work is required.

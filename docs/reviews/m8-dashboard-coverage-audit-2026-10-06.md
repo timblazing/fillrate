@@ -28,3 +28,20 @@ The gallery Blocks remain fixture presentations and their copy still describes p
 - `bun run build` passed on the task branch before evidence-only edits.
 - `bun run test:browser --flow=lesson`, `--flow=import`, `--flow=experiment`, and `--flow=matrix` passed against isolated local production builds and synthetic temporary data. The lesson persisted 2,000 orders and produced 443 shipments; experiment comparison and explorer/replay completed; matrix import validation and stale-coordinate refusal passed.
 - Current source `07545d0` is the baseline; no product code changed in this audit slice.
+
+## 2026-10-07 integrated follow-up (#100)
+
+Production candidate `ef03421` plus the final audit assertion correction passed `bun run test:browser --flow=dashboard-audit` using an isolated temporary database and real Python worker. All 52 captures are retained under [integration assets](assets/m8-dashboard-integration-2026-10-07/), each at 1440×900 and iPhone 16 393×852 in light/dark themes. Representative desktop/phone import, workbench and comparison captures were visually inspected. This extends the baseline; it does not declare all #88 acceptance complete.
+
+| Required row | Observed follow-up | Remaining limit |
+| --- | --- | --- |
+| Orders & inventory | Explicit depot required before preview; five actionable import errors and one notice; missing stock error; persisted depot edit produces version 2; list returns depot/order count/author/time; shortage and unresolved coordinate review verified. | Concurrent edit conflicts and every provenance source need targeted final acceptance. |
+| Run pipeline | Missing-coordinate preflight blocks submission; resolved unit-bearing settings, successful persisted stages and provenance are visible. | Active/retry/failure/cancel states remain covered by separate recovery flows, not this audit's visual captures. |
+| Workbench | Cluster → shipment selection survives map/shipments/timeline changes and clearing a cluster filter; phone tabs remain present. The selected shipment may be off the table's first page after clearing the filter; timeline confirms shared state. | Complete phone navigation interaction and remaining line-level states need final acceptance. |
+| Results | 2,000-order/443-shipment real output, 50-row pagination, no full-result refetch on selection, unshipped/stock tabs, validation/estimated basis and persisted shipment sheet checked. Print check produced 466 pages for 443 shipments and 327 unshipped lines; one-shipment sheet is one page. | Hosted road labels/default geometry are #98; broad/cold performance remains #89. |
+| k explorer | Real k=2,3 × seeds=0,1 output, table choice, seed agreement, repair toggle, confidence caveat and replay bundle verified; unknown job gives not-found state. | Representative larger diagnostics and actual solver-failure states remain targeted acceptance. |
+| Iteration comparison | Two valid complete runs share a comparable cohort; Best/2nd labels, per-metric deltas, ranking controls, lower bounds and cancellation boundary are visible. | Third place, changed-cohort interaction and real failed/cancelled run examples need targeted acceptance. |
+
+Shell/Learn/Labs/list routes and unknown-run states passed viewport checks. Scope excludes manual accessibility/VoiceOver and physical-device acceptance. Existing automated accessibility evidence is retained. The local sampled shipment selection response was 44–91 ms desktop and 106–135 ms phone in three warm trials; these samples do not establish p95 or close #89.
+
+Validation: lint (existing globe hook warning only), typecheck, production build, 176 persistence/contract/worker tests and 144 hosted/local assertions passed. The scenario-list JSON path defect found during review is corrected and covered by a persisted metadata assertion. Theme capture preserves transient import/preflight/selection state without page reloads.

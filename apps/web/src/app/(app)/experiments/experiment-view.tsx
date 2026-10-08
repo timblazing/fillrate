@@ -52,6 +52,15 @@ const display: Record<MetricKey, (v: number) => React.ReactNode> = {
   min_fill: (v) => <FillPercent fill={v} />,
   max_diameter_m: (v) => formatMiles(v / MI),
 }
+/** Signed difference from the Best option, in the column's own unit; "same" when equal at display precision. */
+function delta(k: MetricKey, value: number, best: number): string | null {
+  const d = value - best
+  if (d === 0) return "= Best"
+  const sign = d > 0 ? "+" : "−"
+  const a = Math.abs(d)
+  const body = k === "planned_cents" ? formatMoney(a, { compact: true }) : k === "trucks" ? formatCount(a) : k === "utilization" || k === "min_fill" ? `${(a * 100).toFixed(1)} pts` : formatMiles(a / MI)
+  return `${sign}${body}`
+}
 const COLUMNS: MetricKey[] = ["planned_cents", "trucks", "utilization", "min_fill", "mean_centroid_m", "max_diameter_m", "loaded_distance_m"]
 
 export function ExperimentView({ initial, canEdit, runKey, imported }: { initial: ExperimentDetail; canEdit: boolean; runKey?: string; imported: boolean }) {
@@ -125,10 +134,13 @@ export function ExperimentView({ initial, canEdit, runKey, imported }: { initial
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => <RunRow key={r.id} r={r} suffix={suffix} />)}
+            {rows.map((r) => <RunRow key={r.id} r={r} suffix={suffix} best={top[0] && r.rank != null && r.signature === top[0].signature ? top[0] : null} />)}
           </tbody>
         </table>
       </div>
+      <p className="text-muted-foreground max-w-3xl text-xs text-pretty">
+        Small grey figures show each ranked run&apos;s difference from the Best option in the same cohort. Sweeps have no cancel control: a running sweep finishes or fails per run, and each queued or running run can be cancelled from its own page.
+      </p>
       <p className="text-muted-foreground max-w-3xl text-xs text-pretty">
         With stock allocation held fixed and every allocated piece shipped, changing k or a seed cannot raise planned revenue; it only changes
         grouping, shipments, miles or feasibility. Inventory and mileage changes are different assumptions, so those runs form their own cohort.
@@ -139,7 +151,7 @@ export function ExperimentView({ initial, canEdit, runKey, imported }: { initial
   )
 }
 
-function RunRow({ r, suffix }: { r: Row; suffix: string }) {
+function RunRow({ r, suffix, best }: { r: Row; suffix: string; best: Row | null }) {
   return (
     <tr className={cn("border-b last:border-0", r.non_dominated && "bg-[color-mix(in_oklch,var(--success)_5%,transparent)]")}>
       <td className="px-3 py-2 text-xs whitespace-nowrap">{r.label ? <span className="font-medium">{r.label}</span> : r.rank ? `#${r.rank}` : <span className="text-muted-foreground">{r.reason}</span>}</td>
@@ -150,13 +162,17 @@ function RunRow({ r, suffix }: { r: Row; suffix: string }) {
           <Link href={`/runs/${r.id}${suffix}`} className="font-mono text-xs underline-offset-4 hover:underline">{r.id.slice(0, 8)}</Link>
           {r.validity === "invalid" && <Badge variant="error" size="sm">invalid</Badge>}
         </div>
+        {(r.status === "failed" || r.status === "cancelled") && <p className="text-muted-foreground mt-0.5 pl-4 text-[11px]">{r.status === "failed" ? "Failed" : "Cancelled"}: open the run for the cause and Run again.</p>}
         <div className="mt-0.5 flex flex-wrap gap-1 pl-4 font-mono text-[10px]">
           {Object.entries(r.varied).map(([k, v]) => <span key={k} className="bg-muted rounded px-1 py-px">{k} {String(v)}</span>)}
           {r.changed.map((c) => <span key={c} className="border-warning/60 text-warning-foreground rounded border border-dashed px-1 py-px">{c} · changed assumption</span>)}
         </div>
       </td>
       {COLUMNS.map((k) => (
-        <td key={k} className="px-3 py-2 text-right font-mono text-xs tabular-nums">{r.metrics?.[k] == null ? "–" : display[k](r.metrics[k]!)}</td>
+        <td key={k} className="px-3 py-2 text-right font-mono text-xs tabular-nums">
+          {r.metrics?.[k] == null ? "–" : display[k](r.metrics[k]!)}
+          {best && best.id !== r.id && best.metrics?.[k] != null && r.metrics?.[k] != null && <div className="text-muted-foreground text-[10px]">{delta(k, r.metrics[k]!, best.metrics[k]!)}</div>}
+        </td>
       ))}
       <td className="px-3 py-2 text-right font-mono text-xs tabular-nums">{r.capacity_lower_bound == null ? "–" : `${r.capacity_lower_bound} / ${r.sum_cluster_lower_bounds}`}</td>
     </tr>
