@@ -9,8 +9,9 @@ import { cn } from "@/lib/utils"
 
 const ring = "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 
-/** Landing header: blends into the hero until the page scrolls, then picks up a border and blur. */
-export function LandingHeader({ repoUrl }: { repoUrl: string }) {
+/** Landing header: blends into the hero until the page scrolls, then picks up a border and blur. An external `action` opens in a new tab. */
+export function LandingHeader({ repoUrl, action = { href: "/scenarios", label: "Open app" } }: { repoUrl: string; action?: { href: string; label: string } }) {
+  const external = action.href.startsWith("http")
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -31,9 +32,15 @@ export function LandingHeader({ repoUrl }: { repoUrl: string }) {
         <BrandLink showMark={false} className="[&>span]:text-sm" />
 
         <div className="flex items-center gap-4">
-          <Link href="/scenarios" className={cn("text-muted-foreground hover:text-foreground rounded-sm text-sm transition-colors", ring)}>
-            Open app
-          </Link>
+          {external ? (
+            <a href={action.href} target="_blank" rel="noopener noreferrer" className={cn("text-muted-foreground hover:text-foreground rounded-sm text-sm transition-colors", ring)}>
+              {action.label}
+            </a>
+          ) : (
+            <Link href={action.href} className={cn("text-muted-foreground hover:text-foreground rounded-sm text-sm transition-colors", ring)}>
+              {action.label}
+            </Link>
+          )}
           <span aria-hidden="true" className="bg-border h-4 w-px" />
           <a
             href={repoUrl}

@@ -18,8 +18,6 @@ const short = (id: string) => id.slice(0, 8)
 export function crumbsFor(pathname: string): Crumb[] {
   const [section, id, sub] = pathname.split("/").filter(Boolean)
   switch (section) {
-    case "playground":
-      return [{ label: "Playground" }]
     case "scenarios":
       return [{ label: "Scenarios" }]
     case "runs":
@@ -43,11 +41,11 @@ export function crumbsFor(pathname: string): Crumb[] {
  * sticky breadcrumb header. Pages render inside it with `Page` from `./page`, which owns width, gutters and spacing.
  * The content column is a div, not SidebarInset's <main>, because each page supplies its own <main>.
  */
-export function AppShell({ defaultOpen = true, playground = false, children }: { defaultOpen?: boolean; playground?: boolean; children: ReactNode }) {
+export function AppShell({ defaultOpen = true, children }: { defaultOpen?: boolean; children: ReactNode }) {
   const crumbs = crumbsFor(usePathname())
   return (
     <SidebarProvider defaultOpen={defaultOpen} className="print:block print:min-h-0 print:bg-transparent print:[&>[data-slot=sidebar]]:hidden">
-      <AppSidebar playground={playground} />
+      <AppSidebar />
       <div
         data-slot="sidebar-inset"
         className="bg-background relative flex w-full min-w-0 flex-1 flex-col"
