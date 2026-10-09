@@ -27,7 +27,7 @@ The user's pain is interpreting raw solver output, so results must explain thems
 Fillrate is being simplified. Decisions:
 
 - **Local is the full tool.** Docker or Bun from source, single user, no accounts, saved scenarios and runs in SQLite. Real or sensitive data belongs here.
-- **The hosted site is a stateless playground.** Upload a CSV or load the one bundled example, then run with hard caps on order count, solve time and concurrency. Results return to the browser and nothing is stored. No accounts, quotas or access requests. Results are always real solver output.
+- **The hosted site is a stateless playground.** Upload a CSV or load the one bundled example, then run with hard caps on order count, solve time and concurrency. Results return to the browser and nothing is stored. No accounts, quotas or access requests. Results are always real solver output. The playground is a compact workbench: scenario setup beside input inspection and results, with sample orders, stock coverage and stop distribution visible before a run.
 - **Roads are display only.** The browser may draw a selected shipment's road path and road miles from the public Valhalla server, with OpenStreetMap credit. No self-hosted Valhalla, road matrices, coverage limits or geometry caches.
 - **Kept pipeline features:** the core loop above, time windows and service durations, and the k/seed explorer.
 - **Removed:** Learn lessons, Solver Lab, `/dev` progress pages and the component gallery, hosted auth/quotas/request access, CP-SAT allocation, mixed fleets, manual plans and warm starts, the durable job/lease/artifact-reuse machinery (replaced by direct solves), and the release-evidence process.

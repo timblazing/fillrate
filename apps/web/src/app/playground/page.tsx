@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 
-import { LandingHeader } from "@/components/landing/landing-header"
-import { SiteFooter } from "@/components/landing/site-footer"
+import { BrandLink } from "@/components/brand/brand-link"
+import { GitHubMark } from "@/components/brand/github-mark"
 import { playgroundCaps } from "@/lib/server/playground"
 import { EXAMPLES, exampleInfo } from "@/lib/server/runs"
 
@@ -10,52 +10,86 @@ import { PlaygroundView } from "./playground-view"
 export const dynamic = "force-dynamic"
 export const metadata: Metadata = {
   title: "Playground · Fillrate",
-  description: "Run Fillrate's fulfillment pipeline on sample data or your own CSV files. Nothing is saved.",
+  description:
+    "A truckload planning workbench. Inspect orders and stock, run the solver, and explore shipments. Nothing is saved.",
 }
 
 const REPO_URL = "https://github.com/timblazing/fillrate"
 
-// The hosted demo is a standalone page (no app sidebar), styled after the blasingame.dev design system:
-// a display title over a masked dot field, then full-bleed sections separated by hairlines.
 export default function PlaygroundPage() {
   const caps = playgroundCaps()
   const lesson = EXAMPLES.lesson
   const { name, orders, lines, locations } = exampleInfo(lesson)
-  const example = { name, orders, lines, locations, products: lesson.scenario.products.length, depot: lesson.scenario.depot.label }
-  const limits = [`Up to ${caps.maxOrders.toLocaleString("en-US")} orders`, `${caps.solveSeconds} s per run`, "One run at a time", "Nothing is saved"]
+  const { scenario } = lesson
+  const demand = new Map<string, number>()
+  for (const order of scenario.orders) {
+    for (const line of order.lines)
+      demand.set(line.product_id, (demand.get(line.product_id) ?? 0) + line.ordered_pieces)
+  }
+  const example = {
+    name,
+    orders,
+    lines,
+    locations,
+    products: scenario.products.length,
+    depot: scenario.depot.label,
+    points: scenario.locations.filter((l) => l.lat != null && l.lon != null).map((l) => ({ lat: l.lat!, lon: l.lon! })),
+    origin: { lat: scenario.depot.lat, lon: scenario.depot.lon },
+    stock: scenario.products.map((p) => ({
+      id: p.id,
+      label: p.label,
+      ordered: demand.get(p.id) ?? 0,
+      available: scenario.inventory.find((i) => i.product_id === p.id)?.available_pieces ?? 0,
+    })),
+    preview: scenario.orders.slice(0, 6).map((o) => ({
+      id: o.id,
+      date: o.order_date,
+      location: o.location_id,
+      pieces: o.lines.reduce((n, l) => n + l.ordered_pieces, 0),
+      value: o.lines.reduce((n, l) => n + l.ordered_pieces * l.net_value_per_piece_cents, 0),
+    })),
+    k: lesson.settings.k,
+  }
 
   return (
-    <div className="font-ui flex min-h-dvh flex-col">
-      <LandingHeader repoUrl={REPO_URL} action={{ href: `${REPO_URL}#readme`, label: "Run locally" }} />
-
-      <main className="flex-1 overflow-x-clip">
-        <section aria-labelledby="playground-title" className="relative border-b">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_70%_80%_at_70%_30%,black,transparent)] bg-size-[22px_22px]"
-          />
-          <div className="relative mx-auto max-w-7xl px-4 pt-16 pb-14 sm:px-6 sm:pt-24 sm:pb-20">
-            <h1 id="playground-title" className="font-display text-5xl leading-none font-medium tracking-[-0.05em] text-balance sm:text-7xl">
-              Plan a fuller truckload.
-            </h1>
-            <p className="text-muted-foreground mt-6 max-w-xl text-base leading-relaxed text-pretty sm:text-lg">
-              Run the whole pipeline in your browser: allocate scarce stock to open orders, group the stops into clusters, and build truckloads with PyVRP.
-            </p>
-            <ul className="text-muted-foreground mt-8 flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs">
-              {limits.map((limit) => (
-                <li key={limit} className="flex items-center gap-2">
-                  <span aria-hidden="true" className="bg-muted-foreground/50 size-1 rounded-full" />
-                  {limit}
-                </li>
-              ))}
-            </ul>
+    <div className="flex min-h-dvh flex-col bg-muted/20">
+      <header className="bg-background flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 sm:px-6">
+        <BrandLink className="[&>span]:text-base" />
+        <span className="text-muted-foreground border-l pl-4 text-sm">Playground</span>
+        <div className="ml-auto flex items-center gap-4 text-xs">
+          <a
+            href={`${REPO_URL}#readme`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-muted-foreground hover:text-foreground rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            Run locally
+          </a>
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Fillrate on GitHub"
+            className="text-muted-foreground hover:text-foreground rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <GitHubMark className="size-4" />
+          </a>
+        </div>
+      </header>
+      <main className="flex flex-1 flex-col">
+        <div className="bg-background flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Truckload workbench</h1>
+            <p className="text-muted-foreground mt-1 text-xs">Allocate stock. Group stops. Build loads.</p>
           </div>
-        </section>
-
+          <p className="text-muted-foreground text-xs">
+            <span className="text-foreground tabular-nums">{caps.maxOrders.toLocaleString("en-US")}</span> orders max{" "}
+            <span className="mx-2">/</span> <span className="text-foreground tabular-nums">{caps.solveSeconds} s</span>{" "}
+            run limit <span className="mx-2">/</span> Nothing saved
+          </p>
+        </div>
         <PlaygroundView caps={caps} example={example} />
       </main>
-
-      <SiteFooter repoUrl={REPO_URL} />
     </div>
   )
 }
