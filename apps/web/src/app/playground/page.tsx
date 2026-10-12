@@ -26,6 +26,7 @@ export default function PlaygroundPage() {
     for (const line of order.lines)
       demand.set(line.product_id, (demand.get(line.product_id) ?? 0) + line.ordered_pieces)
   }
+  const stops = new Set(scenario.orders.map((o) => o.location_id))
   const example = {
     name,
     orders,
@@ -33,7 +34,7 @@ export default function PlaygroundPage() {
     locations,
     products: scenario.products.length,
     depot: scenario.depot.label,
-    points: scenario.locations.filter((l) => l.lat != null && l.lon != null).map((l) => ({ lat: l.lat!, lon: l.lon! })),
+    points: scenario.locations.filter((l) => l.lat != null && l.lon != null && stops.has(l.id)).map((l) => ({ lat: l.lat!, lon: l.lon! })),
     origin: { lat: scenario.depot.lat, lon: scenario.depot.lon },
     stock: scenario.products.map((p) => ({
       id: p.id,

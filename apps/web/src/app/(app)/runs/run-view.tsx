@@ -223,7 +223,7 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
   const steps: [string, string, string][] = [
     ["Preflight", flagged ? `${flagged} ${flagged === 1 ? "check" : "checks"} flagged` : "no issues", "data and policy checks"],
     ["Allocation", `${formatCount(allocated)} of ${formatCount(ordered)}`, `pieces · ${allocationSettingsLabel(summary.settings)}`],
-    ["Aggregation", formatCount(t.visits), t.visits === 1 ? "stop" : "stops"],
+    ["Aggregation", formatCount(t.locations), `${t.locations === 1 ? "stop" : "stops"} with stock${t.visits > t.locations ? ` · ${formatCount(t.visits)} visits (oversize stops split)` : ""}`],
     ["Clustering", formatCount(summary.clustering.effective_cluster_count), `clusters · ${strategyLabel(summary)}`],
     ["Travel", travelBasis(summary.travel, summary.settings.travel_circuity).step, travelBasis(summary.travel, summary.settings.travel_circuity).unit],
     ["Solve", formatCount(t.trucks), t.trucks === 1 ? "shipment" : "shipments"],

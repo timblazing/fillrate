@@ -34,7 +34,7 @@ const EXAMPLE_LABELS: Record<ExampleId, string> = { m1: "Small example", lesson:
 /** Small listing for pages and `GET /api/v1/examples`. */
 export function exampleInfo(example: Example) {
   const { scenario, settings } = example;
-  return { id: example.id, name: scenario.name, label: EXAMPLE_LABELS[example.id], blurb: example.blurb, orders: scenario.orders.length, lines: scenario.orders.reduce((n, o) => n + o.lines.length, 0), locations: scenario.locations.length, k: settings.k ?? null };
+  return { id: example.id, name: scenario.name, label: EXAMPLE_LABELS[example.id], blurb: example.blurb, orders: scenario.orders.length, lines: scenario.orders.reduce((n, o) => n + o.lines.length, 0), locations: new Set(scenario.orders.map((o) => o.location_id)).size, k: settings.k ?? null };
 }
 
 export { ApiError, errorResponse } from "./errors";
