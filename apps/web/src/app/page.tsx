@@ -34,7 +34,7 @@ const questions = [
   {
     question: "Can I use my own orders and inventory?",
     answer:
-      "Yes. Import orders, stock, and vehicles as a scenario, or start from one of the bundled synthetic examples to see how a plan comes together.",
+      "Yes. Run Fillrate on your own machine and import orders and stock as CSV, GeoJSON or scenario JSON. The hosted playground also accepts a CSV upload and stores nothing. Or start from a bundled synthetic example to see how a plan comes together.",
   },
   {
     question: "Where can I see the code?",
@@ -90,7 +90,7 @@ export default function Home() {
                 </span>
               </p>
               <p className="text-muted-foreground mt-8 max-w-xl text-sm leading-relaxed">
-                Routes are solved with PyVRP. Travel times are estimates unless you import your own matrix. Fillrate is built for planning and comparison, not dispatching drivers, tracking vehicles, or turn-by-turn directions.
+                Loads are built with PyVRP on estimated distances (straight-line miles × a circuity factor); road paths are drawn for display only. Fillrate is built for planning and comparison, not dispatching drivers, tracking vehicles, or turn-by-turn directions.
               </p>
               <a
                 href={REPO_URL}

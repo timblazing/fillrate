@@ -1,6 +1,6 @@
 <h1 align="center">Fillrate</h1>
 
-<p align="center">An open source tool for allocating scarce inventory and building full truckloads.</p>
+<p align="center">Allocate scarce inventory to open orders and build full truckloads.</p>
 
 <p align="center">
   <a href="https://fillrate.blasingame.dev">Website</a> ·
@@ -9,26 +9,40 @@
   <a href="LICENSE">MIT license</a>
 </p>
 
-Allocate limited inventory to open orders, group delivery stops, and build trailer loads with a real vehicle-routing solver. Then compare plans by revenue, trailer fill, truck count and miles.
+<p align="center"><img src="docs/screenshots/run-map.png" alt="A run of the 2,000-order example: eight delivery clusters around a Memphis depot, with revenue, shipment count and trailer fill per cluster" width="900"></p>
 
-> Fillrate is being simplified. See [`docs/product.md`](docs/product.md) for the direction.
+When stock is short and trucks are finite, Fillrate answers three questions for a single depot shipping on 53 ft trailers: **which order lines get the stock, how stops group into delivery areas, and how many full trucks it takes.** Every plan is checked by an independent validator and explains why each line did or didn't ship.
+
+## How a run works
+
+1. **Allocate** available inventory to order lines piece by piece: earliest order date first, then highest value per piece. Lines can be partly filled.
+2. **Cluster** the stops with k-means. The k explorer compares k values and seeds so you can check a grouping is stable.
+3. **Build loads** in each cluster with [PyVRP](https://pyvrp.org/): linear feet as capacity, open routes (no return leg), at most 500 miles per drive, optional delivery time windows. Fewest trucks first, then fewest miles.
+4. **Validate and compare.** Revenue, trailer fill, truck count and miles per run, cluster and shipment; side-by-side comparison across runs and sweeps.
+
+Distances are straight-line miles × a circuity factor (default 1.2). Roads never feed the optimizer; you can draw a shipment's road path from the public Valhalla server for display (routing © Valhalla / FOSSGIS, data © OpenStreetMap contributors).
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Run summary: revenue, shipments, trailer fill, miles and pipeline steps](docs/screenshots/run-summary.png) | ![Unshipped lines grouped by reason, with evidence for each](docs/screenshots/unshipped.png) |
+| **Run summary.** Headline numbers, preflight checks and each pipeline step. | **Unshipped.** Every line that didn't ship, why, and the evidence. |
+| ![Scenario workbench with a saved 2,000-order scenario and data review](docs/screenshots/workbench.png) | ![Hosted playground after running the sample scenario](docs/screenshots/playground.png) |
+| **Workbench.** Import, review and fix data, save versions, then run. | **Playground.** The hosted, stateless version: run the sample or a CSV. |
 
 ## Features
 
-- **CSV import.** Orders and inventory from CSV, or start from the bundled example. Addresses geocode with the free US Census geocoder, with a labeled ZIP fallback.
-- **Allocation.** Piece-level allocation of short stock by order date, then value.
-- **Clustering.** k-means on stop locations, with a k and seed explorer to check how stable the grouping is.
-- **Load building.** [PyVRP](https://pyvrp.org/) builds loads per cluster using linear-foot capacity, open routes, a per-leg mile limit and optional time windows.
-- **Validation.** An independent validator checks every plan and explains why each line did or didn't ship.
-- **Map and inspection.** Cluster map, per-shipment timeline and optional road path display via the public Valhalla server (display only, drawn by your browser on request; routing © Valhalla / FOSSGIS, data © OpenStreetMap contributors).
-- **Comparison.** Put runs side by side on fill, revenue, trucks and miles.
-- **Exports.** JSON, CSV, GeoJSON and a Python replay bundle that reproduces a run with PyVRP.
-
-Distances are estimated as straight-line miles × a circuity factor (default 1.2). Roads never feed the optimizer.
+- **Import** orders and stock as CSV, GeoJSON points or scenario JSON, or open a bundled example in one click. Addresses geocode with the free US Census geocoder, with a labeled ZIP fallback; fix coordinates by hand on a map.
+- **Versioned scenarios.** Edit quantities, dates and coordinates in place; each save is a new version you can branch from.
+- **Preflight checks** flag missing coordinates, unreachable stops and oversize stops before the solver runs, each set to block or warn.
+- **Run inspection.** Cluster map, per-shipment list and timeline, unshipped lines with reasons, stock use and full provenance.
+- **Experiments.** Sweep k, seeds and settings across runs and rank the results.
+- **Exports.** Printable shipment sheets, JSON, CSV, GeoJSON, and a Python bundle that replays a run with PyVRP.
 
 ## Run it locally
 
-Local Fillrate is single-user with no account. Keep it on your own machine for real data.
+Local Fillrate is the full tool: single user, no account, scenarios and runs saved in SQLite. Keep real data here.
 
 **Docker:**
 
@@ -38,7 +52,7 @@ docker run --rm -p 127.0.0.1:3000:3000 \
   -v "$PWD/data:/app/data" ghcr.io/timblazing/fillrate:latest
 ```
 
-Open http://localhost:3000. Data is stored in `./data/fillrate.sqlite`.
+Open http://localhost:3000/scenarios and click **Open lesson, 2,000 orders** to try it. Data is stored in `./data/fillrate.sqlite`.
 
 **From source** (Node 24, [Bun](https://bun.sh), [uv](https://docs.astral.sh/uv/) with Python 3.13):
 
@@ -51,7 +65,11 @@ bun run optimizer                 # terminal 2: the Python solver service (127.0
 
 ## Playground mode
 
-Set `FILLRATE_PLAYGROUND=1` to serve a stateless playground, meant for a hosted demo. Only `/playground` exists: visitors run the bundled example or upload an orders and inventory CSV (with latitude and longitude), and nothing is stored (no database is opened). Runs are capped by `PLAYGROUND_MAX_ORDERS` (default 2000) and `PLAYGROUND_SOLVE_SECONDS` (default 60, whole run); solver time is limited to 5 seconds per cluster, and one run goes at a time.
+Set `FILLRATE_PLAYGROUND=1` to serve a stateless playground, meant for a hosted demo. Only `/playground` exists: visitors run the bundled example or upload an orders and inventory CSV (with latitude and longitude), and nothing is stored. Runs are capped by `PLAYGROUND_MAX_ORDERS` (default 2000) and `PLAYGROUND_SOLVE_SECONDS` (default 60, whole run); solver time is limited to 5 seconds per cluster, and one run goes at a time.
+
+## Limits
+
+Fillrate is a planning and comparison tool, not dispatch, tracking or navigation. Linear feet are a one-dimensional capacity model, not a packing or compliance check. Allocation is an experiment against an inventory snapshot, not a reservation. Shipment counts and miles are the solver's best found values, not proven optimal.
 
 Built with Next.js, SQLite, Python and PyVRP. Contributors and coding agents, see [`AGENTS.md`](AGENTS.md).
 
