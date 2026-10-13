@@ -1,11 +1,12 @@
 "use client"
 
 import type { RunSummary } from "@fillrate/contracts"
-import { Check, CircleDot, FileSpreadsheet, MapPin, Play, RotateCcw, Truck, Upload, X } from "lucide-react"
+import { Check, CircleDot, FileSpreadsheet, MapPin, Pencil, Play, SlidersHorizontal, RotateCcw, Truck, Upload, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
@@ -197,26 +198,24 @@ function CsvDrop({
   )
 }
 
-export function PlaygroundView({ caps, example }: { caps: Caps; example: Example }) {
-  const geo = useRoadGeometry()
-  const results = useRef<HTMLElement>(null)
-  const [source, setSource] = useState("sample")
-  const [workspace, setWorkspace] = useState("inputs")
-  const [busy, setBusy] = useState(false)
-  const [started, setStarted] = useState(0)
-  const [elapsed, setElapsed] = useState(0)
-  const [error, setError] = useState<string | null>(null)
-  const [outcome, setOutcome] = useState<Outcome | null>(null)
-  const [depot, setDepot] = useState({ label: "", lat: "", lon: "" })
-  const [orders, setOrders] = useState<Csv | null>(null)
-  const [inventory, setInventory] = useState<Csv | null>(null)
+type Setup = {
+  source: string
+  depot: { label: string; lat: string; lon: string }
+  orders: Csv | null
+  inventory: Csv | null
+}
 
-  useEffect(() => {
-    if (!busy) return
-    const timer = setInterval(() => setElapsed((performance.now() - started) / 1000), 200)
-    return () => clearInterval(timer)
-  }, [busy, started])
-
+function ScenarioSetup({ initial, caps, example, onApply, onClose }: {
+  initial: Setup
+  caps: Caps
+  example: Example
+  onApply: (setup: Setup) => void
+  onClose: () => void
+}) {
+  const [source, setSource] = useState(initial.source)
+  const [depot, setDepot] = useState(initial.depot)
+  const [orders, setOrders] = useState(initial.orders)
+  const [inventory, setInventory] = useState(initial.inventory)
   const lat = Number(depot.lat),
     lon = Number(depot.lon)
   const depotReady =
@@ -238,101 +237,29 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
     setDepot(pair ? { ...depot, lat: pair[1], lon: pair[2] } : { ...depot, [key]: value })
   }
 
-  async function run(kind: "example" | "upload") {
-    const t0 = performance.now()
-    setBusy(true)
-    setStarted(t0)
-    setElapsed(0)
-    setError(null)
-    setOutcome(null)
-    setWorkspace("results")
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    requestAnimationFrame(() =>
-      results.current?.scrollIntoView({
-        behavior: reduce ? "auto" : "smooth",
-        block: "start",
-      })
-    )
-    try {
-      const name = orders?.name.replace(/\.csv$/i, "") || "My scenario"
-      const body =
-        kind === "example"
-          ? { example: "lesson" }
-          : {
-              import: {
-                name,
-                depot: { id: "depot", label: depot.label.trim(), lat, lon },
-                ordersCsv: orders?.text,
-                inventoryCsv: inventory?.text,
-              },
-            }
-      const res = await fetch("/api/v1/playground", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json().catch(() => null)
-      if (res.ok)
-        setOutcome({
-          summary: data.summary,
-          seconds: (performance.now() - t0) / 1000,
-        })
-      else setError(data?.error?.message ?? `The run failed (HTTP ${res.status}).`)
-    } catch {
-      setError("Could not reach the server. Check your connection and try again.")
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
-    <div className="grid flex-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-      <aside aria-label="Scenario setup" className="bg-background border-b lg:border-r lg:border-b-0">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Scenario setup</h2>
-          <FileSpreadsheet aria-hidden="true" className="text-muted-foreground size-4" />
-        </div>
-        <Tabs value={source} onValueChange={(v) => setSource(String(v))} className="gap-4 p-4">
-          <TabsList className="w-full" size="sm">
-            <TabsTab value="sample" disabled={busy}>
-              Sample data
-            </TabsTab>
-            <TabsTab value="upload" disabled={busy}>
-              Your files
-            </TabsTab>
-          </TabsList>
-          <TabsPanel value="sample" className="flex flex-col gap-4">
-            <div className="rounded-md border">
-              <div className="bg-muted/40 flex items-center gap-2 border-b px-3 py-2 text-sm font-medium">
-                <MapPin aria-hidden="true" className="text-info-foreground size-4" />
-                {example.depot}
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogPopup className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Set up your playground</DialogTitle>
+          <DialogDescription>Try a sample scenario or bring your own orders and inventory.</DialogDescription>
+        </DialogHeader>
+        <DialogPanel>
+          <Tabs value={source} onValueChange={(value) => setSource(String(value))} className="gap-5">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTab value="sample" className="min-w-0 px-1 text-xs sm:text-sm"><Truck aria-hidden="true" className="size-4" /> Try sample data</TabsTab>
+              <TabsTab value="upload" className="min-w-0 px-1 text-xs sm:text-sm"><Upload aria-hidden="true" className="size-4" /> Upload your CSVs</TabsTab>
+            </TabsList>
+            <TabsPanel value="sample" className="space-y-4">
+              <div className="bg-muted/30 rounded-lg border p-4">
+                <div className="flex items-center gap-2 text-sm font-medium"><MapPin aria-hidden="true" className="text-info-foreground size-4" />{example.depot}</div>
+                <h3 className="mt-4 font-medium">Scarce-stock scenario</h3>
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">Plan truckloads for {count(example.orders)} synthetic orders across {count(example.locations)} stops. See how limited stock is allocated and which orders ship.</p>
+                <p className="text-muted-foreground mt-4 text-xs">No files needed. Inspect the inputs, then run the sample.</p>
               </div>
-              <div className="p-3">
-                <p className="text-sm font-medium">Scarce-stock scenario</p>
-                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                  Synthetic orders across {count(example.locations)} stops. Stock runs short on{" "}
-                  {example.stock.filter((p) => p.available < p.ordered).length} of {example.products} products.
-                </p>
-              </div>
-              <dl className="grid grid-cols-2 border-t">
-                {[
-                  ["Orders", example.orders],
-                  ["Order lines", example.lines],
-                  ["Stops", example.locations],
-                  ["Products", example.products],
-                ].map(([label, value], i) => (
-                  <div key={label} className={cn("px-3 py-2", i % 2 && "border-l", i >= 2 && "border-t")}>
-                    <dt className="text-muted-foreground text-xs">{label}</dt>
-                    <dd className="font-mono text-lg tabular-nums">{count(value as number)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-            <Button onClick={() => run("example")} disabled={busy} className="w-full">
-              <Play aria-hidden="true" /> Run the sample
-            </Button>
-          </TabsPanel>
-          <TabsPanel value="upload" className="flex flex-col gap-4">
+            </TabsPanel>
+            <TabsPanel value="upload" className="flex flex-col gap-4">
+              <p className="text-muted-foreground rounded-md border bg-muted/30 p-3 text-xs leading-relaxed">Data and results stay in this tab. Run locally to save scenarios and tune the solver.</p>
             <p className="text-muted-foreground text-xs leading-relaxed">
               Upload orders and available stock. Each order line needs latitude and longitude.
             </p>
@@ -399,22 +326,154 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
               </Alert>
             )}
 
-            <div className="flex flex-wrap items-center gap-4">
-              <Button className="w-full" onClick={() => run("upload")} disabled={busy || missing.length > 0 || overCap}>
-                <Play aria-hidden="true" /> Run your files
-              </Button>
-              {missing.length > 0 && (
-                <span className="text-muted-foreground text-xs">
-                  Add {missing.join(", ").replace(/, ([^,]*)$/, " and $1")} to run.
-                </span>
-              )}
-            </div>
-          </TabsPanel>
-        </Tabs>
-        <section aria-labelledby="run-configuration" className="hidden border-t p-4 lg:block">
-          <h3 id="run-configuration" className="mb-3 text-sm font-semibold">
-            Run configuration
-          </h3>
+            </TabsPanel>
+          </Tabs>
+        </DialogPanel>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={source === "upload" && (missing.length > 0 || overCap)} onClick={() => onApply({ source, depot, orders, inventory })}>
+            {source === "sample" ? "Use sample data" : "Use my files"}
+          </Button>
+        </DialogFooter>
+      </DialogPopup>
+    </Dialog>
+  )
+}
+
+export function PlaygroundView({ caps, example }: { caps: Caps; example: Example }) {
+  const geo = useRoadGeometry()
+  const results = useRef<HTMLElement>(null)
+  const [setupOpen, setSetupOpen] = useState(true)
+  const [source, setSource] = useState("sample")
+  const [workspace, setWorkspace] = useState("inputs")
+  const [busy, setBusy] = useState(false)
+  const [started, setStarted] = useState(0)
+  const [elapsed, setElapsed] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [outcome, setOutcome] = useState<Outcome | null>(null)
+  const [depot, setDepot] = useState({ label: "", lat: "", lon: "" })
+  const [orders, setOrders] = useState<Csv | null>(null)
+  const [inventory, setInventory] = useState<Csv | null>(null)
+
+  useEffect(() => {
+    if (!busy) return
+    const timer = setInterval(() => setElapsed((performance.now() - started) / 1000), 200)
+    return () => clearInterval(timer)
+  }, [busy, started])
+
+  const lat = Number(depot.lat),
+    lon = Number(depot.lon)
+  const depotReady =
+    depot.label.trim() !== "" &&
+    depot.lat.trim() !== "" &&
+    depot.lon.trim() !== "" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 &&
+    Math.abs(lon) <= 180
+  const overCap = orders?.orders != null && orders.orders > caps.maxOrders
+  const missing = [!depotReady && "the depot", !orders && "an orders CSV", !inventory && "an inventory CSV"].filter(
+    Boolean
+  ) as string[]
+
+  async function run(kind: "example" | "upload") {
+    const t0 = performance.now()
+    setBusy(true)
+    setStarted(t0)
+    setElapsed(0)
+    setError(null)
+    setOutcome(null)
+    setWorkspace("results")
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    requestAnimationFrame(() =>
+      results.current?.scrollIntoView({
+        behavior: reduce ? "auto" : "smooth",
+        block: "start",
+      })
+    )
+    try {
+      const name = orders?.name.replace(/\.csv$/i, "") || "My scenario"
+      const body =
+        kind === "example"
+          ? { example: "lesson" }
+          : {
+              import: {
+                name,
+                depot: { id: "depot", label: depot.label.trim(), lat, lon },
+                ordersCsv: orders?.text,
+                inventoryCsv: inventory?.text,
+              },
+            }
+      const res = await fetch("/api/v1/playground", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok)
+        setOutcome({
+          summary: data.summary,
+          seconds: (performance.now() - t0) / 1000,
+        })
+      else setError(data?.error?.message ?? `The run failed (HTTP ${res.status}).`)
+    } catch {
+      setError("Could not reach the server. Check your connection and try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="grid flex-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
+      {setupOpen && <ScenarioSetup
+        initial={{ source, depot, orders, inventory }} caps={caps} example={example}
+        onClose={() => setSetupOpen(false)}
+        onApply={(setup) => {
+          setSource(setup.source)
+          setDepot(setup.depot)
+          setOrders(setup.orders)
+          setInventory(setup.inventory)
+          setOutcome(null)
+          setError(null)
+          setWorkspace("inputs")
+          setSetupOpen(false)
+        }}
+      />}
+      <aside aria-label="Scenario controls" className="bg-background border-b lg:border-r lg:border-b-0">
+        <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+            <MapPin aria-hidden="true" className="text-info-foreground size-4 shrink-0" />
+            <span className="truncate">{source === "sample" ? example.depot : depot.label}</span>
+          </div>
+          <Button variant="ghost" size="icon-sm" aria-label="Edit scenario" title="Edit scenario" disabled={busy} onClick={() => setSetupOpen(true)}><Pencil /></Button>
+        </div>
+        <div className="flex flex-col gap-4 p-4">
+          <div>
+            <p className="text-sm font-medium">{source === "sample" ? "Scarce-stock scenario" : orders?.name.replace(/\.csv$/i, "")}</p>
+            <p className="text-muted-foreground mt-1 text-xs">{source === "sample" ? "Bundled synthetic data" : "Your uploaded files"}</p>
+          </div>
+          <dl className="grid grid-cols-2 overflow-hidden rounded-md border">
+            {(source === "sample" ? [
+              ["Orders", count(example.orders)], ["Order lines", count(example.lines)],
+              ["Stops", count(example.locations)], ["Products", count(example.products)],
+            ] : [
+              ["Orders", orders?.orders == null ? "—" : count(orders.orders)],
+              ["Order lines", count(orders?.rows ?? 0)],
+              ["Inventory rows", count(inventory?.rows ?? 0)],
+              ["Depot", `${depot.lat}, ${depot.lon}`],
+            ]).map(([label, value], i) => <div key={label} className={cn("min-w-0 px-3 py-2", i % 2 && "border-l", i >= 2 && "border-t")}>
+              <dt className="text-muted-foreground text-xs">{label}</dt>
+              <dd className={cn("mt-1 tabular-nums", label === "Depot" ? "break-words text-xs" : "font-mono text-lg")}>{value}</dd>
+            </div>)}
+          </dl>
+          <Button onClick={() => run(source === "sample" ? "example" : "upload")} disabled={busy || (source === "upload" && (missing.length > 0 || overCap))} className="w-full">
+            {busy ? <Spinner /> : <Play aria-hidden="true" />} {busy ? "Solving…" : source === "sample" ? "Run the sample" : "Run your files"}
+          </Button>
+        </div>
+        <details open className="border-t p-4">
+          <summary className="mb-3 flex cursor-pointer items-center gap-2 text-sm font-semibold">
+            <SlidersHorizontal aria-hidden="true" className="size-4" /> Run settings
+          </summary>
           <dl className="space-y-2 text-xs">
             {[
               ["Trailer capacity", "53 ft"],
@@ -429,18 +488,7 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
               </div>
             ))}
           </dl>
-          <p className="text-muted-foreground mt-4 border-t pt-3 text-xs leading-relaxed">
-            One run at a time. Data and results stay in this tab. Run locally to save scenarios and tune the solver.
-          </p>
-        </section>
-        <details className="border-t p-4 lg:hidden">
-          <summary className="cursor-pointer text-xs font-medium">
-            Run configuration / 53 ft trailers / 500 mi legs
-          </summary>
-          <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
-            k-means ({source === "sample" ? `k = ${example.k ?? "auto"}` : "auto k"}). Fewest trucks, then miles. Up to{" "}
-            {caps.clusterSolveSeconds} s per cluster. One run at a time; nothing saved.
-          </p>
+          <p className="text-muted-foreground mt-4 border-t pt-3 text-xs leading-relaxed">One run at a time. Run locally to tune these settings.</p>
         </details>
       </aside>
       <section
