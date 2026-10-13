@@ -78,17 +78,7 @@ export default function PlaygroundPage() {
         </div>
       </header>
       <main className="flex flex-1 flex-col">
-        <div className="bg-background flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Truckload workbench</h1>
-            <p className="text-muted-foreground mt-1 text-xs">Allocate stock. Group stops. Build loads.</p>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            <span className="text-foreground tabular-nums">{caps.maxOrders.toLocaleString("en-US")}</span> orders max{" "}
-            <span className="mx-2">/</span> <span className="text-foreground tabular-nums">{caps.solveSeconds} s</span>{" "}
-            run limit <span className="mx-2">/</span> Nothing saved
-          </p>
-        </div>
+        <h1 className="sr-only">Truckload workbench</h1>
         <PlaygroundView caps={caps} example={example} />
       </main>
     </div>
