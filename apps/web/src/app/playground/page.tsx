@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 
 import { BrandLink } from "@/components/brand/brand-link"
 import { GitHubMark } from "@/components/brand/github-mark"
-import { playgroundCaps } from "@/lib/server/playground"
+import { playgroundCaps, playgroundSample } from "@/lib/server/playground"
 import { EXAMPLES, exampleInfo } from "@/lib/server/runs"
 
 import { PlaygroundView } from "./playground-view"
@@ -79,7 +79,7 @@ export default function PlaygroundPage() {
       </header>
       <main className="flex flex-1 flex-col">
         <h1 className="sr-only">Truckload workbench</h1>
-        <PlaygroundView caps={caps} example={example} />
+        <PlaygroundView caps={caps} example={example} sample={playgroundSample} />
       </main>
     </div>
   )

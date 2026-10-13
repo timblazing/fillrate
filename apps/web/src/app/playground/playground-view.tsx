@@ -1,7 +1,7 @@
 "use client"
 
 import type { RunSummary } from "@fillrate/contracts"
-import { Check, CircleDot, FileSpreadsheet, MapPin, Pencil, Play, SlidersHorizontal, RotateCcw, Truck, Upload, X } from "lucide-react"
+import { FileSpreadsheet, MapPin, Pencil, Play, SlidersHorizontal, Truck, Upload, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -11,6 +11,8 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs"
+import { formatMoney, formatPercent, formatMiles } from "@/lib/units"
+import { METERS_PER_MILE } from "@/lib/shipment-sheet"
 import { cn } from "@/lib/utils"
 
 import { Results } from "../(app)/runs/run-view"
@@ -255,7 +257,7 @@ function ScenarioSetup({ initial, caps, example, onApply, onClose }: {
                 <div className="flex items-center gap-2 text-sm font-medium"><MapPin aria-hidden="true" className="text-info-foreground size-4" />{example.depot}</div>
                 <h3 className="mt-4 font-medium">Scarce-stock scenario</h3>
                 <p className="text-muted-foreground mt-1 text-sm leading-relaxed">Plan truckloads for {count(example.orders)} synthetic orders across {count(example.locations)} stops. See how limited stock is allocated and which orders ship.</p>
-                <p className="text-muted-foreground mt-4 text-xs">No files needed. Inspect the inputs, then run the sample.</p>
+                <p className="text-muted-foreground mt-4 text-xs">No files needed. Explore a ready-made, validated plan.</p>
               </div>
             </TabsPanel>
             <TabsPanel value="upload" className="flex flex-col gap-4">
@@ -340,17 +342,16 @@ function ScenarioSetup({ initial, caps, example, onApply, onClose }: {
   )
 }
 
-export function PlaygroundView({ caps, example }: { caps: Caps; example: Example }) {
-  const geo = useRoadGeometry()
+export function PlaygroundView({ caps, example, sample }: { caps: Caps; example: Example; sample: RunSummary }) {
   const results = useRef<HTMLElement>(null)
   const [setupOpen, setSetupOpen] = useState(true)
   const [source, setSource] = useState("sample")
-  const [workspace, setWorkspace] = useState("inputs")
+  const [workspace, setWorkspace] = useState("map")
   const [busy, setBusy] = useState(false)
   const [started, setStarted] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [outcome, setOutcome] = useState<Outcome | null>(null)
+  const [outcome, setOutcome] = useState<Outcome | null>({ summary: sample, seconds: 0 })
   const [depot, setDepot] = useState({ label: "", lat: "", lon: "" })
   const [orders, setOrders] = useState<Csv | null>(null)
   const [inventory, setInventory] = useState<Csv | null>(null)
@@ -376,14 +377,14 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
     Boolean
   ) as string[]
 
-  async function run(kind: "example" | "upload") {
+  async function run() {
     const t0 = performance.now()
     setBusy(true)
     setStarted(t0)
     setElapsed(0)
     setError(null)
     setOutcome(null)
-    setWorkspace("results")
+    setWorkspace("map")
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     requestAnimationFrame(() =>
       results.current?.scrollIntoView({
@@ -393,10 +394,7 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
     )
     try {
       const name = orders?.name.replace(/\.csv$/i, "") || "My scenario"
-      const body =
-        kind === "example"
-          ? { example: "lesson" }
-          : {
+      const body = {
               import: {
                 name,
                 depot: { id: "depot", label: depot.label.trim(), lat, lon },
@@ -433,9 +431,9 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
           setDepot(setup.depot)
           setOrders(setup.orders)
           setInventory(setup.inventory)
-          setOutcome(null)
+          setOutcome(setup.source === "sample" ? { summary: sample, seconds: 0 } : null)
           setError(null)
-          setWorkspace("inputs")
+          setWorkspace(setup.source === "sample" ? "map" : "inputs")
           setSetupOpen(false)
         }}
       />}
@@ -448,11 +446,11 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
           <Button variant="ghost" size="icon-sm" aria-label="Edit scenario" title="Edit scenario" disabled={busy} onClick={() => setSetupOpen(true)}><Pencil /></Button>
         </div>
         <div className="flex flex-col gap-4 p-4">
-          <div>
+          <div className="hidden lg:block">
             <p className="text-sm font-medium">{source === "sample" ? "Scarce-stock scenario" : orders?.name.replace(/\.csv$/i, "")}</p>
             <p className="text-muted-foreground mt-1 text-xs">{source === "sample" ? "Bundled synthetic data" : "Your uploaded files"}</p>
           </div>
-          <dl className="grid grid-cols-2 overflow-hidden rounded-md border">
+          <dl className="hidden grid-cols-2 overflow-hidden rounded-md border lg:grid">
             {(source === "sample" ? [
               ["Orders", count(example.orders)], ["Order lines", count(example.lines)],
               ["Stops", count(example.locations)], ["Products", count(example.products)],
@@ -466,11 +464,13 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
               <dd className={cn("mt-1 tabular-nums", label === "Depot" ? "break-words text-xs" : "font-mono text-lg")}>{value}</dd>
             </div>)}
           </dl>
-          <Button onClick={() => run(source === "sample" ? "example" : "upload")} disabled={busy || (source === "upload" && (missing.length > 0 || overCap))} className="w-full">
-            {busy ? <Spinner /> : <Play aria-hidden="true" />} {busy ? "Solving…" : source === "sample" ? "Run the sample" : "Run your files"}
-          </Button>
+          {source === "upload" && <Button onClick={() => run()} disabled={busy || missing.length > 0 || overCap} className="w-full">
+            {busy ? <Spinner /> : <Play aria-hidden="true" />} {busy ? "Solving…" : outcome ? "Run again" : "Run your files"}
+          </Button>}
+          {outcome && <PlanSummary summary={outcome.summary} />}
+          {source === "sample" && <span className="text-muted-foreground hidden text-xs lg:block">Precomputed sample plan</span>}
         </div>
-        <details open className="border-t p-4">
+        <details className="hidden border-t p-4 lg:block">
           <summary className="mb-3 flex cursor-pointer items-center gap-2 text-sm font-semibold">
             <SlidersHorizontal aria-hidden="true" className="size-4" /> Run settings
           </summary>
@@ -497,29 +497,20 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
         className="min-h-[calc(100dvh-3rem)] min-w-0 scroll-mt-4 lg:min-h-0"
       >
         <Tabs value={workspace} onValueChange={(v) => setWorkspace(String(v))} className="gap-0">
-          <div className="bg-background flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
-            <TabsList variant="underline" size="sm">
-              <TabsTab value="inputs">Inputs</TabsTab>
-              <TabsTab value="results">Results{outcome ? " (1)" : ""}</TabsTab>
-            </TabsList>
-            <span
-              role="status"
-              aria-live="polite"
-              className={cn(
-                "flex items-center gap-1.5 py-2 text-xs",
-                busy ? "text-info-foreground" : outcome ? "text-success-foreground" : "text-muted-foreground"
-              )}
-            >
-              {busy ? (
-                <Spinner className="size-3" />
-              ) : outcome ? (
-                <Check className="size-3" />
-              ) : (
-                <CircleDot className="size-3" />
-              )}
-              {busy ? "Solving" : outcome ? `Solved in ${outcome.seconds.toFixed(1)} s` : "Not run yet"}
-            </span>
+          <div className="bg-background flex h-14 min-w-0 items-center border-b px-4">
+            <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <TabsList variant="underline" size="sm">
+                <TabsTab value="inputs">Inputs</TabsTab>
+                <TabsTab value="map">Map</TabsTab>
+                <TabsTab value="shipments" disabled={!outcome}>Shipments{outcome ? ` (${outcome.summary.trucks.length})` : ""}</TabsTab>
+                <TabsTab value="timeline" disabled={!outcome}>Timeline</TabsTab>
+                <TabsTab value="unshipped" disabled={!outcome}>Unshipped</TabsTab>
+                <TabsTab value="stock" disabled={!outcome}>Stock</TabsTab>
+                <TabsTab value="provenance" disabled={!outcome} className="text-muted-foreground">Details</TabsTab>
+              </TabsList>
+            </div>
           </div>
+        {workspace === "inputs" ? (
           <TabsPanel value="inputs" className="p-4 sm:p-5">
             {source === "sample" ? (
               <SampleInputs example={example} />
@@ -539,12 +530,12 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
                   ))}
                 </dl>
                 <p className="text-muted-foreground mt-4 text-xs">
-                  Files are validated when you run. Results appear in the Results tab.
+                  Files are validated when you run.
                 </p>
               </div>
             )}
           </TabsPanel>
-          <TabsPanel value="results" className="flex flex-col gap-4 p-4 sm:p-5">
+        ) : <div className="flex flex-col gap-4 p-4 sm:p-5">
             {busy ? (
               <div className="bg-background rounded-md border p-5" role="status" aria-live="polite">
                 <div className="flex items-center gap-3">
@@ -573,35 +564,57 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             ) : outcome ? (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold">{outcome.summary.scenario_name}</h2>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => run(source === "sample" ? "example" : "upload")}
-                    disabled={source === "upload" && (missing.length > 0 || overCap)}
-                  >
-                    <RotateCcw aria-hidden="true" /> Run again
-                  </Button>
-                </div>
-                <Results summary={outcome.summary} runId={null} geo={geo} />
-              </>
+              <PlaygroundResults key={`${source}-${outcome.seconds}`} summary={outcome.summary} tab={workspace} onTabChange={setWorkspace} />
             ) : (
               <div className="bg-background flex min-h-64 flex-col items-center justify-center gap-3 rounded-md border p-6 text-center">
                 <Truck aria-hidden="true" className="text-muted-foreground size-8" />
                 <h2 className="text-sm font-semibold">No loads planned yet</h2>
                 <p className="text-muted-foreground max-w-sm text-xs leading-relaxed">
-                  Run the sample or your files. Inspect trailer fill, routes, stock allocation and every line that did
-                  not ship.
+                  Run your files to explore the plan.
                 </p>
               </div>
             )}
-          </TabsPanel>
+          </div>}
         </Tabs>
       </section>
     </div>
   )
+}
+
+function PlaygroundResults({ summary, tab, onTabChange }: {
+  summary: RunSummary
+  tab: string
+  onTabChange: (tab: string) => void
+}) {
+  const geo = useRoadGeometry()
+  return <Results summary={summary} runId={null} geo={geo} compact activeTab={tab} onTabChange={onTabChange} />
+}
+
+function PlanSummary({ summary }: { summary: RunSummary }) {
+  const metrics = <dl className="space-y-2 text-xs">
+    {[
+      ["Planned revenue", formatMoney(summary.totals.planned_cents)],
+      ["Shipments", count(summary.trucks.length)],
+      ["Average fill", summary.totals.avg_fill == null ? "—" : formatPercent(summary.totals.avg_fill)],
+      ["Estimated miles", formatMiles(summary.totals.loaded_distance_m / METERS_PER_MILE)],
+    ].map(([label, value]) => <div key={label} className="flex justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt><dd className="tabular-nums">{value}</dd>
+    </div>)}
+  </dl>
+  const partial = summary.coverage === "partial"
+  const invalid = summary.validity === "invalid"
+  const empty = summary.coverage === "empty"
+  return <section aria-label="Plan summary" className="space-y-3 lg:border-t lg:pt-4">
+    <div role="status" title={invalid ? "Some clusters have no validated shipments." : partial ? "Some allocated stock could not be shipped. See Unshipped for the reasons." : empty ? "No allocated stock reached a stop." : "Every allocated piece is on a validated shipment. Shipment count and miles are heuristic estimates, not proven optimal."} className={cn("rounded-md border px-3 py-2 text-xs font-medium", invalid ? "border-destructive-foreground/30 text-destructive-foreground" : partial || empty ? "border-warning-foreground/30 text-warning-foreground" : "border-success-foreground/30 text-success-foreground")}>
+      {invalid ? "Invalid plan" : partial ? "Validated, partial coverage" : empty ? "Nothing to ship" : "Validated, complete"}
+      {(invalid || partial) && <p className="mt-1 font-normal">See Unshipped and Details.</p>}
+    </div>
+    <div className="hidden lg:block">{metrics}</div>
+    <details className="lg:hidden">
+      <summary className="text-muted-foreground cursor-pointer text-xs">Plan details</summary>
+      <div className="mt-3">{metrics}</div>
+    </details>
+  </section>
 }
 
 function SampleInputs({ example }: { example: Example }) {

@@ -28,8 +28,8 @@ Distances are straight-line miles × a circuity factor (default 1.2). Roads neve
 |---|---|
 | ![Run summary: revenue, shipments, trailer fill, miles and pipeline steps](docs/screenshots/run-summary.png) | ![Unshipped lines grouped by reason, with evidence for each](docs/screenshots/unshipped.png) |
 | **Run summary.** Headline numbers, preflight checks and each pipeline step. | **Unshipped.** Every line that didn't ship, why, and the evidence. |
-| ![Scenario workbench with the 2,000-order example open: depot, data review and saved versions](docs/screenshots/workbench.png) | ![Hosted playground after running the sample scenario](docs/screenshots/playground.png) |
-| **Workbench.** Open a saved scenario or example, review and fix data, save versions, then run. | **Playground.** The hosted, stateless version: run the sample or a CSV. |
+| ![Scenario workbench with the 2,000-order example open: depot, data review and saved versions](docs/screenshots/workbench.png) | ![Hosted playground with its precomputed sample plan](docs/screenshots/playground.png) |
+| **Workbench.** Open a saved scenario or example, review and fix data, save versions, then run. | **Playground.** The hosted, stateless version: explore the sample or run your CSVs. |
 
 ## Features
 
@@ -65,7 +65,7 @@ bun run optimizer                 # terminal 2: the Python solver service (127.0
 
 ## Playground mode
 
-Set `FILLRATE_PLAYGROUND=1` to serve a stateless playground, meant for a hosted demo. Only `/playground` exists: visitors run the bundled example or upload an orders and inventory CSV (with latitude and longitude), and nothing is stored. Runs are capped by `PLAYGROUND_MAX_ORDERS` (default 2000) and `PLAYGROUND_SOLVE_SECONDS` (default 60, whole run); solver time is limited to 5 seconds per cluster, and one run goes at a time.
+Set `FILLRATE_PLAYGROUND=1` to serve a stateless playground, meant for a hosted demo. Only `/playground` exists: visitors explore a precomputed sample plan or upload an orders and inventory CSV (with latitude and longitude), and uploaded data is never stored. Upload runs are capped by `PLAYGROUND_MAX_ORDERS` (default 2000) and `PLAYGROUND_SOLVE_SECONDS` (default 60, whole run); solver time is limited to 5 seconds per cluster, and one run goes at a time.
 
 ## Limits
 
@@ -76,3 +76,5 @@ Built with Next.js, SQLite, Python and PyVRP. Contributors and coding agents, se
 ## License
 
 [MIT](LICENSE)
+
+The playground sample is a bundled solver result, so viewing it does not run the optimizer. After changing the example, optimizer, or its dependency lock, regenerate it with `cd services/optimizer && uv run python ../../examples/generate-playground.py`. Tests reject stale sample results. Uploaded CSVs still solve on demand and are never saved by the hosted playground.

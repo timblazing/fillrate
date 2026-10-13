@@ -4,7 +4,7 @@ import type { RunSummary } from "@fillrate/contracts"
 import { ArrowLeft, Ban, Check, Download, Loader, Pencil, Printer } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react"
 
 import { PageTitle } from "@/components/app/page"
 import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
@@ -247,11 +247,20 @@ function CompletedSteps({ summary }: { summary: RunSummary }) {
 }
 
 /** `runId` is null for results that are not stored (the playground), which hides the links into stored runs. */
-export function Results({ summary, runId, geo }: { summary: RunSummary; runId: string | null; geo: RoadGeometry }) {
+export function Results({ summary, runId, geo, compact = false, activeTab, onTabChange }: {
+  summary: RunSummary
+  runId: string | null
+  geo: RoadGeometry
+  compact?: boolean
+  activeTab?: string
+  onTabChange?: (tab: string) => void
+}) {
   const [cluster, setCluster] = useState<string | null>(null)
   const [hexes, setHexes] = useState(false)
   const [truck, setTruck] = useState<string | null>(null)
-  const [tab, setTab] = useState("map")
+  const [localTab, setLocalTab] = useState("map")
+  const tab = activeTab ?? localTab
+  const setTab = onTabChange ?? setLocalTab
   const t = summary.totals
   const unplannedPieces = summary.products.reduce((n, p) => n + p.allocated_unplanned, 0)
   const clusterIndex = (id: string | null | undefined) => (id ? summary.clusters.findIndex((c) => c.id === id) + 1 : 0)
@@ -265,6 +274,7 @@ export function Results({ summary, runId, geo }: { summary: RunSummary; runId: s
 
   return (
     <>
+      {!compact && <>
       <ValidityAlert summary={summary} unplannedPieces={unplannedPieces} />
 
       {/* Revenue leads (design review `results.judge`): planned revenue, then trailer fill, then tightness. */}
@@ -296,9 +306,11 @@ export function Results({ summary, runId, geo }: { summary: RunSummary; runId: s
         <CompletedSteps summary={summary} />
       </StepsPanel>
 
+      </>}
+
       {/* Map first (design review `workbench.first`): the cluster map is the initial tab at every width. */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as string)}>
-        <div className="overflow-x-auto">
+      <ResultsTabs compact={compact} value={tab} onValueChange={setTab}>
+        {!compact && <div className="overflow-x-auto">
           <TabsList>
             <TabsTab value="map">Map</TabsTab>
             <TabsTab value="shipments">Shipments ({summary.trucks.length})</TabsTab>
@@ -309,7 +321,7 @@ export function Results({ summary, runId, geo }: { summary: RunSummary; runId: s
             <TabsTab value="stock">Stock</TabsTab>
             <TabsTab value="provenance">Provenance</TabsTab>
           </TabsList>
-        </div>
+        </div>}
         <TabsPanel value="map" className="pt-3">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="flex flex-col gap-2">
@@ -317,9 +329,9 @@ export function Results({ summary, runId, geo }: { summary: RunSummary; runId: s
                 <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} h3Resolution={hexes ? 5 : null} road={road} />
               </div>
               <RoadGeometryControl geo={geo} summary={summary} truckId={truck} />
-              <label className="text-muted-foreground flex items-center gap-2 text-xs">
+              <label title="Resolution 5 cells shaded by stop count. Display only; does not change clusters." className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Switch checked={hexes} onCheckedChange={setHexes} />
-                H3 cells (resolution 5, shaded by stop count). A map layer only; it does not change clusters.
+                H3 density layer
               </label>
             </div>
             <ClusterTable summary={summary} cluster={cluster} onSelect={setCluster} onShowShipments={() => setTab("shipments")} />
@@ -337,12 +349,22 @@ export function Results({ summary, runId, geo }: { summary: RunSummary; runId: s
         <TabsPanel value="stock" className="pt-3">
           <StockCoverage summary={summary} />
         </TabsPanel>
-        <TabsPanel value="provenance" className="pt-3">
+        <TabsPanel value="provenance" className="space-y-4 pt-3">
+          {compact && <PreflightNotes summary={summary} />}
           <Provenance summary={summary} />
         </TabsPanel>
-      </Tabs>
+      </ResultsTabs>
     </>
   )
+}
+
+function ResultsTabs({ compact, value, onValueChange, children }: {
+  compact: boolean
+  value: string
+  onValueChange: (tab: string) => void
+  children: ReactNode
+}) {
+  return compact ? <Fragment>{children}</Fragment> : <Tabs value={value} onValueChange={(v) => onValueChange(String(v))}>{children}</Tabs>
 }
 
 /** Capacity lower bounds (spec §8a): their difference is the increase in the bound from partitioning, not proof of extra trucks. */
