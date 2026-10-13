@@ -11,7 +11,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/c
 import { buildTimeline, cursorAt, formatDriveTime, timingSource, withRoadPaths } from "@/lib/timeline"
 import { formatFeet } from "@/lib/units"
 
-import { type RoadGeometry, RoadGeometryControl } from "./road-geometry"
+import { type RoadGeometry, RoadGeometryStatus } from "./road-geometry"
 
 const TimelineMap = dynamic(() => import("./timeline-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
@@ -94,7 +94,7 @@ export function TimelinePanel({ summary, geo, truckId, onSelectTruck }: { summar
             <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-center text-sm">Map unavailable: a stop on this shipment has no coordinates.</div>
           )}
         </div>
-        <RoadGeometryControl geo={geo} summary={summary} truckId={truck.id} />
+        <RoadGeometryStatus geo={geo} summary={summary} truckId={truck.id} />
       </div>
       <TruckRouteTimeline timeline={timeline} source={source} cursor={cursor} onCursorChange={setCursor} depotLabel={summary.depot.label} clock={summary.time} />
     </div>

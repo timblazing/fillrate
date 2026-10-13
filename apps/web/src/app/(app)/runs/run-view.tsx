@@ -29,7 +29,7 @@ import { FILL_LOW, fillBand, formatCount, formatFeet, formatMiles, formatMoney, 
 import { cn } from "@/lib/utils"
 
 
-import { type RoadGeometry, RoadGeometryControl, useRoadGeometry } from "./road-geometry"
+import { type RoadGeometry, RoadGeometryStatus, useRoadGeometry } from "./road-geometry"
 import { TimelinePanel } from "./timeline-panel"
 import { type Rerun, RerunButton } from "./rerun-button"
 
@@ -266,7 +266,7 @@ export function Results({ summary, runId, geo, compact = false, activeTab, onTab
   const clusterIndex = (id: string | null | undefined) => (id ? summary.clusters.findIndex((c) => c.id === id) + 1 : 0)
   const unshippedAmount = summary.unplanned.reduce((s, u) => s + u.amount_cents, 0)
   const lowCount = summary.trucks.filter((x) => fillBand(x.fill) === "low").length
-  const road = useMemo(() => (geo.shown.size ? Object.fromEntries([...geo.shown].map((id) => [id, geo.paths[id].legs])) : null), [geo.shown, geo.paths])
+  const road = useMemo(() => (truck && geo.paths[truck] ? { [truck]: geo.paths[truck].legs } : null), [truck, geo.paths])
   const selectTruck = (id: string | null) => {
     setTruck(id)
     if (id) setCluster(summary.trucks.find((x) => x.id === id)?.cluster_id ?? null)
@@ -328,7 +328,7 @@ export function Results({ summary, runId, geo, compact = false, activeTab, onTab
               <div className="h-[360px] overflow-hidden rounded-xl border sm:h-[440px] xl:h-auto xl:min-h-[480px] xl:flex-1">
                 <RunMap summary={summary} cluster={cluster} truck={truck} onSelectCluster={setCluster} h3Resolution={hexes ? 5 : null} road={road} />
               </div>
-              <RoadGeometryControl geo={geo} summary={summary} truckId={truck} />
+              <RoadGeometryStatus geo={geo} summary={summary} truckId={truck} />
               <label title="Resolution 5 cells shaded by stop count. Display only; does not change clusters." className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Switch checked={hexes} onCheckedChange={setHexes} />
                 H3 density layer

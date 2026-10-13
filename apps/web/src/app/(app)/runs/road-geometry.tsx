@@ -1,94 +1,91 @@
 "use client"
 
-import { Route } from "lucide-react"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import type { RunSummary } from "@fillrate/contracts"
 import { fetchRoadPath, type LonLat, ROAD_COPY, ROAD_CREDIT, type RoadPath, routeStops } from "@/lib/road-geometry"
 
 export type RoadGeometry = {
   paths: Record<string, RoadPath>
-  /** Shipments whose road lines are drawn (fetched and not hidden). */
   shown: Set<string>
   busy: string | null
   error: string | null
-  /** Fetches the road path for a shipment on first use (depot first, then stops in route order); later calls show or hide it. */
-  toggle: (truckId: string, stops: LonLat[]) => void
+  load: (truckId: string, stops: LonLat[]) => void
 }
 
-/** Road paths fetched on demand from the public Valhalla server, kept in memory only. One request batch per click. */
+/** Load the inspected shipment only; reuse its road geometry within this result view. */
 export function useRoadGeometry(): RoadGeometry {
   const [paths, setPaths] = useState<Record<string, RoadPath>>({})
-  const [hidden, setHidden] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const inFlight = useRef(false)
+  const cached = useRef(new Set<string>())
+  const pending = useRef<{ truckId: string; controller: AbortController } | null>(null)
 
-  const toggle = useCallback(
-    async (truckId: string, stops: LonLat[]) => {
-      setError(null)
-      if (paths[truckId]) {
-        setHidden((h) => {
-          const next = new Set(h)
-          if (!next.delete(truckId)) next.add(truckId)
-          return next
-        })
-        return
-      }
-      if (inFlight.current) return
-      inFlight.current = true
-      setBusy(truckId)
-      try {
-        const path = await fetchRoadPath(stops)
-        setPaths((p) => ({ ...p, [truckId]: path }))
-        setHidden((h) => {
-          const next = new Set(h)
-          next.delete(truckId)
-          return next
-        })
-      } catch (e) {
-        setError(e instanceof Error && e.message ? e.message : "Could not reach the Valhalla server.")
-      }
-      inFlight.current = false
+  useEffect(() => () => {
+    pending.current?.controller.abort()
+    pending.current = null
+  }, [])
+
+  const load = useCallback(async (truckId: string, stops: LonLat[]) => {
+    if (pending.current?.truckId === truckId) return
+    pending.current?.controller.abort()
+    pending.current = null
+    setError(null)
+    if (cached.current.has(truckId)) {
       setBusy(null)
-    },
-    [paths],
-  )
+      return
+    }
+    const controller = new AbortController()
+    pending.current = { truckId, controller }
+    setBusy(truckId)
+    try {
+      const path = await fetchRoadPath(stops, controller.signal)
+      if (controller.signal.aborted) return
+      cached.current.add(truckId)
+      setPaths((current) => ({ ...current, [truckId]: path }))
+    } catch (error) {
+      if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Could not reach the routing service.")
+    } finally {
+      if (pending.current?.controller === controller) {
+        pending.current = null
+        setBusy(null)
+      }
+    }
+  }, [])
 
-  const shown = useMemo(() => new Set(Object.keys(paths).filter((id) => !hidden.has(id))), [paths, hidden])
-  return { paths, shown, busy, error, toggle }
+  const shown = useMemo(() => new Set(Object.keys(paths)), [paths])
+  return { paths, shown, busy, error, load }
 }
 
-/** The "Show road path" action for one selected shipment, with road miles beside the estimate. */
-export function RoadGeometryControl({ geo, summary, truckId }: { geo: RoadGeometry; summary: RunSummary; truckId: string | null }) {
+/** Automatically load the selected shipment, with compact distance and fallback status. */
+export function RoadGeometryStatus({ geo, summary, truckId }: { geo: RoadGeometry; summary: RunSummary; truckId: string | null }) {
   const stops = useMemo(() => routeStops(summary, truckId), [summary, truckId])
+  const load = geo.load
+  useEffect(() => {
+    if (truckId && stops) load(truckId, stops)
+  }, [truckId, stops, load])
+  if (!truckId) return null
   const truck = summary.trucks.find((t) => t.id === truckId)
   const estimateMiles = truck ? truck.distance_m / 1609.344 : null
-  const path = truckId ? geo.paths[truckId] : undefined
-  const visible = !!truckId && geo.shown.has(truckId)
-  const busy = !!truckId && geo.busy === truckId
+  const path = geo.paths[truckId]
   return (
-    <div className="flex flex-col gap-2" data-testid="road-geometry">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" disabled={!truckId || !stops} loading={busy} onClick={() => truckId && stops && geo.toggle(truckId, stops)} data-testid="road-geometry-button">
-          <Route aria-hidden /> {visible ? "Hide road path" : "Show road path"}
-        </Button>
-        {path && visible ? (
-          <span className="text-xs tabular-nums" data-testid="road-miles">
-            Road miles: {path.miles.toFixed(1)}
-            {estimateMiles != null && ` (estimate: ${estimateMiles.toFixed(1)})`}
-          </span>
-        ) : (
-          <span className="text-muted-foreground text-xs">{!truckId ? "Select a shipment to draw its road path." : !stops ? "A stop on this shipment has no coordinates." : "Draws this shipment's road path from the public Valhalla server."}</span>
-        )}
-      </div>
-      {geo.error && (
-        <p className="text-destructive-foreground text-xs" role="alert" data-testid="road-geometry-error">
-          Road path unavailable: {geo.error} Straight lines are shown instead.
-        </p>
+    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs" data-testid="road-geometry" role="status">
+      {path ? (
+        <span title={ROAD_COPY} className="tabular-nums" data-testid="road-miles">
+          Road miles: {path.miles.toFixed(1)}{estimateMiles != null && ` · Plan estimate: ${estimateMiles.toFixed(1)}`}
+        </span>
+      ) : geo.error ? (
+        <>
+          <span title={geo.error} data-testid="road-geometry-error">Road path unavailable · Estimated path shown</span>
+          {stops && <Button size="sm" variant="ghost" onClick={() => load(truckId, stops)}>Retry road path</Button>}
+        </>
+      ) : !stops ? (
+        <span>A stop has no coordinates · Estimated path shown</span>
+      ) : (
+        <><Spinner className="size-3" /> Loading road path</>
       )}
-      {path && visible && <p className="text-muted-foreground text-xs">{ROAD_COPY}</p>}
     </div>
   )
 }

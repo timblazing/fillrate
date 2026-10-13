@@ -244,7 +244,7 @@ export type TimingSource = { timing: string; geometry: string }
 
 /** Labels for where durations and geometry come from. Runs stored by older versions may carry a recorded matrix. */
 export function timingSource(travel: { mode: string } | null | undefined, road?: string | null): TimingSource {
-  const geometry = road ? `${road} — a simulation along planned leg durations (no live traffic or GPS)` : "Schematic straight-line path — show the road path to draw roads"
+  const geometry = road ? `${road} — a simulation along planned leg durations (no live traffic or GPS)` : "Estimated connection between stops"
   if (!travel) return { timing: "Drive time source not recorded", geometry }
   if (travel.mode === "estimated") return { timing: "Estimated drive time (constant speed)", geometry }
   return { timing: "Recorded matrix durations (older run)", geometry }

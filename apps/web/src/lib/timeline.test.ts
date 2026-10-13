@@ -53,7 +53,7 @@ describe("route timeline", () => {
   it("labels the timing source and always flags the schematic geometry", () => {
     expect(timingSource({ mode: "estimated" }).timing).toBe("Estimated drive time (constant speed)")
     expect(timingSource({ mode: "snapshot" }).timing).toBe("Recorded matrix durations (older run)")
-    expect(timingSource(null).geometry).toContain("show the road path")
+    expect(timingSource(null).geometry).toBe("Estimated connection between stops")
     expect(formatClock(3849)).toBe("1:04:09")
   })
 
