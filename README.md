@@ -18,7 +18,7 @@ When stock is short and trucks are finite, Fillrate answers three questions for 
 1. **Allocate** available inventory to order lines piece by piece: earliest order date first, then highest value per piece. Lines can be partly filled.
 2. **Cluster** the stops with k-means. The k explorer compares k values and seeds so you can check a grouping is stable.
 3. **Build loads** in each cluster with [PyVRP](https://pyvrp.org/): linear feet as capacity, open routes (no return leg), at most 500 miles per drive, optional delivery time windows. Fewest trucks first, then fewest miles.
-4. **Validate and compare.** Revenue, trailer fill, truck count and miles per run, cluster and shipment; side-by-side comparison across runs and sweeps.
+4. **Validate and compare.** Revenue, trailer fill, truck count and miles per run, cluster and shipment, with stops counted once even when an oversize stop is split across trucks; side-by-side comparison across runs and sweeps.
 
 Distances are straight-line miles × a circuity factor (default 1.2). Roads never feed the optimizer; you can draw a shipment's road path from the public Valhalla server for display (routing © Valhalla / FOSSGIS, data © OpenStreetMap contributors).
 
@@ -28,12 +28,12 @@ Distances are straight-line miles × a circuity factor (default 1.2). Roads neve
 |---|---|
 | ![Run summary: revenue, shipments, trailer fill, miles and pipeline steps](docs/screenshots/run-summary.png) | ![Unshipped lines grouped by reason, with evidence for each](docs/screenshots/unshipped.png) |
 | **Run summary.** Headline numbers, preflight checks and each pipeline step. | **Unshipped.** Every line that didn't ship, why, and the evidence. |
-| ![Scenario workbench with a saved 2,000-order scenario and data review](docs/screenshots/workbench.png) | ![Hosted playground after running the sample scenario](docs/screenshots/playground.png) |
-| **Workbench.** Import, review and fix data, save versions, then run. | **Playground.** The hosted, stateless version: run the sample or a CSV. |
+| ![Scenario workbench with the 2,000-order example open: depot, data review and saved versions](docs/screenshots/workbench.png) | ![Hosted playground after running the sample scenario](docs/screenshots/playground.png) |
+| **Workbench.** Open a saved scenario or example, review and fix data, save versions, then run. | **Playground.** The hosted, stateless version: run the sample or a CSV. |
 
 ## Features
 
-- **Import** orders and stock as CSV, GeoJSON points or scenario JSON, or open a bundled example in one click. Addresses geocode with the free US Census geocoder, with a labeled ZIP fallback; fix coordinates by hand on a map.
+- **Import** orders and stock as CSV, GeoJSON points or scenario JSON, or open a bundled example in one click. Once a scenario is open, the import form folds away until you need it. Addresses geocode with the free US Census geocoder, with a labeled ZIP fallback; fix coordinates by hand on a map.
 - **Versioned scenarios.** Edit quantities, dates and coordinates in place; each save is a new version you can branch from.
 - **Preflight checks** flag missing coordinates, unreachable stops and oversize stops before the solver runs, each set to block or warn.
 - **Run inspection.** Cluster map, per-shipment list and timeline, unshipped lines with reasons, stock use and full provenance.
