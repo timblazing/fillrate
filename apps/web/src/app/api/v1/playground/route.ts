@@ -4,8 +4,8 @@ import { DEFAULT_OPTIMIZER_URL, postJson } from "@fillrate/db/solver"
 import { randomUUID } from "node:crypto"
 
 import { runDefaults } from "@/lib/run-defaults"
-import { ApiError, EXAMPLES, errorResponse } from "@/lib/server/runs"
-import { assertWithinCaps, clampSettings, playgroundCaps, playgroundMode } from "@/lib/server/playground"
+import { ApiError, errorResponse } from "@/lib/server/runs"
+import { assertWithinCaps, clampSettings, playgroundCaps, playgroundMode, playgroundSample } from "@/lib/server/playground"
 import { boundedJson } from "@/lib/server/scenarios"
 
 export const dynamic = "force-dynamic"
@@ -14,10 +14,7 @@ export const dynamic = "force-dynamic"
 let busy = false
 
 function build(body: { example?: unknown; import?: unknown }) {
-  if (body.example !== undefined) {
-    if (body.example !== "lesson") throw new ApiError(400, "unknown_example", 'Use {"example":"lesson"} or {"import":{…}}.')
-    return { scenario: EXAMPLES.lesson.scenario, settings: EXAMPLES.lesson.settings as RunSettings }
-  }
+  if (body.example !== undefined) throw new ApiError(400, "unknown_example", 'Use {"example":"lesson"} or {"import":{…}}.')
   if (!body.import || typeof body.import !== "object") throw new ApiError(400, "invalid_body", 'Send {"example":"lesson"} or {"import":{…}}.')
   const preview = previewImport({ ...(body.import as ImportInput), format: "csv" })
   if (!preview.valid || !preview.document) {
@@ -32,7 +29,10 @@ function build(body: { example?: unknown; import?: unknown }) {
 export async function POST(request: Request) {
   if (!playgroundMode()) return Response.json({ error: { code: "not_found", message: "Not found." } }, { status: 404 })
   try {
-    const { scenario, settings } = build((await boundedJson(request)) ?? {})
+    const body = (await boundedJson(request)) ?? {}
+    // The bundled demo never acquires the solve slot or invokes Python.
+    if (body.example === "lesson") return Response.json({ summary: playgroundSample })
+    const { scenario, settings } = build(body)
     const caps = playgroundCaps()
     assertWithinCaps(scenario.orders.length, caps.maxOrders)
     if (busy) throw new ApiError(429, "busy", "Another playground run is in progress, try again in a minute.", [], 60)
