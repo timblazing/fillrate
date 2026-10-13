@@ -440,7 +440,7 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
         }}
       />}
       <aside aria-label="Scenario controls" className="bg-background border-b lg:border-r lg:border-b-0">
-        <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
           <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
             <MapPin aria-hidden="true" className="text-info-foreground size-4 shrink-0" />
             <span className="truncate">{source === "sample" ? example.depot : depot.label}</span>
@@ -497,7 +497,7 @@ export function PlaygroundView({ caps, example }: { caps: Caps; example: Example
         className="min-h-[calc(100dvh-3rem)] min-w-0 scroll-mt-4 lg:min-h-0"
       >
         <Tabs value={workspace} onValueChange={(v) => setWorkspace(String(v))} className="gap-0">
-          <div className="bg-background flex min-h-12 flex-wrap items-center justify-between gap-2 border-b px-4">
+          <div className="bg-background flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
             <TabsList variant="underline" size="sm">
               <TabsTab value="inputs">Inputs</TabsTab>
               <TabsTab value="results">Results{outcome ? " (1)" : ""}</TabsTab>
