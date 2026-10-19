@@ -2,25 +2,23 @@ import type { Metadata } from "next"
 
 import { BrandLink } from "@/components/brand/brand-link"
 import { GitHubMark } from "@/components/brand/github-mark"
-import { playgroundCaps, playgroundSample } from "@/lib/server/playground"
-import { EXAMPLES, exampleInfo } from "@/lib/server/runs"
+import type { RunSummary, ScenarioDocument } from "@fillrate/contracts"
+
+import lesson from "../../../../../examples/lesson-fulfillment.json"
+import saved from "../../../../../examples/playground-result.json"
 
 import { PlaygroundView } from "./playground-view"
 
-export const dynamic = "force-dynamic"
 export const metadata: Metadata = {
   title: "Playground · Fillrate",
   description:
-    "A truckload planning workbench. Inspect orders and stock, run the solver, and explore shipments. Nothing is saved.",
+    "A truckload planning workbench. Explore a precomputed, validated plan for a synthetic scarce-stock scenario.",
 }
 
 const REPO_URL = "https://github.com/timblazing/fillrate"
 
 export default function PlaygroundPage() {
-  const caps = playgroundCaps()
-  const lesson = EXAMPLES.lesson
-  const { name, orders, lines, locations } = exampleInfo(lesson)
-  const { scenario } = lesson
+  const scenario = lesson.scenario as ScenarioDocument
   const demand = new Map<string, number>()
   for (const order of scenario.orders) {
     for (const line of order.lines)
@@ -28,10 +26,10 @@ export default function PlaygroundPage() {
   }
   const stops = new Set(scenario.orders.map((o) => o.location_id))
   const example = {
-    name,
-    orders,
-    lines,
-    locations,
+    name: scenario.name,
+    orders: scenario.orders.length,
+    lines: scenario.orders.reduce((n, o) => n + o.lines.length, 0),
+    locations: stops.size,
     products: scenario.products.length,
     depot: scenario.depot.label,
     points: scenario.locations.filter((l) => l.lat != null && l.lon != null && stops.has(l.id)).map((l) => ({ lat: l.lat!, lon: l.lon! })),
@@ -79,7 +77,7 @@ export default function PlaygroundPage() {
       </header>
       <main className="flex flex-1 flex-col">
         <h1 className="sr-only">Truckload workbench</h1>
-        <PlaygroundView caps={caps} example={example} sample={playgroundSample} />
+        <PlaygroundView example={example} sample={saved.summary as unknown as RunSummary} />
       </main>
     </div>
   )

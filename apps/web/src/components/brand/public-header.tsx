@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { BrandLink } from "@/components/brand/brand-link"
+import { OPEN_HREF } from "@/lib/open-href"
 
 // Header for public pages (privacy).
 export function PublicHeader() {
@@ -9,7 +10,7 @@ export function PublicHeader() {
       <BrandLink />
       <nav aria-label="Main navigation" className="flex items-center gap-4 sm:gap-6">
         <Link href="/#faq" className="text-muted-foreground hover:text-foreground rounded-sm text-sm">FAQ</Link>
-        <Link href="/scenarios" className="text-muted-foreground hover:text-foreground rounded-sm text-sm">Open app</Link>
+        <Link href={OPEN_HREF} className="text-muted-foreground hover:text-foreground rounded-sm text-sm">Open app</Link>
       </nav>
     </header>
   )

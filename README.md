@@ -29,7 +29,7 @@ Distances are straight-line miles × a circuity factor (default 1.2). Roads neve
 | ![Run summary: revenue, shipments, trailer fill, miles and pipeline steps](docs/screenshots/run-summary.png) | ![Unshipped lines grouped by reason, with evidence for each](docs/screenshots/unshipped.png) |
 | **Run summary.** Headline numbers, preflight checks and each pipeline step. | **Unshipped.** Every line that didn't ship, why, and the evidence. |
 | ![Scenario workbench with the 2,000-order example open: depot, data review and saved versions](docs/screenshots/workbench.png) | ![Hosted playground with its precomputed sample plan](docs/screenshots/playground.png) |
-| **Workbench.** Open a saved scenario or example, review and fix data, save versions, then run. | **Playground.** The hosted, stateless version: explore the sample or run your CSVs. |
+| **Workbench.** Open a saved scenario or example, review and fix data, save versions, then run. | **Playground.** The public site: explore a precomputed, validated plan for the sample. |
 
 ## Features
 
@@ -63,9 +63,11 @@ bun run dev                       # terminal 1: http://localhost:3000
 bun run optimizer                 # terminal 2: the Python solver service (127.0.0.1:8000)
 ```
 
-## Playground mode
+## Static public site
 
-Set `FILLRATE_PLAYGROUND=1` to serve a stateless playground, meant for a hosted demo. Only `/playground` exists: visitors explore a precomputed sample plan or upload an orders and inventory CSV (with latitude and longitude), and uploaded data is never stored. Upload runs are capped by `PLAYGROUND_MAX_ORDERS` (default 2000) and `PLAYGROUND_SOLVE_SECONDS` (default 60, whole run); solver time is limited to 5 seconds per cluster, and one run goes at a time.
+`bun run build:static` exports the landing page, privacy page and `/playground` as static files in `apps/web/out`, for any static host. The playground shows the bundled sample plan only; nothing runs on a server.
+
+The playground sample is a bundled solver result, so viewing it does not run the optimizer. After changing the example, optimizer, or its dependency lock, regenerate it with `cd services/optimizer && uv run python ../../examples/generate-playground.py`. Tests reject stale sample results.
 
 ## Limits
 
@@ -76,5 +78,3 @@ Built with Next.js, SQLite, Python and PyVRP. Contributors and coding agents, se
 ## License
 
 [MIT](LICENSE)
-
-The playground sample is a bundled solver result, so viewing it does not run the optimizer. After changing the example, optimizer, or its dependency lock, regenerate it with `cd services/optimizer && uv run python ../../examples/generate-playground.py`. Tests reject stale sample results. Uploaded CSVs still solve on demand and are never saved by the hosted playground.
