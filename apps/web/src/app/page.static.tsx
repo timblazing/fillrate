@@ -6,6 +6,7 @@ import HeroGlobe from "@/components/animated/hero-globe"
 import { Button } from "@/components/ui/button"
 import { LandingHeader } from "@/components/landing/landing-header"
 import { SiteFooter } from "@/components/landing/site-footer"
+import { OPEN_HREF } from "@/lib/open-href"
 
 const REPO_URL = "https://github.com/timblazing/fillrate"
 
@@ -34,7 +35,7 @@ const questions = [
   {
     question: "Can I use my own orders and inventory?",
     answer:
-      "Yes. Run Fillrate on your own machine and import orders and stock as CSV, GeoJSON or scenario JSON. The hosted playground also accepts a CSV upload and stores nothing. Or start from a bundled synthetic example to see how a plan comes together.",
+      "Yes. Run Fillrate on your own machine and import orders and stock as CSV, GeoJSON or scenario JSON. Or open the playground to explore a precomputed plan for a bundled synthetic example.",
   },
   {
     question: "Where can I see the code?",
@@ -46,7 +47,7 @@ const questions = [
 export default function Home() {
   return (
     <div className="flex min-h-dvh flex-col">
-      <LandingHeader repoUrl={REPO_URL} />
+      <LandingHeader repoUrl={REPO_URL} action={{ href: OPEN_HREF, label: "Open app" }} />
 
       <main className="flex-1 overflow-x-clip">
         <section aria-labelledby="hero-title" className="relative">
@@ -64,7 +65,7 @@ export default function Home() {
                 When stock is short and trucks are finite, Fillrate shows how different choices change what ships, what doesn&rsquo;t, and how full each trailer gets.
               </p>
               <div className="mt-9 flex flex-wrap items-center gap-3">
-                <Button size="lg" className="h-11 gap-3 rounded-full pr-2 pl-5 text-sm" render={<Link href="/scenarios" />}>
+                <Button size="lg" className="h-11 gap-3 rounded-full pr-2 pl-5 text-sm" render={<Link href={OPEN_HREF} />}>
                   Open Fillrate
                   <span className="bg-primary-foreground/10 flex size-7 items-center justify-center rounded-full">
                     <ArrowRight aria-hidden="true" className="size-3.5" />

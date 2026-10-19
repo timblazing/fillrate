@@ -10,6 +10,7 @@
     "dev": "cd apps/web && bun run dev",
     "optimizer": "cd services/optimizer && UV_PYTHON=python3.13 uv run fillrate-optimizer",
     "build": "cd apps/web && bun run build",
+    "build:static": "cd apps/web && FILLRATE_STATIC=1 bun run build",
     "start": "cd apps/web && bun run start",
     "lint": "bun run lint:packages && cd apps/web && bun run lint",
     "typecheck": "bun run typecheck:packages && cd apps/web && bun run typecheck",
