@@ -1,8 +1,0 @@
-# Minimal example: one container runs the web app and the optimizer.
-services:
-  fillrate:
-    image: ghcr.io/timblazing/fillrate:latest
-    restart: unless-stopped
-    ports: ["127.0.0.1:3000:3000"]
-    volumes: ["./data:/app/data"]  # the image runs as uid 1000 (node); make ./data writable by it
-    env_file: [{ path: .env, required: false }]  # optional overrides, see .env.example

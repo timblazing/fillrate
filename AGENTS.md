@@ -12,7 +12,7 @@ Canonical instructions for Codex and Claude Code (`CLAUDE.md` imports this file)
    ```
 2. Pick or create a GitHub issue for the work, and set its status on the [Fillrate work project](https://github.com/users/timblazing/projects/2) (Triage, Ready, In progress, Blocked, Done).
 3. Commit in small, clear commits. Push and open one PR to `main` that links the issue, summarizes the change and lists what you verified.
-4. Squash-merge once checks pass. Then clean up: delete the remote branch, fast-forward local `main`, and remove the worktree and local branch. Never delete a branch or worktree with unmerged or uncommitted work.
+4. Squash-merge once lint, typecheck, test, `build` and `build:static` pass locally; there is no CI. Then clean up: delete the remote branch, fast-forward local `main`, and remove the worktree and local branch. Never delete a branch or worktree with unmerged or uncommitted work.
 5. If the work can't be finished, push the branch and leave a short comment on the issue: what's done, what's blocking, the next step.
 6. Update `README.md` or `docs/product.md` only when user-facing behavior or a product decision changes.
 
@@ -23,7 +23,6 @@ services/optimizer  Python FastAPI solver service: allocation, k-means, PyVRP, v
 packages/db         Drizzle schema/migrations and SQLite access (Node only)
 packages/contracts  Types generated from the Python models
 examples            Bundled synthetic example scenario
-deploy              Dockerfile entrypoint and a sample compose file
 ```
 
 ## Commands (repo root; Bun is the package manager, Node 24 the runtime)
@@ -32,7 +31,6 @@ deploy              Dockerfile entrypoint and a sample compose file
 - `bun run db:generate` after schema changes; migrations apply at web startup
 - `bun run contracts:generate` after changing `model.py`/`contracts.py`
 - Optimizer (in `services/optimizer`): `uv sync`, `uv run pytest`, `uv run ruff check .`
-- Don't build Docker images locally; CI builds them.
 
 ## Conventions
 - Runs are direct solves: the web app inserts a run, then calls the Python service (`POST /solve`, one at a time; `FILLRATE_OPTIMIZER_URL`). Python is private and never opens SQLite. Don't use Bun-only APIs (`bun:sqlite`, `Bun.*`) in application code.

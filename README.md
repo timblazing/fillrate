@@ -44,17 +44,7 @@ Distances are straight-line miles × a circuity factor (default 1.2). Roads neve
 
 Local Fillrate is the full tool: single user, no account, scenarios and runs saved in SQLite. Keep real data here.
 
-**Docker:**
-
-```sh
-mkdir -p data
-docker run --rm -p 127.0.0.1:3000:3000 \
-  -v "$PWD/data:/app/data" ghcr.io/timblazing/fillrate:latest
-```
-
-Open http://localhost:3000/scenarios and click **Open lesson, 2,000 orders** to try it. Data is stored in `./data/fillrate.sqlite`.
-
-**From source** (Node 24, [Bun](https://bun.sh), [uv](https://docs.astral.sh/uv/) with Python 3.13):
+Requires Node 24, [Bun](https://bun.sh), and [uv](https://docs.astral.sh/uv/) with Python 3.13:
 
 ```sh
 bun install
@@ -63,9 +53,11 @@ bun run dev                       # terminal 1: http://localhost:3000
 bun run optimizer                 # terminal 2: the Python solver service (127.0.0.1:8000)
 ```
 
+Open http://localhost:3000/scenarios and click **Open lesson, 2,000 orders** to try it.
+
 ## Static public site
 
-`bun run build:static` exports the landing page, privacy page and `/playground` as static files in `apps/web/out`, for any static host. The playground shows the bundled sample plan only; nothing runs on a server.
+`bun run build:static` exports the landing page, privacy page and `/playground` as static files in `apps/web/out`, for any static host. [fillrate.blasingame.dev](https://fillrate.blasingame.dev) is this export, built and deployed by Cloudflare Pages on every push to `main`. The playground shows the bundled sample plan only; nothing runs on a server.
 
 The playground sample is a bundled solver result, so viewing it does not run the optimizer. After changing the example, optimizer, or its dependency lock, regenerate it with `cd services/optimizer && uv run python ../../examples/generate-playground.py`. Tests reject stale sample results.
 

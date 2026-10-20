@@ -26,7 +26,7 @@ The user's pain is interpreting raw solver output, so results must explain thems
 
 Fillrate is being simplified. Decisions:
 
-- **Local is the full tool.** Docker or Bun from source, single user, no accounts, saved scenarios and runs in SQLite. Real or sensitive data belongs here.
+- **Local is the full tool.** Bun from source, single user, no accounts, saved scenarios and runs in SQLite. Real or sensitive data belongs here.
 - **The hosted site is static.** A static export of the landing page and a playground that opens the bundled, precomputed and independently validated sample plan. No server, uploads, solves, accounts or stored data; bring your own data by running locally. One top bar switches between Inputs, Map, Shipments, Timeline, Unshipped, Stock and Details. Validation and compact plan totals live in the scenario sidebar; technical checks live in Details.
 - **Roads are display only.** Inspecting a shipment automatically loads its road path and road miles from the public Valhalla server, with OpenStreetMap credit. The overview uses schematic connections; unavailable routing is explicitly labeled as an estimated fallback. No self-hosted Valhalla, road matrices, coverage limits or persistent geometry caches.
 - **Kept pipeline features:** the core loop above, time windows and service durations, and the k/seed explorer.
