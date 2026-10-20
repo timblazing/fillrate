@@ -9,7 +9,7 @@
   <a href="LICENSE">MIT license</a>
 </p>
 
-<p align="center"><img src="docs/screenshots/run-map.png" alt="A run of the 2,000-order example: eight delivery clusters around a Memphis depot, with revenue, shipment count and trailer fill per cluster" width="900"></p>
+<p align="center"><img src="docs/screenshots/map.png" alt="The playground map for the 2,000-order example: eight delivery clusters around a Memphis depot, with revenue, shipment count and trailer fill per cluster" width="900"></p>
 
 When stock is short and trucks are finite, Fillrate answers three questions for a single depot shipping on 53 ft trailers: **which order lines get the stock, how stops group into delivery areas, and how many full trucks it takes.** Every plan is checked by an independent validator and explains why each line did or didn't ship.
 
@@ -26,10 +26,10 @@ Distances are straight-line miles × a circuity factor (default 1.2). Roads neve
 
 | | |
 |---|---|
-| ![Run summary: revenue, shipments, trailer fill, miles and pipeline steps](docs/screenshots/run-summary.png) | ![Unshipped lines grouped by reason, with evidence for each](docs/screenshots/unshipped.png) |
-| **Run summary.** Headline numbers, preflight checks and each pipeline step. | **Unshipped.** Every line that didn't ship, why, and the evidence. |
-| ![Scenario workbench with the 2,000-order example open: depot, data review and saved versions](docs/screenshots/workbench.png) | ![Hosted playground with its precomputed sample plan](docs/screenshots/playground.png) |
-| **Workbench.** Open a saved scenario or example, review and fix data, save versions, then run. | **Playground.** The public site: explore a precomputed, validated plan for the sample. |
+| ![Input inspection: stop distribution, available stock against demand, and open orders](docs/screenshots/inputs.png) | ![Shipments with trailer fill, stops, linear feet, loaded miles and value](docs/screenshots/shipments.png) |
+| **Inputs.** Where the stops are, how much stock covers demand, and the open orders. | **Shipments.** Every truck with its trailer fill, stops, miles and value. |
+| ![Timeline of one shipment along its road path, stop by stop](docs/screenshots/timeline.png) | ![Unshipped lines grouped by reason, with evidence for each](docs/screenshots/unshipped.png) |
+| **Timeline.** Step through a shipment's drive, stop by stop, on its road path. | **Unshipped.** Every line that didn't ship, why, and the evidence. |
 
 ## Features
 
