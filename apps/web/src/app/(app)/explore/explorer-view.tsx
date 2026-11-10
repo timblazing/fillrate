@@ -1,14 +1,16 @@
 "use client"
 
 import type { ExplorerSettings, ExplorerSummary } from "@fillrate/contracts"
+import { isActive } from "@fillrate/db/status"
 import { ArrowLeft, Check, Download, FlaskConical, Play } from "lucide-react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { PageTitle } from "@/components/app/page"
-import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
+import { JobStatusBadge } from "@/components/lab/job-status"
+import { usePolled } from "@/hooks/use-polled"
 import { KElbowChart } from "@/components/lab/k-elbow-chart"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -24,38 +26,11 @@ import { AGREEMENT_LOW } from "./explorer-map"
 
 const ExplorerMap = dynamic(() => import("./explorer-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 type ExplorerDetail = Extract<RunDetail, { kind: "explorer" }>
-const ACTIVE = new Set(["queued", "running"])
 /** Imported scenarios pick up "Use this k" on /scenarios from this browser key. */
 export const USE_K_KEY = "fillrate.use-k.v1"
 
-function usePolled(initial: ExplorerDetail) {
-  const [run, setRun] = useState(initial)
-  useEffect(() => {
-    if (!ACTIVE.has(run.status)) return
-    let stopped = false
-    let timer: ReturnType<typeof setTimeout>
-    const tick = async () => {
-      if (!document.hidden) {
-        const res = await fetch(`/api/v1/runs/${initial.id}`, { cache: "no-store" }).catch(() => null)
-        if (res?.ok && !stopped) {
-          const next = (await res.json()) as ExplorerDetail
-          setRun(next)
-          if (!ACTIVE.has(next.status)) return
-        }
-      }
-      if (!stopped) timer = setTimeout(tick, 2_000)
-    }
-    timer = setTimeout(tick, 1_000)
-    return () => {
-      stopped = true
-      clearTimeout(timer)
-    }
-  }, [initial.id, run.status])
-  return run
-}
-
 export function ExplorerView({ initial, imported, example }: { initial: ExplorerDetail; imported: boolean; example: string | null }) {
-  const run = usePolled(initial)
+  const [run] = usePolled(`/api/v1/runs/${initial.id}`, initial, (r) => isActive(r.status))
   const settings = run.explorer_settings as unknown as ExplorerSettings
   return (
     <>
@@ -64,7 +39,7 @@ export function ExplorerView({ initial, imported, example }: { initial: Explorer
           <ArrowLeft />
         </Button>
         <PageTitle>k explorer <span className="font-mono">{run.id.slice(0, 8)}</span></PageTitle>
-        <JobStatusBadge state={run.status as JobState} />
+        <JobStatusBadge state={run.status} />
         <span className="text-muted-foreground text-xs tabular-nums">
           {settings.ks ? `k ${settings.ks.join(", ")}` : "k near the selected value"} · seeds {(settings.seeds ?? []).join(", ")} · H3 {(settings.h3_resolutions ?? []).join(", ") || "none"}
         </span>
@@ -78,7 +53,7 @@ export function ExplorerView({ initial, imported, example }: { initial: Explorer
         Clustering only: no stock is reallocated and no shipments are solved. The error sum, stability and seed agreement describe how the
         groupings behave across seeds. They are not solver objectives and not a probability that a grouping is correct.
       </p>
-      {ACTIVE.has(run.status) && <p className="bg-card rounded-xl border p-4 text-sm">{run.status === "queued" ? "Waiting for the earlier runs to finish…" : "Clustering…"}</p>}
+      {isActive(run.status) && <p className="bg-card rounded-xl border p-4 text-sm">{run.status === "queued" ? "Waiting for the earlier runs to finish…" : "Clustering…"}</p>}
       {run.status === "failed" && (
         <Alert variant="error">
           <AlertTitle>{String(run.failure?.code ?? "Explorer failed")}</AlertTitle>

@@ -3,6 +3,7 @@
 import type { ScenarioDocument } from "@fillrate/contracts"
 import type { GeocodeCapabilities, GeocodeJob, GeocodeOptions } from "@fillrate/db/geocode"
 import { COORDINATE_SOURCES, type DataReview } from "@fillrate/db/review"
+import { isActive } from "@fillrate/db/status"
 import { Crosshair, MapPinned, Search, Undo2 } from "lucide-react"
 import dynamic from "next/dynamic"
 import { useState } from "react"
@@ -82,7 +83,7 @@ export function GeocodePanel({ capabilities, review, job, busy, onStart }: {
   const [fallback, setFallback] = useState(true)
   const [regeocode, setRegeocode] = useState(false)
   if (!capabilities || (!capabilities.census && !capabilities.zcta)) return null
-  const running = job?.status === "queued" || job?.status === "running"
+  const running = !!job && isActive(job.status)
   const report = job?.status === "succeeded" ? job.report : null
   return (
     <div className="flex flex-col gap-3 rounded-xl border p-4 text-sm" aria-label="Resolve addresses">

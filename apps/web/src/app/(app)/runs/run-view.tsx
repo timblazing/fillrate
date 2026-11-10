@@ -7,7 +7,10 @@ import Link from "next/link"
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react"
 
 import { PageTitle } from "@/components/app/page"
-import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
+import { isActive } from "@fillrate/db/status"
+
+import { JobStatusBadge } from "@/components/lab/job-status"
+import { usePolled } from "@/hooks/use-polled"
 import { StepsPanel } from "@/components/lab/pipeline-stages"
 import { CoordinateSourceFlag } from "@/components/lab/provenance-badge"
 import { ClusterSwatch, TruckTag } from "@/components/lab/route-swatch"
@@ -35,7 +38,6 @@ import { type Rerun, RerunButton } from "./rerun-button"
 
 const RunMap = dynamic(() => import("./run-map"), { ssr: false, loading: () => <div className="bg-muted/40 h-full animate-pulse" /> })
 
-const ACTIVE = new Set(["queued", "running"])
 const SHIPMENT_PAGE_SIZE = 50
 const miles = (m: number) => formatMiles(m / METERS_PER_MILE)
 
@@ -49,37 +51,13 @@ const strategyLabel = (summary: RunSummary) =>
   : summary.clustering.requested_k ? `k = ${summary.clustering.requested_k} (fixed)` : `Auto k = ${summary.clustering.selected_k ?? 0}`
 
 // Polls the run every 2 s while it is active (5 s after the first minute), pausing while the tab is hidden.
-function useRun(initial: PipelineDetail) {
-  const [run, setRun] = useState(initial)
-  useEffect(() => {
-    if (!ACTIVE.has(run.status)) return
-    const started = Date.now()
-    let timer: ReturnType<typeof setTimeout>
-    let stopped = false
-    const tick = async () => {
-      if (!document.hidden) {
-        const res = await fetch(`/api/v1/runs/${initial.id}`, { cache: "no-store" }).catch(() => null)
-        if (res?.ok && !stopped) {
-          const next = (await res.json()) as PipelineDetail
-          setRun(next)
-          if (!ACTIVE.has(next.status)) return
-        }
-      }
-      if (!stopped) timer = setTimeout(tick, Date.now() - started > 60_000 ? 5_000 : 2_000)
-    }
-    timer = setTimeout(tick, 1_000)
-    return () => {
-      stopped = true
-      clearTimeout(timer)
-    }
-  }, [initial.id, run.status])
-  return [run, setRun] as const
-}
+const useRun = (initial: PipelineDetail) =>
+  usePolled(`/api/v1/runs/${initial.id}`, initial, (run) => isActive(run.status), { slow: { after: 60_000, every: 5_000 } })
 
 export function RunView({ initial, rerun, scenarioHref = null }: { initial: PipelineDetail; rerun?: Rerun | null; scenarioHref?: string | null }) {
   const [run, setRun] = useRun(initial)
   const [cancelling, setCancelling] = useState(false)
-  const active = ACTIVE.has(run.status)
+  const active = isActive(run.status)
   const failureCode = String(run.failure?.code ?? "error")
   const ended = !active
   const failure = failureCopy(failureCode)
@@ -101,7 +79,7 @@ export function RunView({ initial, rerun, scenarioHref = null }: { initial: Pipe
           <ArrowLeft />
         </Button>
         <PageTitle className="font-mono">Run {run.id.slice(0, 8)}</PageTitle>
-        <JobStatusBadge state={run.status as JobState} />
+        <JobStatusBadge state={run.status} />
         <span className="text-muted-foreground text-xs tabular-nums">
           {run.settings.cluster_strategy === "kmeans" ? `k ${run.settings.k ?? "auto"}` : run.settings.cluster_strategy === "h3" ? `H3 r${run.settings.h3_resolution}` : "no clustering"} · solver seed {run.settings.solver_seed}
           {run.settings.inventory_percent !== 100 && ` · inventory ${run.settings.inventory_percent}%`}

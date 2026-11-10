@@ -13,9 +13,12 @@ export { canonical } from "./canonical";
 import { canonical } from "./canonical";
 export const contentHash = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 
-const ACTIVE = ["queued", "running"];
-const FINISHED = ["succeeded", "failed", "cancelled", "interrupted"];
-const quoted = (items: string[]) => items.map(x => `'${x}'`).join(",");
+import { ACTIVE_STATUSES, RUN_STATUSES, RUN_TRANSITIONS, asRunStatus, isActive, sqlList, type ActiveStatus, type RunOutcome, type RunStatus } from "./status";
+export * from "./status";
+
+const FINISHED = RUN_STATUSES.filter(status => !isActive(status));
+/** The statuses a run may move to `to` from, read off the transition table. */
+const from = (to: RunStatus) => sqlList(RUN_STATUSES.filter(status => RUN_TRANSITIONS[status].includes(to)));
 
 /** What the optimizer returned for a finished run. Pipeline runs carry a summary and the stages a replay bundle needs. */
 export type RunResult = {
@@ -25,6 +28,8 @@ export type RunResult = {
   output_hash?: string;
 };
 export type RunFailure = { code: string; message: string };
+/** How an active run ends; one variant per `RunOutcome`. */
+export type RunEnd = ({ status: "succeeded"; result: RunResult } | { status: "failed"; error: RunFailure } | { status: "cancelled" }) & { status: RunOutcome };
 
 export function openDatabase(path: string, migrationsFolder = process.env.DB_MIGRATIONS_DIR ?? join(process.cwd(), "packages/db/migrations")) {
   mkdirSync(dirname(path), { recursive: true });
@@ -67,7 +72,7 @@ export class Store {
   }
 
   /** Inserts one run. `ownerId` is the submitter; it must own the version's scenario unless that is a bundled example. */
-  createRun(versionId: string, settings: Snapshot, kind: RunKind = "pipeline", options: { ownerId?: string; status?: "queued" | "running"; now?: number } = {}) {
+  createRun(versionId: string, settings: Snapshot, kind: RunKind = "pipeline", options: { ownerId?: string; status?: ActiveStatus; now?: number } = {}) {
     parseContract("Snapshot", settings);
     const ownerId = options.ownerId ?? OPERATOR;
     this.assertSubmitter(versionId, ownerId);
@@ -114,7 +119,7 @@ export class Store {
   /** Sweeps on bundled examples, plus those on `ownerId`'s scenarios. */
   listExperiments(limit = 50, ownerId: string | null = null) {
     return this.sqlite.prepare(`SELECT e.id, e.name, e.versionId, e.createdAt, count(er.id) AS runs,
-      sum(CASE WHEN r.status IN (${quoted(FINISHED)}) THEN 1 ELSE 0 END) AS finished
+      sum(CASE WHEN r.status IN (${sqlList(FINISHED)}) THEN 1 ELSE 0 END) AS finished
       FROM experiments e JOIN scenario_versions v ON v.id=e.versionId JOIN scenarios sc ON sc.id=v.scenarioId
       LEFT JOIN experiment_runs er ON er.experimentId=e.id LEFT JOIN runs r ON r.id=er.runId
       WHERE sc.ownerId='examples' OR sc.ownerId=?
@@ -159,8 +164,8 @@ export class Store {
       const marks = (n: unknown[]) => n.map(() => "?").join(",") || "NULL";
       const versions = list(this.sqlite.prepare(`SELECT id FROM scenario_versions WHERE scenarioId IN (${marks(scenarios)})`).all(...scenarios) as { id: string }[]);
       const runs = list(this.sqlite.prepare(`SELECT id FROM runs WHERE versionId IN (${marks(versions)})`).all(...versions) as { id: string }[]);
-      const busy = this.sqlite.prepare(`SELECT count(*) AS n FROM runs WHERE id IN (${marks(runs)}) AND status IN (${quoted(ACTIVE)})`).get(...runs) as { n: number };
-      const geocoding = this.sqlite.prepare(`SELECT count(*) AS n FROM geocode_jobs WHERE (versionId IN (${marks(versions)}) OR resultVersionId IN (${marks(versions)})) AND status IN ('queued','running')`).get(...versions, ...versions) as { n: number };
+      const busy = this.sqlite.prepare(`SELECT count(*) AS n FROM runs WHERE id IN (${marks(runs)}) AND status IN (${sqlList(ACTIVE_STATUSES)})`).get(...runs) as { n: number };
+      const geocoding = this.sqlite.prepare(`SELECT count(*) AS n FROM geocode_jobs WHERE (versionId IN (${marks(versions)}) OR resultVersionId IN (${marks(versions)})) AND status IN (${sqlList(ACTIVE_STATUSES)})`).get(...versions, ...versions) as { n: number };
       if (busy.n || geocoding.n) throw new Error("active_work");
       this.deleteRuns(runs);
       const experiments = list(this.sqlite.prepare(`SELECT id FROM experiments WHERE versionId IN (${marks(versions)})`).all(...versions) as { id: string }[]);
@@ -195,27 +200,28 @@ export class Store {
 
   /** Moves a queued run to running. False when it was cancelled (or otherwise ended) while it waited. */
   startRun(runId: string) {
-    return this.sqlite.prepare("UPDATE runs SET status='running' WHERE id=? AND status IN ('queued','running')").run(runId).changes > 0;
+    // A run created as `running` (the queue was idle) passes through unchanged.
+    return this.sqlite.prepare(`UPDATE runs SET status='running' WHERE id=? AND status IN (${from("running")},'running')`).run(runId).changes > 0;
   }
 
   /** Records the outcome of an active run. False when it already ended (for example, it was cancelled). */
-  finishRun(runId: string, outcome: { status: "succeeded"; result: RunResult } | { status: "failed"; error: RunFailure } | { status: "cancelled" }, now = Date.now()) {
+  finishRun(runId: string, outcome: RunEnd, now = Date.now()) {
     const result = outcome.status === "succeeded" ? JSON.stringify(outcome.result) : null;
     const error = outcome.status === "failed" ? JSON.stringify(outcome.error) : null;
-    return this.sqlite.prepare(`UPDATE runs SET status=?, result=?, error=?, finishedAt=? WHERE id=? AND status IN ('queued','running')`).run(outcome.status, result, error, now, runId).changes > 0;
+    return this.sqlite.prepare(`UPDATE runs SET status=?, result=?, error=?, finishedAt=? WHERE id=? AND status IN (${from(outcome.status)})`).run(outcome.status, result, error, now, runId).changes > 0;
   }
 
   /** Marks a queued or running run cancelled; returns the status it had, or null if it had already ended. */
   cancelRun(runId: string, now = Date.now()) {
     const row = this.sqlite.prepare("SELECT status FROM runs WHERE id=?").get(runId) as { status: string } | undefined;
     if (!row) throw new Error("run_not_found");
-    return this.finishRun(runId, { status: "cancelled" }, now) ? row.status : null;
+    return this.finishRun(runId, { status: "cancelled" }, now) ? (row.status as ActiveStatus) : null;
   }
 
   /** On startup: no solve survives a restart, so any unfinished run is failed. */
   failInterruptedRuns(now = Date.now()) {
     const error = JSON.stringify({ code: "interrupted", message: "interrupted (server restarted)" } satisfies RunFailure);
-    return this.sqlite.prepare(`UPDATE runs SET status='failed', error=?, finishedAt=? WHERE status IN (${quoted(ACTIVE)})`).run(error, now).changes;
+    return this.sqlite.prepare(`UPDATE runs SET status='failed', error=?, finishedAt=? WHERE status IN (${from("failed")})`).run(error, now).changes;
   }
 
   /** The payload the optimizer's `/solve` takes for a run. */
@@ -242,7 +248,8 @@ export class Store {
     return this.db.select({ id: s.runs.id, status: s.runs.status, createdAt: s.runs.createdAt, versionId: s.runs.versionId, kind: s.runs.kind, scenarioOwner: s.scenarios.ownerId })
       .from(s.runs).innerJoin(s.versions, eq(s.versions.id, s.runs.versionId)).innerJoin(s.scenarios, eq(s.scenarios.id, s.versions.scenarioId))
       .where(sql`${s.scenarios.ownerId} = ${EXAMPLES_OWNER} OR ${s.scenarios.ownerId} = ${ownerId ?? ""}`)
-      .orderBy(sql`${s.runs.createdAt} desc`, sql`${s.runs.id} desc`).limit(limit).all();
+      .orderBy(sql`${s.runs.createdAt} desc`, sql`${s.runs.id} desc`).limit(limit).all()
+      .map(run => ({ ...run, status: asRunStatus(run.status) }));
   }
 
   /** A run's identity, settings and status; the result is read separately with `runResult`. */
@@ -251,7 +258,7 @@ export class Store {
       .from(s.runs).where(eq(s.runs.id, runId)).get();
     if (!run) return null;
     return {
-      id: run.id, versionId: run.versionId, status: run.status, createdAt: run.createdAt, finishedAt: run.finishedAt, kind: run.kind as RunKind, ownerId: run.ownerId,
+      id: run.id, versionId: run.versionId, status: asRunStatus(run.status), createdAt: run.createdAt, finishedAt: run.finishedAt, kind: run.kind as RunKind, ownerId: run.ownerId,
       settings: JSON.parse(run.settings) as Snapshot,
       error: run.error ? JSON.parse(run.error) as RunFailure : null,
     };

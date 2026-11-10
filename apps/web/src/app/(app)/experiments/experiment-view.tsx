@@ -1,11 +1,13 @@
 "use client"
 
+import { asRunStatus, isActive } from "@fillrate/db/status"
 import { ArrowDown, ArrowLeft, ArrowUp, Download, Star, X } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 
 import { PageTitle } from "@/components/app/page"
-import { JobStatusDot, type JobState } from "@/components/lab/job-status"
+import { JobStatusDot } from "@/components/lab/job-status"
+import { usePolled } from "@/hooks/use-polled"
 import { FillPercent } from "@/components/lab/trailer-fill"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,33 +18,9 @@ import type { ExperimentDetail } from "@/lib/server/experiments"
 import { formatCount, formatMiles, formatMoney } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
-const ACTIVE = new Set(["queued", "running"])
 const MI = 1609.344
 type MetricKey = keyof ExperimentDetail["metrics"]
 type Row = ExperimentDetail["runs"][number]
-
-function usePolled(initial: ExperimentDetail) {
-  const [detail, setDetail] = useState(initial)
-  const active = detail.runs.some((r) => ACTIVE.has(r.status))
-  useEffect(() => {
-    if (!active) return
-    let stopped = false
-    let timer: ReturnType<typeof setTimeout>
-    const tick = async () => {
-      if (!document.hidden) {
-        const res = await fetch(`/api/v1/experiments/${initial.id}`, { cache: "no-store" }).catch(() => null)
-        if (res?.ok && !stopped) setDetail(await res.json())
-      }
-      if (!stopped) timer = setTimeout(tick, 3_000)
-    }
-    timer = setTimeout(tick, 2_000)
-    return () => {
-      stopped = true
-      clearTimeout(timer)
-    }
-  }, [initial.id, active])
-  return [detail, setDetail] as const
-}
 
 const display: Record<MetricKey, (v: number) => React.ReactNode> = {
   planned_cents: (v) => formatMoney(v, { compact: true }),
@@ -65,8 +43,8 @@ function delta(k: MetricKey, value: number, best: number): string | null {
 const COLUMNS: MetricKey[] = ["planned_cents", "trucks", "utilization", "min_fill", "mean_centroid_m", "max_diameter_m", "loaded_distance_m"]
 
 export function ExperimentView({ initial, imported }: { initial: ExperimentDetail; imported: boolean }) {
-  const [detail, setDetail] = usePolled(initial)
-  const finished = detail.runs.filter((r) => !ACTIVE.has(r.status)).length
+  const [detail, setDetail] = usePolled(`/api/v1/experiments/${initial.id}`, initial, (d) => d.runs.some((r) => isActive(r.status)), { first: 2_000, every: 3_000 })
+  const finished = detail.runs.filter((r) => !isActive(r.status)).length
   const top = detail.runs.filter((r) => r.label).sort((a, b) => a.rank! - b.rank! || a.position - b.position)
   const rows = [...detail.runs].sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.position - b.position)
   const label = (k: MetricKey | "non_dominated") => (k === "non_dominated" ? BEST_TRADEOFF : detail.metrics[k].label)
@@ -157,7 +135,7 @@ function RunRow({ r, best }: { r: Row; best: Row | null }) {
       <td>{r.non_dominated && <span title={BEST_TRADEOFF_HINT} className="inline-flex"><Star className="text-success-foreground size-3.5 fill-current" aria-label={BEST_TRADEOFF} /></span>}</td>
       <td className="px-2 py-2">
         <div className="flex items-center gap-2">
-          <JobStatusDot state={r.status as JobState} />
+          <JobStatusDot state={asRunStatus(r.status)} />
           <Link href={`/runs/${r.id}`} className="font-mono text-xs underline-offset-4 hover:underline">{r.id.slice(0, 8)}</Link>
           {r.validity === "invalid" && <Badge variant="error" size="sm">invalid</Badge>}
         </div>
