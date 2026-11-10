@@ -6,6 +6,7 @@ import type { RunSettings, ScenarioDocument } from "@fillrate/contracts"
 import type { GeocodeCapabilities, GeocodeJob, GeocodeOptions } from "@fillrate/db/geocode"
 import type { CsvImportInput, CsvImportPreview } from "@fillrate/db/imports"
 import { reviewScenario } from "@fillrate/db/review"
+import { isActive } from "@fillrate/db/status"
 import { ChevronDownIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -107,7 +108,7 @@ export function ScenarioWorkbench() {
   }, [])
   // Poll a geocoding job; when it finishes, open the version it saved.
   useEffect(() => {
-    if (!geocodeJob || (geocodeJob.status !== "queued" && geocodeJob.status !== "running")) return
+    if (!geocodeJob || !isActive(geocodeJob.status)) return
     const timer = window.setTimeout(async () => {
       try {
         const next = await api<GeocodeJob>(`/api/v1/geocode/jobs/${geocodeJob.id}`)

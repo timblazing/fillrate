@@ -2,14 +2,10 @@ import { Ban, Check, CircleDashed, Loader, TriangleAlert, Unplug } from "lucide-
 
 import { cn } from "@/lib/utils"
 
-// Run states. "interrupted" only appears on runs made before direct solves.
-export type JobState =
-  | "queued"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "cancelled"
-  | "interrupted"
+import { RUN_STATUSES, type RunStatus } from "@fillrate/db/status"
+
+// Run states come from the lifecycle in `@fillrate/db/status`; "interrupted" only appears on runs made before direct solves.
+export type JobState = RunStatus
 
 const states: Record<JobState, { label: string; icon: typeof Check; className: string }> = {
   queued: { label: "Queued", icon: CircleDashed, className: "text-muted-foreground bg-muted" },
@@ -20,7 +16,7 @@ const states: Record<JobState, { label: string; icon: typeof Check; className: s
   interrupted: { label: "Interrupted", icon: Unplug, className: "text-warning-foreground bg-warning/10" },
 }
 
-export const jobStates = Object.keys(states) as JobState[]
+export const jobStates = RUN_STATUSES
 
 export function JobStatusBadge({ state, className }: { state: JobState; className?: string }) {
   const { label, icon: Icon, className: tone } = states[state]

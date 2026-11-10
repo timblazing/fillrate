@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import type { ScenarioDocument } from "@fillrate/contracts";
 import { canonical } from "./canonical";
+import { ACTIVE_STATUSES, sqlList, type GeocodeJobStatus } from "./status";
 import { csvRecords } from "./imports";
 import { contentHash, OPERATOR, type Store } from "./index";
 import { saveScenario, scenarioVersion, type ScenarioMetadata } from "./scenarios";
@@ -252,7 +253,7 @@ export async function geocodeDocument(store: Store, config: GeocodeConfig, doc: 
 // ---- Durable jobs ----------------------------------------------------------------------------------
 
 export type GeocodeJob = {
-  id: string; versionId: string; status: "queued" | "running" | "succeeded" | "failed";
+  id: string; versionId: string; status: GeocodeJobStatus;
   options: GeocodeOptions; progress: GeocodeProgress | null; report: GeocodeReport | null;
   resultVersionId: string | null; resultScenarioId: string | null; branched: boolean; error: string | null; createdAt: number; updatedAt: number;
 };
@@ -280,7 +281,7 @@ export function geocodeJob(store: Store, id: string, ownerId = OPERATOR): Geocod
 
 /** A server restart interrupts in-process jobs. Matches already received stay cached for the retry. */
 export function failInterruptedGeocodeJobs(store: Store) {
-  return store.sqlite.prepare("UPDATE geocode_jobs SET status='failed', error=?, updatedAt=? WHERE status IN ('queued','running')")
+  return store.sqlite.prepare(`UPDATE geocode_jobs SET status='failed', error=?, updatedAt=? WHERE status IN (${sqlList(ACTIVE_STATUSES)})`)
     .run("The server restarted before geocoding finished. Start it again; matches already received are cached.", Date.now()).changes;
 }
 
@@ -298,7 +299,6 @@ export async function runGeocodeJob(store: Store, config: GeocodeConfig, id: str
     const version = scenarioVersion(store, scenarioId, row.versionId, row.ownerId);
     const options = JSON.parse(row.options) as GeocodeOptions;
     const { document, report } = await geocodeDocument(store, config, version.document, options, p => set("progress=?", canonical(p)), row.ownerId);
-    if ((store.sqlite.prepare("SELECT status FROM geocode_jobs WHERE id=?").get(id) as { status: string }).status === "cancelled") return geocodeJob(store, id, row.ownerId);
     const prior = (version.source ?? {}) as { geocoding?: unknown[] };
     const source = { ...prior, geocoding: [...(Array.isArray(prior.geocoding) ? prior.geocoding : []), { job: id, options, report }] };
     const save = (branch: boolean) => saveScenario(store, { document, author: row.author, metadata: JSON.parse(row.metadata), source, scenarioId, expectedVersionId: row.versionId, branch, ownerId: row.ownerId });

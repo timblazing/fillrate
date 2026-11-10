@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { canonical, contentHash, openDatabase, type Store } from "../src/index";
+import { ACTIVE_STATUSES, RUN_TRANSITIONS, asRunStatus, canTransition, canonical, contentHash, openDatabase, type RunStatus, type Store } from "../src/index";
 import { parseContract } from "@fillrate/contracts";
 import * as s from "../src/schema";
 
@@ -67,7 +67,7 @@ test("cancelling a queued run keeps it from starting; cancelling a running run r
 test("on startup unfinished runs fail as interrupted and finished runs are untouched", () => {
   const queued = store.createRun(versionId, snapshot);
   const running = store.createRun(versionId, snapshot, "pipeline", { status: "running" });
-  const done = store.createRun(versionId, snapshot); store.finishRun(done, { status: "succeeded", result: {} });
+  const done = store.createRun(versionId, snapshot); store.startRun(done); store.finishRun(done, { status: "succeeded", result: {} });
   expect(store.failInterruptedRuns()).toBe(2);
   for (const id of [queued, running]) expect(store.runView(id)).toMatchObject({ status: "failed", error: { code: "interrupted", message: "interrupted (server restarted)" } });
   expect(status(done)).toBe("succeeded");
@@ -106,4 +106,14 @@ test("snapshot immutability is enforced by SQLite, including direct writes", () 
   expect(() => store.sqlite.prepare("UPDATE scenario_versions SET document = '{}'").run()).toThrow("immutable");
   expect(() => store.sqlite.prepare("UPDATE runs SET settings = '{}'").run()).toThrow("immutable");
   expect(() => store.sqlite.prepare("UPDATE runs SET status = 'queued'").run()).not.toThrow();
+});
+
+test("the store takes exactly the edges in the transition table", () => {
+  const outcomes = { succeeded: { status: "succeeded", result: {} }, failed: { status: "failed", error: { code: "x", message: "x" } }, cancelled: { status: "cancelled" } } as const;
+  for (const start of ACTIVE_STATUSES) for (const [to, outcome] of Object.entries(outcomes)) {
+    const id = store.createRun(versionId, snapshot, "pipeline", { status: start });
+    expect(store.finishRun(id, outcome)).toBe(canTransition(start, to as RunStatus));
+  }
+  for (const end of Object.keys(outcomes)) expect(RUN_TRANSITIONS[end as RunStatus]).toEqual([]);
+  expect(asRunStatus("from_the_future")).toBe("failed");
 });

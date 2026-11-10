@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Page, PageHeader } from "@/components/app/page"
 import { Button } from "@/components/ui/button"
 import { ExampleSwitch } from "@/components/lab/example-switch"
-import { JobStatusBadge, type JobState } from "@/components/lab/job-status"
+import { JobStatusBadge } from "@/components/lab/job-status"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { initializeDatabase } from "@/lib/server/database"
 import { EXAMPLES, exampleInfo, pageExample } from "@/lib/server/runs"
@@ -75,7 +75,7 @@ export default async function RunsPage({ searchParams }: PageProps<"/runs">) {
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">{run.kind === "explorer" ? "k explorer" : "Pipeline"}</TableCell>
                     <TableCell>
-                      <JobStatusBadge state={run.status as JobState} />
+                      <JobStatusBadge state={run.status} />
                     </TableCell>
                     <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
                       {new Date(run.createdAt).toISOString().replace("T", " ").slice(0, 19)} UTC
