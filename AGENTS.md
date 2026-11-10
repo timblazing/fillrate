@@ -45,7 +45,7 @@ examples            Bundled synthetic example scenario
 
 For Claude (GitHub Actions, `@claude`) and Codex (Codex Cloud, `@codex`) working on this repo in the cloud.
 
-- Skills come from [timblazing/skills](https://github.com/timblazing/skills). The Claude workflow installs them before each run, and so does the Codex Cloud environment's setup script. Use `pr-workflow` to land changes and `leaving-pr-comments` for anything you post on GitHub.
+- Skills come from [timblazing/skills](https://github.com/timblazing/skills). The Claude workflow installs them before each run, and so does the Codex Cloud environment's setup script. Use `build` to land changes (it calls the other workflow skills) and `leaving-pr-comments` for anything you post on GitHub.
 - Never push to `main`. Work on a branch and open a pull request.
 - Verify with `bun run build`, `bun run typecheck`, `bun run test` and `bun run lint` before you push (install first with `bun install`).
 - Do not update local session logs or work logs (for example `docs/WORKLOG.md`); put remaining work in the PR description.
