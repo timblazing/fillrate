@@ -41,16 +41,16 @@ examples            Bundled synthetic example scenario
 - Before using a Next.js API, read the bundled guide in `apps/web/node_modules/next/dist/docs/`.
 - Browser checks use the local `agent-browser` CLI (installed globally, not a repo dependency), headless at desktop 1440×900 and iPhone 16 393×852, against local servers with synthetic data.
 
-## Cloud agents
+## Unattended agents
 
-For Claude (GitHub Actions, `@claude`) and Codex (Codex Cloud, `@codex`) working on this repo in the cloud.
+For Claude (GitHub Actions, `@claude`) running unattended on this repo, on anton's single-use runners.
 
-- Skills come from [timblazing/skills](https://github.com/timblazing/skills). The Claude workflow installs them before each run, and so does the Codex Cloud environment's setup script. Use `build` to land changes (it calls the other workflow skills) and `leaving-pr-comments` for anything you post on GitHub.
+- Skills come from [timblazing/skills](https://github.com/timblazing/skills). The Claude workflow installs them before each run. Use `build` to land changes (it calls the other workflow skills) and `leaving-pr-comments` for anything you post on GitHub.
 - Never push to `main`. Work on a branch and open a pull request.
 - Verify with `bun run build`, `bun run typecheck`, `bun run test` and `bun run lint` before you push (install first with `bun install`).
 - Do not update local session logs or work logs (for example `docs/WORKLOG.md`); put remaining work in the PR description.
 - End every issue comment you post with a status marker on its own last line, as an HTML comment (GitHub doesn't show it): `<!-- proj-agent: needs-input -->` when you are waiting on an answer from the owner, `<!-- proj-agent: working -->` for an acknowledgement or progress note, `<!-- proj-agent: done -->` once the work is finished. proj reads it to show the issue's status.
-- The shared instructions installed with the skills are written for a local Mac. In the cloud, skip the local-only rules: browser work through `agent-browser` (and the `ui-check`, `ui-qa`, `ui-evidence` skills), iOS simulators and Android emulators, the Docker/VM rules and T3 Code tools. Say in the PR what still needs checking by hand.
+- The shared instructions installed with the skills are written for a local Mac. In an unattended run, skip the local-only rules: browser work through `agent-browser` (and the `ui-check`, `ui-qa`, `ui-evidence` skills), iOS simulators and Android emulators, the Docker/VM rules and T3 Code tools. Say in the PR what still needs checking by hand.
 
 ## Code Review Rules
 
