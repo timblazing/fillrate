@@ -78,3 +78,13 @@ docs/
 - Record a significant decision as a new ADR in `docs/decisions/` (next number, short title, with Context, Decision and Consequences headings).
 - Start every doc with a single `# Title` heading, and use relative links between docs. Keep `docs/README.md` linking to everything else.
 - If the existing docs are somewhere else or laid out differently, don't reshuffle them as a side effect of other work; move them in a PR of their own.
+
+## Pull requests
+
+This repo is a proj project. proj reads the first two lines of every PR body and, depending on the project's auto-merge mode (Off, Low-stakes only or Always, set in proj), may merge the PR on its own.
+
+- Start every PR body with exactly these two lines, plain text, nothing before them:
+  `Agent: <harness> | <orchestrator> | <model>` then `Risk: <low|medium|high>`.
+  Harness is Claude Code or Codex, orchestrator is T3 Code, GitHub Actions or Terminal, and model is the public model name. Write `unknown` for any field you don't know. This applies to PR text written by T3 Code's Create PR button too.
+- `Risk: low` touches no protected path and is easy to revert. `medium` touches no protected path but isn't trivially revertible (data shape, behavior users rely on, a wide refactor). `high` touches CI or deploy workflows, auth, migrations or secrets, or could lose data or break production. When unsure, pick the higher level: Low-stakes only merges `Risk: low` PRs without the owner, so rate honestly.
+- Before handing a PR back, ask proj whether it will merge it (MCP tool `pull_merge_outlook`, when it's available). If it will, say so instead of asking the owner to merge. The `no-automerge` label keeps any PR for the owner.
