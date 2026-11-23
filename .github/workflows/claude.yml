@@ -1,5 +1,5 @@
-# Added by proj (Set up agents). Runs Claude Code when timblazing mentions @claude.
-# The job lives in timblazing/skills/.github/workflows/claude-agent.yml; proj sets the CLAUDE_* repo variables.
+# Added by proj (Set up agents). Runs Claude Code when timblazing mentions @claude, and nightly when CLAUDE_NIGHTLY is true.
+# The mention job lives in timblazing/skills/.github/workflows/claude-agent.yml; proj sets the CLAUDE_* repo variables.
 name: Claude
 
 on:
@@ -11,6 +11,9 @@ on:
     types: [opened, assigned]
   pull_request_review:
     types: [submitted]
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
 
 jobs:
   claude:
@@ -29,3 +32,81 @@ jobs:
       skills-repo: ${{ vars.CLAUDE_SKILLS_REPO }}
       skills-ref: ${{ vars.CLAUDE_SKILLS_REF }}
     secrets: inherit
+
+  # Nightly (ADR 0041): the schedule runs only while CLAUDE_NIGHTLY is true; a manual run always goes.
+  pick:
+    if: ${{ (github.event_name == 'schedule' && vars.CLAUDE_NIGHTLY == 'true') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      issue: ${{ steps.pick.outputs.issue }}
+    steps:
+      - id: pick
+        uses: actions/github-script@v7
+        with:
+          script: |
+            function pickNightlyIssue(issues, prs) {
+              var names = function (issue) {
+                return ((issue.labels && issue.labels.nodes) || []).map(function (l) { return String(l.name).toLowerCase(); });
+              };
+              var closes = function (number) {
+                var re = new RegExp("\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s*:?\\s+(?:[\\w.-]+/[\\w.-]+)?#" + number + "(?![0-9])", "i");
+                return function (pr) { return re.test((pr && pr.body) || ""); };
+              };
+              var open = (issues || []).filter(function (issue) {
+                var labels = names(issue);
+                if (labels.indexOf("agent-ready") < 0 || labels.indexOf("no-nightly") >= 0) return false;
+                if (issue.linkedBranches && issue.linkedBranches.totalCount > 0) return false;
+                if (issue.closedByPullRequestsReferences && issue.closedByPullRequestsReferences.nodes.length > 0) return false;
+                return !(prs || []).some(closes(issue.number));
+              });
+              open.sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
+              return open.length ? open[0] : null;
+            }
+            const repo = context.repo;
+            const data = await github.graphql('query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { issues(first: 100, states: OPEN, labels: ["agent-ready"], orderBy: {field: CREATED_AT, direction: ASC}) { nodes { number title createdAt labels(first: 30) { nodes { name } } linkedBranches(first: 1) { totalCount } closedByPullRequestsReferences(first: 1, includeClosedPrs: false) { nodes { number } } } } } }', { owner: repo.owner, name: repo.repo });
+            const prs = await github.paginate(github.rest.pulls.list, { owner: repo.owner, repo: repo.repo, state: 'open', per_page: 100 });
+            const issue = pickNightlyIssue(data.repository.issues.nodes, prs.map((p) => ({ body: p.body, headRefName: p.head.ref })));
+            core.setOutput('issue', issue ? String(issue.number) : '');
+            core.info(issue ? 'Working #' + issue.number + ': ' + issue.title : 'No agent-ready issue to work tonight.');
+
+  nightly:
+    needs: pick
+    if: ${{ needs.pick.outputs.issue != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.CLAUDE_TIMEOUT_MINUTES || '60') }}
+    # One issue per repo per night: runs never overlap, and nothing loops.
+    concurrency:
+      group: claude-nightly
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Install skills
+        env:
+          SKILLS_REPO: ${{ vars.CLAUDE_SKILLS_REPO || 'https://github.com/timblazing/skills' }}
+          SKILLS_REF: ${{ vars.CLAUDE_SKILLS_REF || 'main' }}
+        run: |
+          if [ "$SKILLS_REF" = main ]; then git clone --depth 1 "$SKILLS_REPO" "$HOME/skills"; else git clone --depth 1 --branch "$SKILLS_REF" "$SKILLS_REPO" "$HOME/skills"; fi
+          "$HOME/skills/install.sh"
+      - run: corepack enable || true
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: >-
+            ${{ vars.CLAUDE_MODEL && format('--model {0}', vars.CLAUDE_MODEL) || '' }}
+            ${{ vars.CLAUDE_EFFORT && format('--effort {0}', vars.CLAUDE_EFFORT) || '' }}
+            --permission-mode bypassPermissions
+          prompt: |
+            Work GitHub issue #${{ needs.pick.outputs.issue }} in this repository. Read it with gh issue view ${{ needs.pick.outputs.issue }} --comments, then use the build skill and follow this repo's AGENTS.md. Open a pull request whose body starts with the Agent and Risk lines AGENTS.md asks for and includes Closes #${{ needs.pick.outputs.issue }}. If the issue is missing a decision only the owner can make, comment on it with your question and stop. Never mention or tag any bot or agent in anything you write to GitHub.
