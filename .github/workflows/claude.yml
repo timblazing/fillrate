@@ -31,6 +31,8 @@ jobs:
       timeout-minutes: ${{ vars.CLAUDE_TIMEOUT_MINUTES }}
       skills-repo: ${{ vars.CLAUDE_SKILLS_REPO }}
       skills-ref: ${{ vars.CLAUDE_SKILLS_REF }}
+      infisical-identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+      infisical-project-id: ${{ vars.INFISICAL_PROJECT_ID }}
     secrets: inherit
 
   # Nightly (ADR 0041): the schedule runs only while CLAUDE_NIGHTLY is true; a manual run always goes.
@@ -101,9 +103,17 @@ jobs:
           if [ "$SKILLS_REF" = main ]; then git clone --depth 1 "$SKILLS_REPO" "$HOME/skills"; else git clone --depth 1 --branch "$SKILLS_REF" "$SKILLS_REPO" "$HOME/skills"; fi
           "$HOME/skills/install.sh"
       - run: corepack enable || true
+      - name: Read the Claude token from Infisical
+        uses: Infisical/secrets-action@d2e351f16c6ca20d17c85e6c992e04bdeb64e87d # v1.0.18
+        with:
+          method: oidc
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-id: ${{ vars.INFISICAL_PROJECT_ID }}
+          env-slug: prod
+          secret-name: CLAUDE_CODE_OAUTH_TOKEN
       - uses: anthropics/claude-code-action@v1
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ env.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: >-
             ${{ vars.CLAUDE_MODEL && format('--model {0}', vars.CLAUDE_MODEL) || '' }}
             ${{ vars.CLAUDE_EFFORT && format('--effort {0}', vars.CLAUDE_EFFORT) || '' }}
